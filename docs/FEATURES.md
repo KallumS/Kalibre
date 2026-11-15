@@ -13,7 +13,7 @@ Every feature asked for, then the list of basic DAW features
 
 | Feature | Status | Where, and notes |
 | --- | --- | --- |
-| Apple silicon Mac app | Built, untried | CI builds an arm64 `.dmg` on every push (Actions > Build > Kalibre-macOS) |
+| Apple silicon Mac app | Yes, on CI | Built for arm64 on every push, with the tests passing on macOS; download Actions > Build > Kalibre-macOS. Not yet opened by the user |
 | Hosts AU, VST3 and CLAP | Built, untried | AU and VST3 through JUCE; CLAP through Kalibre's own host (0021). Kalibre menu > Scan for Plug-ins |
 | Everything in one window | Yes | 0002. Small questions appear over the window, inside it |
 | Tempo and time signature, automatable | Yes | Top bar; Transport > Ramp the Tempo to Here; View > Tempo Lane. Ramps integrated exactly, tested (0004) |
@@ -45,7 +45,7 @@ Every feature asked for, then the list of basic DAW features
 | Area | Status | Missing |
 | --- | --- | --- |
 | 1. Transport | Yes | Play, stop, record, return to start, loop, punch, overdub (recording adds clips), count-in, metronome (accent, subdivisions, volume), tempo, time signature, tap tempo, pre-roll, follow, playhead, bars/beats, minutes, samples and timecode. Pause isn't separate from stop |
-| 2. Tracks | Partly | Tracks, folders, returns, master; name, colour, volume, pan, mute, solo, arm, input monitoring, enable, lock, delay, sends, outputs. Not yet: video tracks, freeze, track grouping links, input/output choosers in the window (inputs default to 1-2) |
+| 2. Tracks | Partly | Tracks, folders, returns, master; name, colour, volume, pan, mute, solo, arm, input monitoring, enable, lock, delay, sends, outputs. Freeze (track menu: renders it through its plug-ins, unloads them; tested). Not yet: video tracks, track grouping links, input/output choosers in the window (inputs default to 1-2) |
 | 3. MIDI input and editing | Partly | Every keyboard is listened to; overdub, capture, draw/move/resize/delete/duplicate, quantise, transpose, velocity, split, join, legato, humanise, scale shading. Controller lanes in the piano roll (modulation, expression, sustain, pitch bend, pressure, any CC: click the lane's name), drawn freehand, right-drag erases; no MPE; MIDI channel filtering per track not in the window |
 | 4. Audio recording and editing | Partly | Multitrack recording to 24-bit WAV, punch, split, duplicate, trim, fades, reverse, time-stretch, pitch-shift, clip gain (in the file), non-destructive. Not yet: comping lanes, crossfades, normalise, silence and transient detection, audio quantise, sample editing, spectral display |
 | 5. Arrangement | Partly | Ruler, grid, snap, loop, markers, zoom, scroll, clips (loop, mute, lock, rename, consolidate), track versions. Not yet: arrangement sections, ripple editing, linked editing, clip launching |

@@ -346,7 +346,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         if (! nodes.fader) nodes.fader = graph.addNode (std::make_unique<Fader>(), {}, Kind::none);
         for (auto& d : t->devices)
         {
-            if (! d.active) continue;
+            if (! d.active || t->frozen) continue;   // a frozen track's plug-ins are unloaded
             String error;
             if (nodeForDevice (d, error)) wantedDevices.insert (d.id);
             else if (onMessage) onMessage (String (d.plugin.name) + " couldn't be loaded. " + error);
@@ -543,12 +543,36 @@ void Engine::sync (const Project& project, Id live, const File& folder)
 
         auto data = std::make_unique<TrackSource::Data>();
         data->compiled = playback::compile (project, *t);
-        if (araTracks.count (t->id)) data->compiled.audio.clear();   // the ARA plug-in plays them
-        for (auto& r : data->compiled.audio)
+        if (t->frozen && ! t->frozenFile.empty())
         {
-            const Clip* clip = project.clip (r.clip);
-            data->regionAudio.push_back (clip ? cache.forClip (*clip, project.tempo, folder) : nullptr);
+            // A frozen track plays its render, from the song's start, instead of its clips.
+            data->compiled.midi.clear();
+            data->compiled.audio.clear();
+            Clip frozen;
+            frozen.id = t->id;
+            frozen.kind = Clip::Kind::Audio;
+            frozen.audio.file = t->frozenFile;
+            double seconds = 0, sr = 0;
+            int ch = 0;
+            if (AudioCache::describe (File (t->frozenFile), seconds, sr, ch))
+            {
+                frozen.length = project.tempo.tickAt (seconds);
+                playback::AudioRegion r;
+                r.clip = t->id;
+                r.startSeconds = 0;
+                r.endSeconds = seconds;
+                r.file = t->frozenFile;
+                data->compiled.audio.push_back (r);
+                data->regionAudio.push_back (cache.forClip (frozen, project.tempo, folder));
+            }
         }
+        if (araTracks.count (t->id)) data->compiled.audio.clear();   // the ARA plug-in plays them
+        if (! t->frozen)
+            for (auto& r : data->compiled.audio)
+            {
+                const Clip* clip = project.clip (r.clip);
+                data->regionAudio.push_back (clip ? cache.forClip (*clip, project.tempo, folder) : nullptr);
+            }
         data->tempo = project.tempo;
         data->monitor = t->monitor == Monitor::In || (t->armed && t->monitor == Monitor::Auto);
         data->armed = t->armed;

@@ -110,6 +110,7 @@ public:
     void duplicateSelectedTracks();
     void folderFromSelection();
     void newVersion (Id track);
+    void freeze (Id track, bool);   // render the track with its plug-ins into audio, and unload them
     Id newMidiClip (Id track, Tick start, Tick length);
     void deleteSelection();
     void duplicateSelection();

@@ -196,3 +196,32 @@ TEST ("engine: a warped clip at half the tempo is twice as long")
         CHECK (out->buffer.getRMSLevel (0, 24000, 48000) > 0.1f);
     }
 }
+
+#include "Controller.h"
+
+TEST ("engine: freezing a track renders it with its plug-ins and unloads them")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    const auto click = clickFile (0.5);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Frozen");
+    edit::addClip (c.project, t, audioClip (click, 0, PPQ * 4));
+    PluginRef lag;
+    lag.format = "Kalibre";
+    lag.identifier = "test-latency:100";
+    const Id dev = edit::addDevice (c.project, t, lag, DeviceRole::AudioFx);
+    c.refresh();
+    CHECK (engine.instance (dev) != nullptr);
+    c.freeze (t, true);
+    CHECK (c.project.track (t)->frozen);
+    CHECK (engine.instance (dev) == nullptr);
+    const File frozen (c.project.track (t)->frozenFile);
+    CHECK (frozen.existsAsFile());
+    const auto clicks = clicksIn (frozen);
+    CHECK_EQ (clicks.size(), size_t (1));
+    if (! clicks.empty()) CHECK (std::abs (clicks.front() - 24000) <= 1);   // the plug-in's delay compensated
+    c.freeze (t, false);
+    CHECK (engine.instance (dev) != nullptr);
+}

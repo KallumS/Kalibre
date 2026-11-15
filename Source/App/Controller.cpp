@@ -622,6 +622,51 @@ void Controller::folderFromSelection()
     else focusOn (made);
 }
 
+void Controller::freeze (Id id, bool on)
+{
+    auto* t = project.track (id);
+    if (! t || ! t->holdsClips()) return;
+    if (! on)
+    {
+        apply ("Unfreeze", [id] (Project& p) { if (auto* x = p.track (id)) x->frozen = false; });
+        say ("Unfrozen: its plug-ins are loaded again.");
+        return;
+    }
+    storeDeviceStates();
+    // The track alone, through its own plug-ins, at unity: what it puts into its fader.
+    Project solo = project;
+    Track only = *solo.track (id);
+    only.parent = 0;
+    only.output = 0;
+    only.sends.clear();
+    only.volumeDb = 0;
+    only.pan = 0;
+    only.mute = only.solo = false;
+    only.automation.erase (std::remove_if (only.automation.begin(), only.automation.end(), [] (const AutomationLane& a)
+    {
+        return a.target.kind == AutoTarget::Kind::Volume || a.target.kind == AutoTarget::Kind::Pan;
+    }), only.automation.end());
+    solo.tracks = { only };
+    solo.master.devices.clear();
+    solo.master.automation.clear();
+    solo.master.volumeDb = 0;
+    solo.metronome.on = false;
+    Tick end = 0;
+    for (auto& c : only.clips()) end = std::max (end, c.end());
+    Engine::RenderOptions o;
+    o.start = 0;
+    o.end = project.tempo.secondsAt (end);
+    o.tail = 4.0;
+    o.bitDepth = 32;
+    o.dither = false;
+    const auto out = recordingsFolder().getNonexistentChildFile (String (t->name) + " frozen", ".wav");
+    String error;
+    if (! engine.render (solo, projectFolder(), out, o, {}, error)) { say ("The track couldn't be frozen. " + error, true); syncEngine(); return; }
+    const auto path = out.getFullPathName().toStdString();
+    apply ("Freeze", [id, path] (Project& p) { if (auto* x = p.track (id)) { x->frozen = true; x->frozenFile = path; } });
+    say ("Frozen: it plays as audio and its plug-ins are unloaded. Unfreeze to change it.", false, true);
+}
+
 void Controller::newVersion (Id track)
 {
     int index = -1;

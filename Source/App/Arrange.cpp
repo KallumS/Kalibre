@@ -228,6 +228,8 @@ void TrackHeader::showMenu()
     if (sends.getNumItems() == 0) sends.addItem ("Add a Return first", false, false, [] {});
     m.addSubMenu ("Send To", sends);
     m.addSeparator();
+    if (t->holdsClips())
+        m.addItem (t->frozen ? "Unfreeze" : "Freeze", [this, frozen = t->frozen] { c.freeze (id, ! frozen); });
     m.addItem ("Lock", true, t->locked, [this] { c.apply ("Lock", [this] (Project& p) { if (auto* tr = p.track (id)) tr->locked = ! tr->locked; }); });
     m.addItem ("Duplicate", [this] { c.duplicateSelectedTracks(); });
     m.addItem ("Delete", [this] { c.deleteSelectedTracks(); });
