@@ -75,6 +75,7 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestNotation.cpp
         Tests/TestScript.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
+    target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)
 endif()
 

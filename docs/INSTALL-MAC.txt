@@ -1,0 +1,13 @@
+Kalibre for Apple silicon Macs
+==============================
+
+1. Drag Kalibre into Applications.
+2. The first time, right-click Kalibre and choose Open, then Open again.
+   (Kalibre isn't signed with an Apple Developer ID yet, so macOS asks once.)
+3. Choose Kalibre > Scan for Plug-ins. Your AU, VST3 and CLAP plug-ins are
+   found once and remembered.
+4. Audio and MIDI Settings are under the Kalibre menu (Cmd-,), and appear in
+   the browser on the left of the window.
+
+Scripts: Scripts > Add the Example Scripts puts a few in the Scripts menu.
+Your own go in ~/Library/Application Support/Kalibre/Scripts.

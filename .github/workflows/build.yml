@@ -1,0 +1,90 @@
+# Builds Kalibre for Apple silicon Macs (a .dmg to download from the run's
+# Artifacts) and runs the tests on Linux and macOS. Pushing a tag that starts
+# with "v" (v0.1.0) also publishes a GitHub Release with the .dmg attached.
+
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Tests (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev libxcomposite-dev libxi-dev \
+            libgl1-mesa-dev xvfb
+      - name: Core tests (no JUCE)
+        run: |
+          cmake -B build-core -G Ninja -DKALIBRE_BUILD_APP=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-core
+          ./build-core/KalibreTests
+      - name: The app, its tests and the renderer
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build --target Kalibre KalibreAppTests KalibreRender
+      - name: App tests (engine, window)
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" ./build/KalibreAppTests_artefacts/Debug/KalibreAppTests
+      - name: Render the window
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" ./build/KalibreRender_artefacts/Debug/KalibreRender renders 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: window-renders
+          path: renders/*.png
+
+  macos:
+    name: macOS app
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ninja
+        run: brew install ninja
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+      - name: Build
+        run: cmake --build build --target Kalibre KalibreTests KalibreAppTests
+      - name: Core tests
+        run: ./build/KalibreTests
+      - name: App tests
+        run: ./build/KalibreAppTests_artefacts/Release/KalibreAppTests
+      - name: Package
+        run: |
+          APP="build/Kalibre_artefacts/Release/Kalibre.app"
+          lipo -info "$APP/Contents/MacOS/Kalibre"
+          mkdir -p "$APP/Contents/Resources/Scripts"
+          cp Scripts/*.lua "$APP/Contents/Resources/Scripts/"
+          # An ad-hoc signature: enough for an Apple silicon Mac to run it.
+          # (No Developer ID yet, so the first launch needs right-click > Open.)
+          codesign --force --deep --sign - "$APP"
+          mkdir -p dmg
+          cp -R "$APP" dmg/
+          ln -s /Applications dmg/Applications
+          cp docs/INSTALL-MAC.txt "dmg/Read me first.txt"
+          made=0
+          for attempt in 1 2 3 4 5; do
+            hdiutil create -volname "Kalibre" -srcfolder dmg -ov -format UDZO Kalibre-macOS.dmg && { made=1; break; }
+            echo "hdiutil failed (attempt $attempt), trying again"
+            sleep 10
+          done
+          [ "$made" = 1 ]
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kalibre-macOS
+          path: Kalibre-macOS.dmg
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Kalibre-macOS.dmg

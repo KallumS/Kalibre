@@ -60,3 +60,34 @@ TEST ("script: sees the selection and the scale")
     CHECK_EQ (r.printed, std::string ("in\n"));
     CHECK_EQ (p.clip (c)->midi.notes[0].pitch, 73);
 }
+
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+
+TEST ("script: every example script runs")
+{
+    namespace fs = std::filesystem;
+    int ran = 0;
+    for (auto& entry : fs::directory_iterator (fs::path (KALIBRE_SOURCE_DIR) / "Scripts"))
+    {
+        if (entry.path().extension() != ".lua") continue;
+        std::ifstream in (entry.path());
+        std::stringstream code;
+        code << in.rdbuf();
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+        const Id c = edit::addMidiClip (p, t, 0, PPQ * 4);
+        script::Context ctx;
+        ctx.selectedClip = c;
+        for (int pitch : { 60, 63, 67 }) ctx.selectedNotes.insert (edit::addNote (p, c, { 0, 0, PPQ, pitch, 90 }));
+        std::string said;
+        ctx.message = [&said] (const std::string& m) { said = m; };
+        const auto r = script::run (p, code.str(), entry.path().filename().string(), ctx);
+        if (! r.ok) std::printf ("  %s: %s\n", entry.path().filename().string().c_str(), r.error.c_str());
+        CHECK (r.ok);
+        CHECK (! said.empty());
+        ++ran;
+    }
+    CHECK (ran >= 4);
+}
