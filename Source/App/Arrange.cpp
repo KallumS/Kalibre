@@ -37,6 +37,7 @@ TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), 
 void TrackHeader::update (const Track& t)
 {
     name.setText (t.name, dontSendNotification);
+    name.setFont (theme::font());
     mute.setToggleState (t.mute, dontSendNotification);
     solo.setToggleState (t.solo, dontSendNotification);
     arm.setToggleState (t.armed, dontSendNotification);
@@ -121,7 +122,7 @@ void TrackHeader::versionMenu()
             w->addTextEditor ("name", String (c.project.track (id)->version().name));
             w->addButton ("Rename", 1, KeyPress (KeyPress::returnKey));
             w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
-            w->enterModalState (true, ModalCallbackFunction::create ([this, w] (int ok)
+            ui::present (w, ModalCallbackFunction::create ([this, w] (int ok)
             {
                 if (ok != 1) return;
                 const auto text = w->getTextEditorContents ("name").toStdString();
@@ -184,7 +185,7 @@ void TrackHeader::showMenu()
         w->addTextEditor ("ms", String (c.project.track (id)->delayMs, 0));
         w->addButton ("Set", 1, KeyPress (KeyPress::returnKey));
         w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
-        w->enterModalState (true, ModalCallbackFunction::create ([this, w] (int ok)
+        ui::present (w, ModalCallbackFunction::create ([this, w] (int ok)
         {
             if (ok != 1) return;
             const double ms = jlimit (-2000.0, 2000.0, w->getTextEditorContents ("ms").getDoubleValue());
@@ -1151,7 +1152,7 @@ void Arrange::clipMenu (Id id)
             w->addTextEditor ("bpm", String (c.project.clip (id)->audio.sourceBpm, 2));
             w->addButton ("Set", 1, KeyPress (KeyPress::returnKey));
             w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
-            w->enterModalState (true, ModalCallbackFunction::create ([this, id, w] (int ok)
+            ui::present (w, ModalCallbackFunction::create ([this, id, w] (int ok)
             {
                 if (ok != 1) return;
                 const double bpm = w->getTextEditorContents ("bpm").getDoubleValue();

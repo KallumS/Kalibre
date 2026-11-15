@@ -11,6 +11,14 @@ Engine::Engine (PluginManager& pm) : pluginManager (pm)
 {
     graph.setPlayHead (this);
     tempo.post (std::make_unique<TempoMap>());
+    // The graph's own ends exist from the start, so a project can be synced
+    // (and rendered) with no audio device at all. Its channels are set first:
+    // a connection to a channel the end doesn't have yet is refused.
+    graph.setPlayConfigDetails (2, 2, rate, blockSize);
+    audioIn = graph.addNode (std::make_unique<IOProc> (IOProc::audioInputNode));
+    audioOut = graph.addNode (std::make_unique<IOProc> (IOProc::audioOutputNode));
+    midiIn = graph.addNode (std::make_unique<IOProc> (IOProc::midiInputNode));
+    metronomeNode = graph.addNode (std::make_unique<Metronome> (shared));
     startTimerHz (20);
 }
 
@@ -44,11 +52,7 @@ String Engine::startAudio (bool withInputs)
 
     player.setProcessor (&graph);
     deviceManager.addAudioCallback (this);
-
-    audioIn = graph.addNode (std::make_unique<IOProc> (IOProc::audioInputNode));
-    audioOut = graph.addNode (std::make_unique<IOProc> (IOProc::audioOutputNode));
-    midiIn = graph.addNode (std::make_unique<IOProc> (IOProc::midiInputNode));
-    metronomeNode = graph.addNode (std::make_unique<Metronome> (shared));
+    shape.clear();   // rewire with the device's inputs known
     return error;
 }
 

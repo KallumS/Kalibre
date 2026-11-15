@@ -96,19 +96,27 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
 
 TopBar::~TopBar() { c.removeChangeListener (this); }
 
+// The bar's width on one row; narrower than this, it takes two (wrapped, never cropped).
+static int oneRowWidth (TopBar::TimeFormat)
+{
+    return theme::px (32 + 40 + 32 + 60 + 64 + 52 + 82 + 130 + 80 + 46 + 56 + 190 + 220 + 70 + 76) + theme::px (6) * 18;
+}
+
 int TopBar::preferredHeight() const
 {
-    return theme::px (48) + (c.message.isNotEmpty() ? theme::px (32) : 0);
+    const int rows = getWidth() > 0 && getWidth() < oneRowWidth (timeFormat) ? 2 : 1;
+    return rows * theme::px (48) + (c.message.isNotEmpty() ? theme::px (32) : 0);
 }
 
 void TopBar::paint (Graphics& g)
 {
     g.fillAll (theme::ground);
+    const int barsHeight = preferredHeight() - (c.message.isNotEmpty() ? theme::px (32) : 0);
     g.setColour (theme::rule);
-    g.fillRect (0, theme::px (48) - 1, getWidth(), 1);
+    g.fillRect (0, barsHeight - 1, getWidth(), 1);
     if (c.message.isNotEmpty())
     {
-        auto r = getLocalBounds().withTop (theme::px (48)).reduced (theme::px (12), 0);
+        auto r = getLocalBounds().withTop (barsHeight).reduced (theme::px (12), 0);
         g.setColour (c.messageIsWarning ? theme::warnText : theme::text);
         g.setFont (theme::font());
         auto textArea = r.withTrimmedRight (undoMessage.isVisible() ? theme::px (170) : theme::px (90));
@@ -116,7 +124,7 @@ void TopBar::paint (Graphics& g)
         g.setColour (theme::rule);
         g.fillRect (0, getHeight() - 1, getWidth(), 1);
     }
-    // The record button is red while recording: shape (the dot) and colour.
+    // The record button is red while recording: shape (a ring) and colour.
     if (c.engine.isRecording())
     {
         g.setColour (theme::warn);
@@ -126,10 +134,13 @@ void TopBar::paint (Graphics& g)
 
 void TopBar::resized()
 {
-    auto r = getLocalBounds().removeFromTop (theme::px (48)).reduced (theme::px (8), theme::px (6));
+    const bool twoRows = getWidth() < oneRowWidth (timeFormat);
+    const int rowH = theme::px (48);
+    auto r = getLocalBounds().removeFromTop (rowH).reduced (theme::px (8), theme::px (6));
     const int h = r.getHeight();
     const int gap = theme::px (6);
-    auto place = [&] (Component& comp, int w) { comp.setBounds (r.removeFromLeft (w).withSizeKeepingCentre (w, jmin (h, theme::px (28)))); r.removeFromLeft (gap); };
+    const int ch = jmin (h, theme::px (28));
+    auto place = [&] (Component& comp, int w) { comp.setBounds (r.removeFromLeft (w).withSizeKeepingCentre (w, ch)); r.removeFromLeft (gap); };
     place (start, theme::px (32));
     place (playButton, theme::px (40));
     place (recordButton, theme::px (32));
@@ -138,7 +149,12 @@ void TopBar::resized()
     place (punch, punch.idealWidth());
     place (click, click.idealWidth());
     place (countIn, countIn.idealWidth());
-    r.removeFromLeft (gap);
+    if (twoRows)
+    {
+        // The second row: where the song is, and what it's in.
+        r = getLocalBounds().withTop (rowH).removeFromTop (rowH).reduced (theme::px (8), theme::px (6));
+    }
+    else r.removeFromLeft (gap);
     position.setBounds (r.removeFromLeft (theme::px (130)));
     r.removeFromLeft (gap);
     tempo.setBounds (r.removeFromLeft (theme::px (80)));
@@ -147,21 +163,21 @@ void TopBar::resized()
     signature.setBounds (r.removeFromLeft (theme::px (56)));
     r.removeFromLeft (gap);
 
-    // From the right: delay readout, follow, then the scale and chord fill what's left.
     cpu.setBounds (r.removeFromRight (theme::px (76)));
     r.removeFromRight (gap);
-    follow.setBounds (r.removeFromRight (follow.idealWidth()).withSizeKeepingCentre (follow.idealWidth(), jmin (h, theme::px (28))));
+    follow.setBounds (r.removeFromRight (follow.idealWidth()).withSizeKeepingCentre (follow.idealWidth(), ch));
     r.removeFromRight (gap);
     const int each = jmax (theme::px (100), (r.getWidth() - gap) / 2);
     scale.setBounds (r.removeFromLeft (jmin (each, theme::px (190))));
     r.removeFromLeft (gap);
     chord.setBounds (r.removeFromLeft (jmin (r.getWidth(), theme::px (220))));
 
-    // Hide what doesn't fit, rather than squash it (the window's smallest size keeps the transport).
-    for (auto* comp : std::initializer_list<Component*> { &countIn, &punch, &click, &follow, &cpu, &chord, &scale })
-        comp->setVisible (comp->getRight() <= getWidth() - theme::px (4) && comp->getWidth() > theme::px (40));
+    // Anything that still can't fit is hidden rather than squashed; every one is also in the menus.
+    for (auto* comp : std::initializer_list<Component*> { &countIn, &punch, &click, &follow, &cpu, &chord, &scale, &tap, &signature })
+        comp->setVisible (comp->getRight() <= getWidth() - theme::px (4) && comp->getWidth() >= theme::px (24));
 
-    auto m = getLocalBounds().withTop (theme::px (48)).reduced (theme::px (12), theme::px (2));
+    const int barsHeight = (twoRows ? 2 : 1) * rowH;
+    auto m = getLocalBounds().withTop (barsHeight).reduced (theme::px (12), theme::px (2));
     dismissMessage.setBounds (m.removeFromRight (dismissMessage.idealWidth (theme::smallControl)).withSizeKeepingCentre (dismissMessage.idealWidth (theme::smallControl), theme::px (24)));
     m.removeFromRight (gap);
     undoMessage.setBounds (m.removeFromRight (undoMessage.idealWidth (theme::smallControl)).withSizeKeepingCentre (undoMessage.idealWidth (theme::smallControl), theme::px (24)));
@@ -233,7 +249,7 @@ void TopBar::editTempo()
     w->addTextEditor ("bpm", String (c.project.tempo.bpmAt (c.cursor), 2));
     w->addButton ("Set", 1, KeyPress (KeyPress::returnKey));
     w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
-    w->enterModalState (true, ModalCallbackFunction::create ([this, w] (int r)
+    ui::present (w, ModalCallbackFunction::create ([this, w] (int r)
     {
         if (r == 1)
         {
@@ -254,7 +270,7 @@ void TopBar::editSignature()
     w->addTextEditor ("sig", String (m.numerator) + "/" + String (m.denominator));
     w->addButton ("Set", 1, KeyPress (KeyPress::returnKey));
     w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
-    w->enterModalState (true, ModalCallbackFunction::create ([this, w] (int r)
+    ui::present (w, ModalCallbackFunction::create ([this, w] (int r)
     {
         if (r != 1) return;
         const auto t = w->getTextEditorContents ("sig");

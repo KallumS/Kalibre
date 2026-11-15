@@ -145,7 +145,7 @@ void TrackSource::stopAll (MidiBuffer& midi, int at)
 void TrackSource::playSegment (const Data& d, double from, double to, int offset, int length,
                                AudioBuffer<float>& audio, MidiBuffer& midi)
 {
-    const double rate = getSampleRate();
+    const double rate = shared.clock.rate > 0 ? shared.clock.rate : getSampleRate();
     // MIDI from the compiled list.
     const auto& list = d.compiled.midi;
     if (std::abs (from - lastEnd) > 1e-6) nextMidi = playback::firstAtOrAfter (list, from);
@@ -180,18 +180,21 @@ void TrackSource::playSegment (const Data& d, double from, double to, int offset
         if (! src) continue;
         const auto& buf = src->buffer;
         const double regionLength = r.endSeconds - r.startSeconds;
+        // In whole samples, so a one-sample click is never skipped or doubled.
+        const double first = from * rate - r.startSeconds * rate + r.sourceSeconds * rate;
+        const int lastChannel = jmin (1, buf.getNumChannels() - 1);
         for (int s = 0; s < length; ++s)
         {
             const double t = from + s / rate;
-            if (t < r.startSeconds || t >= r.endSeconds) continue;
-            const double into = t - r.startSeconds;
-            const int p = (int) ((into + r.sourceSeconds) * rate);
+            if (t < r.startSeconds - 0.5 / rate || t >= r.endSeconds) continue;
+            const auto p = (int) std::llround (first + s);
             if (p < 0 || p >= buf.getNumSamples()) continue;
+            const double into = t - r.startSeconds;
             float g = (float) r.gain;
-            if (r.fadeIn > 0 && into < r.fadeIn) g *= (float) (into / r.fadeIn);
+            if (r.fadeIn > 0 && into < r.fadeIn) g *= (float) jmax (0.0, into / r.fadeIn);
             if (r.fadeOut > 0 && regionLength - into < r.fadeOut) g *= (float) ((regionLength - into) / r.fadeOut);
             audio.addSample (0, offset + s, g * buf.getSample (0, p));
-            audio.addSample (1, offset + s, g * buf.getSample (1, jmin (1, buf.getNumChannels() - 1) == 1 ? p : p));
+            audio.addSample (1, offset + s, g * buf.getSample (lastChannel, p));
         }
     }
 }

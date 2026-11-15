@@ -415,3 +415,22 @@ bool HouseButton::keyPressed (const KeyPress& key)
 }
 
 } // namespace kal::theme
+
+namespace kal::ui
+{
+static juce::Component::SafePointer<juce::Component> hostComponent;
+
+void setHost (juce::Component* c) { hostComponent = c; }
+juce::Component* host() { return hostComponent.getComponent(); }
+
+void present (juce::AlertWindow* w, juce::ModalComponentManager::Callback* cb, bool deleteWhenDismissed)
+{
+    if (auto* h = host())
+    {
+        h->addAndMakeVisible (w);
+        w->setAlwaysOnTop (true);
+        w->setBounds (w->getBounds().withCentre (h->getLocalBounds().getCentre()));
+    }
+    w->enterModalState (true, cb, deleteWhenDismissed);
+}
+} // namespace kal::ui

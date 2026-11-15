@@ -234,7 +234,7 @@ Outcome Gesture::release (const Pointer& p)
             break;
         }
         case Mode::Adding:
-            o = last;
+            o = dragged ? drag (p) : last;
             o.action = Action::AddNote;
             o.audition = false;
             break;
@@ -249,7 +249,8 @@ Outcome Gesture::release (const Pointer& p)
             }
             else
             {
-                o = last;
+                // Where it was let go is where it lands, whatever the last drag event said.
+                o = drag (p);
                 o.audition = false;
                 if ((o.action == Action::MoveNotes || o.action == Action::CopyNotes) && o.dt == 0 && o.dPitch == 0)
                     o.action = Action::Select;

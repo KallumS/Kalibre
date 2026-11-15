@@ -164,3 +164,13 @@ public:
 };
 
 } // namespace kal::theme
+
+namespace kal::ui
+{
+// Small questions (a tempo, a name) are asked inside the main window, over
+// it, never in a window of their own (decision 0002). The main component
+// registers itself as the host.
+void setHost (juce::Component*);
+juce::Component* host();
+void present (juce::AlertWindow*, juce::ModalComponentManager::Callback*, bool deleteWhenDismissed);
+} // namespace kal::ui

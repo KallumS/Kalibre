@@ -20,9 +20,61 @@ PluginRef morphRef()
     return r;
 }
 
+namespace
+{
+// A device that only delays the sound by a fixed number of samples and says
+// so: the tests use it to hold plug-in delay compensation to account.
+class LatencyTest : public AudioPluginInstance
+{
+public:
+    explicit LatencyTest (int samples)
+        : AudioPluginInstance (BusesProperties().withInput ("In", AudioChannelSet::stereo()).withOutput ("Out", AudioChannelSet::stereo())),
+          delay (samples)
+    {
+        setLatencySamples (samples);
+    }
+    const String getName() const override { return "Latency Test"; }
+    void fillInPluginDescription (PluginDescription& d) const override { d.name = getName(); d.pluginFormatName = "Kalibre"; }
+    void prepareToPlay (double, int) override { line.setSize (2, delay + 1); line.clear(); pos = 0; }
+    void releaseResources() override {}
+    void processBlock (AudioBuffer<float>& b, MidiBuffer&) override
+    {
+        const int size = line.getNumSamples();
+        for (int i = 0; i < b.getNumSamples(); ++i)
+        {
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                line.setSample (ch, pos, b.getSample (ch, i));
+                b.setSample (ch, i, line.getSample (ch, (pos + 1) % size));
+            }
+            pos = (pos + 1) % size;
+        }
+    }
+    double getTailLengthSeconds() const override { return 0; }
+    bool acceptsMidi() const override { return false; }
+    bool producesMidi() const override { return false; }
+    bool hasEditor() const override { return false; }
+    AudioProcessorEditor* createEditor() override { return nullptr; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const String&) override {}
+    void getStateInformation (MemoryBlock&) override {}
+    void setStateInformation (const void*, int) override {}
+
+private:
+    int delay;
+    AudioBuffer<float> line;
+    int pos = 0;
+};
+} // namespace
+
 std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginManager& pm)
 {
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
+    if (String (ref.identifier).startsWith ("test-latency:"))
+        return std::make_unique<LatencyTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getIntValue());
     return nullptr;
 }
 

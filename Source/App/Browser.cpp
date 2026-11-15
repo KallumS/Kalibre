@@ -1,1 +1,291 @@
-// placeholder
+#include "Browser.h"
+
+namespace kal
+{
+using namespace juce;
+
+struct Browser::PluginList : public ListBoxModel
+{
+    PluginList (Controller& ctrl) : c (ctrl) {}
+
+    void filter (const String& text)
+    {
+        shown.clear();
+        const auto types = c.engine.plugins().known().getTypes();
+        for (int i = 0; i < types.size(); ++i)
+        {
+            const auto& d = types.getReference (i);
+            if (text.isEmpty() || d.name.containsIgnoreCase (text) || d.manufacturerName.containsIgnoreCase (text)
+                || d.pluginFormatName.containsIgnoreCase (text) || d.category.containsIgnoreCase (text))
+                shown.push_back (i);
+        }
+        std::sort (shown.begin(), shown.end(), [&types] (int a, int b) { return types[a].name.compareIgnoreCase (types[b].name) < 0; });
+    }
+
+    int getNumRows() override { return (int) shown.size(); }
+
+    void paintListBoxItem (int row, Graphics& g, int w, int h, bool selected) override
+    {
+        const auto types = c.engine.plugins().known().getTypes();
+        if (row < 0 || row >= (int) shown.size()) return;
+        const auto& d = types.getReference (shown[(size_t) row]);
+        if (selected) { g.setColour (theme::rule); g.fillRect (0, 0, w, h); }
+        g.setColour (theme::text);
+        g.setFont (theme::font());
+        g.drawText (d.name, 8, 0, w - 70, h * 3 / 5, Justification::bottomLeft, true);
+        g.setColour (theme::textSecondary);
+        g.setFont (theme::font (theme::smallPoints));
+        const char* role[] { "MIDI effect", "Instrument", "Effect" };
+        g.drawText (d.manufacturerName + " " + ui::u8 ("\xc2\xb7") + " " + role[(int) PluginManager::roleFor (d)], 8, h * 3 / 5, w - 70, h * 2 / 5, Justification::topLeft, true);
+        g.drawText (d.pluginFormatName, w - 60, 0, 52, h, Justification::centredRight, false);
+    }
+
+    var getDragSourceDescription (const SparseSet<int>& rows) override
+    {
+        if (rows.isEmpty()) return {};
+        return "plugin:" + String (shown[(size_t) rows[0]]);
+    }
+
+    void listBoxItemDoubleClicked (int row, const MouseEvent&) override
+    {
+        const auto types = c.engine.plugins().known().getTypes();
+        if (row < 0 || row >= (int) shown.size()) return;
+        Id track = c.focusTrack;
+        const auto& d = types.getReference (shown[(size_t) row]);
+        if (track == 0) track = c.addTrack (TrackKind::Track, d.name);
+        c.addPlugin (track, d);
+    }
+
+    String getNameForRow (int row) override
+    {
+        const auto types = c.engine.plugins().known().getTypes();
+        return row >= 0 && row < (int) shown.size() ? types[shown[(size_t) row]].name : String();
+    }
+
+    Controller& c;
+    std::vector<int> shown;
+};
+
+struct Browser::FileList : public ListBoxModel
+{
+    FileList (Browser& b) : owner (b)
+    {
+        folder = File::getSpecialLocation (File::userMusicDirectory);
+        if (! folder.isDirectory()) folder = File::getSpecialLocation (File::userHomeDirectory);
+        refresh ({});
+    }
+
+    void refresh (const String& filter)
+    {
+        entries.clear();
+        for (const auto& e : RangedDirectoryIterator (folder, false, "*", File::findFilesAndDirectories))
+        {
+            const auto f = e.getFile();
+            if (f.isHidden()) continue;
+            if (! f.isDirectory() && ! f.hasFileExtension ("wav;aif;aiff;flac;mp3;ogg;mid;midi")) continue;
+            if (filter.isNotEmpty() && ! f.getFileName().containsIgnoreCase (filter)) continue;
+            entries.push_back (f);
+        }
+        std::sort (entries.begin(), entries.end(), [] (const File& a, const File& b)
+        {
+            if (a.isDirectory() != b.isDirectory()) return a.isDirectory();
+            return a.getFileName().compareIgnoreCase (b.getFileName()) < 0;
+        });
+    }
+
+    int getNumRows() override { return (int) entries.size(); }
+
+    void paintListBoxItem (int row, Graphics& g, int w, int h, bool selected) override
+    {
+        if (row < 0 || row >= (int) entries.size()) return;
+        const auto& f = entries[(size_t) row];
+        if (selected) { g.setColour (theme::rule); g.fillRect (0, 0, w, h); }
+        g.setColour (f.isDirectory() ? theme::textSecondary : theme::text);
+        g.setFont (theme::font());
+        g.drawText ((f.isDirectory() ? ui::u8 ("\xe2\x96\xb8 ") : String()) + f.getFileName(), 8, 0, w - 16, h, Justification::centredLeft, true);
+    }
+
+    void listBoxItemClicked (int row, const MouseEvent&) override
+    {
+        if (row >= 0 && row < (int) entries.size() && ! entries[(size_t) row].isDirectory()) owner.preview (entries[(size_t) row]);
+    }
+
+    void listBoxItemDoubleClicked (int row, const MouseEvent&) override
+    {
+        if (row < 0 || row >= (int) entries.size()) return;
+        const auto f = entries[(size_t) row];
+        if (f.isDirectory()) { folder = f; refresh ({}); owner.fileBox.updateContent(); owner.repaint(); return; }
+        owner.c.importFile (f, owner.c.focusTrack, owner.c.cursor);
+    }
+
+    var getDragSourceDescription (const SparseSet<int>& rows) override
+    {
+        if (rows.isEmpty() || entries[(size_t) rows[0]].isDirectory()) return {};
+        return "file:" + entries[(size_t) rows[0]].getFullPathName();
+    }
+
+    Browser& owner;
+    File folder;
+    std::vector<File> entries;
+};
+
+//==============================================================================
+Browser::Browser (Controller& ctrl) : c (ctrl)
+{
+    setTitle ("Browser");
+    for (auto* b : { &pluginsTab, &filesTab, &audioTab })
+    {
+        b->setRadioGroupId (3);
+        b->setClickingTogglesState (true);
+        addAndMakeVisible (b);
+    }
+    pluginsTab.onClick = [this] { showTab (Tab::Plugins); };
+    filesTab.onClick = [this] { showTab (Tab::Files); };
+    audioTab.onClick = [this] { showTab (Tab::Audio); };
+    addAndMakeVisible (search);
+    search.setTextToShowWhenEmpty ("Search", theme::textSecondary);
+    search.setTitle ("Search");
+    search.onTextChange = [this]
+    {
+        plugins->filter (search.getText());
+        pluginBox.updateContent();
+        files->refresh (search.getText());
+        fileBox.updateContent();
+        repaint();
+    };
+    addAndMakeVisible (scan);
+    scan.onClick = [this]
+    {
+        c.engine.plugins().scan ([this] (float p, const String& what)
+        {
+            c.say (p >= 1.0f ? "Scan finished: " + what + "." : "Scanning plug-ins, " + String (roundToInt (p * 100)) + "%: " + what);
+            if (p >= 1.0f) { plugins->filter (search.getText()); pluginBox.updateContent(); }
+        });
+    };
+    addChildComponent (up);
+    up.onClick = [this]
+    {
+        files->folder = files->folder.getParentDirectory();
+        files->refresh (search.getText());
+        fileBox.updateContent();
+        repaint();
+    };
+
+    plugins = std::make_unique<PluginList> (c);
+    plugins->filter ({});
+    pluginBox.setModel (plugins.get());
+    pluginBox.setRowHeight (theme::px (34));
+    pluginBox.setTitle ("Plug-ins");
+    addAndMakeVisible (pluginBox);
+    files = std::make_unique<FileList> (*this);
+    fileBox.setModel (files.get());
+    fileBox.setRowHeight (theme::px (24));
+    fileBox.setTitle ("Files");
+    addChildComponent (fileBox);
+    for (auto* box : { &pluginBox, &fileBox })
+    {
+        box->setColour (ListBox::backgroundColourId, theme::sunken);
+        box->setColour (ListBox::outlineColourId, theme::rule);
+    }
+
+    formats.registerBasicFormats();
+    previewPlayer.setSource (&transport);
+    c.engine.devices().addAudioCallback (&previewPlayer);
+    c.engine.plugins().known().addChangeListener (this);
+    showTab (Tab::Plugins);
+}
+
+Browser::~Browser()
+{
+    c.engine.plugins().known().removeChangeListener (this);
+    c.engine.devices().removeAudioCallback (&previewPlayer);
+    transport.setSource (nullptr);
+    previewPlayer.setSource (nullptr);
+}
+
+void Browser::changeListenerCallback (ChangeBroadcaster*)
+{
+    plugins->filter (search.getText());
+    pluginBox.updateContent();
+    pluginBox.repaint();
+}
+
+void Browser::preview (const File& f)
+{
+    transport.stop();
+    transport.setSource (nullptr);
+    reader.reset();
+    if (f.hasFileExtension ("mid;midi")) return;
+    if (auto* r = formats.createReaderFor (f))
+    {
+        reader = std::make_unique<AudioFormatReaderSource> (r, true);
+        transport.setSource (reader.get(), 0, nullptr, r->sampleRate);
+        transport.setGain (0.7f);
+        transport.start();
+    }
+}
+
+void Browser::showTab (Tab t)
+{
+    tab = t;
+    pluginsTab.setToggleState (t == Tab::Plugins, dontSendNotification);
+    filesTab.setToggleState (t == Tab::Files, dontSendNotification);
+    audioTab.setToggleState (t == Tab::Audio, dontSendNotification);
+    pluginBox.setVisible (t == Tab::Plugins);
+    scan.setVisible (t == Tab::Plugins);
+    fileBox.setVisible (t == Tab::Files);
+    up.setVisible (t == Tab::Files);
+    search.setVisible (t != Tab::Audio);
+    if (t == Tab::Audio && ! audio)
+    {
+        audio = std::make_unique<AudioDeviceSelectorComponent> (c.engine.devices(), 0, 16, 2, 16, true, true, true, false);
+        addAndMakeVisible (*audio);
+    }
+    if (audio) audio->setVisible (t == Tab::Audio);
+    resized();
+    repaint();
+}
+
+void Browser::paint (Graphics& g)
+{
+    g.fillAll (theme::ground);
+    if (tab == Tab::Files)
+    {
+        g.setColour (theme::textSecondary);
+        g.setFont (theme::font (theme::smallPoints));
+        g.drawFittedText (files->folder.getFullPathName(), up.getBounds().withLeft (up.getRight() + 6).withRight (getWidth() - 8), Justification::centredLeft, 1);
+    }
+    g.setColour (theme::rule);
+    g.fillRect (getWidth() - 1, 0, 1, getHeight());
+}
+
+void Browser::resized()
+{
+    auto r = getLocalBounds().reduced (theme::px (8));
+    auto tabs = r.removeFromTop (theme::px (24));
+    const int w = (tabs.getWidth() - 8) / 3;
+    pluginsTab.setBounds (tabs.removeFromLeft (w));
+    tabs.removeFromLeft (4);
+    filesTab.setBounds (tabs.removeFromLeft (w));
+    tabs.removeFromLeft (4);
+    audioTab.setBounds (tabs);
+    r.removeFromTop (theme::px (8));
+    if (tab != Tab::Audio)
+    {
+        auto row = r.removeFromTop (theme::px (26));
+        if (tab == Tab::Plugins) { scan.setBounds (row.removeFromRight (scan.idealWidth (theme::smallControl))); row.removeFromRight (4); }
+        search.setBounds (row);
+        r.removeFromTop (theme::px (6));
+    }
+    if (tab == Tab::Files)
+    {
+        auto row = r.removeFromTop (theme::px (24));
+        up.setBounds (row.removeFromLeft (theme::px (28)));
+        r.removeFromTop (theme::px (4));
+    }
+    pluginBox.setBounds (r);
+    fileBox.setBounds (r);
+    if (audio) audio->setBounds (r);
+}
+
+} // namespace kal

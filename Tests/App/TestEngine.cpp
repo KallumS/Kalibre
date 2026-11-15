@@ -1,1 +1,198 @@
-// placeholder
+#include "Check.h"
+#include "Demo.h"
+#include "Engine.h"
+
+using namespace kal;
+using namespace juce;
+
+namespace
+{
+File tempFolder()
+{
+    auto f = File::getSpecialLocation (File::tempDirectory).getChildFile ("KalibreTests");
+    f.createDirectory();
+    return f;
+}
+
+// A WAV with one full-scale click at `at` seconds.
+File clickFile (double at, double rate = 48000)
+{
+    const auto f = tempFolder().getChildFile ("click" + String (at) + ".wav");
+    f.deleteFile();
+    AudioBuffer<float> b (2, (int) (rate * 2));
+    b.clear();
+    b.setSample (0, (int) (at * rate), 1.0f);
+    b.setSample (1, (int) (at * rate), 1.0f);
+    WavAudioFormat wav;
+    std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+    auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (rate).withNumChannels (2).withBitsPerSample (32));
+    w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    return f;
+}
+
+Clip audioClip (const File& f, Tick start, Tick length)
+{
+    Clip c;
+    c.kind = Clip::Kind::Audio;
+    c.start = start;
+    c.length = length;
+    c.audio.file = f.getFullPathName().toStdString();
+    c.audio.sourceLength = 2.0;
+    return c;
+}
+
+std::vector<int> clicksIn (const File& f)
+{
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    std::vector<int> at;
+    if (! r) return at;
+    AudioBuffer<float> b (2, (int) r->lengthInSamples);
+    r->read (&b, 0, b.getNumSamples(), 0, true, true);
+    for (int i = 0; i < b.getNumSamples(); ++i)
+        if (std::abs (b.getSample (0, i)) > 0.2f) at.push_back (i);
+    return at;
+}
+} // namespace
+
+TEST ("engine: plug-in delay compensation lines up a delayed track with an undelayed one")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p;
+    const auto click = clickFile (0.5);
+    const Id a = edit::addTrack (p, TrackKind::Track, "Dry");
+    const Id b = edit::addTrack (p, TrackKind::Track, "Through a 300-sample plug-in");
+    edit::addClip (p, a, audioClip (click, 0, PPQ * 4));
+    edit::addClip (p, b, audioClip (click, 0, PPQ * 4));
+    PluginRef lag;
+    lag.format = "Kalibre";
+    lag.identifier = "test-latency:300";
+    lag.name = "Latency";
+    edit::addDevice (p, b, lag, DeviceRole::AudioFx);
+    // Half each, so the two together make one click of 1.0 only when lined up.
+    p.track (a)->volumeDb = -6.0206;
+    p.track (b)->volumeDb = -6.0206;
+    p.track (a)->pan = p.track (b)->pan = 0;
+
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 1.0; o.tail = 0.2; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("pdc.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    const auto clicks = clicksIn (out);
+    CHECK_EQ (clicks.size(), size_t (1));            // one click, not two 300 samples apart
+    if (! clicks.empty()) CHECK (std::abs (clicks.front() - 24000) <= 1);
+}
+
+TEST ("engine: a negative track delay plays a track early in a render")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p;
+    const auto click = clickFile (0.5);
+    const Id t = edit::addTrack (p, TrackKind::Track, "Early");
+    p.track (t)->delayMs = -125;
+    edit::addClip (p, t, audioClip (click, PPQ, PPQ * 4));   // starts at 0.5 s; the click is 0.5 s in
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 2.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("delay.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    const auto clicks = clicksIn (out);
+    CHECK_EQ (clicks.size(), size_t (1));
+    if (! clicks.empty()) CHECK (std::abs (clicks.front() - (48000 - 6000)) <= 1);
+}
+
+TEST ("engine: folders inside folders sum into the master; muting a folder silences what's inside")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p;
+    const auto click = clickFile (0.25);
+    const Id outer = edit::addTrack (p, TrackKind::Folder, "Outer");
+    const Id inner = edit::addTrack (p, TrackKind::Folder, "Inner", 0, outer);
+    const Id t = edit::addTrack (p, TrackKind::Track, "Deep", 0, inner);
+    edit::addClip (p, t, audioClip (click, 0, PPQ * 2));
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 0.5; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    String error;
+    const auto out = tempFolder().getChildFile ("folders.wav");
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    CHECK_EQ (clicksIn (out).size(), size_t (1));
+    p.track (outer)->mute = true;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    CHECK_EQ (clicksIn (out).size(), size_t (0));
+}
+
+TEST ("engine: a deactivated plug-in is unloaded and comes back with its state")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p = demo::song();
+    const Id keys = p.tracks[1].id;
+    const Id dev = p.track (keys)->devices.front().id;
+    engine.sync (p, keys, tempFolder());
+    auto* morph = dynamic_cast<MorphProcessor*> (engine.instance (dev));
+    CHECK (morph != nullptr);
+    if (! morph) return;
+    *morph->x = 0.75f;
+    const auto state = engine.stateOf (dev);
+    edit::setDeviceActive (p, dev, false, state);
+    engine.sync (p, keys, tempFolder());
+    CHECK (engine.instance (dev) == nullptr);
+    edit::setDeviceActive (p, dev, true);
+    engine.sync (p, keys, tempFolder());
+    auto* back = dynamic_cast<MorphProcessor*> (engine.instance (dev));
+    CHECK (back != nullptr);
+    if (back) CHECK (std::abs (back->x->get() - 0.75f) < 1.0e-4f);
+}
+
+TEST ("engine: the X/Y morph plays its sample corners by the pad's weights")
+{
+    PluginManager plugins;
+    MorphProcessor morph (plugins);
+    const auto click = clickFile (0.0);
+    String error;
+    CHECK (morph.loadSample (0, click, error));   // A, top left
+    morph.setPlayConfigDetails (2, 2, 48000, 256);
+    morph.prepareToPlay (48000, 256);
+    AudioBuffer<float> b (2, 256);
+    MidiBuffer m;
+    *morph.x = 0.0f; *morph.y = 1.0f;             // all A
+    b.clear();
+    m.addEvent (MidiMessage::noteOn (1, 60, 1.0f), 0);
+    morph.processBlock (b, m);
+    CHECK (std::abs (b.getSample (0, 0) - 1.0f) < 0.01f);
+    *morph.x = 1.0f; *morph.y = 0.0f;             // all D: A silent
+    b.clear();
+    m.clear();
+    m.addEvent (MidiMessage::noteOn (1, 60, 1.0f), 0);
+    morph.processBlock (b, m);
+    CHECK (b.getMagnitude (0, 256) < 1.0e-6f);
+}
+
+TEST ("engine: a warped clip at half the tempo is twice as long")
+{
+    PluginManager plugins;
+    Project p;
+    p.tempo.setTempoAt (0, 60);
+    CachedAudio src;
+    src.sampleRate = 48000;
+    src.buffer.setSize (2, 48000);
+    for (int i = 0; i < 48000; ++i) { src.buffer.setSample (0, i, std::sin (i * 0.05f) * 0.5f); src.buffer.setSample (1, i, std::sin (i * 0.05f) * 0.5f); }
+    Clip c;
+    c.kind = Clip::Kind::Audio;
+    c.start = 0;
+    c.audio.sourceBpm = 120;   // a second of a 120 BPM file is two beats
+    c.length = PPQ * 2;
+    for (auto mode : { WarpMode::Repitch, WarpMode::Granular, WarpMode::Spectral })
+    {
+        c.audio.warp = mode;
+        auto out = AudioCache::render (src, c, p.tempo, 48000);
+        // Two beats at 60 BPM: two seconds.
+        CHECK (std::abs (out->buffer.getNumSamples() - 96000) < 10);
+        CHECK (out->buffer.getRMSLevel (0, 24000, 48000) > 0.1f);
+    }
+}

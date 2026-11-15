@@ -30,7 +30,7 @@ if(NOT clap_POPULATED)
 endif()
 FetchContent_MakeAvailable(signalsmith_stretch)
 
-option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" ${APPLE})
+option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" OFF)
 if(KALIBRE_ARA)
     FetchContent_Declare(ara_sdk
         GIT_REPOSITORY https://github.com/Celemony/ARA_SDK.git
