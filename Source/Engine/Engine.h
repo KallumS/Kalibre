@@ -19,12 +19,14 @@
 
 #pragma once
 
+#include "AraHost.h"
 #include "PluginManager.h"
 #include "TrackProcessors.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include <map>
+#include <set>
 
 namespace kal
 {
@@ -56,6 +58,8 @@ public:
 
     // A device's saved state, as the project keeps it (base64).
     std::string stateOf (Id device) const;
+    std::string araStateOf (Id device) const;
+    bool playedByAra (Id track) const;
 
     //==========================================================================
     // Transport.
@@ -135,6 +139,8 @@ private:
     std::map<Id, TrackNodes> tracks;
     std::map<Id, Node::Ptr> deviceNodes;
     std::map<Id, std::string> deviceKeys;   // what each node was made from, to notice a swap
+    std::map<Id, std::unique_ptr<AraSession>> araSessions;
+    std::set<Id> araTracks;
     Node::Ptr audioIn, audioOut, midiIn, metronomeNode;
     std::vector<std::pair<Node::Ptr, juce::uint32>> graveyard;   // let go of a second later
     juce::String shape;   // the wiring last built

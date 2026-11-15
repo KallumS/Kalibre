@@ -23,6 +23,7 @@
 | `Engine/ClapFormat.*`, `ClapGuiMac.mm` | Hosting CLAP (0021). |
 | `Engine/PluginManager.*` | Scanning and making plug-ins of every format. |
 | `Engine/MorphProcessor.*` | The X/Y morph (0018), and a latency device the tests use. |
+| `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |
 | `Engine/Warp.*` | Audio in memory, and warping (0022). |
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
 | `Source/App/` | The window (0002). `Controller` owns the project, undo, the selection and every command; the views ask it. |

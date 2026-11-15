@@ -29,3 +29,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0025. Messages at the top, until dismissed](0025-messages-at-the-top.md)
 - [0026. Offline effects on clips](0026-offline-effects.md)
 - [0027. Menus in the Mac's menu bar](0027-title-bar-menus.md)
+- [0028. ARA plug-ins read the track's audio clips](0028-ara.md)

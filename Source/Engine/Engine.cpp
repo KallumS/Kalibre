@@ -29,6 +29,7 @@ Engine::~Engine()
     deviceManager.removeMidiInputDeviceCallback ({}, this);
     deviceManager.removeMidiInputDeviceCallback ({}, &player);
     player.setProcessor (nullptr);
+    araSessions.clear();
     for (auto& [id, node] : deviceNodes)
         if (node) node->getProcessor()->removeListener (this);
     graph.clear();
@@ -279,6 +280,14 @@ TrackSource* Engine::source (Id track) const
     return it == tracks.end() || ! it->second.source ? nullptr : dynamic_cast<TrackSource*> (it->second.source->getProcessor());
 }
 
+std::string Engine::araStateOf (Id device) const
+{
+    auto it = araSessions.find (device);
+    return it == araSessions.end() || ! it->second ? std::string() : it->second->archive();
+}
+
+bool Engine::playedByAra (Id track) const { return araTracks.count (track) > 0; }
+
 std::string Engine::stateOf (Id device) const
 {
     auto* p = instance (device);
@@ -354,6 +363,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
     for (auto it = deviceNodes.begin(); it != deviceNodes.end();)
     {
         if (wantedDevices.count (it->first)) { ++it; continue; }
+        araSessions.erase (it->first);   // the ARA document goes before its plug-in
         if (it->second) it->second->getProcessor()->removeListener (this);
         bury (it->second);
         deviceKeys.erase (it->first);
@@ -486,6 +496,30 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         graph.rebuild();
     }
 
+    // ARA plug-ins (decision 0028): started once, then kept matching their track's audio clips.
+    araTracks.clear();
+    for (auto* t : all)
+        for (auto& d : t->devices)
+        {
+            if (! d.active || ! d.useAra || ! wantedDevices.count (d.id)) continue;
+            auto* inst = instance (d.id);
+            if (! inst) continue;
+            auto& session = araSessions[d.id];
+            if (! session) session = startAra (*inst, d.araState, [this] { if (onAudioReady) onAudioReady(); });
+            if (! session || ! session->ready()) continue;
+            session->update (project, *t, folder, [this, inst] (std::function<void()> change)
+            {
+                graph.suspendProcessing (true);
+                inst->releaseResources();
+                change();
+                inst->prepareToPlay (rate, blockSize);
+                graph.suspendProcessing (false);
+            });
+            araTracks.insert (t->id);
+        }
+    for (auto it = araSessions.begin(); it != araSessions.end();)
+        it = it->second ? std::next (it) : araSessions.erase (it);
+
     // What every track plays, and how its fader and sends are set.
     shared.anySolo = anySolo;
     for (auto* t : all)
@@ -509,6 +543,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
 
         auto data = std::make_unique<TrackSource::Data>();
         data->compiled = playback::compile (project, *t);
+        if (araTracks.count (t->id)) data->compiled.audio.clear();   // the ARA plug-in plays them
         for (auto& r : data->compiled.audio)
         {
             const Clip* clip = project.clip (r.clip);

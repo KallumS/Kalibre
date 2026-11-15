@@ -144,6 +144,7 @@ struct Device
     bool bypassed = false;
     bool active = true;        // false: unloaded, state kept (decision 0010)
     bool useAra = true;        // ARA plug-ins (Melodyne) read the clips directly
+    std::string araState;      // base64; what an ARA plug-in keeps about its edits
     float editorScale = 1.0f;  // last scale the lower zone gave its editor
 
     bool operator== (const Device&) const = default;

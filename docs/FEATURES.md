@@ -22,7 +22,7 @@ Every feature asked for, then the list of basic DAW features
 | Plug-in windows in the lower zone, side by side, resized with the zone | Built, untried | 0002. Resizable plug-ins are resized keeping their shape; others are scaled (VST3 and CLAP honour this; some AUs can't be scaled and show at their own size) |
 | Track versions (right-click > New Version) | Yes | Version number on the header; tested (0006) |
 | MIDI effects before instruments | Yes | Tested (0007) |
-| ARA (Melodyne) | **Not yet** | The build switch is there (`-DKALIBRE_ARA=ON` fetches the ARA SDK); the host side (audio sources, playback regions, the document controller) is the next big piece |
+| ARA (Melodyne) | Built, untried | 0028. The track's audio clips become the plug-in's playback regions; its edits are saved with the project. One document per plug-in, so Melodyne's multi-track view shows one track |
 | Scale chosen, chord shown at the top, scale shaded in the piano roll | Yes | Top bar (Scale, Chord), chord lane, View > Shade the Scale; ScaleView's reader, tested (0015) |
 | Piano roll, drum patterns, step sequencer, Euclidean, notation | Yes | Lower zone > Editor (0009, 0014, 0020) |
 | Modulators: LFO, ADSR/ADR, envelope follower, wavetable from samples | Yes | Automation > Modulate; shown in the device rack; tested (0012). Once a block, not audio rate |

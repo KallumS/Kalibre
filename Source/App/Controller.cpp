@@ -16,6 +16,7 @@ Controller::Controller (Engine& e) : engine (e)
     engine.onTouched = [this] (const Engine::Touch& t) { touched (t); };
     engine.onMessage = [this] (const String& m) { say (m, true); };
     engine.cache.onReady = [this] { syncEngine(); sendChangeMessage(); };
+    engine.onAudioReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onDevicePluginChanged = [this] { dirty = true; };
     MorphProcessor::choosePlugin = nullptr;
     newProject();
@@ -371,6 +372,8 @@ void Controller::storeDeviceStates()
             {
                 auto s = engine.stateOf (d.id);
                 if (! s.empty()) d.state = s;
+                auto a = engine.araStateOf (d.id);
+                if (! a.empty()) d.araState = a;
             }
     };
     for (auto& t : project.tracks) store (t);

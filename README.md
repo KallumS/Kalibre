@@ -34,11 +34,12 @@ grow and shrink with it.
   Record can still be kept, MIDI or audio.
 - **Warping**: repitch, granular or spectral, from the loop's tempo or warp
   markers. **Offline effects** on single clips.
+- **ARA** plug-ins like Melodyne read the track's audio clips directly.
 - **Lua scripts**, as in REAPER.
 - Menus in the Mac's menu bar; the house colours; Apple's guidelines.
 
 What's done and what isn't, feature by feature: **[docs/FEATURES.md](docs/FEATURES.md)**.
-The biggest thing not done yet is **ARA** (Melodyne).
+**ARA** (Melodyne) is built in; it, the plug-in windows and the menus still need trying on a Mac.
 
 ## Get it
 
