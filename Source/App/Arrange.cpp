@@ -588,6 +588,17 @@ void Arrange::drawClip (Graphics& g, const Track& t, const Clip& clip, Rectangle
                 g.fillRect (x, mid - h, 1.0f, jmax (1.0f, h * 2.0f));
             }
         }
+        // Warp markers: drag one to move that moment of the audio.
+        for (auto& m : clip.audio.markers)
+        {
+            const float x = xOf (clip.start - clip.offset + m.tick);
+            if (x < r.getX() - 1 || x > r.getRight() + 1) continue;
+            g.setColour (theme::control);
+            g.fillRect (x - 0.5f, r.getY() - 16.0f, 1.5f, r.getHeight() + 16.0f);
+            Path tri;
+            tri.addTriangle (x - 4.0f, r.getY() - 16.0f, x + 4.0f, r.getY() - 16.0f, x, r.getY() - 10.0f);
+            g.fillPath (tri);
+        }
         // Fades.
         g.setColour (theme::ink.withAlpha (0.5f));
         if (clip.audio.fadeIn > 0)
@@ -891,6 +902,19 @@ void Arrange::mouseDown (const MouseEvent& e)
             c.selectClip (clip->id, clip->isMidi());
         c.focusOn (owner->id);
         if (owner->locked || clip->locked) return;
+        if (! clip->isMidi())
+            for (size_t i = 0; i < clip->audio.markers.size(); ++i)
+            {
+                const float mx = xOf (clip->start - clip->offset + clip->audio.markers[i].tick);
+                if (std::abs (mx - (float) e.x) <= (float) theme::px (4))
+                {
+                    drag = Drag::WarpMarker;
+                    dragClip = clip->id;
+                    dragPoint = (int) i;
+                    dragBefore = c.project;
+                    return;
+                }
+            }
         dragClip = clip->id;
         dragTrack = owner->id;
         dragOrigin = tickAt ((float) e.x);
@@ -987,6 +1011,15 @@ void Arrange::mouseDrag (const MouseEvent& e)
             c.refresh();
             break;
         }
+        case Drag::WarpMarker:
+        {
+            auto* clip = c.project.clip (dragClip);
+            if (! clip || dragPoint < 0 || dragPoint >= (int) clip->audio.markers.size()) break;
+            const Tick base = clip->start - clip->offset;
+            clip->audio.markers[(size_t) dragPoint].tick = std::max<Tick> (0, (e.mods.isCommandDown() ? at : c.snapTick (at)) - base);
+            repaint();
+            break;
+        }
         case Drag::Marker:
         case Drag::None:
             break;
@@ -1020,6 +1053,11 @@ void Arrange::mouseUp (const MouseEvent&)
         const Id id = dragClip;
         const Tick a = previewStart, b = previewEnd;
         c.apply ("Trim Clip", [=] (Project& p) { edit::resizeClip (p, id, a, b); });
+    }
+    else if (drag == Drag::WarpMarker)
+    {
+        if (! (dragBefore == c.project)) c.history.push (dragBefore, "Move Warp Marker");
+        c.refresh();
     }
     else if (drag == Drag::Loop || drag == Drag::Point || drag == Drag::Tempo)
     {

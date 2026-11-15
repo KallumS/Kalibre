@@ -34,7 +34,7 @@ Every feature asked for, then the list of basic DAW features
 | Deactivate plug-ins, keeping their state | Yes | The power switch; tested (0010) |
 | Folders in folders, summing, with plug-ins | Yes | Tested (0005) |
 | Retrospective recording, MIDI and audio | Yes | Transport > Capture MIDI / Capture Audio; tested (0017) |
-| Warping: granular, spectral, repitch | Partly | All three, from the file's tempo or warp markers, tested (0022). Markers are added at the cursor; dragging them isn't drawn yet |
+| Warping: granular, spectral, repitch | Yes | All three, from the file's tempo or warp markers, tested (0022). Markers are added at the cursor (right-click > Warp) and dragged along the clip |
 | Offline effects on clips | Partly | Right-click a clip > Offline Effects (0026). The chain uses each plug-in's default settings until its window can be opened for it |
 | Piano roll mouse rules | Yes | Exactly as asked, tested (0009) |
 | Menus in the title bar | Yes | The Mac's menu bar (0027) |

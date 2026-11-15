@@ -105,7 +105,7 @@ private:
     juce::uint32 chordsFor = 0;
 
     // Dragging.
-    enum class Drag { None, Cursor, Loop, MoveClip, TrimStart, TrimEnd, Point, Tempo, Marker };
+    enum class Drag { None, Cursor, Loop, MoveClip, TrimStart, TrimEnd, Point, Tempo, Marker, WarpMarker };
     Drag drag = Drag::None;
     Id dragClip = 0;
     Tick dragOrigin = 0, dragOffset = 0;
@@ -114,6 +114,7 @@ private:
     Tick previewStart = 0, previewEnd = 0;
     Id previewTrack = 0;
     int dragPoint = -1;
+    Project dragBefore;
     Id dragLane = 0;
 
     std::map<juce::String, std::vector<float>> peaks;   // a file's overview, for drawing
