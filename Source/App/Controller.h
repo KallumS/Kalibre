@@ -96,6 +96,8 @@ public:
     bool save();
     bool saveAs (const juce::File&);
     juce::File projectFolder() const;
+    juce::File autosaveFile() const;   // a copy every few minutes, never over the project itself
+    void autosave();
     juce::File recordingsFolder() const;
     bool importFile (const juce::File&, Id track, Tick at);   // audio, MIDI
     bool exportMidi (const juce::File&);
@@ -160,6 +162,7 @@ public:
 private:
     std::vector<double> taps;
     bool wasRecording = false;
+    juce::uint32 lastAutosave = 0;
     double recordFromSeconds = 0;
     struct Writing { Id track = 0, lane = 0; Tick lastTick = 0; bool on = false; Project before; };
     Writing writing;

@@ -72,6 +72,16 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         {
             m.addItem (item ("New", [this] { checkSaved ([this] { c.newProject(); }); }, cmd ("N")));
             m.addItem (item (ui::u8 ("Open\xe2\x80\xa6"), [this] { openFile(); }, cmd ("O")));
+            m.addItem (item ("Open the Last Autosave", [this]
+            {
+                const auto f = c.autosaveFile();
+                checkSaved ([this, f]
+                {
+                    if (! f.existsAsFile()) { c.say ("There's no autosave for this project yet: one is made every three minutes while there are changes."); return; }
+                    const auto keep = c.file;
+                    if (c.open (f)) { c.file = keep; c.dirty = true; c.say ("Opened the autosave from " + f.getLastModificationTime().toString (true, true, false) + ". Save to keep it."); }
+                });
+            }));
             m.addSeparator();
             m.addItem (item ("Save", [this] { saveFile(); }, cmd ("S")));
             m.addItem (item (ui::u8 ("Save As\xe2\x80\xa6"), [this] { c.file = File(); saveFile(); }, shiftCmd ("S")));

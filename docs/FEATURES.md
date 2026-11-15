@@ -54,7 +54,7 @@ Every feature asked for, then the list of basic DAW features
 | 8. Instruments | Partly | Any AU/VST3/CLAP instrument; the X/Y morph plays samples. No built-in synth or sampler yet |
 | 9. Plug-in hosting | Partly | Scanning (crash-safe), search, by maker, bypass, remove, reorder, state, latency, last-touched. Not yet: presets browser, A/B, MIDI learn |
 | 10. Audio engine | Partly | Device, rate, buffer, inputs and outputs (browser > Audio), offline rendering, PDC. Not yet: CPU meters per track, dropout counter |
-| 11. Projects | Partly | New, open, save, save as, JSON format that survives versions. Not yet: autosave, templates, collect and save, relink |
+| 11. Projects | Partly | New, open, save, save as, autosave every three minutes (File > Open the Last Autosave), a JSON format that survives versions. Not yet: templates, collect and save, relink |
 | 12. Export | Partly | Mix and every track as WAV, AIFF or FLAC, 16/24/32-bit, dither, normalise, tail, loop range; MIDI file. Not yet: MP3, loudness targets, batch, metadata |
 | 13. Sync and control | Not yet | MIDI clock, MTC, Mackie/HUI, OSC, Link |
 | 14. Metering | Partly | Peak meters with clip marks. Not yet: LUFS, true peak, spectrum, correlation |

@@ -335,6 +335,20 @@ File Controller::projectFolder() const
                                : File::getSpecialLocation (File::userMusicDirectory).getChildFile ("Kalibre");
 }
 
+File Controller::autosaveFile() const
+{
+    auto folder = scriptsFolder().getParentDirectory().getChildFile ("Autosave");
+    folder.createDirectory();
+    return folder.getChildFile ((file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Untitled")) + ".kalibre");
+}
+
+void Controller::autosave()
+{
+    if (! dirty || project.tracks.empty()) return;
+    storeDeviceStates();
+    autosaveFile().replaceWithText (String (file::save (project)));
+}
+
 File Controller::recordingsFolder() const
 {
     auto f = projectFolder().getChildFile ("Audio");
@@ -939,6 +953,13 @@ void Controller::runScript (const File& f)
 //==============================================================================
 void Controller::timerCallback()
 {
+    // Every three minutes, while not recording.
+    const auto now = Time::getMillisecondCounter();
+    if (now - lastAutosave > 180000 && ! wasRecording)
+    {
+        lastAutosave = now;
+        autosave();
+    }
     // Follow playback: the cursor stays where Play started; the view follows the playhead.
     static bool lastPlaying = false;
     const bool playing = engine.isPlaying();
