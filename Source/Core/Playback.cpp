@@ -110,8 +110,10 @@ CompiledTrack compile (const Project& p, const Track& t)
             r.clip = c.id;
             r.startSeconds = tempo.secondsAt (c.start) + trackDelay;
             r.endSeconds = tempo.secondsAt (c.end()) + trackDelay;
-            // An unwarped clip's offset is in its own seconds; a warped one in the project's.
-            r.sourceSeconds = c.audio.warp == WarpMode::Off
+            // A plain clip reads the file itself; a warped, reversed or transposed one
+            // reads its own render, which starts where the clip's content starts.
+            const bool plain = c.audio.warp == WarpMode::Off && ! c.audio.reversed && std::abs (c.audio.transpose) < 1e-6;
+            r.sourceSeconds = plain
                                 ? c.audio.sourceStart + (tempo.secondsAt (c.start) - tempo.secondsAt (c.start - c.offset))
                                 : tempo.secondsAt (c.start) - tempo.secondsAt (c.start - c.offset);
             r.gain = std::pow (10.0, c.audio.gainDb / 20.0);

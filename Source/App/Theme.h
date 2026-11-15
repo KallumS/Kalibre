@@ -1,0 +1,166 @@
+/*
+    Theme - the house colour scheme (docs/COLOUR.md) and the sizes from
+    Apple's Human Interface Guidelines (docs/apple-hig-review.md).
+
+    Three colours carry it: a dark cool-grey ground, a light grey for the
+    controls raised off it, and one yellow (#FFF200) for whatever is switched
+    on - a chosen button, chosen notes and clips, an armed state, the tune
+    being played. Every grey is blue-shifted (R < G < B), and every button
+    takes the dark ink, chosen or not. Colours are named by role; nothing
+    else in the code writes a colour value. If you change one here, change
+    COLOUR.md too.
+
+    Text is at least 7:1 on what it sits on. Red is for marking (the record
+    button, clipping) and never for words, which take warnText.
+*/
+
+#pragma once
+
+#include <juce_gui_basics/juce_gui_basics.h>
+
+namespace kal::ui
+{
+// Text beyond ASCII (the ellipsis, dashes, key symbols) goes through here, so
+// juce::String reads it as UTF-8.
+inline juce::String u8 (const char* utf8) { return juce::String::fromUTF8 (utf8); }
+} // namespace kal::ui
+
+namespace kal::theme
+{
+using juce::Colour;
+
+// The four that carry it.
+inline const Colour accent  { 0xffFFF200 };
+inline const Colour control { 0xffA9AFBA };
+inline const Colour ground  { 0xff23272E };
+inline const Colour ink     { 0xff14171C };
+
+inline const Colour controlHover { 0xffC0C6CF };
+inline const Colour controlHeld  { 0xff8F96A2 };
+inline const Colour accentHover  { 0xffFFF42E };
+inline const Colour accentHeld   { 0xffD1C600 };
+
+// The ramp.
+inline const Colour roll        { 0xff111419 };   // piano roll and arrangement ground
+inline const Colour sunken      { 0xff1A1D23 };   // frames, lanes, the lower zone's ground
+inline const Colour lane        { 0xff1E2228 };   // beat lines, alternate rows
+inline const Colour frameHover  { 0xff22262D };
+inline const Colour raised      { 0xff2A2F37 };   // menus, tooltips, panels raised off the window
+inline const Colour rule        { 0xff3A404A };   // separators, bar lines
+inline const Colour scrollGrab  { 0xff6D7581 };
+inline const Colour edge        { 0xff8A919C };   // edges of things to see and grab: 4.7:1
+inline const Colour playhead    { 0xffF2F4F7 };
+
+// Words.
+inline const Colour text          { 0xffDDE1E7 };   // body text, 11.4:1 on the ground
+inline const Colour textSecondary { 0xffB0B6C0 };   // 7.4:1 on the ground
+inline const Colour textOnRaised  { 0xffBFC5CE };   // secondary words on menus: 7.8:1
+inline const Colour warnText      { 0xffFF9E96 };   // 7.6:1; never the accent's hue
+inline const Colour focusRing     { 0xffF2F4F7 };   // near white, never the accent
+
+// Marks, never words.
+inline const Colour warn   { 0xffD2483F };          // record, clipping
+inline const Colour meterGreen { 0xff7FD29A };      // a meter below -6 dB
+inline const Colour meterAmber { 0xffF2C46D };      // -6 to 0 dB
+
+// The piano roll's rows: in-scale rows lighter, the root's row lighter still.
+inline const Colour rowWhite   { 0xff181B21 };
+inline const Colour rowBlack   { 0xff14171C };
+inline const Colour rowInScale { 0xff1F2A2E };   // a cool teal wash: ScaleView's highlight, darkened for a ground
+inline const Colour rowRoot    { 0xff24343A };
+
+// Track colours offered (all R < G < B except the warm ones, which are content).
+inline const juce::Array<Colour>& trackColours()
+{
+    static const juce::Array<Colour> c {
+        Colour (0xffA9AFBA), Colour (0xff6FA8DC), Colour (0xff7FC8B6), Colour (0xff9DCB7A),
+        Colour (0xffE3C26F), Colour (0xffE89A6B), Colour (0xffE07A86), Colour (0xffB892D9),
+    };
+    return c;
+}
+
+//==============================================================================
+// Sizes in points at 100%. View > Text Size scales all of them.
+inline constexpr float bodyPoints    = 13.0f;
+inline constexpr float smallPoints   = 11.0f;   // dense labels (bar numbers): Apple's Subheadline
+inline constexpr int   controlHeight = 28;      // the Mac's default control
+inline constexpr int   smallControl  = 20;      // the Mac's smallest: track headers, dense rows
+inline constexpr int   controlGap    = 12;
+inline constexpr int   margin        = 16;
+inline constexpr int   buttonPadding = 12;
+inline constexpr float cornerRadius  = 6.0f;
+inline constexpr int   focusRingWidth = 2;
+inline constexpr int   tooltipColumns = 64;
+
+double luminance (Colour);
+double contrast (Colour, Colour);
+
+float scale();                 // the Text Size, 1.0 = 100%
+void setScale (float);
+inline int px (int points) { return juce::roundToInt ((float) points * scale()); }
+
+juce::Font font (float points = bodyPoints, bool bold = false);
+
+// A control reached with Tab is ringed in focusRing, inside its bounds.
+void drawFocusRing (juce::Graphics&, juce::Rectangle<float>, float radius = cornerRadius);
+
+// Tooltips broken into lines of about 64 characters.
+juce::String wrapTip (const juce::String&);
+
+class LookAndFeel : public juce::LookAndFeel_V4
+{
+public:
+    LookAndFeel();
+
+    juce::Font getTextButtonFont (juce::TextButton&, int) override;
+    int getTextButtonWidthToFitText (juce::TextButton&, int buttonHeight) override;
+    void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool highlighted, bool down) override;
+    void drawButtonText (juce::Graphics&, juce::TextButton&, bool highlighted, bool down) override;
+    void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool highlighted, bool down) override;
+    void drawTickBox (juce::Graphics&, juce::Component&, float x, float y, float w, float h, bool ticked, bool enabled,
+                      bool highlighted, bool down) override;
+
+    juce::Font getPopupMenuFont() override;
+    void drawPopupMenuBackgroundWithOptions (juce::Graphics&, int w, int h, const juce::PopupMenu::Options&) override;
+    juce::Font getMenuBarFont (juce::MenuBarComponent&, int, const juce::String&) override;
+    void drawMenuBarBackground (juce::Graphics&, int w, int h, bool, juce::MenuBarComponent&) override;
+    void drawMenuBarItem (juce::Graphics&, int w, int h, int, const juce::String&, bool over, bool open, bool,
+                          juce::MenuBarComponent&) override;
+
+    juce::Rectangle<int> getTooltipBounds (const juce::String&, juce::Point<int>, juce::Rectangle<int>) override;
+    void drawTooltip (juce::Graphics&, const juce::String&, int w, int h) override;
+
+    void drawScrollbar (juce::Graphics&, juce::ScrollBar&, int x, int y, int w, int h, bool vertical,
+                        int thumbStart, int thumbSize, bool over, bool down) override;
+    void drawCornerResizer (juce::Graphics&, int w, int h, bool over, bool dragging) override;
+    void drawStretchableLayoutResizerBar (juce::Graphics&, int w, int h, bool vertical, bool over, bool dragging) override;
+
+    void drawComboBox (juce::Graphics&, int w, int h, bool down, int, int, int, int, juce::ComboBox&) override;
+    juce::Font getComboBoxFont (juce::ComboBox&) override;
+    void positionComboBoxText (juce::ComboBox&, juce::Label&) override;
+
+    void drawLinearSlider (juce::Graphics&, int x, int y, int w, int h, float pos, float minPos, float maxPos,
+                           juce::Slider::SliderStyle, juce::Slider&) override;
+    void drawRotarySlider (juce::Graphics&, int x, int y, int w, int h, float pos, float start, float end,
+                           juce::Slider&) override;
+    juce::Label* createSliderTextBox (juce::Slider&) override;
+
+    void fillTextEditorBackground (juce::Graphics&, int w, int h, juce::TextEditor&) override;
+    void drawTextEditorOutline (juce::Graphics&, int w, int h, juce::TextEditor&) override;
+
+    juce::Font getLabelFont (juce::Label&) override;
+};
+
+//==============================================================================
+// A house button: dark ink on light grey, yellow when on with a bar under its
+// label (chosen is shown by shape too), a title for VoiceOver, Space presses it.
+class HouseButton : public juce::TextButton
+{
+public:
+    HouseButton (const juce::String& label, const juce::String& tip = {}, bool toggles = false);
+    void setTip (const juce::String&);
+    int idealWidth (int height = controlHeight);
+    bool keyPressed (const juce::KeyPress&) override;
+};
+
+} // namespace kal::theme

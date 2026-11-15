@@ -1,0 +1,142 @@
+# The app: JUCE, the CLAP SDK (hosting CLAP, decision 0021), Signalsmith
+# Stretch (spectral warping, decision 0022) and, on a Mac, the ARA SDK.
+# All fetched at fixed versions. To use copies already on disk, pass
+# -DFETCHCONTENT_SOURCE_DIR_JUCE=... (and _CLAP, _SIGNALSMITH_STRETCH,
+# _SIGNALSMITH_LINEAR, _ARA_SDK).
+
+include(FetchContent)
+
+FetchContent_Declare(juce
+    GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+    GIT_TAG        9.0.5
+    GIT_SHALLOW    TRUE)
+
+FetchContent_Declare(clap
+    GIT_REPOSITORY https://github.com/free-audio/clap.git
+    GIT_TAG        1.2.9
+    GIT_SHALLOW    TRUE)
+
+FetchContent_Declare(signalsmith_stretch
+    GIT_REPOSITORY https://github.com/Signalsmith-Audio/signalsmith-stretch.git
+    GIT_TAG        1.4.0
+    GIT_SHALLOW    TRUE)
+
+FetchContent_MakeAvailable(juce)
+
+# Only the headers of these are wanted, not their own targets and tests.
+FetchContent_GetProperties(clap)
+if(NOT clap_POPULATED)
+    FetchContent_Populate(clap)
+endif()
+FetchContent_MakeAvailable(signalsmith_stretch)
+
+option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" ${APPLE})
+if(KALIBRE_ARA)
+    FetchContent_Declare(ara_sdk
+        GIT_REPOSITORY https://github.com/Celemony/ARA_SDK.git
+        GIT_TAG        releases/2.3.0
+        GIT_SHALLOW    TRUE
+        GIT_SUBMODULES ARA_API ARA_Library)
+    FetchContent_GetProperties(ara_sdk)
+    if(NOT ara_sdk_POPULATED)
+        FetchContent_Populate(ara_sdk)
+    endif()
+    juce_set_ara_sdk_path(${ara_sdk_SOURCE_DIR})
+endif()
+
+#==============================================================================
+# The engine and the window, shared by the app, its tests and the renderer.
+#==============================================================================
+add_library(KalibreApp STATIC
+    Source/Engine/ClapFormat.cpp
+    Source/Engine/PluginManager.cpp
+    Source/Engine/TrackProcessors.cpp
+    Source/Engine/MorphProcessor.cpp
+    Source/Engine/Warp.cpp
+    Source/Engine/Engine.cpp
+    Source/App/Theme.cpp
+    Source/App/Controller.cpp
+    Source/App/TopBar.cpp
+    Source/App/Arrange.cpp
+    Source/App/PianoRoll.cpp
+    Source/App/PatternEditors.cpp
+    Source/App/NotationView.cpp
+    Source/App/DeviceRack.cpp
+    Source/App/Mixer.cpp
+    Source/App/LowerZone.cpp
+    Source/App/Browser.cpp
+    Source/App/MainComponent.cpp
+    Source/App/Menus.cpp)
+if(APPLE)
+    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm)
+endif()
+
+target_include_directories(KalibreApp PUBLIC
+    Source/App Source/Engine
+    ${clap_SOURCE_DIR}/include)
+target_link_libraries(KalibreApp
+    PUBLIC
+        KalibreCore
+        signalsmith-stretch
+        juce::juce_audio_utils
+        juce::juce_audio_processors
+        juce::juce_dsp
+        juce::juce_gui_extra
+    PRIVATE
+        juce::juce_recommended_config_flags)
+
+target_compile_definitions(KalibreApp PUBLIC
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_REPORT_APP_USAGE=0
+    JUCE_STRICT_REFCOUNTEDPOINTER=1
+    JUCE_PLUGINHOST_VST3=1
+    JUCE_PLUGINHOST_AU=1
+    JUCE_PLUGINHOST_LV2=0
+    JUCE_PLUGINHOST_LADSPA=0
+    JUCE_PLUGINHOST_ARA=$<IF:$<BOOL:${KALIBRE_ARA}>,1,0>
+    JUCE_USE_MP3AUDIOFORMAT=1
+    JUCE_USE_FLAC=1
+    JUCE_USE_OGGVORBIS=1
+    JUCE_MODAL_LOOPS_PERMITTED=1
+    JUCE_VST3_CAN_REPLACE_VST2=0
+    KALIBRE_VERSION="${PROJECT_VERSION}")
+
+#==============================================================================
+juce_add_gui_app(Kalibre
+    PRODUCT_NAME          "Kalibre"
+    COMPANY_NAME          "Kallum Shah"
+    BUNDLE_ID             "com.kallumshah.kalibre"
+    VERSION               ${PROJECT_VERSION}
+    DOCUMENT_EXTENSIONS   kalibre
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT "Kalibre records from your audio interface."
+    HARDENED_RUNTIME_ENABLED FALSE
+    PLIST_TO_MERGE "<plist><dict><key>LSMinimumSystemVersion</key><string>12.0</string><key>NSHighResolutionCapable</key><true/></dict></plist>")
+
+target_sources(Kalibre PRIVATE Source/App/Main.cpp)
+target_compile_definitions(Kalibre PRIVATE
+    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:Kalibre,JUCE_PRODUCT_NAME>"
+    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:Kalibre,JUCE_VERSION>")
+target_link_libraries(Kalibre PRIVATE
+    KalibreApp
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags)
+
+#==============================================================================
+# The window's own tests, and a tool that draws the real window into PNGs
+# (so a change can be seen from a Linux container, decision 0023).
+if(KALIBRE_BUILD_TESTS)
+    juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
+    target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp)
+    target_include_directories(KalibreAppTests PRIVATE Tests)
+    target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1)
+    target_link_libraries(KalibreAppTests PRIVATE KalibreApp juce::juce_recommended_config_flags)
+    add_test(NAME App COMMAND KalibreAppTests)
+
+    juce_add_console_app(KalibreRender PRODUCT_NAME "Kalibre Render")
+    target_sources(KalibreRender PRIVATE tools/RenderWindow.cpp)
+    target_compile_definitions(KalibreRender PRIVATE JUCE_STANDALONE_APPLICATION=1)
+    target_link_libraries(KalibreRender PRIVATE KalibreApp juce::juce_recommended_config_flags)
+endif()
