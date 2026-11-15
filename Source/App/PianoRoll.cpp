@@ -224,6 +224,36 @@ void PianoRoll::paint (Graphics& g)
         g.fillRect (va);
         g.setColour (theme::rule);
         g.fillRect (va.getX(), va.getY(), va.getWidth(), 1);
+        if (laneKind >= 0)
+        {
+            // A controller: a held line between its values.
+            const auto type = laneKind == 128 ? EventType::PitchBend : laneKind == 129 ? EventType::ChannelPressure : EventType::Controller;
+            const double full = laneKind == 128 ? 16383.0 : 127.0;
+            Path line;
+            bool started = false;
+            float lastY = 0;
+            for (auto& ev : clip->midi.events)
+            {
+                if (ev.type != type || (type == EventType::Controller && ev.number != laneKind)) continue;
+                const float x = xOf (ev.tick);
+                const float y = (float) va.getBottom() - 3 - (float) (va.getHeight() - 6) * (float) (ev.value / full);
+                if (! started) { line.startNewSubPath ((float) va.getX(), y); started = true; }
+                else line.lineTo (x, lastY);
+                line.lineTo (x, y);
+                lastY = y;
+                g.setColour (trackCol);
+                g.fillEllipse (x - 2.5f, y - 2.5f, 5.0f, 5.0f);
+            }
+            if (started) line.lineTo ((float) va.getRight(), lastY);
+            g.setColour (trackCol);
+            g.strokePath (line, PathStrokeType (1.5f));
+            if (laneKind == 128)
+            {
+                g.setColour (theme::rule);
+                g.fillRect (va.getX(), va.getCentreY(), va.getWidth(), 1);
+            }
+        }
+        else
         for (auto& n : notes)
         {
             const float x = xOf (n.start);
@@ -279,7 +309,7 @@ void PianoRoll::paint (Graphics& g)
     g.fillRect (0, getHeight() - velocityHeight() - articulationHeight(), keyboardWidth(), velocityHeight() + articulationHeight());
     g.setColour (theme::textSecondary);
     g.setFont (theme::font (theme::smallPoints));
-    g.drawText ("Velocity", Rectangle<int> (0, getHeight() - velocityHeight(), keyboardWidth(), velocityHeight()).reduced (4), Justification::topLeft, false);
+    g.drawFittedText (laneName() + ui::u8 (" \xe2\x96\xbe"), Rectangle<int> (0, getHeight() - velocityHeight(), keyboardWidth(), velocityHeight()).reduced (4), Justification::topLeft, 3);
     if (articulationHeight() > 0)
         g.drawText ("Artic.", Rectangle<int> (0, getHeight() - velocityHeight() - articulationHeight(), keyboardWidth(), articulationHeight()).reduced (4, 0), Justification::centredLeft, false);
 
@@ -334,6 +364,7 @@ void PianoRoll::mouseDown (const MouseEvent& e)
     pastThreshold = false;
 
     if (e.y < rulerHeight()) { c.locate (c.snapTick (base() + relAt ((float) e.x))); return; }
+    if (e.x < keyboardWidth() && e.y >= getHeight() - velocityHeight()) { laneMenu(); return; }
     if (e.x < keyboardWidth())
     {
         c.engine.audition (c.focusTrack, pitchAt ((float) e.y), 100, 0.4);
@@ -343,7 +374,8 @@ void PianoRoll::mouseDown (const MouseEvent& e)
     {
         velocityDrag = true;
         velocityBefore = c.project;
-        setVelocityAt (e);
+        lastLaneTick = -1;
+        if (laneKind >= 0) drawLaneValue (e); else setVelocityAt (e);
         return;
     }
     if (articulationArea().contains (e.getPosition()))
@@ -364,7 +396,7 @@ void PianoRoll::mouseDown (const MouseEvent& e)
 
 void PianoRoll::mouseDrag (const MouseEvent& e)
 {
-    if (velocityDrag) { setVelocityAt (e); return; }
+    if (velocityDrag) { if (laneKind >= 0) drawLaneValue (e); else setVelocityAt (e); return; }
     if (e.y < rulerHeight() && ! gesture) { c.locate (c.snapTick (base() + relAt ((float) e.x))); return; }
     if (! gesture) return;
     if (! pastThreshold && e.getPosition().getDistanceFrom (downAt) < 3) return;
@@ -387,7 +419,7 @@ void PianoRoll::mouseUp (const MouseEvent& e)
     if (velocityDrag)
     {
         velocityDrag = false;
-        if (! (velocityBefore == c.project)) c.history.push (velocityBefore, "Velocity");
+        if (! (velocityBefore == c.project)) c.history.push (velocityBefore, laneKind >= 0 ? "Draw " + laneName().toStdString() : std::string ("Velocity"));
         c.refresh();
         return;
     }
@@ -481,6 +513,74 @@ void PianoRoll::setVelocityAt (const MouseEvent& e)
             else n.velocity = v;
             break;
         }
+    repaint();
+}
+
+String PianoRoll::laneName() const
+{
+    switch (laneKind)
+    {
+        case -1:  return "Velocity";
+        case 1:   return "Modulation";
+        case 2:   return "Breath";
+        case 7:   return "Volume";
+        case 11:  return "Expression";
+        case 64:  return "Sustain";
+        case 128: return "Pitch Bend";
+        case 129: return "Pressure";
+        default:  return "CC " + String (laneKind);
+    }
+}
+
+void PianoRoll::laneMenu()
+{
+    PopupMenu m;
+    for (int k : { -1, 1, 11, 64, 128, 129, 2, 7 })
+    {
+        const int saved = laneKind;
+        laneKind = k;
+        const auto name = laneName();
+        laneKind = saved;
+        m.addItem (name, true, laneKind == k, [this, k] { laneKind = k; repaint(); });
+    }
+    PopupMenu more;
+    for (int cc = 0; cc < 128; ++cc)
+        if (cc != 1 && cc != 2 && cc != 7 && cc != 11 && cc != 64)
+            more.addItem ("CC " + String (cc), true, laneKind == cc, [this, cc] { laneKind = cc; repaint(); });
+    m.addSubMenu ("Other Controllers", more);
+    m.showMenuAsync (PopupMenu::Options());
+}
+
+void PianoRoll::drawLaneValue (const MouseEvent& e)
+{
+    auto* clip = c.clip();
+    if (! clip) return;
+    const auto va = velocityArea();
+    const auto type = laneKind == 128 ? EventType::PitchBend : laneKind == 129 ? EventType::ChannelPressure : EventType::Controller;
+    const int full = laneKind == 128 ? 16383 : 127;
+    const Tick step = jmax<Tick> (PPQ / 32, c.grid / 4);
+    const Tick tick = jmax<Tick> (0, (relAt ((float) e.x) / step) * step);
+    const Tick from = lastLaneTick < 0 ? tick : jmin (lastLaneTick, tick);
+    const Tick to = lastLaneTick < 0 ? tick : jmax (lastLaneTick, tick);
+    auto& evs = clip->midi.events;
+    // What was there is replaced from the last point to this one; a right-drag only erases.
+    evs.erase (std::remove_if (evs.begin(), evs.end(), [&] (const MidiEvent& ev)
+    {
+        return ev.type == type && (type != EventType::Controller || ev.number == laneKind) && ev.tick >= from && ev.tick <= to
+            && (ev.tick != lastLaneTick || lastLaneTick == tick);   // the point just drawn stays
+    }), evs.end());
+    if (! e.mods.isPopupMenu())
+    {
+        MidiEvent ev;
+        ev.tick = tick;
+        ev.type = type;
+        ev.number = laneKind;
+        ev.channel = 0;
+        ev.value = jlimit (0, full, roundToInt ((double) full * (va.getBottom() - 3 - e.y) / (va.getHeight() - 6)));
+        evs.push_back (ev);
+        edit::sortNotes (clip->midi);
+    }
+    lastLaneTick = tick;
     repaint();
 }
 

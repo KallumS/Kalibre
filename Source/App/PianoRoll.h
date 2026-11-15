@@ -8,7 +8,8 @@
     root's darker still) when Shade the Scale is on (decision 0015).
 
     Under the notes, the velocity lane (drag to set how hard each note is
-    played) and, on a track with an articulation map, the articulation lane:
+    played; click its name to draw a controller there instead: modulation,
+    expression, sustain, pitch bend, pressure or any CC) and, on a track with an articulation map, the articulation lane:
     each note's articulation, chosen with a click (decision 0013).
 */
 
@@ -51,6 +52,12 @@ private:
     roll::Outcome preview;
     std::vector<Note> notesCopy;
     bool velocityDrag = false;
+    // The lane under the notes: -1 velocity, 0-127 a controller, 128 pitch bend, 129 channel pressure.
+    int laneKind = -1;
+    Tick lastLaneTick = -1;
+    void laneMenu();
+    void drawLaneValue (const juce::MouseEvent&);
+    juce::String laneName() const;
     Project velocityBefore;
     Id shownClip = 0;
     juce::Point<int> downAt;
