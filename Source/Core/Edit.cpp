@@ -1,0 +1,801 @@
+#include "Edit.h"
+
+#include <cmath>
+#include <limits>
+#include <map>
+#include <random>
+
+namespace kal::edit
+{
+
+namespace
+{
+template <typename Vec, typename Pred>
+void eraseIf (Vec& v, Pred p) { v.erase (std::remove_if (v.begin(), v.end(), p), v.end()); }
+
+Clip* midiClip (Project& p, Id clip)
+{
+    auto* c = p.clip (clip);
+    return (c && c->isMidi()) ? c : nullptr;
+}
+
+// The index just past a track's last descendant.
+size_t blockEnd (const Project& p, size_t index)
+{
+    const Id id = p.tracks[index].id;
+    size_t j = index + 1;
+    while (j < p.tracks.size() && p.isInside (p.tracks[j].id, id)) ++j;
+    return j;
+}
+
+void renumber (Project& p, Track& t)
+{
+    t.id = p.newId();
+    for (auto& v : t.versions)
+    {
+        v.id = p.newId();
+        for (auto& c : v.clips)
+        {
+            c.id = p.newId();
+            for (auto& n : c.midi.notes) n.id = p.newId();
+        }
+    }
+    std::map<Id, Id> deviceIds;
+    for (auto& d : t.devices) { const Id old = d.id; d.id = p.newId(); deviceIds[old] = d.id; }
+    for (auto& a : t.automation)
+    {
+        a.id = p.newId();
+        if (deviceIds.count (a.target.device)) a.target.device = deviceIds[a.target.device];
+    }
+    for (auto& m : t.modulators)
+    {
+        m.id = p.newId();
+        for (auto& target : m.targets)
+            if (deviceIds.count (target.device)) target.device = deviceIds[target.device];
+    }
+}
+} // namespace
+
+//==============================================================================
+Id addTrack (Project& p, TrackKind kind, const std::string& name, Id after, Id parent)
+{
+    Track t;
+    t.id = p.newId();
+    t.kind = kind == TrackKind::Master ? TrackKind::Track : kind;
+    t.name = name;
+    t.versions.front().id = p.newId();
+    t.versions.front().name = "Version 1";
+    if (kind == TrackKind::Folder) t.height = 40;
+    if (kind == TrackKind::Return) t.colour = 0xff8F96A2;
+    if (parent != 0 && (! p.track (parent) || ! p.track (parent)->isFolder())) parent = 0;
+    t.parent = parent;
+
+    size_t at = p.tracks.size();
+    if (after != 0)
+    {
+        const int i = p.indexOf (after);
+        if (i >= 0) at = blockEnd (p, static_cast<size_t> (i));
+    }
+    else if (parent != 0)
+    {
+        at = blockEnd (p, static_cast<size_t> (p.indexOf (parent)));
+    }
+    p.tracks.insert (p.tracks.begin() + static_cast<std::ptrdiff_t> (at), t);
+    return t.id;
+}
+
+std::vector<Id> descendants (const Project& p, Id folder)
+{
+    std::vector<Id> out;
+    for (auto& t : p.tracks) if (p.isInside (t.id, folder)) out.push_back (t.id);
+    return out;
+}
+
+void removeTrack (Project& p, Id id, bool keepContents)
+{
+    auto* t = p.track (id);
+    if (! t || t->kind == TrackKind::Master) return;
+    const Id parent = t->parent;
+    std::set<Id> gone { id };
+    if (keepContents)
+    {
+        for (auto& c : p.tracks) if (c.parent == id) c.parent = parent;
+    }
+    else
+    {
+        for (auto d : descendants (p, id)) gone.insert (d);
+    }
+    eraseIf (p.tracks, [&] (const Track& x) { return gone.count (x.id) > 0; });
+    // Anything that sent or was routed to them goes to its own default.
+    auto unroute = [&] (Track& x)
+    {
+        eraseIf (x.sends, [&] (const Send& s) { return gone.count (s.target) > 0; });
+        if (gone.count (x.output)) x.output = 0;
+        for (auto& m : x.modulators) if (gone.count (m.sourceTrack)) m.sourceTrack = 0;
+    };
+    for (auto& x : p.tracks) unroute (x);
+    unroute (p.master);
+}
+
+Id duplicateTrack (Project& p, Id id)
+{
+    const int i = p.indexOf (id);
+    if (i < 0) return 0;
+    const size_t end = blockEnd (p, static_cast<size_t> (i));
+    std::vector<Track> copies (p.tracks.begin() + i, p.tracks.begin() + static_cast<std::ptrdiff_t> (end));
+    std::map<Id, Id> ids;
+    for (auto& c : copies)
+    {
+        const Id old = c.id;
+        renumber (p, c);
+        ids[old] = c.id;
+    }
+    for (auto& c : copies)
+        if (ids.count (c.parent)) c.parent = ids[c.parent];
+    copies.front().name += " Copy";
+    p.tracks.insert (p.tracks.begin() + static_cast<std::ptrdiff_t> (end), copies.begin(), copies.end());
+    return copies.front().id;
+}
+
+bool moveTrack (Project& p, Id id, Id before, Id parent)
+{
+    const int i = p.indexOf (id);
+    if (i < 0 || id == before || id == parent) return false;
+    if (parent != 0 && (p.isInside (parent, id) || ! p.track (parent) || ! p.track (parent)->isFolder())) return false;
+    if (before != 0 && p.isInside (before, id)) return false;
+
+    const size_t end = blockEnd (p, static_cast<size_t> (i));
+    std::vector<Track> block (p.tracks.begin() + i, p.tracks.begin() + static_cast<std::ptrdiff_t> (end));
+    p.tracks.erase (p.tracks.begin() + i, p.tracks.begin() + static_cast<std::ptrdiff_t> (end));
+    block.front().parent = parent;
+
+    size_t at;
+    if (before != 0 && p.indexOf (before) >= 0)
+        at = static_cast<size_t> (p.indexOf (before));
+    else if (parent != 0)
+        at = blockEnd (p, static_cast<size_t> (p.indexOf (parent)));
+    else
+        at = p.tracks.size();
+
+    // Inside a folder, a track has to land within the folder's block.
+    if (parent != 0)
+    {
+        const size_t pi = static_cast<size_t> (p.indexOf (parent));
+        at = std::clamp (at, pi + 1, blockEnd (p, pi));
+    }
+    p.tracks.insert (p.tracks.begin() + static_cast<std::ptrdiff_t> (at), block.begin(), block.end());
+    return true;
+}
+
+Id wrapInFolder (Project& p, const std::vector<Id>& ids, const std::string& name)
+{
+    if (ids.empty()) return 0;
+    const auto* first = p.track (ids.front());
+    if (! first) return 0;
+    const Id parent = first->parent;
+    for (auto id : ids)
+        if (! p.track (id) || p.track (id)->parent != parent) return 0;
+
+    // The folder goes where the first of them is.
+    Id before = ids.front();
+    int lowest = p.indexOf (before);
+    for (auto id : ids) if (p.indexOf (id) < lowest) { lowest = p.indexOf (id); before = id; }
+
+    Track f;
+    f.id = p.newId();
+    f.kind = TrackKind::Folder;
+    f.name = name;
+    f.parent = parent;
+    f.height = 40;
+    f.versions.front().id = p.newId();
+    p.tracks.insert (p.tracks.begin() + lowest, f);
+
+    std::vector<Id> ordered (ids);
+    std::sort (ordered.begin(), ordered.end(), [&] (Id a, Id b) { return p.indexOf (a) < p.indexOf (b); });
+    for (auto id : ordered) moveTrack (p, id, 0, f.id);
+    return f.id;
+}
+
+//==============================================================================
+int newVersion (Project& p, Id id)
+{
+    auto* t = p.track (id);
+    if (! t || ! t->holdsClips()) return -1;
+    TrackVersion v = t->version();
+    v.id = p.newId();
+    for (auto& c : v.clips)
+    {
+        c.id = p.newId();
+        for (auto& n : c.midi.notes) n.id = p.newId();
+    }
+    v.name = "Version " + std::to_string (t->versions.size() + 1);
+    t->versions.push_back (v);
+    t->activeVersion = static_cast<int> (t->versions.size()) - 1;
+    return t->activeVersion;
+}
+
+int newEmptyVersion (Project& p, Id id)
+{
+    auto* t = p.track (id);
+    if (! t || ! t->holdsClips()) return -1;
+    TrackVersion v;
+    v.id = p.newId();
+    v.name = "Version " + std::to_string (t->versions.size() + 1);
+    t->versions.push_back (v);
+    t->activeVersion = static_cast<int> (t->versions.size()) - 1;
+    return t->activeVersion;
+}
+
+bool deleteVersion (Project& p, Id id, int index)
+{
+    auto* t = p.track (id);
+    if (! t || t->versions.size() < 2 || index < 0 || index >= static_cast<int> (t->versions.size())) return false;
+    t->versions.erase (t->versions.begin() + index);
+    if (t->activeVersion >= index && t->activeVersion > 0) --t->activeVersion;
+    return true;
+}
+
+void selectVersion (Project& p, Id id, int index)
+{
+    if (auto* t = p.track (id))
+        t->activeVersion = std::clamp (index, 0, static_cast<int> (t->versions.size()) - 1);
+}
+
+void renameVersion (Project& p, Id id, int index, const std::string& name)
+{
+    if (auto* t = p.track (id))
+        if (index >= 0 && index < static_cast<int> (t->versions.size()))
+            t->versions[static_cast<size_t> (index)].name = name;
+}
+
+//==============================================================================
+void sortClips (Track& t)
+{
+    std::stable_sort (t.clips().begin(), t.clips().end(), [] (const Clip& a, const Clip& b) { return a.start < b.start; });
+}
+
+Id addClip (Project& p, Id trackId, Clip c)
+{
+    auto* t = p.track (trackId);
+    if (! t || ! t->holdsClips()) return 0;
+    c.id = p.newId();
+    for (auto& n : c.midi.notes) if (n.id == 0) n.id = p.newId();
+    c.length = std::max<Tick> (1, c.length);
+    t->clips().push_back (c);
+    sortClips (*t);
+    return c.id;
+}
+
+Id addMidiClip (Project& p, Id trackId, Tick start, Tick length)
+{
+    Clip c;
+    c.kind = Clip::Kind::Midi;
+    c.start = start;
+    c.length = length;
+    if (auto* t = p.track (trackId)) c.name = t->name;
+    return addClip (p, trackId, c);
+}
+
+void removeClips (Project& p, const std::set<Id>& ids)
+{
+    for (auto& t : p.tracks)
+        eraseIf (t.clips(), [&] (const Clip& c) { return ids.count (c.id) > 0 && ! c.locked; });
+}
+
+bool moveClip (Project& p, Id clipId, Tick newStart, Id newTrack)
+{
+    Track* owner = nullptr;
+    auto* c = p.clip (clipId, &owner);
+    if (! c || c->locked || owner->locked) return false;
+    newStart = std::max<Tick> (0, newStart);
+    if (newTrack == 0 || newTrack == owner->id)
+    {
+        c->start = newStart;
+        sortClips (*owner);
+        return true;
+    }
+    auto* target = p.track (newTrack);
+    if (! target || ! target->holdsClips() || target->locked) return false;
+    Clip moved = *c;
+    moved.start = newStart;
+    eraseIf (owner->clips(), [clipId] (const Clip& x) { return x.id == clipId; });
+    target->clips().push_back (moved);
+    sortClips (*target);
+    return true;
+}
+
+void resizeClip (Project& p, Id clipId, Tick newStart, Tick newEnd)
+{
+    Track* owner = nullptr;
+    auto* c = p.clip (clipId, &owner);
+    if (! c || c->locked) return;
+    newStart = std::max<Tick> (0, newStart);
+    if (newEnd <= newStart) newEnd = newStart + 1;
+    // Trimming the front keeps the content where it was in time.
+    c->offset += newStart - c->start;
+    if (c->offset < 0 && c->loopLength == 0)
+    {
+        newStart -= c->offset;
+        c->offset = 0;
+    }
+    c->start = newStart;
+    c->length = newEnd - newStart;
+    sortClips (*owner);
+}
+
+Id splitClip (Project& p, Id clipId, Tick at)
+{
+    Track* owner = nullptr;
+    auto* c = p.clip (clipId, &owner);
+    if (! c || c->locked || at <= c->start || at >= c->end()) return 0;
+    Clip right = *c;
+    right.id = p.newId();
+    right.start = at;
+    right.length = c->end() - at;
+    right.offset = c->offset + (at - c->start);
+    c->length = at - c->start;
+    if (c->isMidi() && c->loopLength == 0)
+    {
+        // Each half keeps only the notes that start in it, so editing one never edits the other.
+        const Tick cut = c->offset + c->length;
+        eraseIf (c->midi.notes, [cut] (const Note& n) { return n.start >= cut; });
+        eraseIf (right.midi.notes, [cut] (const Note& n) { return n.start < cut; });
+        for (auto& n : right.midi.notes) n.id = p.newId();
+    }
+    // Fades stay at their own end.
+    right.audio.fadeIn = 0;
+    c->audio.fadeOut = 0;
+    const Id rightId = right.id;
+    owner->clips().push_back (right);
+    sortClips (*owner);
+    return rightId;
+}
+
+Id duplicateClip (Project& p, Id clipId)
+{
+    Track* owner = nullptr;
+    auto* c = p.clip (clipId, &owner);
+    if (! c) return 0;
+    Clip copy = *c;
+    copy.start = c->end();
+    copy.locked = false;
+    for (auto& n : copy.midi.notes) n.id = p.newId();
+    return addClip (p, owner->id, copy);
+}
+
+Id consolidateClips (Project& p, const std::set<Id>& ids)
+{
+    Track* owner = nullptr;
+    std::vector<Clip> chosen;
+    for (auto id : ids)
+    {
+        Track* o = nullptr;
+        auto* c = p.clip (id, &o);
+        if (! c || ! c->isMidi()) return 0;
+        if (owner && owner != o) return 0;
+        owner = o;
+        chosen.push_back (*c);
+    }
+    if (chosen.empty() || ! owner) return 0;
+    Clip out;
+    out.kind = Clip::Kind::Midi;
+    out.name = chosen.front().name;
+    out.colour = chosen.front().colour;
+    out.start = chosen.front().start;
+    Tick end = 0;
+    for (auto& c : chosen) { out.start = std::min (out.start, c.start); end = std::max (end, c.end()); }
+    out.length = end - out.start;
+    for (auto& c : chosen)
+    {
+        // Every note the clip actually plays, looped copies included, at its place in time.
+        const Tick content = c.loopLength > 0 ? c.loopLength : std::max<Tick> (1, c.length + c.offset);
+        for (Tick base = -c.offset; base < c.length; base += content)
+        {
+            for (auto n : c.midi.notes)
+            {
+                const Tick at = base + n.start;
+                if (at < 0 || at >= c.length) continue;
+                n.start = c.start - out.start + at;
+                n.length = std::min (n.length, c.length - at);
+                n.id = 0;
+                out.midi.notes.push_back (n);
+            }
+            for (auto e : c.midi.events)
+            {
+                const Tick at = base + e.tick;
+                if (at < 0 || at >= c.length) continue;
+                e.tick = c.start - out.start + at;
+                out.midi.events.push_back (e);
+            }
+            if (c.loopLength == 0) break;
+        }
+    }
+    sortNotes (out.midi);
+    eraseIf (owner->clips(), [&] (const Clip& c) { return ids.count (c.id) > 0; });
+    return addClip (p, owner->id, out);
+}
+
+//==============================================================================
+void sortNotes (MidiData& m)
+{
+    std::stable_sort (m.notes.begin(), m.notes.end(), [] (const Note& a, const Note& b)
+    {
+        return a.start != b.start ? a.start < b.start : a.pitch < b.pitch;
+    });
+    std::stable_sort (m.events.begin(), m.events.end(), [] (const MidiEvent& a, const MidiEvent& b) { return a.tick < b.tick; });
+}
+
+Id addNote (Project& p, Id clipId, Note n)
+{
+    auto* c = midiClip (p, clipId);
+    if (! c) return 0;
+    n.id = p.newId();
+    n.pitch = std::clamp (n.pitch, 0, 127);
+    n.velocity = std::clamp (n.velocity, 1, 127);
+    n.length = std::max<Tick> (1, n.length);
+    n.start = std::max<Tick> (0, n.start);
+    c->midi.notes.push_back (n);
+    sortNotes (c->midi);
+    return n.id;
+}
+
+void removeNotes (Project& p, Id clipId, const std::set<Id>& ids)
+{
+    if (auto* c = midiClip (p, clipId))
+        eraseIf (c->midi.notes, [&] (const Note& n) { return ids.count (n.id) > 0; });
+}
+
+void moveNotes (Project& p, Id clipId, const std::set<Id>& ids, Tick dt, int dPitch)
+{
+    auto* c = midiClip (p, clipId);
+    if (! c) return;
+    // The group moves as one: it stops at the edges rather than squashing.
+    Tick earliest = std::numeric_limits<Tick>::max();
+    int lo = 127, hi = 0;
+    for (auto& n : c->midi.notes)
+        if (ids.count (n.id)) { earliest = std::min (earliest, n.start); lo = std::min (lo, n.pitch); hi = std::max (hi, n.pitch); }
+    if (earliest == std::numeric_limits<Tick>::max()) return;
+    dt = std::max (dt, -earliest);
+    dPitch = std::clamp (dPitch, -lo, 127 - hi);
+    for (auto& n : c->midi.notes)
+        if (ids.count (n.id)) { n.start += dt; n.pitch += dPitch; }
+    sortNotes (c->midi);
+}
+
+void resizeNotes (Project& p, Id clipId, const std::set<Id>& ids, Tick dStart, Tick dEnd, Tick minLength)
+{
+    auto* c = midiClip (p, clipId);
+    if (! c) return;
+    minLength = std::max<Tick> (1, minLength);
+    for (auto& n : c->midi.notes)
+    {
+        if (! ids.count (n.id)) continue;
+        const Tick end = n.end() + dEnd;
+        Tick start = std::max<Tick> (0, n.start + dStart);
+        if (end - start < minLength)
+        {
+            if (dStart != 0) start = end - minLength;
+            else { n.length = minLength; continue; }
+        }
+        n.start = std::max<Tick> (0, start);
+        n.length = std::max (minLength, end - n.start);
+    }
+    sortNotes (c->midi);
+}
+
+void setVelocity (Project& p, Id clipId, const std::set<Id>& ids, int velocity)
+{
+    if (auto* c = midiClip (p, clipId))
+        for (auto& n : c->midi.notes) if (ids.count (n.id)) n.velocity = std::clamp (velocity, 1, 127);
+}
+
+void scaleVelocity (Project& p, Id clipId, const std::set<Id>& ids, double factor)
+{
+    if (auto* c = midiClip (p, clipId))
+        for (auto& n : c->midi.notes)
+            if (ids.count (n.id)) n.velocity = std::clamp (static_cast<int> (std::lround (n.velocity * factor)), 1, 127);
+}
+
+std::set<Id> duplicateNotes (Project& p, Id clipId, const std::set<Id>& ids, Tick dt)
+{
+    std::set<Id> made;
+    auto* c = midiClip (p, clipId);
+    if (! c) return made;
+    std::vector<Note> copies;
+    for (auto& n : c->midi.notes) if (ids.count (n.id)) copies.push_back (n);
+    for (auto n : copies)
+    {
+        n.start = std::max<Tick> (0, n.start + dt);
+        n.id = p.newId();
+        made.insert (n.id);
+        c->midi.notes.push_back (n);
+    }
+    sortNotes (c->midi);
+    return made;
+}
+
+static Tick snapTo (Tick t, Tick grid) { return grid <= 0 ? t : static_cast<Tick> (std::llround (static_cast<double> (t) / grid)) * grid; }
+
+void quantise (Project& p, Id clipId, const std::set<Id>& ids, Tick grid, double strength, bool ends)
+{
+    auto* c = midiClip (p, clipId);
+    if (! c || grid <= 0) return;
+    strength = std::clamp (strength, 0.0, 1.0);
+    for (auto& n : c->midi.notes)
+    {
+        if (! ids.empty() && ! ids.count (n.id)) continue;
+        // Notes are quantised where they sound, so a clip that starts off the bar still lands on the project's grid.
+        const Tick abs = c->start - c->offset + n.start;
+        const Tick target = snapTo (abs, grid);
+        const Tick shift = static_cast<Tick> (std::llround ((target - abs) * strength));
+        const Tick end = n.end() + shift;
+        n.start = std::max<Tick> (0, n.start + shift);
+        n.length = std::max<Tick> (1, end - n.start);
+        if (ends)
+        {
+            const Tick absEnd = c->start - c->offset + n.end();
+            const Tick e = snapTo (absEnd, grid);
+            const Tick move = static_cast<Tick> (std::llround ((e - absEnd) * strength));
+            n.length = std::max<Tick> (grid / 4 > 0 ? grid / 4 : 1, n.length + move);
+        }
+    }
+    sortNotes (c->midi);
+}
+
+void transpose (Project& p, Id clipId, const std::set<Id>& ids, int semitones) { moveNotes (p, clipId, ids, 0, semitones); }
+
+void legato (Project& p, Id clipId, const std::set<Id>& ids)
+{
+    auto* c = midiClip (p, clipId);
+    if (! c) return;
+    sortNotes (c->midi);
+    auto& notes = c->midi.notes;
+    for (size_t i = 0; i < notes.size(); ++i)
+    {
+        if (! ids.empty() && ! ids.count (notes[i].id)) continue;
+        // Up to the next start later than its own (a chord's notes all reach the next chord).
+        for (size_t j = i + 1; j < notes.size(); ++j)
+        {
+            if (! ids.empty() && ! ids.count (notes[j].id)) continue;
+            if (notes[j].start > notes[i].start) { notes[i].length = notes[j].start - notes[i].start; break; }
+        }
+    }
+}
+
+void humanise (Project& p, Id clipId, const std::set<Id>& ids, Tick timing, int velocity, unsigned seed)
+{
+    auto* c = midiClip (p, clipId);
+    if (! c) return;
+    std::mt19937 rng (seed);
+    std::uniform_int_distribution<long long> dt (-timing, timing);
+    std::uniform_int_distribution<int> dv (-velocity, velocity);
+    for (auto& n : c->midi.notes)
+    {
+        if (! ids.empty() && ! ids.count (n.id)) continue;
+        n.start = std::max<Tick> (0, n.start + (timing > 0 ? dt (rng) : 0));
+        n.velocity = std::clamp (n.velocity + (velocity > 0 ? dv (rng) : 0), 1, 127);
+    }
+    sortNotes (c->midi);
+}
+
+std::set<Id> splitNotes (Project& p, Id clipId, const std::set<Id>& ids, Tick at)
+{
+    std::set<Id> made;
+    auto* c = midiClip (p, clipId);
+    if (! c) return made;
+    std::vector<Note> rights;
+    for (auto& n : c->midi.notes)
+    {
+        if (! ids.count (n.id) || at <= n.start || at >= n.end()) continue;
+        Note r = n;
+        r.id = p.newId();
+        r.start = at;
+        r.length = n.end() - at;
+        n.length = at - n.start;
+        rights.push_back (r);
+        made.insert (r.id);
+    }
+    c->midi.notes.insert (c->midi.notes.end(), rights.begin(), rights.end());
+    sortNotes (c->midi);
+    return made;
+}
+
+void joinNotes (Project& p, Id clipId, const std::set<Id>& ids)
+{
+    auto* c = midiClip (p, clipId);
+    if (! c) return;
+    // Same-pitch notes chosen together become one from the first start to the last end.
+    std::map<int, std::vector<Note*>> byPitch;
+    for (auto& n : c->midi.notes) if (ids.count (n.id)) byPitch[n.pitch].push_back (&n);
+    std::set<Id> drop;
+    for (auto& [pitch, list] : byPitch)
+    {
+        if (list.size() < 2) continue;
+        Tick start = list.front()->start, end = list.front()->end();
+        for (auto* n : list) { start = std::min (start, n->start); end = std::max (end, n->end()); }
+        list.front()->start = start;
+        list.front()->length = end - start;
+        for (size_t i = 1; i < list.size(); ++i) drop.insert (list[i]->id);
+    }
+    eraseIf (c->midi.notes, [&] (const Note& n) { return drop.count (n.id) > 0; });
+    sortNotes (c->midi);
+}
+
+void setArticulation (Project& p, Id clipId, const std::set<Id>& ids, int articulation)
+{
+    if (auto* c = midiClip (p, clipId))
+        for (auto& n : c->midi.notes) if (ids.count (n.id)) n.articulation = articulation;
+}
+
+//==============================================================================
+void normaliseChain (Track& t)
+{
+    std::stable_sort (t.devices.begin(), t.devices.end(), [] (const Device& a, const Device& b)
+    {
+        return static_cast<int> (a.role) < static_cast<int> (b.role);
+    });
+}
+
+Id addDevice (Project& p, Id trackId, const PluginRef& plugin, DeviceRole role, int position)
+{
+    auto* t = p.track (trackId);
+    if (! t) return 0;
+    Device d;
+    d.id = p.newId();
+    d.plugin = plugin;
+    d.role = role;
+    if (position < 0 || position > static_cast<int> (t->devices.size()))
+        t->devices.push_back (d);
+    else
+        t->devices.insert (t->devices.begin() + position, d);
+    normaliseChain (*t);
+    return d.id;
+}
+
+void removeDevice (Project& p, Id deviceId)
+{
+    Track* owner = nullptr;
+    if (! p.device (deviceId, &owner)) return;
+    eraseIf (owner->devices, [deviceId] (const Device& d) { return d.id == deviceId; });
+    eraseIf (owner->automation, [deviceId] (const AutomationLane& a) { return a.target.device == deviceId; });
+    for (auto& m : owner->modulators)
+        eraseIf (m.targets, [deviceId] (const ModTarget& x) { return x.device == deviceId; });
+}
+
+void moveDevice (Project& p, Id deviceId, int newIndex)
+{
+    Track* owner = nullptr;
+    auto* d = p.device (deviceId, &owner);
+    if (! d) return;
+    Device copy = *d;
+    eraseIf (owner->devices, [deviceId] (const Device& x) { return x.id == deviceId; });
+    newIndex = std::clamp (newIndex, 0, static_cast<int> (owner->devices.size()));
+    owner->devices.insert (owner->devices.begin() + newIndex, copy);
+    normaliseChain (*owner);
+}
+
+void setDeviceActive (Project& p, Id deviceId, bool active, const std::string& state)
+{
+    if (auto* d = p.device (deviceId))
+    {
+        if (! active && ! state.empty()) d->state = state;
+        d->active = active;
+    }
+}
+
+//==============================================================================
+bool canRoute (const Project& p, Id from, Id to)
+{
+    if (from == to || to == 0) return to == 0;
+    const auto* a = p.track (from);
+    const auto* b = p.track (to);
+    if (! a || ! b) return false;
+    if (a->kind == TrackKind::Master) return false;
+    if (b->kind == TrackKind::Master) return true;
+    // `to` must not feed `from`, directly or through folders, outputs or sends.
+    std::set<Id> seen;
+    std::vector<Id> stack { to };
+    while (! stack.empty())
+    {
+        const Id x = stack.back();
+        stack.pop_back();
+        if (x == from) return false;
+        if (! seen.insert (x).second) continue;
+        const auto* t = p.track (x);
+        if (! t) continue;
+        const Id out = p.outputOf (x);
+        if (out != 0) stack.push_back (out);
+        for (auto& s : t->sends) stack.push_back (s.target);
+    }
+    return true;
+}
+
+bool addSend (Project& p, Id from, Id to, double gainDb)
+{
+    auto* t = p.track (from);
+    if (! t || ! canRoute (p, from, to) || to == 0) return false;
+    for (auto& s : t->sends) if (s.target == to) return false;
+    t->sends.push_back ({ to, gainDb, false, false });
+    return true;
+}
+
+//==============================================================================
+AutomationLane& laneFor (Track& t, const AutoTarget& target, double defaultValue)
+{
+    for (auto& a : t.automation) if (a.target == target) return a;
+    AutomationLane lane;
+    lane.id = 0;   // the caller gives it an id when it knows the project
+    lane.target = target;
+    lane.points.push_back ({ 0, defaultValue, 0, false });
+    t.automation.push_back (lane);
+    return t.automation.back();
+}
+
+double valueAt (const AutomationLane& lane, Tick tick, double fallback)
+{
+    const auto& pts = lane.points;
+    if (pts.empty()) return fallback;
+    if (tick <= pts.front().tick) return pts.front().value;
+    if (tick >= pts.back().tick) return pts.back().value;
+    auto it = std::upper_bound (pts.begin(), pts.end(), tick, [] (Tick t, const AutoPoint& p) { return t < p.tick; });
+    const auto& b = *it;
+    const auto& a = *(it - 1);
+    if (a.step || b.tick == a.tick) return a.value;
+    double f = static_cast<double> (tick - a.tick) / static_cast<double> (b.tick - a.tick);
+    if (std::abs (a.curve) > 1e-6)
+    {
+        // A power curve: positive bends it to rise late, negative to rise early.
+        const double k = std::pow (2.0, a.curve * 3.0);
+        f = std::pow (f, k);
+    }
+    return a.value + (b.value - a.value) * f;
+}
+
+void addPoint (AutomationLane& lane, AutoPoint pt)
+{
+    pt.value = std::clamp (pt.value, 0.0, 1.0);
+    pt.tick = std::max<Tick> (0, pt.tick);
+    for (auto& p : lane.points) if (p.tick == pt.tick) { p = pt; return; }
+    lane.points.push_back (pt);
+    std::stable_sort (lane.points.begin(), lane.points.end(), [] (const AutoPoint& a, const AutoPoint& b) { return a.tick < b.tick; });
+}
+
+void removePointsIn (AutomationLane& lane, Tick from, Tick to)
+{
+    eraseIf (lane.points, [from, to] (const AutoPoint& p) { return p.tick >= from && p.tick <= to; });
+}
+
+void writeValue (AutomationLane& lane, Tick from, Tick to, double value)
+{
+    if (to < from) std::swap (from, to);
+    eraseIf (lane.points, [from, to] (const AutoPoint& p) { return p.tick > from && p.tick <= to; });
+    addPoint (lane, { to, value, 0, false });
+}
+
+//==============================================================================
+void History::push (const Project& before, std::string label)
+{
+    undoStack.push_back ({ before, std::move (label) });
+    if (undoStack.size() > limit) undoStack.erase (undoStack.begin());
+    redoStack.clear();
+}
+
+bool History::undo (Project& current)
+{
+    if (undoStack.empty()) return false;
+    redoStack.push_back ({ current, undoStack.back().label });
+    current = std::move (undoStack.back().project);
+    undoStack.pop_back();
+    return true;
+}
+
+bool History::redo (Project& current)
+{
+    if (redoStack.empty()) return false;
+    undoStack.push_back ({ current, redoStack.back().label });
+    current = std::move (redoStack.back().project);
+    redoStack.pop_back();
+    return true;
+}
+
+} // namespace kal::edit

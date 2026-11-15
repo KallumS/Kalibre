@@ -1,0 +1,171 @@
+#include "Check.h"
+#include "Roll.h"
+
+using namespace kal;
+using namespace kal::roll;
+
+static Settings settings()
+{
+    Settings s;
+    s.edgeTicks = 40;
+    s.defaultLength = PPQ / 4;
+    s.minLength = PPQ / 4;
+    s.snap = [] (Tick t) { return (t + PPQ / 8) / (PPQ / 4) * (PPQ / 4); };
+    s.snapDown = [] (Tick t) { return t / (PPQ / 4) * (PPQ / 4); };
+    return s;
+}
+
+static std::vector<Note> twoNotes()
+{
+    return { { 1, 0, PPQ, 60, 100 }, { 2, PPQ * 2, PPQ, 64, 100 } };
+}
+
+TEST ("roll: zones - edges are a third at most")
+{
+    const Note n { 1, 0, 90, 60, 100 };
+    CHECK (zoneOf (n, 5, 60, 40) == Zone::StartEdge);
+    CHECK (zoneOf (n, 45, 60, 40) == Zone::Body);
+    CHECK (zoneOf (n, 85, 60, 40) == Zone::EndEdge);
+    CHECK (zoneOf (n, 45, 61, 40) == Zone::Empty);
+}
+
+TEST ("roll: one left click in empty space adds a note at the grid cell")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, {}, settings());
+    auto o = g.press ({ PPQ + 300, 67 });
+    CHECK (o.action == Action::AddNote);
+    CHECK_EQ (o.added.start, PPQ + 240);
+    CHECK_EQ (o.added.pitch, 67);
+    CHECK (o.audition);
+    o = g.release ({ PPQ + 300, 67 });
+    CHECK (o.action == Action::AddNote);
+    CHECK_EQ (o.added.length, PPQ / 4);
+}
+
+TEST ("roll: dragging after adding draws the note longer")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, {}, settings());
+    g.press ({ PPQ, 67 });
+    g.drag ({ PPQ * 2 - 10, 67 });
+    const auto o = g.release ({ PPQ * 2 - 10, 67 });
+    CHECK (o.action == Action::AddNote);
+    CHECK_EQ (o.added.length, PPQ);
+}
+
+TEST ("roll: right click on a note removes it")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, { 1 }, settings());
+    g.press ({ PPQ / 2, 60, true });
+    const auto o = g.release ({ PPQ / 2, 60, true });
+    CHECK (o.action == Action::RemoveNotes);
+    CHECK_EQ (o.notes.size(), size_t (1));
+    CHECK_EQ (*o.notes.begin(), Id (1));
+    CHECK (o.selection.empty());
+}
+
+TEST ("roll: right click in empty space does nothing")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, {}, settings());
+    g.press ({ PPQ * 6, 70, true });
+    CHECK (g.release ({ PPQ * 6, 70, true }).action == Action::None);
+}
+
+TEST ("roll: left drag on a note's body moves it, snapped")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, {}, settings());
+    auto o = g.press ({ PPQ / 2, 60 });
+    CHECK (o.action == Action::Select);
+    o = g.drag ({ PPQ / 2 + PPQ + 30, 62 });
+    CHECK (o.action == Action::MoveNotes);
+    CHECK_EQ (o.dt, PPQ);
+    CHECK_EQ (o.dPitch, 2);
+    o = g.release ({ PPQ / 2 + PPQ + 30, 62 });
+    CHECK (o.action == Action::MoveNotes);
+    CHECK_EQ (o.notes, std::set<Id> ({ 1 }));
+}
+
+TEST ("roll: moving one of the chosen notes moves them all; Option copies")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, { 1, 2 }, settings());
+    g.press ({ PPQ / 2, 60, false, false, true });
+    g.drag ({ PPQ / 2 + PPQ, 60, false, false, true });
+    const auto o = g.release ({ PPQ / 2 + PPQ, 60, false, false, true });
+    CHECK (o.action == Action::CopyNotes);
+    CHECK_EQ (o.notes.size(), size_t (2));
+}
+
+TEST ("roll: left drag on the end edge stretches and shortens")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, {}, settings());
+    g.press ({ PPQ - 10, 60 });
+    CHECK (g.mode() == Gesture::Mode::ResizingEnd);
+    auto o = g.drag ({ PPQ * 2 - 10, 60 });
+    CHECK (o.action == Action::ResizeNotes);
+    CHECK_EQ (o.dEnd, PPQ);
+    // Shortening never goes below the grid step.
+    o = g.drag ({ -PPQ * 4, 60 });
+    CHECK_EQ (o.dEnd, PPQ / 4 - PPQ);
+}
+
+TEST ("roll: left drag on the start edge moves the start, keeping the end")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, {}, settings());
+    g.press ({ PPQ * 2 + 5, 64 });
+    CHECK (g.mode() == Gesture::Mode::ResizingStart);
+    const auto o = g.drag ({ PPQ * 2 + PPQ / 2, 64 });
+    CHECK_EQ (o.dStart, PPQ / 2);
+    CHECK_EQ (o.dEnd, Tick (0));
+}
+
+TEST ("roll: right drag over an area removes every note in it")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, {}, settings());
+    g.press ({ 0, 70, true });
+    auto o = g.drag ({ PPQ * 3, 50, true });
+    CHECK (o.showArea);
+    o = g.release ({ PPQ * 3, 50, true });
+    CHECK (o.action == Action::RemoveNotes);
+    CHECK_EQ (o.notes.size(), size_t (2));
+}
+
+TEST ("roll: Shift and left drag chooses the notes in an area")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, {}, settings());
+    g.press ({ PPQ * 3 / 2, 70, false, true });
+    g.drag ({ PPQ * 4, 62, false, true });
+    const auto o = g.release ({ PPQ * 4, 62, false, true });
+    CHECK (o.action == Action::Select);
+    CHECK_EQ (o.selection, std::set<Id> ({ 2 }));
+}
+
+TEST ("roll: Shift-click on a note toggles it")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, { 1 }, settings());
+    g.press ({ PPQ * 2 + PPQ / 2, 64, false, true });
+    auto o = g.release ({ PPQ * 2 + PPQ / 2, 64, false, true });
+    CHECK_EQ (o.selection, std::set<Id> ({ 1, 2 }));
+    Gesture h (notes, o.selection, settings());
+    h.press ({ PPQ / 2, 60, false, true });
+    o = h.release ({ PPQ / 2, 60, false, true });
+    CHECK_EQ (o.selection, std::set<Id> ({ 2 }));
+}
+
+TEST ("roll: Command drags off the grid")
+{
+    auto notes = twoNotes();
+    Gesture g (notes, {}, settings());
+    g.press ({ PPQ / 2, 60 });
+    const auto o = g.drag ({ PPQ / 2 + 37, 60, false, false, false, true });
+    CHECK_EQ (o.dt, Tick (37));
+}
