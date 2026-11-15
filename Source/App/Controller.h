@@ -133,11 +133,15 @@ public:
     {
         Id track = 0, device = 0;
         int param = -1;
+        AutoTarget::Kind kind = AutoTarget::Kind::DeviceParam;
         juce::String name;
-        bool valid() const { return device != 0 && param >= 0; }
+        bool valid() const { return (device != 0 && param >= 0) || (track != 0 && kind != AutoTarget::Kind::DeviceParam); }
+        bool isPlugin() const { return kind == AutoTarget::Kind::DeviceParam; }
     };
     Touched lastTouched;
     void touched (const Engine::Touch&);
+    // A control of Kalibre's own was moved (a fader, a pan knob).
+    void touchedMix (Id track, AutoTarget::Kind, const juce::String& name);
     void automateLastTouched();
     void modulateLastTouched (ModKind);
 

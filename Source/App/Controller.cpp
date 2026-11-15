@@ -776,7 +776,7 @@ void Controller::touched (const Engine::Touch& t)
     Track* owner = nullptr;
     if (! project.device (t.device, &owner)) return;
     const bool changed = lastTouched.device != t.device || lastTouched.param != t.param;
-    lastTouched = { owner->id, t.device, t.param, t.name };
+    lastTouched = { owner->id, t.device, t.param, AutoTarget::Kind::DeviceParam, t.name };
 
     // Writing automation while playing, for Touch, Latch and Write.
     if (engine.isPlaying() && owner->autoMode != AutoMode::Read && owner->autoMode != AutoMode::Off)
@@ -808,9 +808,33 @@ void Controller::touched (const Engine::Touch& t)
     if (changed) sendChangeMessage();
 }
 
+void Controller::touchedMix (Id track, AutoTarget::Kind kind, const String& name)
+{
+    const auto* t = project.track (track);
+    lastTouched = { track, 0, -1, kind, (t ? String (t->name) + " " : String()) + name };
+    sendChangeMessage();
+}
+
 void Controller::automateLastTouched()
 {
-    if (! lastTouched.valid()) { say ("Move a control on a plug-in first: its automation lane appears here."); return; }
+    if (! lastTouched.valid()) { say ("Move a control first, on a plug-in or in the mixer: its automation lane appears here."); return; }
+    if (! lastTouched.isPlugin())
+    {
+        auto lt = lastTouched;
+        apply ("Automate " + lt.name, [lt] (Project& p)
+        {
+            auto* t = p.track (lt.track);
+            if (! t) return;
+            AutoTarget target;
+            target.kind = lt.kind;
+            const double now = lt.kind == AutoTarget::Kind::Pan ? (t->pan + 1.0) / 2.0 : (t->volumeDb + 60.0) / 66.0;
+            auto& lane = edit::laneFor (*t, target, now);
+            if (lane.id == 0) lane.id = p.newId();
+            lane.shown = true;
+        });
+        say ("Automation lane for " + lt.name + " added under its track.");
+        return;
+    }
     auto* inst = engine.instance (lastTouched.device);
     const float v = inst && inst->getParameters()[lastTouched.param] ? inst->getParameters()[lastTouched.param]->getValue() : 0.5f;
     auto lt = lastTouched;
@@ -832,7 +856,7 @@ void Controller::automateLastTouched()
 
 void Controller::modulateLastTouched (ModKind kind)
 {
-    if (! lastTouched.valid()) { say ("Move a control on a plug-in first, then choose what modulates it."); return; }
+    if (! lastTouched.valid() || ! lastTouched.isPlugin()) { say ("Move a control on a plug-in first, then choose what modulates it."); return; }
     auto lt = lastTouched;
     apply ("Modulate " + lt.name, [lt, kind] (Project& p)
     {

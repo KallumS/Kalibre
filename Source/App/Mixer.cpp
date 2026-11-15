@@ -25,7 +25,11 @@ public:
         for (auto* s : { &fader, &pan })
         {
             addAndMakeVisible (s);
-            s->onDragStart = [this] { before = c.project; };
+            s->onDragStart = [this, s]
+            {
+                before = c.project;
+                c.touchedMix (id, s == &pan ? AutoTarget::Kind::Pan : AutoTarget::Kind::Volume, s == &pan ? "Pan" : "Volume");
+            };
             s->onValueChange = [this]
             {
                 if (auto* t = c.project.track (id)) { t->volumeDb = fader.getValue(); t->pan = pan.getValue(); }

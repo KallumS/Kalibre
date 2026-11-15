@@ -26,7 +26,7 @@ Every feature asked for, then the list of basic DAW features
 | Scale chosen, chord shown at the top, scale shaded in the piano roll | Yes | Top bar (Scale, Chord), chord lane, View > Shade the Scale; ScaleView's reader, tested (0015) |
 | Piano roll, drum patterns, step sequencer, Euclidean, notation | Yes | Lower zone > Editor (0009, 0014, 0020) |
 | Modulators: LFO, ADSR/ADR, envelope follower, wavetable from samples | Yes | Automation > Modulate; shown in the device rack; tested (0012). Once a block, not audio rate |
-| Automation picks up the last touched control | Yes | Automation > Automate; Touch/Latch/Write recording (0024) |
+| Automation picks up the last touched control | Yes | Plug-in parameters and the mixer's faders and pan knobs. Automation > Automate; Touch/Latch/Write recording (0024) |
 | X/Y pad: four plug-ins or four samples | Yes | Add > Kalibre > X/Y Morph; tested with samples (0018) |
 | Plug-in delay compensation | Yes | Tested by rendering clicks (0016) |
 | Track delay (e.g. -125 ms) | Yes | Track menu > Track Delay…; tested (0011) |
