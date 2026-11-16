@@ -62,13 +62,8 @@ PopupMenu MainComponent::appMenu()
         browser.showTab (Browser::Tab::Studio);
         resized();
     }));
-    m.addItem (item (ui::u8 ("Scan for Plug-ins"), [this]
-    {
-        c.engine.plugins().scan ([this] (float p, const String& what)
-        {
-            c.say (p >= 1.0f ? "Scan finished: " + what + "." : "Scanning plug-ins, " + String (roundToInt (p * 100)) + "%: " + what);
-        });
-    }));
+    m.addItem (item (ui::u8 ("Scan for Plug-ins"), [this] { c.scanPlugins(); }, {}, ! c.engine.plugins().scanning()));
+    m.addItem (item (ui::u8 ("Plug-in Manager\xe2\x80\xa6"), [this] { c.showPluginManager(); }));
     return m;
 }
 
@@ -409,6 +404,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Meters", [this] { c.zoneTab = ZoneTab::Meters; c.viewChanged(); }, k ("meters"), true, c.zoneTab == ZoneTab::Meters));
             m.addSeparator();
             m.addItem (item ("Browser", [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); }, k ("browser"), true, browserShown));
+            m.addItem (item (ui::u8 ("Plug-in Manager\xe2\x80\xa6"), [this] { showPluginManager(); }));
             m.addItem (item ("Section Lane", [this] { c.showSectionLane = ! c.showSectionLane; c.viewChanged(); }, {}, true, c.showSectionLane));
             m.addItem (item ("Chord Lane", [this] { c.showChordLane = ! c.showChordLane; c.viewChanged(); }, {}, true, c.showChordLane));
             m.addItem (item ("Tempo Lane", [this] { c.showTempoLane = ! c.showTempoLane; c.viewChanged(); }, {}, true, c.showTempoLane));

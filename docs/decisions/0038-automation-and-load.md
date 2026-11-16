@@ -8,7 +8,7 @@
 - **Mute and send lanes play**: the fader and the send nodes follow them.
 - **RMS**: each meter shows the 300 ms average as a light line across the peak bar.
 - **CPU per track**: every plug-in in the graph is wrapped in `TimedPlugin`, which times its processing and passes everything else through (buses, latency, bypass, ARA and VST3 extensions). `Engine::instance` hands out the plug-in itself. The mixer shows each track's share of real time.
-- **Dropouts**: a block that took longer than it lasts, plus the interface's own count; shown in the top bar (click to reset).
+- **Dropouts**: a block that took longer than it lasts, plus the interface's own count; shown in the top bar (click to reset). Changed 16 November 2026, by the user: the top bar's CPU shows only a percentage; dropouts are still counted, not shown there.
 
 ## Consequences
 

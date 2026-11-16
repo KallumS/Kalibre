@@ -32,7 +32,7 @@
 | `Engine/Engine.*` | The audio graph built from the project, plug-in instances kept across changes, the transport and loop, rendering (0016). |
 | `Engine/TrackProcessors.*` | Each track's Source (clips, live input, recording, automation, modulators), Fader and Sends; the metronome. |
 | `Engine/ClapFormat.*`, `ClapGuiMac.mm` | Hosting CLAP (0021). |
-| `Engine/PluginManager.*` | Scanning and making plug-ins of every format. |
+| `Engine/PluginManager.*` | Scanning (each plug-in in a helper: Kalibre run with `--kalibre-scan`), turning plug-ins off and on, and making them (0047). |
 | `Engine/MorphProcessor.*` | The X/Y morph (0018), and a latency device the tests use. |
 | `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |
 | `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |
@@ -47,6 +47,7 @@
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp` | More of the Controller: audio commands, presets and A/B, file commands. |
+| `App/PluginManagerView.*` | The Plug-in Manager and its window (0047). |
 | `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045). |
 | `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md). |
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
@@ -78,4 +79,5 @@ loop wraps inside the block, and runs the graph.
 - Every colour comes from `Theme.h`; every word is 7:1.
 - The graph's ends take their channel count when it's prepared: prepare it before wiring a different number of outputs (a surround render was silent until it did).
 - The wiring's key holds each device node's own number, so a device replaced under the same id is rewired.
+- `main` is Kalibre's own (Main.cpp): with `--kalibre-scan` it's the scanner's helper and never starts the app. Test programs that scan do the same.
 - What the clip launcher plays (`Track::launch`) isn't saved and survives Undo.

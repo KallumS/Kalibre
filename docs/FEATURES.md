@@ -14,7 +14,8 @@ Every feature asked for, then the list of basic DAW features
 | Feature | Status | Where, and notes |
 | --- | --- | --- |
 | Apple silicon Mac app | Yes, on CI | Built for arm64 on every push, with the tests passing on macOS; download Actions > Build > Kalibre-macOS. Not yet opened by the user |
-| Hosts AU, VST3 and CLAP | Built, untried | AU and VST3 through JUCE; CLAP through Kalibre's own host (0021). Kalibre menu > Scan for Plug-ins |
+| Hosts AU, VST3 and CLAP | Built, untried | AU and VST3 through JUCE; CLAP through Kalibre's own host (0021). Kalibre menu > Scan for Plug-ins. Each plug-in is scanned in a helper: one that crashes, hangs or won't open is turned off and the scan carries on (0047). Tried on the Mac: the first scan crashed Kalibre, which led to 0047 |
+| Plug-in Manager | Yes | Kalibre > Plug-in Manager… (or View): every plug-in and every one turned off, with why; search, sort, scan again, turn off and on, show in Finder. Its own window (0002 amended). Tested (0047) |
 | Everything in one window | Yes | 0002. Small questions appear over the window, inside it |
 | Tempo and time signature, automatable | Yes | Top bar; Transport > Ramp the Tempo to Here; View > Tempo Lane. Ramps integrated exactly, tested (0004) |
 | Scripting | Yes | Lua 5.4, Scripts menu, docs/SCRIPTING.md, tested (0019) |
@@ -53,8 +54,8 @@ Every feature asked for, then the list of basic DAW features
 | 6. Mixer and routing | Yes | Faders, pan, mute, solo, polarity, mono, peak and RMS meters, inserts, sends, returns, folders as buses, PDC, sidechains for AU, VST3 and CLAP. Hardware inserts with a measured round trip, instruments' further outputs on tracks, surround (quad, 5.1, 7.1) with multichannel export (0038, 0040); tested |
 | 7. Automation | Yes | Lanes, breakpoints, curves, Read/Touch/Latch/Write/Trim (Trim keeps the shape, moved by the hand), last touched, tempo automation, mix moves written, copy and paste, mute and send lanes played (0038); tested |
 | 8. Instruments | Yes | Any AU/VST3/CLAP instrument; Kalibre Synth and Kalibre Sampler (0039); the X/Y morph; tested |
-| 9. Plug-in hosting | Yes | Scanning, search, bypass, remove, reorder, state, latency, last touched, MIDI learn. Presets (saved per plug-in, the plug-in's own programs, a browser tab) and A/B compare, each undoable (0039) |
-| 10. Audio engine | Yes | Device, rate, buffer, inputs and outputs, offline rendering, PDC. CPU per track in the mixer, the whole load and dropouts in the top bar (0038) |
+| 9. Plug-in hosting | Yes | Scanning in a helper, so a crashing plug-in is turned off instead of closing Kalibre; the Plug-in Manager (0047). Search, bypass, remove, reorder, state, latency, last touched, MIDI learn. Presets (saved per plug-in, the plug-in's own programs, a browser tab) and A/B compare, each undoable (0039) |
+| 10. Audio engine | Yes | Device, rate, buffer, inputs and outputs, offline rendering, PDC. CPU per track in the mixer, the whole load as a percentage in the top bar (0038) |
 | 11. Projects | Yes | New, open, save, autosave, a JSON format that survives versions. Templates, Collect All Files and Save, Relink Missing Files, archives (0041); tested |
 | 12. Export | Yes | Mix and tracks as WAV, AIFF, FLAC or MP3 (320 kb/s), 16/24/32-bit, dither, normalise, loudness targets, MIDI. Song Details written into WAV and MP3; Export Several at Once (0041); tested. FLAC and AIFF carry no tags |
 | 13. Sync and control | Yes | MIDI clock in and out, Song Position, MTC out and chased in, MMC out and in, Ableton Link, Mackie Control, HUI, OSC, the Mac's network MIDI from the Studio tab (0034, 0035, 0043). Not yet tried with real gear |

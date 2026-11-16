@@ -21,7 +21,52 @@ int main (int argc, char** argv)
     const float scale = argc > 2 ? (float) atof (argv[2]) : 1.0f;
     out.createDirectory();
     {
-        PluginManager plugins;
+        // A made-up list of plug-ins, some turned off, for the Plug-in Manager (decision 0047).
+        const auto pluginFolder = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-plugins");
+        pluginFolder.deleteRecursively();
+        pluginFolder.createDirectory();
+        {
+            XmlElement xml ("KNOWNPLUGINS");
+            auto add = [&] (const char* name, const char* maker, const char* format, const char* file, bool instrument)
+            {
+                PluginDescription d;
+                d.name = name; d.manufacturerName = maker; d.pluginFormatName = format; d.fileOrIdentifier = file;
+                d.isInstrument = instrument; d.numInputChannels = instrument ? 0 : 2; d.numOutputChannels = 2;
+                d.uniqueId = d.deprecatedUid = String (name).hashCode();
+                d.category = instrument ? "Instrument" : "Fx";
+                xml.addChildElement (d.createXml().release());
+            };
+            add ("Pianoteq 9", "Modartt", "VST3", "/Library/Audio/Plug-Ins/VST3/Pianoteq 9.vst3", true);
+            add ("Kontakt 8", "Native Instruments", "VST3", "/Library/Audio/Plug-Ins/VST3/Kontakt 8.vst3", true);
+            add ("ValhallaFutureVerb", "Valhalla DSP, LLC", "VST3", "/Library/Audio/Plug-Ins/VST3/ValhallaFutureVerb.vst3", false);
+            add ("Cthulhu", "Xfer Records", "VST3", "/Library/Audio/Plug-Ins/VST3/Cthulhu.vst3", false);
+            add ("SINE Player", "Orchestral Tools", "AudioUnit", "AudioUnit:Synths/aumu,SINE,OrcT", true);
+            add ("Scaler 3", "Scaler Music", "AudioUnit", "AudioUnit:Synths/aumu,Scl3,ScMu", true);
+            add ("kHs Filter", "Kilohearts", "CLAP", "/Library/Audio/Plug-Ins/CLAP/kHs Filter.clap", false);
+            add ("Superior Drummer 3", "Toontrack", "VST3", "/Library/Audio/Plug-Ins/VST3/Superior Drummer 3.vst3", true);
+            add ("Shadow Hills Mastering Compressor", "Plugin Alliance", "VST3", "/Library/Audio/Plug-Ins/VST3/Shadow Hills Mastering Compressor.vst3", false);
+            for (auto* f : { "/Library/Audio/Plug-Ins/VST3/Reason Rack Plugin.vst3", "/Library/Audio/Plug-Ins/VST3/Old Synth.vst3",
+                             "/Library/Audio/Plug-Ins/VST3/Licence Check.vst3", "/Library/Audio/Plug-Ins/VST3/Falcon.vst3" })
+                xml.createNewChildElement ("BLACKLISTED")->setAttribute ("id", f);
+            auto* blocked = xml.createNewChildElement ("KALIBRE_BLOCKED");
+            auto block = [&] (const char* file, int reason, const char* detail)
+            {
+                auto* e = blocked->createNewChildElement ("FILE");
+                e->setAttribute ("file", file); e->setAttribute ("format", "VST3"); e->setAttribute ("reason", reason); e->setAttribute ("detail", detail);
+                return e;
+            };
+            block ("/Library/Audio/Plug-Ins/VST3/Reason Rack Plugin.vst3", 0, "it aborted, signal 6");
+            block ("/Library/Audio/Plug-Ins/VST3/Old Synth.vst3", 2, "");
+            block ("/Library/Audio/Plug-Ins/VST3/Licence Check.vst3", 1, "still opening after 120 seconds");
+            {
+                PluginDescription d;
+                d.name = "Falcon"; d.manufacturerName = "UVI"; d.pluginFormatName = "VST3"; d.isInstrument = true;
+                d.fileOrIdentifier = "/Library/Audio/Plug-Ins/VST3/Falcon.vst3";
+                block ("/Library/Audio/Plug-Ins/VST3/Falcon.vst3", 3, "")->addChildElement (d.createXml().release());
+            }
+            xml.writeTo (pluginFolder.getChildFile ("Plug-ins.xml"));
+        }
+        PluginManager plugins (pluginFolder);
         Engine engine (plugins);
         Controller c (engine);
         c.project = demo::song();
@@ -137,6 +182,20 @@ int main (int argc, char** argv)
         c.viewChanged();
         MessageManager::getInstance()->runDispatchLoopUntil (200);
         shoot ("14-meters");
+        // The Plug-in Manager's window (decision 0047), its contents drawn on their own.
+        {
+            PluginManagerView manager (c);
+            manager.setSize (1040, 560);
+            manager.refresh();
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            auto image = manager.createComponentSnapshot (manager.getLocalBounds(), true, scale);
+            PNGImageFormat png;
+            const auto f = out.getChildFile ("15-plugin-manager.png");
+            f.deleteFile();
+            FileOutputStream s (f);
+            png.writeImageToStream (image, s);
+            std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+        }
         song::backToArrangement (c.project);
         // Kalibre's own synth and sampler, side by side (decision 0039).
         {

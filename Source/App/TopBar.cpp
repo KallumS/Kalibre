@@ -42,8 +42,7 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     chord.big = true;
     cpu.label = "Delay";
     load.label = "CPU";
-    load.setTooltip (theme::wrapTip ("How busy the audio is, and how many times it ran late (a dropout: a click or gap). Click to count the dropouts from zero. The mixer shows each track's share."));
-    load.onDown = [this] (const MouseEvent&) { c.engine.resetDropouts(); };
+    load.setTooltip (theme::wrapTip ("How busy the audio is: how much of the time it has for each block it uses. The mixer shows each track's share."));
     position.setTooltip ("Click to show bars and beats, minutes, samples or timecode.");
     tempo.setTooltip (theme::wrapTip ("Drag up or down to change the tempo, double-click to type it. Tempo changes and ramps are drawn in the tempo lane (View > Tempo Lane)."));
     signature.setTooltip ("Double-click to change the time signature from the bar the cursor is in.");
@@ -168,7 +167,7 @@ void TopBar::resized()
 
     cpu.setBounds (r.removeFromRight (theme::px (76)));
     r.removeFromRight (gap);
-    load.setBounds (r.removeFromRight (theme::px (92)));
+    load.setBounds (r.removeFromRight (theme::px (56)));
     r.removeFromRight (gap);
     follow.setBounds (r.removeFromRight (follow.idealWidth()).withSizeKeepingCentre (follow.idealWidth(), ch));
     r.removeFromRight (gap);
@@ -234,8 +233,7 @@ void TopBar::update()
 
     const int latency = c.engine.latencySamples();
     cpu.value = String (latency * 1000.0 / jmax (1.0, c.engine.sampleRate()), 1) + " ms";
-    const int drops = c.engine.dropouts();
-    load.value = String (roundToInt (c.engine.cpu() * 100.0)) + "%" + (drops > 0 ? ui::u8 (" Â· ") + String (drops) + (drops == 1 ? " drop" : " drops") : String());
+    load.value = String (roundToInt (c.engine.cpu() * 100.0)) + "%";
 
     playButton.setToggleState (c.engine.isPlaying(), dontSendNotification);
     playButton.setButtonText (c.engine.isPlaying() ? String::fromUTF8 ("\xe2\x96\xa0") : String::fromUTF8 ("\xe2\x96\xb6"));

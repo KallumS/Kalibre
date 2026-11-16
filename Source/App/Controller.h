@@ -80,6 +80,11 @@ public:
     bool messageIsWarning = false;
     bool messageCanUndo = false;
     void say (const juce::String&, bool warning = false, bool canUndo = false);
+    // Looks for plug-ins installed since the last scan, the progress in the
+    // message line (decision 0047); `files` scans just those again.
+    void scanPlugins (std::vector<std::pair<juce::String, juce::String>> files = {});
+    void showPluginManager() { if (onShowPluginManager) onShowPluginManager(); }
+    std::function<void()> onShowPluginManager;     // the window sets this
     void dismiss();
 
     //==========================================================================

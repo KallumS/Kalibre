@@ -226,6 +226,20 @@ void Controller::say (const String& m, bool warning, bool canUndo)
     sendChangeMessage();
 }
 
+void Controller::scanPlugins (std::vector<std::pair<String, String>> files)
+{
+    auto& pm = engine.plugins();
+    if (pm.scanning()) { say ("Plug-ins are being scanned already."); return; }
+    say ("Scanning plug-ins" + ui::u8 ("\xe2\x80\xa6"));
+    auto progress = [this] (float p, const String& what)
+    {
+        if (p >= 1.0f) say ("Scan finished: " + what + ".", what.contains ("Turned off") || what.contains ("couldn't"));
+        else say ("Scanning plug-ins, " + String (roundToInt (p * 100)) + "%: " + what);
+    };
+    if (files.empty()) pm.scan (progress);
+    else pm.rescan (files, progress);
+}
+
 void Controller::dismiss()
 {
     message.clear();

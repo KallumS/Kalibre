@@ -2,6 +2,8 @@
 
 #include "MainComponent.h"
 
+#include <cstring>
+
 namespace kal
 {
 using namespace juce;
@@ -61,6 +63,15 @@ public:
         if (error.isNotEmpty()) controller->say ("The audio device didn't start: " + error + " Choose one under Audio in the browser.", true);
         else if (plugins->known().getNumTypes() == 0)
             controller->say ("Welcome. Kalibre hasn't looked for your plug-ins yet: choose Scan for Plug-ins from the Kalibre menu.");
+        else if (! plugins->blocked().empty())
+        {
+            // Left by the old scanner, which crashed with the plug-in (decision 0047).
+            int crashed = 0;
+            for (auto& b : plugins->blocked()) crashed += b.detail == "it closed Kalibre while being scanned" ? 1 : 0;
+            if (crashed > 0)
+                controller->say ("A plug-in closed Kalibre while it was being scanned. It's turned off now, and scans look at each plug-in "
+                                 "in a helper, so a crash can't close Kalibre again. Kalibre > Plug-in Manager shows it.");
+        }
         const auto file = File::getCurrentWorkingDirectory().getChildFile (commandLine.unquoted());
         if (commandLine.isNotEmpty() && file.hasFileExtension ("kalibre")) controller->open (file);
     }
@@ -97,4 +108,12 @@ private:
 
 } // namespace kal
 
-START_JUCE_APPLICATION (kal::Application)
+// Kalibre runs itself as the plug-in scanner's helper (decision 0047): that copy
+// never starts the app, so it opens no window and asks for no audio device.
+int main (int argc, char* argv[])
+{
+    if (argc > 1 && std::strcmp (argv[1], kal::PluginManager::workerFlag) == 0)
+        return kal::PluginManager::runWorker (argc, argv);
+    juce::JUCEApplicationBase::createInstance = [] () -> juce::JUCEApplicationBase* { return new kal::Application(); };
+    return juce::JUCEApplicationBase::main (argc, (const char**) argv);
+}

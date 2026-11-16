@@ -48,3 +48,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0044. Spectrum, oscilloscope, phase scope and tuner](0044-analysers.md)
 - [0045. Customisable keys and workspaces](0045-keys-and-workspaces.md)
 - [0046. Video](0046-video.md)
+- [0047. Plug-ins are scanned in a helper, and turned off when they crash](0047-plug-ins-scanned-in-a-helper.md)

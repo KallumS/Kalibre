@@ -95,6 +95,7 @@ add_library(KalibreApp STATIC
     Source/App/LauncherView.cpp
     Source/App/OfflineFxView.cpp
     Source/App/MetersView.cpp
+    Source/App/PluginManagerView.cpp
     Source/App/VideoView.cpp
     Source/App/Keys.cpp
     Source/App/KeysPanel.cpp
@@ -181,7 +182,7 @@ target_link_libraries(Kalibre PRIVATE
 if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp
-    Tests/App/TestFiles.cpp)
+    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1)
     target_link_libraries(KalibreAppTests PRIVATE KalibreApp juce::juce_recommended_config_flags)

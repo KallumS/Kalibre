@@ -204,14 +204,7 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl), keysPanel (ctrl.k
         repaint();
     };
     addAndMakeVisible (scan);
-    scan.onClick = [this]
-    {
-        c.engine.plugins().scan ([this] (float p, const String& what)
-        {
-            c.say (p >= 1.0f ? "Scan finished: " + what + "." : "Scanning plug-ins, " + String (roundToInt (p * 100)) + "%: " + what);
-            if (p >= 1.0f) { plugins->filter (search.getText()); pluginBox.updateContent(); }
-        });
-    };
+    scan.onClick = [this] { c.scanPlugins(); };
     addChildComponent (up);
     up.onClick = [this]
     {

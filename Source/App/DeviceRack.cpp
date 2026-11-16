@@ -514,13 +514,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     if (types.isEmpty())
     {
         m.addSeparator();
-        m.addItem ("No plug-ins found yet. Scan for Plug-ins", [&c]
-        {
-            c.engine.plugins().scan ([&c] (float p, const String& what)
-            {
-                c.say (p >= 1.0f ? "Scan finished: " + what + "." : "Scanning plug-ins, " + String (roundToInt (p * 100)) + "%: " + what);
-            });
-        });
+        m.addItem ("No plug-ins found yet. Scan for Plug-ins", [&c] { c.scanPlugins(); });
     }
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (target));
 }
