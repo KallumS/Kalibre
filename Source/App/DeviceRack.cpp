@@ -4,18 +4,46 @@
 #include "BuiltinInstruments.h"
 #include "HardwareInsert.h"
 #include "MorphProcessor.h"
+#include "ContainerProcessor.h"
+#include "Editors.h"
 
 namespace kal
 {
 using namespace juce;
 
 //==============================================================================
-class DevicePanel : public Component
+// A plug-in's window in a window of its own, moved out of the rack on request
+// (decision 0056). Closing it puts it back in the rack.
+class PluginWindow : public DocumentWindow
 {
 public:
-    DevicePanel (Controller& ctrl, Id dev) : c (ctrl), id (dev)
+    PluginWindow (const String& title, AudioProcessorEditor* editor, std::function<void()> closed)
+        : DocumentWindow (title, theme::ground, DocumentWindow::closeButton), onClosed (std::move (closed))
     {
-        for (auto* b : { &power, &bypass, &menu, &ab, &presets }) addAndMakeVisible (b);
+        setUsingNativeTitleBar (true);
+        setContentNonOwned (editor, true);
+        content.reset (editor);
+        setResizable (editor->isResizable(), false);
+        if (auto* k = editor->getConstrainer()) setConstrainer (k);
+        centreWithSize (getWidth(), getHeight());
+        setVisible (true);
+        toFront (true);
+    }
+    ~PluginWindow() override { clearContentComponent(); content.reset(); }   // the plug-in is told its window is going
+    void closeButtonPressed() override { MessageManager::callAsync ([f = onClosed] { if (f) f(); }); }
+
+private:
+    editors::Owned content;
+    std::function<void()> onClosed;
+};
+
+//==============================================================================
+class DevicePanel : public Component, private ComponentListener
+{
+public:
+    DevicePanel (Controller& ctrl, Id dev, DeviceRack& r) : c (ctrl), id (dev), rack (r)
+    {
+        for (auto* b : { &power, &bypass, &menu, &ab, &presets, &window, &match }) addAndMakeVisible (b);
         ab.onClick = [this]
         {
             if (ModifierKeys::currentModifiers.isPopupMenu()) return;
@@ -25,15 +53,30 @@ public:
         power.setTitle ("Plug-in On");
         bypass.setTitle ("Bypass");
         menu.setTitle ("Plug-in Menu");
+        window.setTitle ("Its Own Window");
+        match.setTitle ("Match Loudness");
         power.onClick = [this] { c.setDeviceActive (id, ! device()->active); };
         bypass.onClick = [this] { c.apply ("Bypass", [this] (Project& p) { if (auto* d = p.device (id)) d->bypassed = ! d->bypassed; }); };
+        match.onClick = [this] { c.apply ("Match Loudness", [this] (Project& p) { if (auto* d = p.device (id)) d->matchLoudness = ! d->matchLoudness; }); };
+        window.onClick = [this] { if (rack.isFloating (id)) rack.dock (id); else rack.float_ (id); };
         menu.onClick = [this] { showMenu(); };
+        addAndMakeVisible (view);
+        view.setViewedComponent (&holder, false);
+        view.setScrollBarsShown (true, true, false, false);
         update();
     }
 
-    ~DevicePanel() override { editor.reset(); }
+    ~DevicePanel() override { dropEditor(); }
 
     Device* device() { return c.project.device (id); }
+
+    void dropEditor()
+    {
+        if (editor) editor->removeComponentListener (this);
+        editor.reset();
+        editorFor = nullptr;
+        natural = {};
+    }
 
     void update()
     {
@@ -41,29 +84,59 @@ public:
         if (! d) return;
         power.setToggleState (d->active, dontSendNotification);
         bypass.setToggleState (d->bypassed, dontSendNotification);
+        match.setToggleState (d->matchLoudness, dontSendNotification);
+        // Effects only; the Container has its own, for everything in it.
+        match.setVisible (d->role == DeviceRole::AudioFx && d->plugin.identifier != "container");
         ab.setButtonText (d->onB ? "Set B" : "Set A");
         ab.setTitle (d->onB ? "Settings B" : "Settings A");
+        const bool floating = rack.isFloating (id);
+        window.setToggleState (floating, dontSendNotification);
+        window.setTip (floating ? "Put its window back here, in the rack." : "Move its window out of the rack, into a window of its own.");
         auto* inst = c.engine.instance (id);
-        if (! d->active || ! inst) { editor.reset(); natural = {}; return; }
+        // Moved out to its own window, or not loaded: nothing here.
+        if (! d->active || ! inst || floating) { if (editor) { dropEditor(); rack.relayout(); } return; }
         if (! editor || editorFor != inst)
         {
-            editor.reset();
+            dropEditor();
             editorFor = inst;
-            AudioProcessorEditor* e = inst->hasEditor() ? inst->createEditorIfNeeded() : nullptr;
-            if (! e) e = new GenericAudioProcessorEditor (*inst);
-            editor.reset (e);
-            natural = editor->getBounds();
-            addAndMakeVisible (*editor);
+            editor.reset (editors::open (*inst));
+            natural = editor->getBounds().withZeroOrigin();
+            holder.addAndMakeVisible (*editor);
+            editor->addComponentListener (this);
+            rack.relayout();
         }
     }
 
-    // The width this panel takes at a height.
+    void tickMatch()
+    {
+        auto* d = device();
+        if (! d || ! d->matchLoudness) return;
+        const float db = c.engine.matchingDb (id);
+        match.setTip ("Match Loudness: keeping what comes out as loud as what goes in (short-term, LUFS-S): "
+                      + String (db >= 0 ? "+" : "") + String (db, 1) + " dB now.");
+    }
+
+    // The width this panel takes at a height: the plug-in's own width (fitted
+    // to the height if it can be resized), never scaled.
     int widthFor (int height)
     {
-        const int header = theme::px (30);
-        if (! editor || natural.isEmpty()) return theme::px (160);
-        const float s = jlimit (0.25f, 3.0f, (float) (height - header) / (float) jmax (1, natural.getHeight()));
-        return jmax (theme::px (160), roundToInt ((float) natural.getWidth() * s));
+        const int header = theme::px (30), least = theme::px (330);
+        if (! editor || natural.isEmpty()) return least;
+        const auto size = editorSizeFor (height - header);
+        const bool scrolls = size.getHeight() > height - header;
+        return jmax (least, size.getWidth() + (scrolls ? view.getScrollBarThickness() : 0) + 4);
+    }
+
+    // A resizable plug-in is given the height, keeping its shape, as far as it
+    // allows; any other keeps its own size.
+    Rectangle<int> editorSizeFor (int height)
+    {
+        if (! editor || ! editor->isResizable()) return natural;
+        const float s = (float) height / (float) jmax (1, natural.getHeight());
+        Rectangle<int> b (0, 0, roundToInt ((float) natural.getWidth() * s), height);
+        if (auto* k = editor->getConstrainer())
+            k->checkBounds (b, editor->getBounds(), Rectangle<int> (0, 0, 100000, 100000), false, false, true, true);
+        return b;
     }
 
     void paint (Graphics& g) override
@@ -72,7 +145,7 @@ public:
         g.setColour (theme::sunken);
         g.fillRoundedRectangle (getLocalBounds().toFloat(), 6.0f);
         auto header = getLocalBounds().removeFromTop (theme::px (30)).reduced (theme::px (8), 0);
-        header.removeFromRight (theme::px (220));
+        header.setRight (presets.getX() - theme::px (6));
         g.setColour (d && d->active ? theme::text : theme::textSecondary);
         g.setFont (theme::font (theme::bodyPoints, true));
         if (d)
@@ -84,19 +157,24 @@ public:
             String sub = String (roles[(int) d->role]) + " " + ui::u8 ("\xc2\xb7") + " " + String (d->plugin.format);
             if (const auto* from = c.project.track (d->sidechainFrom)) sub << " " << ui::u8 ("\xc2\xb7") << " sidechain: " << String (from->name);
             g.drawFittedText (sub, header, Justification::topLeft, 1);
+            const auto body = getLocalBounds().withTrimmedTop (theme::px (30)).reduced (12);
             if (! d->active)
             {
                 g.setColour (theme::textSecondary);
                 g.setFont (theme::font());
-                g.drawFittedText ("Off: unloaded, settings kept. Switch it on to load it again.",
-                                  getLocalBounds().withTrimmedTop (theme::px (30)).reduced (12), Justification::centred, 4);
+                g.drawFittedText ("Off: unloaded, settings kept. Switch it on to load it again.", body, Justification::centred, 4);
             }
             else if (! c.engine.instance (id))
             {
                 g.setColour (theme::warnText);
                 g.setFont (theme::font());
-                g.drawFittedText ("This plug-in isn't installed, or didn't load. Its settings are kept.",
-                                  getLocalBounds().withTrimmedTop (theme::px (30)).reduced (12), Justification::centred, 4);
+                g.drawFittedText ("This plug-in isn't installed, or didn't load. Its settings are kept.", body, Justification::centred, 4);
+            }
+            else if (rack.isFloating (id))
+            {
+                g.setColour (theme::textSecondary);
+                g.setFont (theme::font());
+                g.drawFittedText ("In a window of its own. Close that window, or click the window button above, to bring it back.", body, Justification::centred, 4);
             }
         }
     }
@@ -109,31 +187,27 @@ public:
         bypass.setBounds (header.removeFromRight (theme::px (30)));
         header.removeFromRight (3);
         power.setBounds (header.removeFromRight (theme::px (30)));
+        header.removeFromRight (3);
+        window.setBounds (header.removeFromRight (theme::px (30)));
         header.removeFromRight (6);
+        if (match.isVisible()) { match.setBounds (header.removeFromRight (match.idealWidth (theme::smallControl))); header.removeFromRight (3); }
         ab.setBounds (header.removeFromRight (ab.idealWidth (theme::smallControl)));
         header.removeFromRight (3);
         presets.setBounds (header.removeFromRight (presets.idealWidth (theme::smallControl)));
+
+        auto area = getLocalBounds().withTrimmedTop (theme::px (30)).reduced (2);
+        view.setBounds (area);
+        view.setVisible (editor != nullptr);
         if (! editor || natural.isEmpty()) return;
-        auto area = getLocalBounds().withTrimmedTop (theme::px (30));
-        const float s = jlimit (0.25f, 3.0f, (float) area.getHeight() / (float) jmax (1, natural.getHeight()));
-        if (editor->isResizable())
-        {
-            // Resizable plug-ins are given the size, keeping their shape.
-            auto w = roundToInt ((float) natural.getWidth() * s), h = area.getHeight();
-            if (auto* k = editor->getConstrainer())
-            {
-                Rectangle<int> b (0, 0, w, h);
-                k->checkBounds (b, editor->getBounds(), area, false, false, true, true);
-                w = b.getWidth(); h = b.getHeight();
-            }
-            editor->setBounds (area.getX(), area.getY(), w, h);
-        }
-        else
-        {
-            // Others are scaled.
-            editor->setScaleFactor (s);
-            editor->setTopLeftPosition (area.getTopLeft());
-        }
+        // Its own size (or fitted, if it can be resized), centred; it scrolls if
+        // it's bigger than the zone.
+        const auto size = editorSizeFor (area.getHeight());
+        laying = true;
+        editor->setBounds (size);
+        laying = false;
+        const int w = jmax (size.getWidth(), view.getMaximumVisibleWidth()), h = jmax (size.getHeight(), view.getMaximumVisibleHeight());
+        holder.setSize (w, h);
+        editor->setTopLeftPosition ((w - size.getWidth()) / 2, (h - size.getHeight()) / 2);
     }
 
     // Presets (decision 0039): saved ones, then the plug-in's own programs.
@@ -244,9 +318,23 @@ public:
     theme::HouseButton menu { ui::u8 ("\xe2\x80\xa6"), "Move, remove, automate or modulate." };
     theme::HouseButton ab { "Set A", "Compare two settings: click to switch between A and B. Copy one to the other in Presets." };
     theme::HouseButton presets { "Presets", "Save the settings as a preset, or load one." };
-    std::unique_ptr<AudioProcessorEditor> editor;
+    theme::HouseButton window { ui::u8 ("\xe2\xa7\x89"), "Move its window out of the rack, into a window of its own.", true };
+    theme::HouseButton match { "Match", "Match Loudness: keep what comes out as loud as what goes in, by short-term loudness (LUFS-S, K-weighted).", true };
+    DeviceRack& rack;
+    Viewport view;
+    Component holder;
+    editors::Owned editor;
     AudioPluginInstance* editorFor = nullptr;
-    Rectangle<int> natural;
+    Rectangle<int> natural;   // the size the plug-in's window asks for
+    bool laying = false;
+
+    // The plug-in resized its own window (a bigger view, a panel opened): take that as its size.
+    void componentMovedOrResized (Component& comp, bool, bool wasResized) override
+    {
+        if (laying || ! wasResized || &comp != editor.get()) return;
+        natural = editor->getBounds().withZeroOrigin();
+        rack.relayout();
+    }
 };
 
 //==============================================================================
@@ -475,13 +563,72 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
         if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre menu)", false, false, [] {});
         m.showMenuAsync (PopupMenu::Options());
     };
+    // The Container takes audio effects (decision 0055).
+    ContainerProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
+    {
+        PopupMenu m;
+        std::map<String, PopupMenu> byMaker;
+        for (auto& d : c.engine.plugins().known().getTypes())
+            if (PluginManager::roleFor (d) == DeviceRole::AudioFx)
+                byMaker[d.manufacturerName.isEmpty() ? String ("Other") : d.manufacturerName]
+                    .addItem (d.name + "  (" + d.pluginFormatName + ")", [chosen, d] { chosen (PluginManager::refFor (d)); });
+        for (auto& [maker, sub] : byMaker) m.addSubMenu (maker, sub);
+        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre menu)", false, false, [] {});
+        m.showMenuAsync (PopupMenu::Options());
+    };
     c.addChangeListener (this);
     rebuild();
+    startTimerHz (2);
+}
+
+void DeviceRack::timerCallback()
+{
+    for (auto* p : panels) p->tickMatch();
+}
+
+void DeviceRack::float_ (Id device)
+{
+    auto* inst = c.engine.instance (device);
+    const auto* d = c.project.device (device);
+    if (! inst || ! d || windows.count (device)) return;
+    // Its editor leaves the rack first: a plug-in has one editor at a time.
+    for (auto* p : panels) if (p->id == device) p->dropEditor();
+    auto* e = editors::open (*inst);
+    Track* owner = nullptr;
+    c.project.device (device, &owner);
+    const String title = String (d->plugin.name) + (owner ? ui::u8 (" \xe2\x80\x94 ") + String (owner->name) : String());
+    windows[device] = std::make_unique<PluginWindow> (title, e, [this, device] { dock (device); });
+    windowFor[device] = inst;
+    for (auto* p : panels) if (p->id == device) { p->update(); p->repaint(); }
+    layoutStrip();
+}
+
+void DeviceRack::dock (Id device)
+{
+    windows.erase (device);
+    windowFor.erase (device);
+    for (auto* p : panels) if (p->id == device) { p->update(); p->repaint(); }
+    layoutStrip();
+}
+
+// A window whose plug-in was removed, switched off or replaced closes with it.
+void DeviceRack::closeStaleWindows()
+{
+    for (auto it = windows.begin(); it != windows.end();)
+    {
+        const auto* d = c.project.device (it->first);
+        if (d && d->active && c.engine.instance (it->first) == windowFor[it->first]) { ++it; continue; }
+        windowFor.erase (it->first);
+        it = windows.erase (it);
+    }
 }
 
 DeviceRack::~DeviceRack()
 {
+    stopTimer();
+    windows.clear();   // their editors go before the plug-ins
     MorphProcessor::choosePlugin = nullptr;
+    ContainerProcessor::choosePlugin = nullptr;
     c.removeChangeListener (this);
     panels.clear();
 }
@@ -506,6 +653,8 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     kalibre.addSeparator();
     kalibre.addItem ("X/Y Morph as an Instrument (Samples or Instruments)", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::Instrument); });
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
+    kalibre.addSeparator();
+    kalibre.addItem ("Container (Plug-ins on a Band, the Mid or the Sides)", [&c, track] { c.addBuiltIn (track, containerRef(), DeviceRole::AudioFx); });
     PopupMenu m;
     m.addSubMenu ("MIDI Effects", midi, midi.getNumItems() > 0);
     m.addSubMenu ("Instruments", instruments, instruments.getNumItems() > 0);
@@ -514,13 +663,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     if (types.isEmpty())
     {
         m.addSeparator();
-        m.addItem ("No plug-ins found yet. Scan for Plug-ins", [&c]
-        {
-            c.engine.plugins().scan ([&c] (float p, const String& what)
-            {
-                c.say (p >= 1.0f ? "Scan finished: " + what + "." : "Scanning plug-ins, " + String (roundToInt (p * 100)) + "%: " + what);
-            });
-        });
+        m.addItem ("No plug-ins found yet. Scan for Plug-ins", [&c] { c.scanPlugins(); });
     }
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (target));
 }
@@ -536,6 +679,7 @@ void DeviceRack::changeListenerCallback (ChangeBroadcaster*)
         shape << "|";
         for (auto& m : t->modulators) shape << (int64) m.id << ",";
     }
+    closeStaleWindows();
     if (shape != shownShape) rebuild();
     else for (auto* p : panels) { p->update(); p->repaint(); }
 }
@@ -544,15 +688,26 @@ void DeviceRack::rebuild()
 {
     const auto* t = c.focus();
     String shape;
-    panels.clear();
+    // Panels whose plug-in is still here are kept, with their windows: making a
+    // plug-in's window again each time another is added left some blank.
+    std::map<Id, std::unique_ptr<DevicePanel>> keep;
+    while (! panels.isEmpty())
+    {
+        std::unique_ptr<DevicePanel> p (panels.removeAndReturn (panels.size() - 1));
+        keep[p->id] = std::move (p);
+    }
     modulators.clear();
     if (t)
     {
         shape << (int64) t->id << ":";
         for (auto& d : t->devices)
         {
-            auto* p = panels.add (new DevicePanel (c, d.id));
+            DevicePanel* p = nullptr;
+            if (auto it = keep.find (d.id); it != keep.end()) { p = it->second.release(); keep.erase (it); }
+            else p = new DevicePanel (c, d.id, *this);
+            panels.add (p);
             strip.addAndMakeVisible (p);
+            p->update();
             shape << (int64) d.id << (d.active ? "a" : "o") << (c.engine.instance (d.id) ? "i" : "-") << ",";
         }
         shape << "|";

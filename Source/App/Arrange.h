@@ -37,6 +37,7 @@ public:
     void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void update (const Track&);
+    void refreshButtons();
     void showMenu();
 
     Id id;
@@ -60,6 +61,7 @@ class Arrange : public juce::Component,
                 private juce::Timer,
                 public juce::FileDragAndDropTarget,
                 public juce::DragAndDropTarget,
+                public juce::TooltipClient,
                 private juce::ScrollBar::Listener
 {
 public:
@@ -75,6 +77,7 @@ public:
     void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
+    juce::String getTooltip() override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     void mouseMagnify (const juce::MouseEvent&, float) override;
 
@@ -113,7 +116,9 @@ private:
     juce::uint32 chordsFor = 0;
 
     // Dragging.
-    enum class Drag { None, Cursor, Loop, MoveClip, TrimStart, TrimEnd, Point, Tempo, Marker, WarpMarker, Swipe, FadeIn, FadeOut };
+    enum class Drag { None, Cursor, Loop, MoveClip, TrimStart, TrimEnd, Point, Tempo, Marker, WarpMarker, Swipe, FadeIn, FadeOut, Section };
+    Id dragSection = 0;          // Shift-dragged in the Sections lane (decision 0037)
+    Tick sectionTo = 0;          // where it would start, on a bar line
     Drag drag = Drag::None;
     Id dragClip = 0;
     Tick dragOrigin = 0, dragOffset = 0;

@@ -36,12 +36,14 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
     {
         lowerHeight = s->getIntValue ("lowerHeight", 320);
         browserShown = s->getBoolValue ("browser", false);
+        c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
         setTextSize ((float) s->getDoubleValue ("textSize", 1.0));
     }
     browser.setVisible (browserShown);
     setWantsKeyboardFocus (true);
     setTitle ("Kalibre");
     registerKeys();
+    c.onShowPluginManager = [this] { showPluginManager(); };
     c.addChangeListener (this);
     setSize (1440, 900);
 }
@@ -49,11 +51,14 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
 MainComponent::~MainComponent()
 {
     c.keys.all().clear();   // their actions point at this window
+    c.onShowPluginManager = nullptr;
+    pluginWindow.reset();
     c.removeChangeListener (this);
     if (auto* s = settingsStore().getUserSettings())
     {
         s->setValue ("lowerHeight", lowerHeight);
         s->setValue ("browser", browserShown);
+        s->setValue ("zeroCrossings", c.zeroCrossings);
         s->setValue ("textSize", (double) theme::scale());
         settingsStore().saveIfNeeded();
         settingsStore().closeFiles();
@@ -74,6 +79,20 @@ void MainComponent::showBrowser (Browser::Tab tab)
     browser.setVisible (true);
     browser.showTab (tab);
     resized();
+}
+
+// Settings may have a window of their own (decision 0002, amended); the
+// plug-ins are managed in one (decision 0047).
+void MainComponent::showPluginManager()
+{
+    if (! pluginWindow)
+    {
+        pluginWindow = std::make_unique<PluginManagerWindow> (c);
+        if (auto* top = getTopLevelComponent()) pluginWindow->centreAroundComponent (top, pluginWindow->getWidth(), pluginWindow->getHeight());
+    }
+    if (auto* view = dynamic_cast<PluginManagerView*> (pluginWindow->getContentComponent())) view->refresh();
+    pluginWindow->setVisible (true);
+    pluginWindow->toFront (true);
 }
 
 void MainComponent::setTextSize (float s)

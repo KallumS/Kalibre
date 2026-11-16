@@ -1,5 +1,6 @@
 #include "Controller.h"
 
+#include "AudioTools.h"
 #include "Capture.h"
 #include "Comp.h"
 #include "MidiLearn.h"
@@ -226,6 +227,20 @@ void Controller::say (const String& m, bool warning, bool canUndo)
     sendChangeMessage();
 }
 
+void Controller::scanPlugins (std::vector<std::pair<String, String>> files)
+{
+    auto& pm = engine.plugins();
+    if (pm.scanning()) { say ("Plug-ins are being scanned already."); return; }
+    say ("Scanning plug-ins" + ui::u8 ("\xe2\x80\xa6"));
+    auto progress = [this] (float p, const String& what)
+    {
+        if (p >= 1.0f) say ("Scan finished: " + what + ".", what.contains ("Turned off") || what.contains ("couldn't"));
+        else say ("Scanning plug-ins, " + String (roundToInt (p * 100)) + "%: " + what);
+    };
+    if (files.empty()) pm.scan (progress);
+    else pm.rescan (files, progress);
+}
+
 void Controller::dismiss()
 {
     message.clear();
@@ -305,10 +320,11 @@ void Controller::record()
     recordFromSeconds = project.tempo.secondsAt (from);
     const auto folder = recordingsFolder();
     for (auto id : armed)
-        if (auto* s = engine.source (id))
+        if (auto* s = engine.recordSource (id))
         {
             const auto* t = project.track (id);
-            if (t && t->input.audioChannel >= 0)
+            // A Summing track records the master (decision 0052); others their input.
+            if (t && (t->kind == TrackKind::Summing || t->input.audioChannel >= 0))
                 s->startRecording (folder.getNonexistentChildFile (String (t->name).replaceCharacters ("/\\:", "---") + " "
                                                                    + Time::getCurrentTime().formatted ("%Y-%m-%d %H%M%S"), ".wav"),
                                    engine.sampleRate());
@@ -333,9 +349,10 @@ void Controller::finishRecording()
         if (! t.armed) continue;
         auto* s = engine.source (t.id);
         if (! s) continue;
-        // Audio.
-        if (s->isRecording())
+        // Audio: a Summing track's is the master's (decision 0052).
+        if (auto* rs = engine.recordSource (t.id); rs && rs->isRecording())
         {
+            auto* s = rs;
             const double startSeconds = s->recordStartSeconds();
             const auto f = s->stopRecording();
             double seconds = 0, sr = 0;
@@ -351,6 +368,14 @@ void Controller::finishRecording()
                 c.audio.sourceLength = seconds;
                 c.audio.fileSampleRate = sr;
                 c.audio.fileChannels = channels;
+                // A Summing track's first moments belong before where recording began
+                // (the master arrives after the graph's delay): they're left out (decision 0052).
+                if (const double lead = s->recordLatencySeconds.load(); lead > 0 && lead < seconds)
+                {
+                    c.audio.sourceStart = lead;
+                    c.start = project.tempo.tickAt (startSeconds + lead);
+                    c.length = std::max<Tick> (1, project.tempo.tickAt (startSeconds + seconds) - c.start);
+                }
                 if (project.punch.on)
                 {
                     // Only what fell inside the punch range is kept.
@@ -366,6 +391,7 @@ void Controller::finishRecording()
             }
             else f.deleteFile();
         }
+        if (t.kind == TrackKind::Summing) continue;   // it records sound only
         // MIDI played in.
         std::vector<capture::Event> events;
         int s1, n1, s2, n2;
@@ -582,9 +608,19 @@ void Controller::storeDeviceStates()
                 auto a = engine.araStateOf (d.id);
                 if (! a.empty()) d.araState = a;
             }
+        // The other versions' plug-ins, waiting with their own settings (decision 0050).
+        for (size_t v = 0; v < t.versions.size(); ++v)
+            if ((int) v != t.activeVersion)
+                for (auto& d : t.versions[v].devices)
+                    if (d.active)
+                    {
+                        auto s = engine.stateOf (d.id, t.versions[v].id);
+                        if (! s.empty()) d.state = s;
+                    }
     };
     for (auto& t : project.tracks) store (t);
     store (project.master);
+    for (auto& t : project.cue) store (t);
 }
 
 bool Controller::save()
@@ -785,6 +821,8 @@ Id Controller::addTrack (TrackKind kind, const String& name)
     if (auto* f = focus()) parent = f->isFolder() ? f->id : f->parent;
     auto label = name.isNotEmpty() ? name
                : kind == TrackKind::Folder ? String ("Folder")
+               : kind == TrackKind::Summing ? String ("Summing")
+               : kind == TrackKind::Cue ? String ("Cue")
                : kind == TrackKind::Return ? String ("Return " + String::charToString ((juce_wchar) ('A' + (int) std::count_if (project.tracks.begin(), project.tracks.end(), [] (const Track& t) { return t.kind == TrackKind::Return; }))))
                                            : String ("Track " + String ((int) project.tracks.size() + 1));
     apply ("Add Track", [&] (Project& p)
@@ -792,9 +830,18 @@ Id Controller::addTrack (TrackKind kind, const String& name)
         made = edit::addTrack (p, kind, label.toStdString(), kind == TrackKind::Return ? 0 : after,
                                kind == TrackKind::Return ? 0 : parent);
         auto& colours = theme::trackColours();
-        if (auto* t = p.track (made)) t->colour = colours[(int) p.tracks.size() % colours.size()].getARGB();
+        if (auto* t = p.track (made); t && ! t->isCue()) t->colour = colours[(int) p.tracks.size() % colours.size()].getARGB();
     });
     if (made) { selectedTracks = { made }; focusOn (made); }
+    if (kind == TrackKind::Summing)
+        say ("A Summing track records what the master plays. Arm it and record: the mix goes onto it from where recording starts.");
+    if (kind == TrackKind::Cue)
+    {
+        // It's in the mixer, after the master (decision 0051).
+        zoneTab = ZoneTab::Mixer;
+        say ("The Cue track is after the master in the mixer. Its plug-ins, pan and mono are heard but never exported.");
+        viewChanged();
+    }
     return made;
 }
 
@@ -867,11 +914,142 @@ void Controller::freeze (Id id, bool on)
     say ("Frozen: it plays as audio and its plug-ins are unloaded. Unfreeze to change it.", false, true);
 }
 
+void Controller::chooseTrack (Id id, const ModifierKeys& mods, const std::vector<Id>& order)
+{
+    auto sel = selectedTracks;
+    const auto at = [&order] (Id x) { return std::find (order.begin(), order.end(), x); };
+    // Shift-Option-click takes it out of what's chosen.
+    if (mods.isShiftDown() && mods.isAltDown())
+    {
+        sel.erase (std::remove (sel.begin(), sel.end(), id), sel.end());
+        if (sel.empty()) { selectedTracks.clear(); sendChangeMessage(); return; }
+        selectTracks (sel);
+        return;
+    }
+    if (mods.isShiftDown() && trackAnchor != 0 && at (trackAnchor) != order.end() && at (id) != order.end())
+    {
+        // From the last one clicked to this one; this one last, so it takes the focus.
+        const auto a = at (trackAnchor) - order.begin(), b = at (id) - order.begin();
+        std::vector<Id> range;
+        for (auto i = a; i != b; i += (b > a ? 1 : -1)) range.push_back (order[(size_t) i]);
+        range.push_back (id);
+        selectTracks (range);
+        return;
+    }
+    trackAnchor = id;
+    const auto it = std::find (sel.begin(), sel.end(), id);
+    if (mods.isAltDown())
+    {
+        if (it != sel.end()) sel.erase (it);
+        sel.push_back (id);
+    }
+    else if (mods.isCommandDown())
+    {
+        if (it != sel.end()) sel.erase (it);
+        else sel.push_back (id);
+        if (sel.empty()) { selectedTracks.clear(); sendChangeMessage(); return; }
+    }
+    else sel = { id };
+    selectTracks (sel);
+}
+
+bool Controller::optionAdds (Id track)
+{
+    const auto mods = ModifierKeys::currentModifiers;
+    if (! mods.isAltDown()) return false;
+    // Option adds it; Shift-Option takes it out.
+    chooseTrack (track, ModifierKeys (ModifierKeys::altModifier | (mods.isShiftDown() ? ModifierKeys::shiftModifier : 0)), {});
+    return true;
+}
+
+std::vector<Id> Controller::arrangeOrder() const
+{
+    std::vector<Id> order;
+    for (auto& t : project.tracks) if (! t.hidden && ! project.hiddenByFolder (t.id)) order.push_back (t.id);
+    return order;
+}
+
+void Controller::chooseClip (Id id, const ModifierKeys& mods)
+{
+    const Track* owner = nullptr;
+    const auto* clip = project.clip (id, &owner);
+    if (! clip || ! owner) return;
+    if (mods.isShiftDown() && mods.isAltDown())
+    {
+        // Shift-Option-click takes it out of what's chosen.
+        selectedClips.erase (id);
+        if (selectedClip == id) selectedClip = selectedClips.empty() ? 0 : *selectedClips.begin();
+        viewChanged();
+        return;
+    }
+    const Track* anchorOwner = nullptr;
+    const auto* anchor = clipAnchor != 0 ? project.clip (clipAnchor, &anchorOwner) : nullptr;
+    if (mods.isShiftDown() && anchor && anchorOwner)
+    {
+        // Every clip on the tracks from the anchor's to this one's, from the
+        // earlier start to the later end: the rectangle the two make.
+        const auto order = arrangeOrder();
+        const auto a = std::find (order.begin(), order.end(), anchorOwner->id), b = std::find (order.begin(), order.end(), owner->id);
+        if (a != order.end() && b != order.end())
+        {
+            const Tick from = std::min (anchor->start, clip->start), to = std::max (anchor->end(), clip->end());
+            std::set<Id> range;
+            for (auto i = std::min (a, b); i <= std::max (a, b); ++i)
+                if (const auto* t = project.track (*i))
+                    for (auto& x : t->clips())
+                        if (x.start < to && x.end() > from) range.insert (x.id);
+            selectedClips = range;
+            selectedClip = id;
+            viewChanged();
+            return;
+        }
+    }
+    clipAnchor = id;
+    if (mods.isAltDown()) { selectedClips.insert (id); selectedClip = id; viewChanged(); return; }
+    if (mods.isCommandDown())
+    {
+        if (selectedClips.count (id)) selectedClips.erase (id);
+        else selectedClips.insert (id);
+        viewChanged();
+        return;
+    }
+    if (! selectedClips.count (id) || selectedClip != id) selectClip (id, clip->isMidi());
+}
+
 void Controller::newVersion (Id track)
 {
+    const auto* t = project.track (track);
+    if (t && (int) t->versions.size() >= maxVersions)
+    {
+        say ("A track has four versions at most. Delete one to make another.", true);
+        return;
+    }
+    // The copy starts with the plug-ins' settings as they are now.
+    storeDeviceStates();
     int index = -1;
     apply ("New Version", [&] (Project& p) { index = edit::newVersion (p, track); });
-    if (index >= 0) say ("Version " + String (index + 1) + " made. The others are kept: choose one from the track's version number.");
+    if (index >= 0) say ("Version " + String (index + 1) + " made, with its own copy of the plug-ins. The others are kept: "
+                         "choose one with the 1 to 4 buttons in the mixer, or the track's version number.");
+}
+
+void Controller::chooseVersion (const std::vector<Id>& ids, int index)
+{
+    std::vector<Id> changing, missing;
+    for (auto id : ids)
+        if (const auto* t = project.track (id); t && t->holdsClips())
+        {
+            if (index >= (int) t->versions.size()) missing.push_back (id);
+            else if (t->activeVersion != index) changing.push_back (id);
+        }
+    if (! changing.empty())
+    {
+        // A version from before versions had their own plug-ins takes copies with today's settings.
+        storeDeviceStates();
+        apply ("Version " + String (index + 1), [&] (Project& p) { for (auto id : changing) edit::selectVersion (p, id, index); });
+    }
+    if (! missing.empty())
+        say (String ((int) missing.size()) + (missing.size() == 1 ? " track has" : " tracks have") + " no version " + String (index + 1)
+             + ", so " + (missing.size() == 1 ? "it stays" : "they stay") + " as " + (missing.size() == 1 ? "it is." : "they are."));
 }
 
 Id Controller::newMidiClip (Id track, Tick start, Tick length)
@@ -938,8 +1116,35 @@ void Controller::splitAtCursor()
         for (auto& t : project.tracks)
             if (std::find (selectedTracks.begin(), selectedTracks.end(), t.id) != selectedTracks.end())
                 for (auto& c : t.clips()) if (c.start < cursor && c.end() > cursor) clips.insert (c.id);
-    const Tick at = cursor;
-    apply ("Split", [clips, at] (Project& p) { for (auto c : clips) edit::splitClip (p, c, at); });
+    // Each audio clip is cut at its own nearest zero crossing when that's on (decision 0054).
+    std::map<Id, Edge> cuts;
+    for (auto id : clips)
+        if (const auto* cl = project.clip (id))
+        {
+            auto e = zeroEdge (*cl, cursor);
+            if (e.tick <= cl->start || e.tick >= cl->end()) e = { cursor, 0 };
+            cuts[id] = e;
+        }
+    apply ("Split", [cuts] (Project& p) { for (auto& [id, e] : cuts) edit::splitClip (p, id, e.tick, e.fine); });
+}
+
+Controller::Edge Controller::zeroEdge (const Clip& clip, Tick at) const
+{
+    if (! zeroCrossings || clip.isMidi()) return { at, 0 };
+    // The audio as it plays (the file, or its warped render), and where `at` falls in it.
+    auto audio = engine.cache.forClip (clip, project.tempo, projectFolder());
+    if (! audio || audio->buffer.getNumSamples() == 0) return { at, 0 };
+    const auto& tempo = project.tempo;
+    const bool plain = clip.audio.warp == WarpMode::Off && ! clip.audio.reversed && std::abs (clip.audio.transpose) < 1e-6;
+    const double base = (plain ? clip.audio.sourceStart : 0.0) - tempo.secondsAt (clip.start - clip.offset);
+    const double rate = audio->sampleRate;
+    const int want = (int) std::llround ((base + tempo.secondsAt (at)) * rate);
+    // Ten milliseconds either way reaches a crossing of anything above 50 Hz.
+    const int z = audiotools::nearestZeroCrossing (audio->buffer.getArrayOfReadPointers(), audio->buffer.getNumChannels(),
+                                                   audio->buffer.getNumSamples(), want, (int) (rate * 0.01));
+    const double song = z / rate - base;
+    const Tick tick = tempo.tickAt (song);
+    return { tick, song - tempo.secondsAt (tick) };
 }
 
 void Controller::quantiseSelection()
@@ -966,6 +1171,11 @@ void Controller::addPlugin (Id track, const PluginDescription& d)
 {
     const auto ref = PluginManager::refFor (d);
     const auto role = PluginManager::roleFor (d);
+    if (const auto* t = project.track (track); t && t->isCue() && role != DeviceRole::AudioFx)
+    {
+        say ("The Cue track takes audio effects only: nothing plays into it but the master.", true);
+        return;
+    }
     Id made = 0;
     apply ("Add " + d.name, [&] (Project& p) { made = edit::addDevice (p, track, ref, role); });
     if (made && ! engine.instance (made))
@@ -976,6 +1186,11 @@ void Controller::addPlugin (Id track, const PluginDescription& d)
 
 void Controller::addBuiltIn (Id track, const PluginRef& ref, DeviceRole role)
 {
+    if (const auto* t = project.track (track); t && t->isCue() && role != DeviceRole::AudioFx)
+    {
+        say ("The Cue track takes audio effects only: nothing plays into it but the master.", true);
+        return;
+    }
     apply ("Add " + String (ref.name), [&] (Project& p) { edit::addDevice (p, track, ref, role); });
     zoneTab = ZoneTab::Devices;
     sendChangeMessage();

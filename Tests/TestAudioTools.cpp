@@ -151,3 +151,22 @@ TEST ("audio tools: strip silence leaves one clip a sound, each where it was")
     CHECK_EQ (clips[1].start, PPQ * 10);
     CHECK_EQ (clips[1].length, PPQ * 2);      // cut at the clip's own end
 }
+
+TEST ("audio tools: the nearest zero crossing, across both channels, within reach")
+{
+    // A 100 Hz sine at 48 kHz crosses zero every 240 samples: at 0, 240, 480...
+    const int n = 4800;
+    std::vector<float> l (n), r (n);
+    for (int i = 0; i < n; ++i) l[(size_t) i] = r[(size_t) i] = (float) std::sin (2.0 * 3.14159265358979 * 100.0 * (i + 0.5) / 48000.0);
+    const float* ch[] { l.data(), r.data() };
+    // Asked for 700: the crossing at 720 is the nearest (between 719 and 720).
+    const int z = audiotools::nearestZeroCrossing (ch, 2, n, 700, 480);
+    CHECK (z == 720 || z == 719);
+    CHECK (std::abs (l[(size_t) z]) < 0.01f);
+    // Out of reach: where it was asked.
+    CHECK_EQ (audiotools::nearestZeroCrossing (ch, 2, n, 600, 10), 600);
+    // Silence counts as zero.
+    std::vector<float> quiet (100, 0.0f);
+    const float* q[] { quiet.data() };
+    CHECK_EQ (audiotools::nearestZeroCrossing (q, 1, 100, 50, 10), 50);
+}

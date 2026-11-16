@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Controller.h"
+#include "Editors.h"
 #include "Theme.h"
 
 namespace kal
@@ -34,7 +35,7 @@ private:
     {
         juce::String name;
         std::unique_ptr<juce::AudioPluginInstance> plugin;
-        std::unique_ptr<juce::AudioProcessorEditor> editor;
+        editors::Owned editor;
         juce::Rectangle<int> natural;
     };
     std::vector<std::unique_ptr<Slot>> slots;

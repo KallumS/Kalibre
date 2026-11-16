@@ -3,10 +3,18 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "PluginManager.h"
+
 #include <cstring>
+
+void installTestFormats();   // TestPlugins.cpp
 
 int main (int argc, char** argv)
 {
+    // The plug-in scanner runs this program again as its helper (decision 0047).
+    installTestFormats();
+    if (argc > 1 && std::strcmp (argv[1], kal::PluginManager::workerFlag) == 0)
+        return kal::PluginManager::runWorker (argc, argv);
     juce::ScopedJuceInitialiser_GUI gui;
     int ran = 0;
     for (const auto& t : check::all())

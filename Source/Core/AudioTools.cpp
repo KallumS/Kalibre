@@ -8,6 +8,34 @@ namespace kal::audiotools
 
 static constexpr double pi = 3.141592653589793;
 
+int nearestZeroCrossing (const float* const* channels, int numChannels, int numSamples, int at, int reach)
+{
+    if (numSamples <= 0 || numChannels <= 0) return at;
+    auto mixed = [&] (int i)
+    {
+        float v = 0;
+        for (int ch = 0; ch < numChannels; ++ch) v += channels[ch][i];
+        return v;
+    };
+    // A crossing between i - 1 and i, or i itself zero: the nearer to zero of the two.
+    auto crossingAt = [&] (int i) -> int
+    {
+        if (i < 0 || i >= numSamples) return -1;
+        const float b = mixed (i);
+        if (b == 0.0f) return i;
+        if (i == 0) return -1;
+        const float a = mixed (i - 1);
+        if ((a < 0.0f) == (b < 0.0f)) return -1;
+        return std::abs (a) < std::abs (b) ? i - 1 : i;
+    };
+    for (int d = 0; d <= reach; ++d)
+    {
+        if (const int z = crossingAt (at - d); z >= 0) return z;
+        if (d > 0) if (const int z = crossingAt (at + d); z >= 0) return z;
+    }
+    return at;
+}
+
 float peak (const float* const* ch, int n, int start, int end)
 {
     float p = 0;

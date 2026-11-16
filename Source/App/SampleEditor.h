@@ -47,6 +47,7 @@ private:
     theme::HouseButton dcButton { "Remove DC", "Centre the chosen range's waveform on zero." };
     theme::HouseButton stripButton { "Strip Silence", "Cut the clip into one clip for each stretch with sound in it." };
     theme::HouseButton quantiseButton { "Quantise Audio", "Move every hit onto the grid with warp markers." };
+    theme::HouseButton zeroButton { "Zero Crossings", "Snap the range's ends, clip edges and cuts to where the waveform crosses zero, so there's no click. (Edit > Snap to Zero Crossings)", true };
 
     Id loadedClip = 0;
     std::string loadedFile;

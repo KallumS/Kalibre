@@ -337,7 +337,29 @@ void moveSection (Project& p, Id id, Id before)
         for (auto& x : p.sections) if (x.id == before) { dest = x.start; found = true; }
         if (! found) return;
     }
+    const Tick length = s->end - s->start;
+    const std::string name = s->name;
+    const Tick landed = dest < s->start ? dest : dest - length;
     moveTime (p, s->start, s->end, dest);
+    for (auto& x : p.sections)
+        if (x.start == landed && x.end == landed + length && x.name == name) { x.id = id; break; }
+}
+
+void moveSectionTo (Project& p, Id id, Tick start)
+{
+    const Section* s = nullptr;
+    for (auto& x : p.sections) if (x.id == id) s = &x;
+    if (! s) return;
+    start = std::max<Tick> (0, start);
+    if (start == s->start) return;
+    // moveTime puts the stretch before `dest` as things are now: later, that's past where it's taken from.
+    const Tick length = s->end - s->start;
+    const std::string name = s->name;
+    const Tick dest = start < s->start ? start : start + length;
+    moveTime (p, s->start, s->end, dest);
+    // The section moved is the same section: it keeps its id.
+    for (auto& x : p.sections)
+        if (x.start == start && x.end == start + length && x.name == name) { x.id = id; break; }
 }
 
 //==============================================================================

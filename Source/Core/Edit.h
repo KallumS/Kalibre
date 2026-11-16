@@ -25,6 +25,8 @@ namespace kal::edit
 
 // Adds a track after `after` (0: at the end), inside `parent` (0: top level).
 Id addTrack (Project&, TrackKind, const std::string& name, Id after = 0, Id parent = 0);
+// The Cue track (decision 0051): there's one at most; returns it if it's there already.
+Id addCue (Project&);
 
 // Removes a track. A folder takes everything inside it with it unless
 // `keepContents`, when its tracks move up to the folder's own parent.
@@ -46,7 +48,9 @@ std::vector<Id> descendants (const Project&, Id folder);
 //==============================================================================
 // Versions (decision 0006)
 
-// Copies the active version into a new one and makes it active. Returns its index.
+// Four at most (maxVersions); each has its own devices (decision 0050): a new
+// one starts with copies of the active one's, under the same ids.
+// Copies the active version into a new one and makes it active. Returns its index, or -1.
 int newVersion (Project&, Id track);
 // An empty new version, made active.
 int newEmptyVersion (Project&, Id track);
@@ -62,7 +66,9 @@ Id addMidiClip (Project&, Id track, Tick start, Tick length);
 void removeClips (Project&, const std::set<Id>& clips);
 bool moveClip (Project&, Id clip, Tick newStart, Id newTrack = 0);
 void resizeClip (Project&, Id clip, Tick newStart, Tick newEnd);   // trims from either side
-Id splitClip (Project&, Id clip, Tick at);                         // returns the right half's id
+// Returns the right half's id. `fine`: for audio, how far past `at` (seconds,
+// under a tick) the cut really is, so it can be on a zero crossing (decision 0054).
+Id splitClip (Project&, Id clip, Tick at, double fine = 0);
 Id duplicateClip (Project&, Id clip);                              // just after itself
 Id consolidateClips (Project&, const std::set<Id>& clips);         // MIDI clips on one track into one
 void sortClips (Track&);

@@ -30,11 +30,18 @@ TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), 
     arm.setTitle ("Arm for Recording");
     fold.setTitle ("Fold");
     version.setTitle ("Versions");
-    mute.onClick = [this] { c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; }); };
-    solo.onClick = [this] { c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
-    arm.onClick = [this] { c.apply ("Arm", [this] (Project& p) { if (auto* t = p.track (id)) t->armed = ! t->armed; }); };
-    fold.onClick = [this] { c.apply ("Fold", [this] (Project& p) { if (auto* t = p.track (id)) t->collapsed = ! t->collapsed; }); };
-    version.onClick = [this] { versionMenu(); };
+    // Option-click on any of them adds the track to the selection instead (decision 0053).
+    mute.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; }); };
+    solo.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
+    arm.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Arm", [this] (Project& p) { if (auto* t = p.track (id)) t->armed = ! t->armed; }); };
+    fold.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Fold", [this] (Project& p) { if (auto* t = p.track (id)) t->collapsed = ! t->collapsed; }); };
+    version.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } versionMenu(); };
+}
+
+// A toggle pressed with Option chose the track instead: its state goes back.
+void TrackHeader::refreshButtons()
+{
+    if (const auto* t = c.project.track (id)) update (*t);
 }
 
 void TrackHeader::update (const Track& t)
@@ -109,16 +116,17 @@ void TrackHeader::versionMenu()
                                      + "  (" + String ((int) t->versions[i].clips.size()) + " clips)",
                    true, (int) i == t->activeVersion);
     m.addSeparator();
-    m.addItem (1000, "New Version");
-    m.addItem (1001, "New Empty Version");
+    const bool room = (int) t->versions.size() < maxVersions;   // four at most (decision 0050)
+    m.addItem (1000, "New Version", room);
+    m.addItem (1001, "New Empty Version", room);
     m.addItem (1002, ui::u8 ("Rename Version\xe2\x80\xa6"));
     m.addItem (1003, "Delete This Version", t->versions.size() > 1);
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (&version), [this] (int r)
     {
         if (r <= 0) return;
-        if (r < 1000) { c.apply ("Choose Version", [this, r] (Project& p) { edit::selectVersion (p, id, r - 1); }); return; }
+        if (r < 1000) { c.chooseVersion ({ id }, r - 1); return; }
         if (r == 1000) c.newVersion (id);
-        if (r == 1001) c.apply ("New Version", [this] (Project& p) { edit::newEmptyVersion (p, id); });
+        if (r == 1001) { c.storeDeviceStates(); c.apply ("New Version", [this] (Project& p) { edit::newEmptyVersion (p, id); }); }
         if (r == 1002)
         {
             auto* w = new AlertWindow ("Rename Version", {}, MessageBoxIconType::NoIcon);
@@ -151,7 +159,7 @@ void TrackHeader::showMenu()
     PopupMenu m, colours, autoModes, monitor;
     if (t->holdsClips())
     {
-        m.addItem ("New Version", [this] { c.newVersion (id); });
+        m.addItem ("New Version", (int) t->versions.size() < maxVersions, false, [this] { c.newVersion (id); });
         if (! t->version().takes.empty())
             m.addItem (t->version().takesShown ? "Hide Takes" : "Show Takes (" + String ((int) t->version().takes.size()) + ")", [this]
             {
@@ -162,6 +170,8 @@ void TrackHeader::showMenu()
     m.addItem ("Add Track", [this] { c.addTrack (TrackKind::Track); });
     m.addItem ("Add Folder", [this] { c.addTrack (TrackKind::Folder); });
     m.addItem ("Add Return", [this] { c.addTrack (TrackKind::Return); });
+    m.addItem ("Add Summing Track", [this] { c.addTrack (TrackKind::Summing); });
+    m.addItem ("Add Cue Track", c.project.cue.empty(), false, [this] { c.addTrack (TrackKind::Cue); });
     m.addItem ("Put in a Folder", [this] { c.folderFromSelection(); });
     if (t->parent != 0)
         m.addItem ("Take Out of Its Folder", [this]
@@ -324,14 +334,8 @@ void TrackHeader::mouseDown (const MouseEvent& e)
         showMenu();
         return;
     }
-    if (e.mods.isCommandDown() || e.mods.isShiftDown())
-    {
-        auto sel = c.selectedTracks;
-        auto it = std::find (sel.begin(), sel.end(), id);
-        if (it != sel.end()) sel.erase (it); else sel.push_back (id);
-        c.selectTracks (sel);
-    }
-    else c.selectTracks ({ id });
+    // Shift-click a range, Option-click adds, Command-click adds or takes away (decision 0053).
+    c.chooseTrack (id, e.mods, c.arrangeOrder());
 }
 
 void TrackHeader::mouseDrag (const MouseEvent& e)
@@ -579,6 +583,15 @@ void Arrange::drawSectionLane (Graphics& g, Rectangle<int> r)
         g.setColour (theme::text);
         g.drawText (String (sec.name), box.toNearestInt().withTrimmedLeft (8), Justification::centredLeft, true);
     }
+    // A section being Shift-dragged: where it would land.
+    if (drag == Drag::Section)
+        for (auto& sec : c.project.sections)
+            if (sec.id == dragSection)
+            {
+                const auto ghost = Rectangle<float> (xOf (sectionTo) + 1, (float) r.getY() + 1, xOf (sectionTo + (sec.end - sec.start)) - xOf (sectionTo) - 2, (float) r.getHeight() - 2);
+                g.setColour (theme::playhead);
+                g.drawRoundedRectangle (ghost, 3.0f, 2.0f);
+            }
     // Where the video starts (decision 0046).
     if (! c.project.video.file.empty())
     {
@@ -1014,6 +1027,13 @@ void Arrange::paintOverChildren (Graphics& g)
         g.setColour (theme::edge);
         g.fillRect (cx, 0.0f, 1.0f, (float) getHeight() - theme::px (12));
     }
+    if (drag == Drag::Section)
+    {
+        // The bar it would start on, down every track.
+        const float x = xOf (sectionTo);
+        g.setColour (theme::playhead);
+        g.fillRect (x - 1.0f, 0.0f, 2.0f, (float) getHeight() - theme::px (12));
+    }
     if (c.engine.isPlaying())
     {
         const float x = xOf (c.playhead());
@@ -1047,6 +1067,16 @@ const Clip* Arrange::clipAt (Point<int> p, const Track** owner) const
             return &*it;
         }
     return nullptr;
+}
+
+String Arrange::getTooltip()
+{
+    // The Sections lane says how to move a section.
+    const auto pos = getMouseXYRelative();
+    const int lane = theme::px (36);
+    if (sectionLaneHeight() > 0 && pos.y >= lane && pos.y < lane + sectionLaneHeight() && pos.x >= headerWidth())
+        return theme::wrapTip ("Click a section to go to it. Shift-drag it to move it, with all its music, to another bar: what's there moves out of its way. Right-click for more.");
+    return {};
 }
 
 void Arrange::mouseMove (const MouseEvent& e)
@@ -1091,6 +1121,14 @@ void Arrange::mouseDown (const MouseEvent& e)
         const Tick at = tickAt ((float) e.x);
         const auto* sec = song::sectionAt (c.project, at);
         if (e.mods.isPopupMenu()) sectionMenu (sec ? sec->id : 0, at);
+        else if (sec && e.mods.isShiftDown())
+        {
+            // Shift-drag: the section, and everything in it, to another bar.
+            drag = Drag::Section;
+            dragSection = sec->id;
+            dragOrigin = at;
+            sectionTo = sec->start;
+        }
         else if (sec) c.locate (sec->start);
         return;
     }
@@ -1174,14 +1212,9 @@ void Arrange::mouseDown (const MouseEvent& e)
             clipMenu (clip->id);
             return;
         }
-        if (e.mods.isShiftDown() || e.mods.isCommandDown())
-        {
-            if (c.selectedClips.count (clip->id)) c.selectedClips.erase (clip->id);
-            else c.selectedClips.insert (clip->id);
-            c.viewChanged();
-        }
-        else if (! c.selectedClips.count (clip->id) || c.selectedClip != clip->id)
-            c.selectClip (clip->id, clip->isMidi());
+        // Shift-click a range, Option-click adds (Option-drag still copies),
+        // Command-click adds or takes away (decision 0053).
+        c.chooseClip (clip->id, e.mods);
         c.focusOn (owner->id);
         if (owner->locked || clip->locked) return;
         if (! clip->isMidi())
@@ -1224,14 +1257,13 @@ void Arrange::mouseDown (const MouseEvent& e)
         const float edge = (float) theme::px (6);
         if ((float) e.x < xOf (clip->start) + edge) drag = Drag::TrimStart;
         else if ((float) e.x > xOf (clip->end()) - edge) drag = Drag::TrimEnd;
-        else { drag = Drag::MoveClip; copying = e.mods.isAltDown(); }
+        else { drag = Drag::MoveClip; copying = e.mods.isAltDown() && ! e.mods.isShiftDown(); }
         return;
     }
 
-    // Empty lane: choose the track, put the cursor here.
-    c.focusOn (row->track);
-    c.selectTracks ({ row->track });
-    c.selectedClips.clear();
+    // Empty lane: choose the track (Shift, Option and Command as on its header), put the cursor here.
+    c.chooseTrack (row->track, e.mods, c.arrangeOrder());
+    if (! (e.mods.isShiftDown() || e.mods.isAltDown() || e.mods.isCommandDown())) c.selectedClips.clear();
     if (e.mods.isPopupMenu()) { laneMenu (*row, e.getPosition()); return; }
     drag = Drag::Cursor;
     c.locate (c.snapTick (tickAt ((float) e.x)));
@@ -1259,7 +1291,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
             if (! clip) break;
             previewStart = e.mods.isCommandDown() ? std::max<Tick> (0, at - dragOffset) : std::max<Tick> (0, c.snapTick (at - dragOffset));
             previewEnd = previewStart + clip->length;
-            copying = e.mods.isAltDown();
+            copying = e.mods.isAltDown() && ! e.mods.isShiftDown();
             if (const auto* row = rowAt (e.y))
                 if (row->isClips() && c.project.track (row->track)->holdsClips()) previewTrack = row->track;
             repaint();
@@ -1270,7 +1302,8 @@ void Arrange::mouseDrag (const MouseEvent& e)
         {
             const auto* clip = c.project.clip (dragClip);
             if (! clip) break;
-            const Tick snapped = e.mods.isCommandDown() ? at : c.snapTick (at);
+            Tick snapped = e.mods.isCommandDown() ? at : c.snapTick (at);
+            snapped = c.zeroEdge (*clip, snapped).tick;   // onto a zero crossing, when that's on (decision 0054)
             if (drag == Drag::TrimStart) previewStart = jlimit<Tick> (0, clip->end() - 1, snapped);
             else previewEnd = std::max (clip->start + 1, snapped);
             repaint();
@@ -1336,6 +1369,19 @@ void Arrange::mouseDrag (const MouseEvent& e)
             repaint();
             break;
         }
+        case Drag::Section:
+        {
+            const Section* sec = nullptr;
+            for (auto& s : c.project.sections) if (s.id == dragSection) sec = &s;
+            if (! sec) break;
+            // To the nearest bar line.
+            const Tick want = std::max<Tick> (0, sec->start + (at - dragOrigin));
+            const auto& tempo = c.project.tempo;
+            const int b = tempo.barAt (want);
+            sectionTo = want - tempo.barStart (b) < tempo.barStart (b + 1) - want ? tempo.barStart (b) : tempo.barStart (b + 1);
+            repaint();
+            break;
+        }
         case Drag::Marker:
         case Drag::None:
             break;
@@ -1344,6 +1390,22 @@ void Arrange::mouseDrag (const MouseEvent& e)
 
 void Arrange::mouseUp (const MouseEvent&)
 {
+    if (drag == Drag::Section)
+    {
+        const Id id = dragSection;
+        const Tick to = sectionTo;
+        drag = Drag::None;
+        dragSection = 0;
+        for (auto& s : c.project.sections)
+            if (s.id == id && s.start != to)
+            {
+                const String name (s.name);
+                c.apply ("Move Section", [id, to] (Project& p) { song::moveSectionTo (p, id, to); });
+                c.say (name + " moved to bar " + String (c.project.tempo.barAt (to) + 1) + ", with everything in it.", false, true);
+            }
+        repaint();
+        return;
+    }
     if (drag == Drag::MoveClip && dragClip)
     {
         const auto* clip = c.project.clip (dragClip);
@@ -1368,7 +1430,15 @@ void Arrange::mouseUp (const MouseEvent&)
     {
         const Id id = dragClip;
         const Tick a = previewStart, b = previewEnd;
-        c.apply ("Trim Clip", [=] (Project& p) { edit::resizeClip (p, id, a, b); });
+        // The edge moved lands on the very sample of its zero crossing (or on its tick when that's off).
+        const auto* clip = c.project.clip (id);
+        const bool start = drag == Drag::TrimStart;
+        const double fine = clip ? c.zeroEdge (*clip, start ? a : b).fine : 0.0;
+        c.apply ("Trim Clip", [=] (Project& p)
+        {
+            edit::resizeClip (p, id, a, b);
+            if (auto* x = p.clip (id)) (start ? x->audio.startFine : x->audio.endFine) = fine;
+        });
     }
     else if (drag == Drag::Swipe)
     {

@@ -49,6 +49,8 @@ public:
 private:
     Controller& c;
     std::unique_ptr<roll::Gesture> gesture;
+    Id noteAnchor = 0;   // the note last clicked without Shift
+    Tick lastLength = 0; // a new note's length: the last note added, clicked or stretched
     roll::Outcome preview;
     std::vector<Note> notesCopy;
     bool velocityDrag = false;

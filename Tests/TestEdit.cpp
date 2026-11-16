@@ -250,3 +250,97 @@ TEST ("automation: copied points paste at another place, the rest carrying on")
     CHECK (std::abs (edit::valueAt (lane, PPQ * 4, 0) - 0.0) < 1e-9);
     CHECK (std::abs (edit::valueAt (lane, PPQ * 8, 0) - 0.5) < 1e-9);
 }
+
+TEST ("versions: four at most; each keeps its own devices, under the same ids, and the lanes follow")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    PluginRef piano;  piano.format = "VST3"; piano.identifier = "piano"; piano.name = "Piano";
+    PluginRef organ;  organ.format = "VST3"; organ.identifier = "organ"; organ.name = "Organ";
+    PluginRef verb;   verb.format = "VST3"; verb.identifier = "verb"; verb.name = "Verb";
+    const Id inst = edit::addDevice (p, t, piano, DeviceRole::Instrument);
+    AutomationLane lane;
+    lane.target.kind = AutoTarget::Kind::DeviceParam;
+    lane.target.device = inst;
+    lane.target.param = 0;
+    p.track (t)->automation.push_back (lane);
+
+    // Version 2 starts with a copy of version 1's devices, under the same ids.
+    CHECK_EQ (edit::newVersion (p, t), 1);
+    CHECK_EQ (p.track (t)->devices.size(), size_t (1));
+    CHECK_EQ (p.track (t)->devices.front().id, inst);
+    // Changed in version 2 only: a different instrument and an effect.
+    p.track (t)->devices.front().plugin = organ;
+    const Id fx = edit::addDevice (p, t, verb, DeviceRole::AudioFx);
+    CHECK_EQ (p.track (t)->devices.size(), size_t (2));
+
+    edit::selectVersion (p, t, 0);
+    CHECK_EQ (p.track (t)->devices.size(), size_t (1));
+    CHECK_EQ (p.track (t)->devices.front().plugin.name, std::string ("Piano"));
+    CHECK (p.device (fx) == nullptr);            // version 2's, waiting
+    CHECK (p.track (t)->version().devices.empty());
+    edit::selectVersion (p, t, 1);
+    CHECK_EQ (p.track (t)->devices.front().plugin.name, std::string ("Organ"));
+    CHECK (p.device (fx) != nullptr);
+
+    // Removing the instrument in version 2 keeps the lane: version 1 still has it.
+    edit::removeDevice (p, inst);
+    CHECK_EQ (p.track (t)->automation.size(), size_t (1));
+
+    // Four at most.
+    CHECK_EQ (edit::newVersion (p, t), 2);
+    CHECK_EQ (edit::newEmptyVersion (p, t), 3);
+    CHECK_EQ (edit::newVersion (p, t), -1);
+    CHECK_EQ (edit::newEmptyVersion (p, t), -1);
+    CHECK_EQ (p.track (t)->versions.size(), size_t (4));
+
+    // Deleting the active version leaves the one before it active, with its own devices.
+    edit::selectVersion (p, t, 1);
+    CHECK (edit::deleteVersion (p, t, 1));
+    CHECK_EQ (p.track (t)->activeVersion, 0);
+    CHECK_EQ (p.track (t)->devices.front().plugin.name, std::string ("Piano"));
+    // Deleting another keeps the active one's devices where they are.
+    CHECK (edit::deleteVersion (p, t, 2));
+    CHECK_EQ (p.track (t)->devices.front().plugin.name, std::string ("Piano"));
+}
+
+TEST ("versions: a version made before they had their own devices takes the track's when chosen")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Old");
+    PluginRef piano;  piano.format = "VST3"; piano.identifier = "piano"; piano.name = "Piano";
+    edit::addDevice (p, t, piano, DeviceRole::Instrument);
+    TrackVersion old;
+    old.id = p.newId();
+    old.name = "Version 2";
+    p.track (t)->versions.push_back (old);   // as an older file has it: no devices of its own
+    edit::selectVersion (p, t, 1);
+    CHECK_EQ (p.track (t)->devices.size(), size_t (1));
+    CHECK_EQ (p.track (t)->devices.front().plugin.name, std::string ("Piano"));
+}
+
+TEST ("tracks: a Summing track takes no input; there's one Cue track, after the master, holding no clips and only audio effects")
+{
+    Project p;
+    const Id sum = edit::addTrack (p, TrackKind::Summing, "Summing");
+    CHECK (p.track (sum)->holdsClips());
+    CHECK_EQ (p.track (sum)->input.audioChannel, -1);
+    CHECK (edit::addMidiClip (p, sum, 0, PPQ) != 0);   // it holds clips like any track
+
+    const Id cue = edit::addCue (p);
+    CHECK_EQ (edit::addTrack (p, TrackKind::Cue, "Another"), cue);   // still one
+    CHECK_EQ (p.cue.size(), size_t (1));
+    CHECK (p.track (cue) != nullptr);
+    CHECK (p.indexOf (cue) < 0);                         // not among the tracks
+    CHECK_EQ (p.outputOf (cue), Id (0));
+    CHECK_EQ (edit::addMidiClip (p, cue, 0, PPQ), Id (0));
+    CHECK_EQ (edit::newVersion (p, cue), -1);
+    PluginRef synth;  synth.format = "VST3"; synth.identifier = "s"; synth.name = "Synth";
+    PluginRef eq;     eq.format = "VST3"; eq.identifier = "e"; eq.name = "EQ";
+    CHECK_EQ (edit::addDevice (p, cue, synth, DeviceRole::Instrument), Id (0));
+    const Id d = edit::addDevice (p, cue, eq, DeviceRole::AudioFx);
+    CHECK (d != 0);
+    CHECK (p.device (d) != nullptr);
+    edit::removeTrack (p, cue);
+    CHECK (p.cue.empty());
+}

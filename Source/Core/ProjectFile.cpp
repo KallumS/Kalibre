@@ -26,7 +26,8 @@ NLOHMANN_JSON_SERIALIZE_ENUM (LfoShape, { { LfoShape::Sine, "sine" }, { LfoShape
                                           { LfoShape::SawUp, "sawUp" }, { LfoShape::SawDown, "sawDown" },
                                           { LfoShape::Square, "square" }, { LfoShape::SampleAndHold, "sampleAndHold" } })
 NLOHMANN_JSON_SERIALIZE_ENUM (TrackKind, { { TrackKind::Track, "track" }, { TrackKind::Folder, "folder" },
-                                           { TrackKind::Return, "return" }, { TrackKind::Master, "master" } })
+                                           { TrackKind::Return, "return" }, { TrackKind::Master, "master" },
+                                           { TrackKind::Summing, "summing" }, { TrackKind::Cue, "cue" } })
 NLOHMANN_JSON_SERIALIZE_ENUM (Monitor, { { Monitor::Auto, "auto" }, { Monitor::In, "in" }, { Monitor::Off, "off" } })
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TempoPoint, tick, bpm, rampToNext)
@@ -37,16 +38,17 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiEvent, tick, type, channel,
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiData, notes, events)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (WarpMarker, sourceSeconds, tick)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AudioData, file, sourceStart, sourceLength, fileSampleRate, fileChannels, gainDb,
-                                                 fadeIn, fadeOut, reversed, transpose, warp, sourceBpm, markers, renderedFile)
+                                                 fadeIn, fadeOut, reversed, transpose, warp, sourceBpm, markers, renderedFile,
+                                                 startFine, endFine)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (PluginRef, format, identifier, name, manufacturer, uid, isInstrument, description)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Device, id, role, plugin, state, bypassed, active, useAra, araState, sidechainFrom, editorScale,
-                                                 stateB, onB)
+                                                 stateB, onB, matchLoudness)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (OfflineFx, chain, includeTail)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Clip, id, kind, name, start, length, offset, loopLength, colour, muted, locked,
                                                  midi, audio, offlineFx, fromTake, link)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Take, id, name, clips)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (CompSegment, start, end, take)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackVersion, id, name, clips, takes, comp, takesShown)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackVersion, id, name, clips, takes, comp, takesShown, devices, ownDevices)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AutoTarget, kind, device, param, send, paramName)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AutoPoint, tick, value, curve, step)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AutomationLane, id, target, points, shown)
@@ -99,6 +101,7 @@ std::string save (const Project& p)
     j["tempo"] = p.tempo;
     j["tracks"] = p.tracks;
     j["master"] = p.master;
+    j["cue"] = p.cue;
     j["markers"] = p.markers;
     j["loop"] = p.loop;
     j["punch"] = p.punch;
@@ -136,6 +139,9 @@ std::optional<Project> load (const std::string& text, std::string* error)
         if (j.contains ("tempo")) p.tempo = j.at ("tempo").get<TempoMap>();
         if (j.contains ("tracks")) p.tracks = j.at ("tracks").get<std::vector<Track>>();
         if (j.contains ("master")) p.master = j.at ("master").get<Track>();
+        if (j.contains ("cue")) p.cue = j.at ("cue").get<std::vector<Track>>();
+        if (p.cue.size() > 1) p.cue.resize (1);
+        for (auto& c : p.cue) { c.kind = TrackKind::Cue; c.versions.resize (1); c.activeVersion = 0; }
         p.master.kind = TrackKind::Master;
         if (j.contains ("markers")) p.markers = j.at ("markers").get<std::vector<Marker>>();
         if (j.contains ("loop")) p.loop = j.at ("loop").get<Range>();
@@ -162,6 +168,7 @@ std::optional<Project> load (const std::string& text, std::string* error)
             for (auto& v : t.versions)
             {
                 see (v.id);
+                for (auto& d : v.devices) see (d.id);
                 for (auto& c : v.clips) { see (c.id); see (c.link); for (auto& n : c.midi.notes) see (n.id); }
                 for (auto& tk : v.takes) { see (tk.id); for (auto& c : tk.clips) { see (c.id); for (auto& n : c.midi.notes) see (n.id); } }
             }
@@ -171,6 +178,7 @@ std::optional<Project> load (const std::string& text, std::string* error)
             for (auto& m : t.modulators) see (m.id);
         }
         for (auto& d : p.master.devices) see (d.id);
+        for (auto& c : p.cue) { see (c.id); for (auto& d : c.devices) see (d.id); }
         for (auto& m : p.markers) see (m.id);
         for (auto& sct : p.sections) see (sct.id);
         for (auto& m : p.articulationMaps) see (m.id);

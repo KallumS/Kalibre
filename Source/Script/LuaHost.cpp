@@ -52,6 +52,8 @@ const char* kindName (TrackKind k)
         case TrackKind::Folder: return "folder";
         case TrackKind::Return: return "return";
         case TrackKind::Master: return "master";
+        case TrackKind::Summing: return "summing";
+        case TrackKind::Cue:    return "cue";
     }
     return "track";
 }
@@ -141,7 +143,8 @@ int l_addTrack (lua_State* L)
     const std::string name = luaL_optstring (L, 1, "Track");
     const std::string kind = luaL_optstring (L, 2, "track");
     const Id parent = static_cast<Id> (luaL_optinteger (L, 3, 0));
-    const auto k = kind == "folder" ? TrackKind::Folder : kind == "return" ? TrackKind::Return : TrackKind::Track;
+    const auto k = kind == "folder" ? TrackKind::Folder : kind == "return" ? TrackKind::Return
+                 : kind == "summing" ? TrackKind::Summing : TrackKind::Track;
     lua_pushinteger (L, edit::addTrack (p, k, name, 0, parent));
     return 1;
 }

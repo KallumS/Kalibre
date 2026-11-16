@@ -44,6 +44,9 @@ Id duplicateSection (Project&, Id);
 // Moves a section (and everything in it) so it starts where `beforeSection`
 // starts; 0 puts it after the last one.
 void moveSection (Project&, Id section, Id beforeSection);
+// Moves a section (and everything in it) so it starts at `start` (Shift-drag
+// in the Sections lane); what was there moves out of its way.
+void moveSectionTo (Project&, Id section, Tick start);
 void sortSections (Project&);
 const Section* sectionAt (const Project&, Tick);
 

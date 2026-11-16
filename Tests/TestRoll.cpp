@@ -148,17 +148,48 @@ TEST ("roll: Shift and left drag chooses the notes in an area")
     CHECK_EQ (o.selection, std::set<Id> ({ 2 }));
 }
 
-TEST ("roll: Shift-click on a note toggles it")
+TEST ("roll: Shift-click chooses every note from the last clicked; Option-click adds; Shift-Option-click takes out")
 {
-    auto notes = twoNotes();
-    Gesture g (notes, { 1 }, settings());
-    g.press ({ PPQ * 2 + PPQ / 2, 64, false, true });
-    auto o = g.release ({ PPQ * 2 + PPQ / 2, 64, false, true });
-    CHECK_EQ (o.selection, std::set<Id> ({ 1, 2 }));
-    Gesture h (notes, o.selection, settings());
-    h.press ({ PPQ / 2, 60, false, true });
-    o = h.release ({ PPQ / 2, 60, false, true });
-    CHECK_EQ (o.selection, std::set<Id> ({ 2 }));
+    // Four notes: 60 at beat 1, 62 at beat 2, 64 at beat 3, and 72 at beat 2 (above the range).
+    std::vector<Note> notes { { 1, 0, PPQ, 60, 100 }, { 2, PPQ, PPQ, 62, 100 }, { 3, PPQ * 2, PPQ, 64, 100 }, { 4, PPQ, PPQ, 72, 100 } };
+    const Pointer shift { 0, 0, false, true }, option { 0, 0, false, false, true }, both { 0, 0, false, true, true };
+    auto at = [] (Pointer p, Tick t, int pitch) { p.tick = t; p.pitch = pitch; return p; };
+
+    // Click the first, Shift-click the third: the second comes too, the high one doesn't.
+    Gesture g (notes, {}, settings());
+    g.press ({ PPQ / 2, 60 });
+    auto o = g.release ({ PPQ / 2, 60 });
+    CHECK_EQ (g.anchor(), Id (1));
+    Gesture h (notes, o.selection, settings(), g.anchor());
+    h.press (at (shift, PPQ * 2 + PPQ / 2, 64));
+    o = h.release (at (shift, PPQ * 2 + PPQ / 2, 64));
+    CHECK_EQ (o.selection, std::set<Id> ({ 1, 2, 3 }));
+
+    // Option-click adds the high one.
+    Gesture k (notes, o.selection, settings(), h.anchor());
+    k.press (at (option, PPQ + PPQ / 2, 72));
+    o = k.release (at (option, PPQ + PPQ / 2, 72));
+    CHECK_EQ (o.selection, std::set<Id> ({ 1, 2, 3, 4 }));
+
+    // Shift-Option-click takes the second out.
+    Gesture m (notes, o.selection, settings(), k.anchor());
+    m.press (at (both, PPQ + PPQ / 2, 62));
+    o = m.release (at (both, PPQ + PPQ / 2, 62));
+    CHECK_EQ (o.selection, std::set<Id> ({ 1, 3, 4 }));
+
+    // Shift-Option-drag takes an area out.
+    Gesture q (notes, o.selection, settings(), m.anchor());
+    q.press (at (both, PPQ * 2 - 10, 70));
+    q.drag (at (both, PPQ * 3, 63));
+    o = q.release (at (both, PPQ * 3, 63));
+    CHECK_EQ (o.selection, std::set<Id> ({ 1, 4 }));
+
+    // Option-drag still copies, the added note with the rest.
+    Gesture r (notes, { 1 }, settings(), 1);
+    r.press (at (option, PPQ * 2 + PPQ / 2, 64));
+    o = r.drag (at (option, PPQ * 3 + PPQ / 2, 64));
+    CHECK (o.action == Action::CopyNotes);
+    CHECK_EQ (o.notes, std::set<Id> ({ 1, 3 }));
 }
 
 TEST ("roll: Command drags off the grid")
@@ -168,4 +199,41 @@ TEST ("roll: Command drags off the grid")
     g.press ({ PPQ / 2, 60 });
     const auto o = g.drag ({ PPQ / 2 + 37, 60, false, false, false, true });
     CHECK_EQ (o.dt, Tick (37));
+}
+
+TEST ("roll: a new note takes the length of the last note added, clicked or stretched")
+{
+    // A 1/8 note and a 1/16 note.
+    std::vector<Note> notes { { 1, 0, PPQ / 2, 60, 100 }, { 2, PPQ * 2, PPQ / 4, 64, 100 } };
+
+    // Drawn out to an 1/8: that's what the next one gets.
+    Gesture g (notes, {}, settings());
+    g.press ({ PPQ * 4, 67 });
+    g.drag ({ PPQ * 4 + PPQ / 2, 67 });
+    auto o = g.release ({ PPQ * 4 + PPQ / 2, 67 });
+    CHECK (o.action == Action::AddNote);
+    CHECK_EQ (o.noteLength, Tick (PPQ / 2));
+
+    // Clicking the 1/16 note: the next is a 1/16.
+    Gesture h (notes, {}, settings());
+    h.press ({ PPQ * 2 + PPQ / 8, 64 });
+    o = h.release ({ PPQ * 2 + PPQ / 8, 64 });
+    CHECK_EQ (o.noteLength, Tick (PPQ / 4));
+
+    // Stretching the 1/8 to a 1/4: the next is a 1/4.
+    Gesture k (notes, {}, settings());
+    k.press ({ PPQ / 2 - 5, 60 });
+    k.drag ({ PPQ - 5, 60 });
+    o = k.release ({ PPQ - 5, 60 });
+    CHECK (o.action == Action::ResizeNotes);
+    CHECK_EQ (o.noteLength, Tick (PPQ));
+
+    // A plain click in empty space adds a note of that length (the window passes it as the default).
+    auto s = settings();
+    s.defaultLength = PPQ;
+    Gesture m (notes, {}, s);
+    o = m.press ({ PPQ * 8, 70 });
+    CHECK_EQ (o.added.length, Tick (PPQ));
+    o = m.release ({ PPQ * 8, 70 });
+    CHECK_EQ (o.noteLength, Tick (PPQ));
 }

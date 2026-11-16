@@ -54,6 +54,7 @@ public:
     bool showTempoLane = false;
     bool showSectionLane = true;
     bool ripple = false;            // deleting clips pulls later ones back (decision 0037)
+    bool zeroCrossings = false;     // audio edges snap to zero crossings (decision 0054)
 
     Track* focus() { return project.track (focusTrack); }
     Clip* clip() { return project.clip (selectedClip); }
@@ -80,6 +81,11 @@ public:
     bool messageIsWarning = false;
     bool messageCanUndo = false;
     void say (const juce::String&, bool warning = false, bool canUndo = false);
+    // Looks for plug-ins installed since the last scan, the progress in the
+    // message line (decision 0047); `files` scans just those again.
+    void scanPlugins (std::vector<std::pair<juce::String, juce::String>> files = {});
+    void showPluginManager() { if (onShowPluginManager) onShowPluginManager(); }
+    std::function<void()> onShowPluginManager;     // the window sets this
     void dismiss();
 
     //==========================================================================
@@ -107,6 +113,10 @@ public:
     bool importFile (const juce::File&, Id track, Tick at);   // audio, MIDI
     bool importVideo (const juce::File&, Tick at);           // the picture, and its sound on a track (decision 0046)
     bool exportMidi (const juce::File&);
+    // MusicXML (decision 0057): the chosen tracks (or every track with MIDI) out;
+    // a score (.musicxml, .xml or zipped .mxl) in, a track for each part.
+    bool exportMusicXml (const juce::File&);
+    bool importMusicXml (const juce::File&);
     bool exportAudio (const juce::File&, const Engine::RenderOptions&, bool stems);
 
     // A project's files (decision 0041; ProjectFiles.cpp).
@@ -130,7 +140,26 @@ public:
     void deleteSelectedTracks();
     void duplicateSelectedTracks();
     void folderFromSelection();
+    // Clicking to choose (decision 0053), the same wherever tracks or clips are
+    // shown: a plain click chooses only this one; Shift-click everything from
+    // the last one clicked to this one (in `order`, as that view lists the
+    // tracks); Option-click (Alt) adds it; Shift-Option-click takes it out;
+    // Command-click adds or takes it away.
+    void chooseTrack (Id, const juce::ModifierKeys&, const std::vector<Id>& order);
+    void chooseClip (Id, const juce::ModifierKeys&);
+    Id trackAnchor = 0, clipAnchor = 0;   // the last clicked without Shift
+    // Option-click on a track's button (mute, solo, a version...) adds the
+    // track to the selection instead of pressing it. True when it did.
+    bool optionAdds (Id track);
+    std::vector<Id> arrangeOrder() const;   // the tracks as the arrangement shows them
+    // Where an edge of an audio clip goes when it's put at `at` (decision 0054):
+    // with Snap to Zero Crossings on, the nearest zero crossing, as a tick
+    // and the seconds past it; otherwise `at` itself.
+    struct Edge { Tick tick = 0; double fine = 0; };
+    Edge zeroEdge (const Clip&, Tick at) const;
     void newVersion (Id track);
+    // Chooses version `index` (0-3) on each of these tracks that has it (decision 0050).
+    void chooseVersion (const std::vector<Id>& tracks, int index);
     void freeze (Id track, bool);   // render the track with its plug-ins into audio, and unload them
     Id newMidiClip (Id track, Tick start, Tick length);
     void deleteSelection();

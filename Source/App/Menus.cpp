@@ -62,13 +62,8 @@ PopupMenu MainComponent::appMenu()
         browser.showTab (Browser::Tab::Studio);
         resized();
     }));
-    m.addItem (item (ui::u8 ("Scan for Plug-ins"), [this]
-    {
-        c.engine.plugins().scan ([this] (float p, const String& what)
-        {
-            c.say (p >= 1.0f ? "Scan finished: " + what + "." : "Scanning plug-ins, " + String (roundToInt (p * 100)) + "%: " + what);
-        });
-    }));
+    m.addItem (item (ui::u8 ("Scan for Plug-ins"), [this] { c.scanPlugins(); }, {}, ! c.engine.plugins().scanning()));
+    m.addItem (item (ui::u8 ("Plug-in Manager\xe2\x80\xa6"), [this] { c.showPluginManager(); }));
     return m;
 }
 
@@ -135,6 +130,14 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item (ui::u8 ("Song Details\xe2\x80\xa6"), [this] { songDetails(); }));
             m.addSeparator();
             m.addItem (item (ui::u8 ("Import Audio or MIDI\xe2\x80\xa6"), [this] { importFiles(); }, k ("import")));
+            m.addItem (item (ui::u8 ("Import MusicXML\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Import a score: each part becomes a track", File::getSpecialLocation (File::userDocumentsDirectory), "*.musicxml;*.xml;*.mxl");
+                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult().existsAsFile()) c.importMusicXml (fc.getResult());
+                });
+            }));
             m.addItem (item (ui::u8 ("Import Video\xe2\x80\xa6"), [this]
             {
                 chooser = std::make_unique<FileChooser> ("Import a video", File::getSpecialLocation (File::userMoviesDirectory), "*.mov;*.mp4;*.m4v");
@@ -152,6 +155,15 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addSubMenu ("Export the Mix at a Loudness", loud);
             m.addItem (item (ui::u8 ("Export Every Track\xe2\x80\xa6"), [this] { exportAudio (true); }));
             m.addItem (item (ui::u8 ("Export MIDI\xe2\x80\xa6"), [this] { exportMidi(); }));
+            m.addItem (item (ui::u8 ("Export MusicXML\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Export the notes as MusicXML, for Dorico, MuseScore, Sibelius or Finale",
+                                                         c.projectFolder().getChildFile ((c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Song")) + ".musicxml"), "*.musicxml");
+                chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult() != File()) c.exportMusicXml (fc.getResult().withFileExtension (".musicxml"));
+                });
+            }));
             m.addItem (item (ui::u8 ("Export Several at Once\xe2\x80\xa6"), [this] { exportBatch(); }));
             m.addSeparator();
             m.addItem (item (ui::u8 ("Export Final Cut XML\xe2\x80\xa6"), [this]
@@ -185,6 +197,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Delete", [this] { c.deleteSelection(); }, k ("delete")));
             m.addItem (item ("Duplicate", [this] { c.duplicateSelection(); }, k ("duplicate")));
             m.addItem (item ("Split at the Cursor", [this] { c.splitAtCursor(); }, k ("split")));
+            m.addItem (item ("Snap to Zero Crossings", [this] { c.zeroCrossings = ! c.zeroCrossings; c.viewChanged(); }, {}, true, c.zeroCrossings));
             m.addItem (item ("Choose Every Note", [this] { c.selectAllNotes(); }, k ("chooseAll"), c.selectedClip != 0));
             m.addSeparator();
             m.addItem (item ("Quantise", [this] { c.quantiseSelection(); }, k ("quantise"), c.selectedClip != 0));
@@ -255,6 +268,8 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 }, {}, true, p.surround == f));
             m.addSubMenu ("Mix Format", formats);
             m.addItem (item ("Add Return", [this] { c.addTrack (TrackKind::Return); }));
+            m.addItem (item ("Add Summing Track", [this] { c.addTrack (TrackKind::Summing); }));
+            m.addItem (item ("Add Cue Track", [this] { c.addTrack (TrackKind::Cue); }, {}, p.cue.empty()));
             m.addItem (item ("Put the Chosen Tracks in a Folder", [this] { c.folderFromSelection(); }));
             m.addSeparator();
             const auto* t = c.focus();
@@ -409,6 +424,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Meters", [this] { c.zoneTab = ZoneTab::Meters; c.viewChanged(); }, k ("meters"), true, c.zoneTab == ZoneTab::Meters));
             m.addSeparator();
             m.addItem (item ("Browser", [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); }, k ("browser"), true, browserShown));
+            m.addItem (item (ui::u8 ("Plug-in Manager\xe2\x80\xa6"), [this] { showPluginManager(); }));
             m.addItem (item ("Section Lane", [this] { c.showSectionLane = ! c.showSectionLane; c.viewChanged(); }, {}, true, c.showSectionLane));
             m.addItem (item ("Chord Lane", [this] { c.showChordLane = ! c.showChordLane; c.viewChanged(); }, {}, true, c.showChordLane));
             m.addItem (item ("Tempo Lane", [this] { c.showTempoLane = ! c.showTempoLane; c.viewChanged(); }, {}, true, c.showTempoLane));

@@ -29,6 +29,11 @@ struct Span { int start = 0, end = 0; bool operator== (const Span&) const = defa
 
 //==============================================================================
 float peak (const float* const* channels, int numChannels, int start, int end);
+
+// The sample nearest `at` (within `reach` samples) where the channels, mixed,
+// cross zero or are zero: the one of the two either side nearer to zero.
+// `at` itself when there's none in reach (decision 0054).
+int nearestZeroCrossing (const float* const* channels, int numChannels, int numSamples, int at, int reach);
 // The gain (dB) that brings `peakValue` to `targetDb` (0 dBFS less a margin).
 double normaliseGainDb (float peakValue, double targetDb = -0.3);
 

@@ -57,16 +57,23 @@ public:
     juce::AudioPluginInstance* instance (Id device) const;
     // Load (decision 0038): each track's plug-ins' share of real time, and blocks that came late.
     double trackCpu (Id track) const;
+    // What Match Loudness is doing to a device's output now, in dB (decision 0056).
+    float matchingDb (Id device) const;
     double cpu() { return deviceManager.getCpuUsage(); }
     int dropouts() const;
     void resetDropouts();
     Fader* fader (Id track) const;
     TrackSource* source (Id track) const;
+    // Where a track's recording is written: its source, or for a Summing
+    // track the recorder hearing the master (decision 0052).
+    TrackSource* recordSource (Id track) const;
     int latencySamples();
     double sampleRate() const { return rate; }
 
-    // A device's saved state, as the project keeps it (base64).
+    // A device's saved state, as the project keeps it (base64); `version`
+    // for a device of a version that isn't playing (decision 0050).
     std::string stateOf (Id device) const;
+    std::string stateOf (Id device, Id version) const;
     std::string araStateOf (Id device) const;
     // How many channels a plug-in's sidechain input has (0: none).
     int sidechainChannels (Id device) const;
@@ -164,11 +171,18 @@ private:
     struct TrackNodes
     {
         Node::Ptr source, fader;
+        Node::Ptr recorder;   // a Summing track's: hears the master, records it (decision 0052)
         std::map<Id, Node::Ptr> sends;
     };
     std::map<Id, TrackNodes> tracks;
-    std::map<Id, Node::Ptr> deviceNodes;
-    std::map<Id, std::string> deviceKeys;   // what each node was made from, to notice a swap
+    // Every version's devices, by (version, device): a device keeps its id in
+    // each version it's copied to, with an instance of its own (decision 0050).
+    using VersionedId = std::pair<Id, Id>;
+    std::map<VersionedId, Node::Ptr> allDevices;
+    std::map<VersionedId, std::string> allKeys;   // what each node was made from, to notice a swap
+    std::map<Id, Node::Ptr> deviceNodes;          // the playing versions' devices, by device id
+    std::map<Id, juce::AudioPluginInstance*> araOwner;   // the instance each ARA session was started on
+    bool rendering = false;   // exporting: the Cue track is left out (decision 0051)
     std::map<Id, std::unique_ptr<AraSession>> araSessions;
     std::set<Id> araTracks;
     Node::Ptr audioIn, audioOut, midiIn, metronomeNode;
@@ -179,7 +193,8 @@ private:
     int blockSize = 512;
 
     std::atomic<bool> playing { false }, recording { false };
-    std::atomic<double> pos { 0 }, seekTo { -1 };
+    static constexpr double noJump = -1.0e9;
+    std::atomic<double> pos { 0 }, seekTo { noJump };
     std::atomic<bool> loopOn { false };
     std::atomic<double> loopStart { 0 }, loopEnd { 0 };
     double countInSeconds = 0;
@@ -200,7 +215,7 @@ private:
     void touched (juce::AudioProcessor*, int index, float value, int gesture);
     void timerCallback() override;
 
-    Node::Ptr nodeForDevice (const Device&, juce::String& error);
+    Node::Ptr nodeForDevice (const Device&, Id version, juce::String& error);
     static juce::AudioPluginInstance* pluginOf (const Node::Ptr&);
     std::map<Id, std::vector<Id>> trackDevices;
     std::map<Id, juce::int64> lastBusy;

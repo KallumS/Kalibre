@@ -330,7 +330,7 @@ void TrackSource::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
 
     if (writing && writer && clock.recording && clock.playing)
     {
-        if (recordStart < 0) recordStart = clock.start;
+        if (recordStart < 0) recordStart = clock.start - recordLatencySeconds.load();
         const float* chans[2] { live.getReadPointer (0), live.getReadPointer (1) };
         writer->write (chans, n);
     }
@@ -365,7 +365,8 @@ void TrackSource::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
         lastEnd = -1;
     }
 
-    if (clock.playing)
+    // A Summing track recording the master doesn't play into it too (decision 0052).
+    if (clock.playing && ! (d->summing && d->armed && clock.recording))
     {
         applyAutomation (*d, clock.start);
         if (clock.wrapAt >= 0)

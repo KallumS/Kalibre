@@ -4,7 +4,7 @@ namespace kal
 {
 using namespace juce;
 
-class ChannelStrip : public Component
+class ChannelStrip : public Component, public SettableTooltipClient
 {
 public:
     ChannelStrip (Controller& ctrl, Id track) : c (ctrl), id (track)
@@ -64,9 +64,30 @@ public:
         depth.onValueChange = [this] { if (auto* t = c.project.track (id)) t->frontBack = depth.getValue(); if (auto* f = c.engine.fader (id)) f->frontBack = (float) depth.getValue(); c.dirty = true; };
         depth.onDragEnd = [this] { if (! (before == c.project)) c.history.push (before, "Surround Position"); c.refresh(); };
         addChildComponent (depth);
-        for (auto* b : { &mute, &solo, &phase }) addAndMakeVisible (b);
+        for (auto* b : { &mute, &solo, &phase, &mono }) addAndMakeVisible (b);
+        mono.onClick = [this] { if (c.optionAdds (id)) { update(); return; } c.apply ("Mono", [this] (Project& p) { if (auto* t = p.track (id)) t->mono = ! t->mono; }); };
+        mono.setTitle ("Mono");
+        // Versions 1 to 4 (decision 0050): click one to hear it; with several
+        // tracks chosen, each of them that has it switches.
+        for (int i = 0; i < maxVersions; ++i)
+        {
+            auto* b = versions.add (new theme::HouseButton (String (i + 1), "Play version " + String (i + 1)
+                                                            + ". With several tracks chosen (Shift-click the first and the last), they all switch.", true));
+            b->setTitle ("Version " + String (i + 1));
+            b->setClickingTogglesState (false);
+            b->onClick = [this, i]
+            {
+                if (c.optionAdds (id)) { update(); return; }
+                const auto& sel = c.selectedTracks;
+                const bool many = sel.size() > 1 && std::find (sel.begin(), sel.end(), id) != sel.end();
+                c.chooseVersion (many ? sel : std::vector<Id> { id }, i);
+            };
+            addChildComponent (b);
+        }
+        // Option-click on any button adds the track to the selection instead (decision 0053).
         mute.onClick = [this]
         {
+            if (c.optionAdds (id)) { update(); return; }
             c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; });
             c.touchedMix (id, AutoTarget::Kind::Mute, "Mute");
             AutoTarget a;
@@ -75,8 +96,8 @@ public:
             c.writeAutomation (id, a, on ? 1.0 : 0.0, 1);
             c.writeAutomation (id, a, on ? 1.0 : 0.0, 2);
         };
-        solo.onClick = [this] { c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
-        phase.onClick = [this] { c.apply ("Polarity", [this] (Project& p) { if (auto* t = p.track (id)) t->phaseInvert = ! t->phaseInvert; }); };
+        solo.onClick = [this] { if (c.optionAdds (id)) { update(); return; } c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
+        phase.onClick = [this] { if (c.optionAdds (id)) { update(); return; } c.apply ("Polarity", [this] (Project& p) { if (auto* t = p.track (id)) t->phaseInvert = ! t->phaseInvert; }); };
         mute.setTitle ("Mute");
         solo.setTitle ("Solo");
         phase.setTitle ("Invert Polarity");
@@ -94,7 +115,21 @@ public:
         mute.setToggleState (t->mute, dontSendNotification);
         solo.setToggleState (t->solo, dontSendNotification);
         phase.setToggleState (t->phaseInvert, dontSendNotification);
-        solo.setVisible (t->kind != TrackKind::Master);
+        mono.setToggleState (t->mono, dontSendNotification);
+        solo.setVisible (t->kind != TrackKind::Master && ! t->isCue());
+        phase.setVisible (! t->isCue());
+        for (int i = 0; i < versions.size(); ++i)
+        {
+            auto* b = versions[i];
+            b->setVisible (t->holdsClips());
+            b->setEnabled (i < (int) t->versions.size());
+            b->setToggleState (i == t->activeVersion, dontSendNotification);
+        }
+        if (t->isCue())
+        {
+            setTooltip (theme::wrapTip ("The Cue track: after the master. Its plug-ins, volume, pan and mono are heard while you work and never exported."));
+            mono.setTip ("Mono, heard only: exports stay stereo.");
+        }
         // Sends, as small knobs.
         sends.clear();
         for (auto& s : t->sends)
@@ -125,9 +160,15 @@ public:
     {
         const auto* t = c.project.track (id);
         if (! t) return;
-        const bool chosen = c.focusTrack == id;
+        const bool focused = c.focusTrack == id;
+        const bool chosen = focused || std::find (c.selectedTracks.begin(), c.selectedTracks.end(), id) != c.selectedTracks.end();
         g.setColour (chosen ? theme::raised : theme::sunken);
         g.fillRoundedRectangle (getLocalBounds().toFloat(), 5.0f);
+        if (focused)
+        {
+            g.setColour (theme::edge);
+            g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 5.0f, 1.0f);
+        }
         g.setColour (Colour (t->colour));
         g.fillRect (getLocalBounds().removeFromTop (3).reduced (4, 0));
         g.setColour (theme::text);
@@ -172,9 +213,18 @@ public:
 
     Rectangle<int> meterArea() const
     {
-        auto r = getLocalBounds().reduced (4).withTrimmedTop (theme::px (22) + theme::px (40) + theme::px (24) + (int) sends.size() * theme::px (28));
+        auto r = getLocalBounds().reduced (4).withTrimmedTop (topHeight());
         r.removeFromBottom (theme::px (32));
         return r.removeFromRight (theme::px (10));
+    }
+
+    // Name, pan, the buttons, the versions and the sends: what's above the fader.
+    int topHeight() const
+    {
+        const auto* t = c.project.track (id);
+        const bool hasVersions = t && t->holdsClips();
+        return theme::px (22) + theme::px (40) + theme::px (24) + theme::px (22) + (hasVersions ? theme::px (22) : 0)
+             + (int) sends.size() * theme::px (28);
     }
 
     void resized() override
@@ -189,10 +239,19 @@ public:
         }
         else pan.setBounds (knobs.withSizeKeepingCentre (theme::px (40), theme::px (40)));
         auto row = r.removeFromTop (theme::px (24));
-        const int bw = (row.getWidth() - 4) / 3;
-        mute.setBounds (row.removeFromLeft (bw).reduced (1));
-        solo.setBounds (row.removeFromLeft (bw).reduced (1));
-        phase.setBounds (row.removeFromLeft (bw).reduced (1));
+        std::vector<Button*> shown;
+        for (auto* b : std::initializer_list<Button*> { &mute, &solo, &phase }) if (b->isVisible()) shown.push_back (b);
+        const int bw = (row.getWidth() - 4) / jmax (1, (int) shown.size());
+        for (auto* b : shown) b->setBounds (row.removeFromLeft (bw).reduced (1));
+        mono.setBounds (r.removeFromTop (theme::px (22)).reduced (1));
+        if (versions.getFirst() && versions.getFirst()->isVisible())
+        {
+            // Four small squares.
+            auto vr = r.removeFromTop (theme::px (22));
+            const int side = jmin (vr.getHeight() - 2, (vr.getWidth() - 3 * 2) / 4);
+            vr = vr.withSizeKeepingCentre (side * 4 + 3 * 2, side);
+            for (auto* b : versions) { b->setBounds (vr.removeFromLeft (side)); vr.removeFromLeft (2); }
+        }
         for (auto* s : sends) s->setBounds (r.removeFromTop (theme::px (28)).withSizeKeepingCentre (theme::px (28), theme::px (28)));
         r.removeFromRight (theme::px (12));
         r.removeFromBottom (theme::px (16));   // the CPU reading
@@ -215,12 +274,28 @@ public:
         repaint (meterArea().expanded (2));
     }
 
-    void mouseDown (const MouseEvent&) override { c.focusOn (id); }
+    // Shift-click chooses every strip from the last one clicked to this one;
+    // Command-click adds or takes away one.
+    void mouseDown (const MouseEvent& e) override
+    {
+        const auto* t = c.project.track (id);
+        if (e.mods.isPopupMenu() && t && t->isCue())
+        {
+            PopupMenu m;
+            m.addItem ("Remove the Cue Track", [this] { c.apply ("Remove the Cue Track", [] (Project& p) { p.cue.clear(); }); });
+            m.showMenuAsync (PopupMenu::Options().withTargetComponent (this));
+            return;
+        }
+        if (onChosen) onChosen (id, e.mods); else c.focusOn (id);
+    }
+    std::function<void (Id, const ModifierKeys&)> onChosen;
 
     Controller& c;
     Id id;
     Slider fader, pan, depth;
     theme::HouseButton mute { "M", "Mute.", true }, solo { "S", "Solo.", true }, phase { ui::u8 ("\xc3\x98"), "Invert the polarity.", true };
+    theme::HouseButton mono { "Mono", "Mono: both sides play the two mixed together.", true };
+    OwnedArray<theme::HouseButton> versions;
     OwnedArray<Slider> sends;
     float meter[2] {}, rms[2] {};
     float held = 0;
@@ -357,6 +432,9 @@ void Mixer::rebuild()
         shape << (int64) t.id << (int) t.sends.size() << ",";
     }
     strip.addAndMakeVisible (strips.add (new ChannelStrip (c, c.project.master.id)));
+    // The Cue track, after the master (decision 0051).
+    for (auto& t : c.project.cue) { strip.addAndMakeVisible (strips.add (new ChannelStrip (c, t.id))); shape << "cue"; }
+    for (auto* s : strips) s->onChosen = [this] (Id id, const ModifierKeys& mods) { choose (id, mods); };
     resized();
 }
 
@@ -364,9 +442,18 @@ void Mixer::changeListenerCallback (ChangeBroadcaster*)
 {
     String s;
     for (auto& t : c.project.tracks) if (! t.hidden) s << (int64) t.id << (int) t.sends.size() << ",";
+    for (auto& t : c.project.cue) { (void) t; s << "cue"; }
     if (s != shape) rebuild();
     else for (auto* x : strips) x->update();
     repaint();
+}
+
+void Mixer::choose (Id id, const ModifierKeys& mods)
+{
+    // As in the arrangement (decision 0053), in the mixer's own order.
+    std::vector<Id> order;
+    for (auto* s : strips) order.push_back (s->id);
+    c.chooseTrack (id, mods, order);
 }
 
 void Mixer::timerCallback()
@@ -388,7 +475,8 @@ void Mixer::resized()
     int x = 0;
     for (auto* s : strips)
     {
-        if (s == strips.getLast()) x += theme::px (12);   // the master stands apart
+        // The master stands apart, and the Cue track apart again after it.
+        if (s->id == c.project.master.id || c.project.track (s->id) && c.project.track (s->id)->isCue()) x += theme::px (12);
         s->setBounds (x, 0, w, h);
         x += w + theme::px (4);
     }

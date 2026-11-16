@@ -38,6 +38,6 @@ xvfb-run -a ./build/KalibreRender_artefacts/Debug/KalibreRender renders 1
 - **A gesture is one undo step**: views show a drag and call `Controller::apply` once.
 - **Every colour from `Theme.h`**, every word 7:1, greys R < G < B, the accent only for "on", red never for words.
 - **Nothing important at the bottom of the window**; messages in the message line, which stays until dismissed.
-- **No extra windows** (0002): ask with `ui::present`, show in the lower zone or the browser.
+- **No extra windows for the music** (0002): ask with `ui::present`, show in the lower zone or the browser. Settings and preferences may have a window of their own (0002 amended, e.g. the Plug-in Manager, 0047).
 - **The piano roll's mouse rules are the user's** (0009): don't change them without asking.
 - Words on screen follow Apple's writing guidelines: Title Case on buttons and menus, an ellipsis when more input follows, "click", no "we".

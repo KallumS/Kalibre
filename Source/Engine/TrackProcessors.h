@@ -214,6 +214,7 @@ public:
         bool monitor = false;         // pass the live input on
         bool armed = false;
         bool readAutomation = true;
+        bool summing = false;         // a Summing track: silent while it records the master (decision 0052)
         Fader* fader = nullptr;
     };
 
@@ -224,6 +225,10 @@ public:
     juce::File stopRecording();
     bool isRecording() const { return writer != nullptr; }
     double recordStartSeconds() const { return recordStart; }
+    // What reaches this source arrives this late after the song position it
+    // belongs to: a Summing track's recorder hears the master after the
+    // graph's delay compensation (decision 0052).
+    std::atomic<double> recordLatencySeconds { 0 };
 
     // The last minute of the live input, for Capture Audio.
     void keepInput (bool);

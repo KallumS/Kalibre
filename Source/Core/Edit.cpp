@@ -44,6 +44,13 @@ void renumber (Project& p, Track& t)
     }
     std::map<Id, Id> deviceIds;
     for (auto& d : t.devices) { const Id old = d.id; d.id = p.newId(); deviceIds[old] = d.id; }
+    // The same device in another version keeps sharing its new id (decision 0050).
+    for (auto& v : t.versions)
+        for (auto& d : v.devices)
+        {
+            if (! deviceIds.count (d.id)) deviceIds[d.id] = p.newId();
+            d.id = deviceIds[d.id];
+        }
     for (auto& a : t.automation)
     {
         a.id = p.newId();
@@ -59,15 +66,36 @@ void renumber (Project& p, Track& t)
 } // namespace
 
 //==============================================================================
+Id addCue (Project& p)
+{
+    if (! p.cue.empty()) return p.cue.front().id;
+    Track t;
+    t.id = p.newId();
+    t.kind = TrackKind::Cue;
+    t.name = "Cue";
+    t.colour = 0xff6FA8DC;
+    t.input.audioChannel = -1;
+    t.input.midiDevice = "None";
+    t.versions.front().id = p.newId();
+    t.versions.front().name = "Version 1";
+    t.versions.front().ownDevices = true;
+    p.cue.push_back (t);
+    return t.id;
+}
+
 Id addTrack (Project& p, TrackKind kind, const std::string& name, Id after, Id parent)
 {
+    if (kind == TrackKind::Cue) return addCue (p);
     Track t;
     t.id = p.newId();
     t.kind = kind == TrackKind::Master ? TrackKind::Track : kind;
     t.name = name;
     t.versions.front().id = p.newId();
     t.versions.front().name = "Version 1";
+    t.versions.front().ownDevices = true;
     if (kind == TrackKind::Folder) t.height = 40;
+    // A Summing track records the master, not an input (decision 0052).
+    if (kind == TrackKind::Summing) { t.input.audioChannel = -1; t.input.midiDevice = "None"; t.colour = 0xffE3C26F; }
     if (kind == TrackKind::Return) t.colour = 0xff8F96A2;
     if (parent != 0 && (! p.track (parent) || ! p.track (parent)->isFolder())) parent = 0;
     t.parent = parent;
@@ -97,6 +125,7 @@ void removeTrack (Project& p, Id id, bool keepContents)
 {
     auto* t = p.track (id);
     if (! t || t->kind == TrackKind::Master) return;
+    if (t->isCue()) { p.cue.clear(); return; }
     const Id parent = t->parent;
     std::set<Id> gone { id };
     if (keepContents)
@@ -199,48 +228,82 @@ Id wrapInFolder (Project& p, const std::vector<Id>& ids, const std::string& name
 }
 
 //==============================================================================
+// The active version's devices are the track's; the others keep their own
+// (decision 0050). These move them between the two.
+namespace
+{
+void stashDevices (Track& t)
+{
+    auto& v = t.version();
+    v.devices = t.devices;
+    v.ownDevices = true;
+}
+
+void takeDevices (Track& t, int index)
+{
+    auto& v = t.versions[static_cast<size_t> (index)];
+    // A version from before versions had their own devices takes the track's.
+    if (v.ownDevices) t.devices = std::move (v.devices);
+    v.devices.clear();
+    v.ownDevices = true;
+    t.activeVersion = index;
+}
+
+int addVersion (Project& p, Track& t, TrackVersion v)
+{
+    stashDevices (t);
+    v.id = p.newId();
+    v.name = "Version " + std::to_string (t.versions.size() + 1);
+    v.devices.clear();
+    v.ownDevices = true;   // the track's devices, copied: the same ids, its own settings from here
+    t.versions.push_back (std::move (v));
+    t.activeVersion = static_cast<int> (t.versions.size()) - 1;
+    return t.activeVersion;
+}
+} // namespace
+
 int newVersion (Project& p, Id id)
 {
     auto* t = p.track (id);
-    if (! t || ! t->holdsClips()) return -1;
+    if (! t || ! t->holdsClips() || static_cast<int> (t->versions.size()) >= maxVersions) return -1;
     TrackVersion v = t->version();
-    v.id = p.newId();
     for (auto& c : v.clips)
     {
         c.id = p.newId();
         for (auto& n : c.midi.notes) n.id = p.newId();
     }
-    v.name = "Version " + std::to_string (t->versions.size() + 1);
-    t->versions.push_back (v);
-    t->activeVersion = static_cast<int> (t->versions.size()) - 1;
-    return t->activeVersion;
+    return addVersion (p, *t, std::move (v));
 }
 
 int newEmptyVersion (Project& p, Id id)
 {
     auto* t = p.track (id);
-    if (! t || ! t->holdsClips()) return -1;
-    TrackVersion v;
-    v.id = p.newId();
-    v.name = "Version " + std::to_string (t->versions.size() + 1);
-    t->versions.push_back (v);
-    t->activeVersion = static_cast<int> (t->versions.size()) - 1;
-    return t->activeVersion;
+    if (! t || ! t->holdsClips() || static_cast<int> (t->versions.size()) >= maxVersions) return -1;
+    return addVersion (p, *t, {});
 }
 
 bool deleteVersion (Project& p, Id id, int index)
 {
     auto* t = p.track (id);
     if (! t || t->versions.size() < 2 || index < 0 || index >= static_cast<int> (t->versions.size())) return false;
+    const bool wasActive = index == t->activeVersion;
+    if (! wasActive) stashDevices (*t);
     t->versions.erase (t->versions.begin() + index);
-    if (t->activeVersion >= index && t->activeVersion > 0) --t->activeVersion;
+    int next = t->activeVersion;
+    if (next >= index && next > 0) --next;
+    if (wasActive) t->devices.clear();
+    takeDevices (*t, next);
     return true;
 }
 
 void selectVersion (Project& p, Id id, int index)
 {
-    if (auto* t = p.track (id))
-        t->activeVersion = std::clamp (index, 0, static_cast<int> (t->versions.size()) - 1);
+    auto* t = p.track (id);
+    if (! t) return;
+    index = std::clamp (index, 0, static_cast<int> (t->versions.size()) - 1);
+    if (index == t->activeVersion) return;
+    stashDevices (*t);
+    takeDevices (*t, index);
 }
 
 void renameVersion (Project& p, Id id, int index, const std::string& name)
@@ -325,7 +388,7 @@ void resizeClip (Project& p, Id clipId, Tick newStart, Tick newEnd)
     sortClips (*owner);
 }
 
-Id splitClip (Project& p, Id clipId, Tick at)
+Id splitClip (Project& p, Id clipId, Tick at, double fine)
 {
     Track* owner = nullptr;
     auto* c = p.clip (clipId, &owner);
@@ -344,9 +407,11 @@ Id splitClip (Project& p, Id clipId, Tick at)
         eraseIf (right.midi.notes, [cut] (const Note& n) { return n.start < cut; });
         for (auto& n : right.midi.notes) n.id = p.newId();
     }
-    // Fades stay at their own end.
+    // Fades stay at their own end; both halves meet on the same sample.
     right.audio.fadeIn = 0;
     c->audio.fadeOut = 0;
+    c->audio.endFine = fine;
+    right.audio.startFine = fine;
     const Id rightId = right.id;
     owner->clips().push_back (right);
     sortClips (*owner);
@@ -672,6 +737,7 @@ Id addDevice (Project& p, Id trackId, const PluginRef& plugin, DeviceRole role, 
 {
     auto* t = p.track (trackId);
     if (! t) return 0;
+    if (t->isCue() && role != DeviceRole::AudioFx) return 0;   // nothing plays into it (decision 0051)
     Device d;
     d.id = p.newId();
     d.plugin = plugin;
@@ -689,6 +755,9 @@ void removeDevice (Project& p, Id deviceId)
     Track* owner = nullptr;
     if (! p.device (deviceId, &owner)) return;
     eraseIf (owner->devices, [deviceId] (const Device& d) { return d.id == deviceId; });
+    // Another version may still have it (decision 0050): its lanes stay for that one.
+    for (auto& v : owner->versions)
+        for (auto& d : v.devices) if (d.id == deviceId) return;
     eraseIf (owner->automation, [deviceId] (const AutomationLane& a) { return a.target.device == deviceId; });
     for (auto& m : owner->modulators)
         eraseIf (m.targets, [deviceId] (const ModTarget& x) { return x.device == deviceId; });

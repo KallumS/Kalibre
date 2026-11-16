@@ -11,9 +11,16 @@
         whichever end was grabbed.
       - Right click on a note removes it.
       - Right click and drag over an area removes every note in the area.
-      - Shift and left drag chooses every note in the area. Shift-click on a
-        note adds it to the choice or takes it out.
+      - Shift and left drag chooses every note in the area; with Option too,
+        it takes the area's notes out of the choice.
+      - Choosing is as everywhere else (decision 0053, asked for 16 November):
+        Shift-click on a note chooses every note from the last one clicked to
+        it (the pitches and the time between them); Option-click adds it;
+        Shift-Option-click takes it out.
       - Hold Command while dragging to move off the grid.
+      - A new note is as long as the last note added, clicked or stretched
+        (asked for, 16 November): the window keeps that length and passes it
+        as Settings::defaultLength.
 
     The window turns the mouse into ticks and pitches and asks the gesture
     what to show while dragging (preview) and what to do once let go
@@ -80,6 +87,9 @@ struct Outcome
     bool selectionChanged = false;
     bool audition = false;             // play the note that was clicked or added
     int auditionPitch = -1;
+    // On release: the length the next new note takes, from the note just
+    // added, clicked or stretched (asked for, 16 November); 0 leaves it.
+    Tick noteLength = 0;
 
     // An area being dragged out, to draw (Select or RemoveNotes).
     bool showArea = false;
@@ -92,7 +102,8 @@ class Gesture
 public:
     enum class Mode { Idle, Adding, Moving, ResizingStart, ResizingEnd, Selecting, Erasing, RightPending };
 
-    Gesture (const std::vector<Note>& notes, std::set<Id> selection, Settings);
+    // `anchor`: the note last clicked without Shift, where a Shift-click range starts.
+    Gesture (const std::vector<Note>& notes, std::set<Id> selection, Settings, Id anchor = 0);
 
     Outcome press (const Pointer&);
     Outcome drag (const Pointer&);     // call once the mouse has moved past the drag threshold
@@ -100,6 +111,7 @@ public:
 
     Mode mode() const { return current; }
     const std::set<Id>& selection() const { return chosen; }
+    Id anchor() const { return anchorNote; }
 
 private:
     const std::vector<Note>& notes;
@@ -110,6 +122,8 @@ private:
     Note grabbed;
     bool dragged = false;
     bool copying = false;
+    bool subtracting = false;   // Shift-Option: an area or a click takes notes out
+    Id anchorNote = 0;
     Outcome last;
 
     Tick snapped (Tick t, bool free) const;

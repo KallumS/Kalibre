@@ -13,10 +13,10 @@ and notes are found by their id.
 | --- | --- |
 | `kalibre.tracks()` | Every track: `{id, name, kind, parent, volume, pan, mute, solo, delay, colour, version, versions}` |
 | `kalibre.track(id)` | One track |
-| `kalibre.addTrack(name, kind, parent)` | `kind` is "track", "folder" or "return"; returns its id |
+| `kalibre.addTrack(name, kind, parent)` | `kind` is "track", "folder", "return" or "summing"; returns its id |
 | `kalibre.setTrack(id, {name=, volume=, pan=, mute=, solo=, delay=, colour=})` | Change a track |
 | `kalibre.removeTrack(id)` | |
-| `kalibre.newVersion(id)` | A new version of the track, copied; returns its number |
+| `kalibre.newVersion(id)` | A new version of the track, copied with its plug-ins; returns its number, or 0 when it has four already |
 | `kalibre.clips(trackId)` | `{id, name, kind, start, length, muted}` |
 | `kalibre.addMidiClip(trackId, start, length)` | Returns its id |
 | `kalibre.notes(clipId)` | `{id, start, length, pitch, velocity, channel, articulation}` (start from the clip's content) |

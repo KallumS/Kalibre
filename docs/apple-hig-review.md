@@ -11,7 +11,7 @@ ReaImGui script, so more can be met; where something isn't, it says why.
 | --- | --- |
 | Text at least 4.5:1, aiming at 7:1 (ACC-10, DRK-07) | Every word is 7:1 or more on what it sits on: body `#DDE1E7`, secondary `#B0B6C0`, warnings `#FF9E96`, ink on every button. Tested |
 | Icons and things to grab 3:1 (ACC-11) | Edges `#8A919C` 4.7:1, scrollbar thumb 3.6:1, tick boxes edged. Tested |
-| Never colour alone (ACC-15, COL-08) | Chosen buttons carry a bar under the label; chosen notes a bar along their foot; drum hits a velocity bar; the played track an accent bar; recording a ring around Record; warnings are worded |
+| Never colour alone (ACC-15, COL-08) | Chosen buttons are yellow only (the bar under the label was taken off at the user's request, 16 November, a known departure); chosen notes a bar along their foot; drum hits a velocity bar; the played track an accent bar; recording a ring around Record; warnings are worded |
 | Larger text (ACC-06, TYP-16) | View > Text Size 100–200% (Cmd-= / Cmd-- / Cmd-0), remembered; the transport wraps to two rows rather than cropping; the editors scroll. Tested at the smallest window and 200% |
 | Control sizes (ACC-22, ACC-23) | 28 pt in the transport and dialogs, never under 20 pt (track headers, tabs), as Apple allows for dense Mac windows |
 | macOS type: 13 pt body, never under 10 (TYP-01) | 13 pt body, 11 pt for dense labels (Apple's Subheadline) |

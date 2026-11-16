@@ -5,6 +5,7 @@
 
 #include "../Tests/App/Demo.h"
 #include "BuiltinInstruments.h"
+#include "ContainerProcessor.h"
 #include "Comp.h"
 #include "Song.h"
 #include "MainComponent.h"
@@ -21,7 +22,52 @@ int main (int argc, char** argv)
     const float scale = argc > 2 ? (float) atof (argv[2]) : 1.0f;
     out.createDirectory();
     {
-        PluginManager plugins;
+        // A made-up list of plug-ins, some turned off, for the Plug-in Manager (decision 0047).
+        const auto pluginFolder = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-plugins");
+        pluginFolder.deleteRecursively();
+        pluginFolder.createDirectory();
+        {
+            XmlElement xml ("KNOWNPLUGINS");
+            auto add = [&] (const char* name, const char* maker, const char* format, const char* file, bool instrument)
+            {
+                PluginDescription d;
+                d.name = name; d.manufacturerName = maker; d.pluginFormatName = format; d.fileOrIdentifier = file;
+                d.isInstrument = instrument; d.numInputChannels = instrument ? 0 : 2; d.numOutputChannels = 2;
+                d.uniqueId = d.deprecatedUid = String (name).hashCode();
+                d.category = instrument ? "Instrument" : "Fx";
+                xml.addChildElement (d.createXml().release());
+            };
+            add ("Pianoteq 9", "Modartt", "VST3", "/Library/Audio/Plug-Ins/VST3/Pianoteq 9.vst3", true);
+            add ("Kontakt 8", "Native Instruments", "VST3", "/Library/Audio/Plug-Ins/VST3/Kontakt 8.vst3", true);
+            add ("ValhallaFutureVerb", "Valhalla DSP, LLC", "VST3", "/Library/Audio/Plug-Ins/VST3/ValhallaFutureVerb.vst3", false);
+            add ("Cthulhu", "Xfer Records", "VST3", "/Library/Audio/Plug-Ins/VST3/Cthulhu.vst3", false);
+            add ("SINE Player", "Orchestral Tools", "AudioUnit", "AudioUnit:Synths/aumu,SINE,OrcT", true);
+            add ("Scaler 3", "Scaler Music", "AudioUnit", "AudioUnit:Synths/aumu,Scl3,ScMu", true);
+            add ("kHs Filter", "Kilohearts", "CLAP", "/Library/Audio/Plug-Ins/CLAP/kHs Filter.clap", false);
+            add ("Superior Drummer 3", "Toontrack", "VST3", "/Library/Audio/Plug-Ins/VST3/Superior Drummer 3.vst3", true);
+            add ("Shadow Hills Mastering Compressor", "Plugin Alliance", "VST3", "/Library/Audio/Plug-Ins/VST3/Shadow Hills Mastering Compressor.vst3", false);
+            for (auto* f : { "/Library/Audio/Plug-Ins/VST3/Reason Rack Plugin.vst3", "/Library/Audio/Plug-Ins/VST3/Old Synth.vst3",
+                             "/Library/Audio/Plug-Ins/VST3/Licence Check.vst3", "/Library/Audio/Plug-Ins/VST3/Falcon.vst3" })
+                xml.createNewChildElement ("BLACKLISTED")->setAttribute ("id", f);
+            auto* blocked = xml.createNewChildElement ("KALIBRE_BLOCKED");
+            auto block = [&] (const char* file, int reason, const char* detail)
+            {
+                auto* e = blocked->createNewChildElement ("FILE");
+                e->setAttribute ("file", file); e->setAttribute ("format", "VST3"); e->setAttribute ("reason", reason); e->setAttribute ("detail", detail);
+                return e;
+            };
+            block ("/Library/Audio/Plug-Ins/VST3/Reason Rack Plugin.vst3", 0, "it aborted, signal 6");
+            block ("/Library/Audio/Plug-Ins/VST3/Old Synth.vst3", 2, "");
+            block ("/Library/Audio/Plug-Ins/VST3/Licence Check.vst3", 1, "still opening after 120 seconds");
+            {
+                PluginDescription d;
+                d.name = "Falcon"; d.manufacturerName = "UVI"; d.pluginFormatName = "VST3"; d.isInstrument = true;
+                d.fileOrIdentifier = "/Library/Audio/Plug-Ins/VST3/Falcon.vst3";
+                block ("/Library/Audio/Plug-Ins/VST3/Falcon.vst3", 3, "")->addChildElement (d.createXml().release());
+            }
+            xml.writeTo (pluginFolder.getChildFile ("Plug-ins.xml"));
+        }
+        PluginManager plugins (pluginFolder);
         Engine engine (plugins);
         Controller c (engine);
         c.project = demo::song();
@@ -105,6 +151,32 @@ int main (int argc, char** argv)
         c.zoneTab = ZoneTab::Mixer;
         c.viewChanged();
         shoot ("7-mixer");
+        // Versions in the mixer (decision 0050) and the Cue track after the master (decision 0051).
+        {
+            const auto keep = c.project;
+            for (int i : { 1, 2 })
+            {
+                const Id tid = c.project.tracks[(size_t) i].id;
+                edit::newVersion (c.project, tid);
+                edit::newVersion (c.project, tid);
+                if (i == 2) edit::newVersion (c.project, tid);
+            }
+            edit::selectVersion (c.project, c.project.tracks[1].id, 1);
+            edit::addTrack (c.project, TrackKind::Summing, "Summing");
+            edit::addCue (c.project);
+            c.project.cue.front().mono = true;
+            c.project.cue.front().pan = -0.3;
+            c.selectedTracks = { c.project.tracks[1].id, c.project.tracks[2].id };
+            c.focusTrack = c.project.tracks[2].id;
+            window.lowerHeight = 420;
+            c.refresh();
+            shoot ("16-mixer-versions-and-cue");
+            window.lowerHeight = 320;
+            c.project = keep;
+            c.focusTrack = c.project.tracks[1].id;
+            c.selectedTracks = { c.focusTrack };
+            c.refresh();
+        }
         // The vocal's takes, with the band folded so they're in view.
         c.project.tracks[0].collapsed = true;
         c.zoneTab = ZoneTab::Devices;
@@ -137,7 +209,56 @@ int main (int argc, char** argv)
         c.viewChanged();
         MessageManager::getInstance()->runDispatchLoopUntil (200);
         shoot ("14-meters");
+        // The Plug-in Manager's window (decision 0047), its contents drawn on their own.
+        {
+            PluginManagerView manager (c);
+            manager.setSize (1040, 560);
+            manager.refresh();
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            auto image = manager.createComponentSnapshot (manager.getLocalBounds(), true, scale);
+            PNGImageFormat png;
+            const auto f = out.getChildFile ("15-plugin-manager.png");
+            f.deleteFile();
+            FileOutputStream s (f);
+            png.writeImageToStream (image, s);
+            std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+        }
         song::backToArrangement (c.project);
+        // The Container (decision 0055): three plug-ins, one on a band, one on the sides.
+        {
+            const Id t = edit::addTrack (c.project, TrackKind::Track, "Drums Bus");
+            const Id dev = edit::addDevice (c.project, t, containerRef(), DeviceRole::AudioFx);
+            c.focusTrack = t;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            if (auto* box = dynamic_cast<ContainerProcessor*> (engine.instance (dev)))
+            {
+                auto put = [&] (int i, const char* id, const char* name)
+                {
+                    PluginRef r { "Kalibre", id, name };
+                    String error;
+                    box->loadPlugin (i, r, error);
+                    box->slot (i).ref.name = name;   // shown as a plug-in would be
+                };
+                put (0, "test-gain:0", "Pro-Q 3");
+                put (1, "test-gain:-3", "Saturn 2");
+                put (2, "test-latency:64", "Valhalla Room");
+                auto set = [] (RangedAudioParameter* p, float v) { p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+                set (box->slot (1).low, 2000.0f);
+                set (box->slot (1).high, 9000.0f);
+                set (box->slot (1).gainDb, -2.5f);
+                set (box->slot (2).width, 2.0f);
+                set (box->slot (2).pan, -0.2f);
+                box->slot (0).solo->setValueNotifyingHost (0.0f);
+                box->matchLoudness->setValueNotifyingHost (1.0f);
+                if (box->onSlotsChanged) box->onSlotsChanged();
+            }
+            window.lowerHeight = 360;
+            shoot ("17-container");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, t);
+            c.refresh();
+        }
         // Kalibre's own synth and sampler, side by side (decision 0039).
         {
             const Id synthTrack = edit::addTrack (c.project, TrackKind::Track, "Synth");

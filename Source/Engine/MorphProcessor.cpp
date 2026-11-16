@@ -1,6 +1,8 @@
 #include "MorphProcessor.h"
 
 #include "BuiltinInstruments.h"
+#include "Editors.h"
+#include "ContainerProcessor.h"
 #include "HardwareInsert.h"
 #include "Morph.h"
 #include "PluginManager.h"
@@ -107,6 +109,18 @@ private:
     AudioBuffer<float> line;
     int pos = 0;
 };
+
+// For the tests: a plug-in that turns the sound down or up by so many dB.
+class GainTest : public LatencyTest
+{
+public:
+    explicit GainTest (float db) : LatencyTest (0), gain (Decibels::decibelsToGain (db)) {}
+    const String getName() const override { return "Gain Test"; }
+    void processBlock (AudioBuffer<float>& b, MidiBuffer& m) override { LatencyTest::processBlock (b, m); b.applyGain (gain); }
+
+private:
+    float gain;
+};
 } // namespace
 
 namespace
@@ -154,8 +168,11 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "test-sidechain") return std::make_unique<SidechainTest>();
     if (ref.identifier == "test-multiout") return std::make_unique<MultiOutTest>();
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
+    if (ref.identifier == "container") return std::make_unique<ContainerProcessor> (pm);
     if (auto inst = makeInstrument (ref)) return inst;
     if (ref.identifier == "hardware-insert") return std::make_unique<HardwareInsert>();
+    if (String (ref.identifier).startsWith ("test-gain:"))
+        return std::make_unique<GainTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getFloatValue());
     if (String (ref.identifier).startsWith ("test-latency:"))
         return std::make_unique<LatencyTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getIntValue());
     return nullptr;
@@ -202,7 +219,7 @@ void MorphProcessor::fillInPluginDescription (PluginDescription& d) const
 static void dropEditor (MorphProcessor::Corner& c)
 {
     if (c.plugin)
-        if (auto* e = c.plugin->getActiveEditor()) delete e;
+        editors::close (c.plugin->getActiveEditor());
 }
 
 bool MorphProcessor::loadPlugin (int c, const PluginRef& ref, String& error)
@@ -581,7 +598,7 @@ public:
     ~MorphEditor() override
     {
         proc.onCornersChanged = nullptr;
-        delete cornerEditor.getComponent();
+        editors::close (cornerEditor.getComponent());
     }
 
     void cornerMenu (int c)
@@ -615,12 +632,12 @@ public:
     void showCorner (int c)
     {
         shown = c;
-        delete cornerEditor.getComponent();
+        editors::close (cornerEditor.getComponent());
         cornerEditor = nullptr;
         if (auto* plug = proc.corner (c).plugin.get())
             if (plug->hasEditor())
             {
-                cornerEditor = plug->createEditorIfNeeded();
+                cornerEditor = editors::open (*plug);
                 if (cornerEditor) addAndMakeVisible (*cornerEditor);
             }
         for (int i = 0; i < 4; ++i) buttons[i]->setToggleState (i == c && cornerEditor != nullptr, dontSendNotification);

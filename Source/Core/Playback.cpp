@@ -214,14 +214,16 @@ CompiledTrack compile (const Project& p, const Track& t)
         {
             AudioRegion r;
             r.clip = c.id;
-            r.startSeconds = tempo.secondsAt (c.start) + trackDelay;
-            r.endSeconds = tempo.secondsAt (c.end()) + trackDelay;
+            // The edges' fine part puts them between ticks, on a zero crossing (decision 0054).
+            r.startSeconds = tempo.secondsAt (c.start) + c.audio.startFine + trackDelay;
+            r.endSeconds = tempo.secondsAt (c.end()) + c.audio.endFine + trackDelay;
             // A plain clip reads the file itself; a warped, reversed or transposed one
             // reads its own render, which starts where the clip's content starts.
             const bool plain = c.audio.warp == WarpMode::Off && ! c.audio.reversed && std::abs (c.audio.transpose) < 1e-6;
             r.sourceSeconds = plain
                                 ? c.audio.sourceStart + (tempo.secondsAt (c.start) - tempo.secondsAt (c.start - c.offset))
                                 : tempo.secondsAt (c.start) - tempo.secondsAt (c.start - c.offset);
+            r.sourceSeconds += c.audio.startFine;
             r.gain = std::pow (10.0, c.audio.gainDb / 20.0);
             r.fadeIn = c.audio.fadeIn;
             r.fadeOut = c.audio.fadeOut;

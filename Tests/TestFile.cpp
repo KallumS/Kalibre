@@ -47,3 +47,29 @@ bool roundTrips (const Project& p)
     const auto q = file::load (file::save (p));
     return q && *q == p;
 }
+
+TEST ("file: versions' own devices, a Summing track and the Cue track survive saving")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    PluginRef piano;  piano.format = "VST3"; piano.identifier = "piano"; piano.name = "Piano";
+    edit::addDevice (p, t, piano, DeviceRole::Instrument);
+    edit::newVersion (p, t);
+    p.track (t)->devices.front().plugin.name = "Organ";
+    edit::addTrack (p, TrackKind::Summing, "Summing");
+    const Id cue = edit::addCue (p);
+    PluginRef eq;  eq.format = "VST3"; eq.identifier = "e"; eq.name = "EQ";
+    edit::addDevice (p, cue, eq, DeviceRole::AudioFx);
+    p.track (cue)->pan = -0.5;
+    p.track (cue)->mono = true;
+
+    const auto loaded = file::load (file::save (p));
+    CHECK (loaded.has_value());
+    if (! loaded) return;
+    const auto& back = *loaded;
+    CHECK (back == p);
+    CHECK_EQ (back.cue.size(), size_t (1));
+    CHECK (back.cue.front().kind == TrackKind::Cue);
+    CHECK_EQ (back.track (t)->versions[0].devices.front().plugin.name, std::string ("Piano"));
+    CHECK (back.tracks[1].kind == TrackKind::Summing);
+}
