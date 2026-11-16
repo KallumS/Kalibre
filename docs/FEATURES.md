@@ -26,7 +26,7 @@ Every feature asked for, then the list of basic DAW features
 | Scale chosen, chord shown at the top, scale shaded in the piano roll | Yes | Top bar (Scale, Chord), chord lane, View > Shade the Scale; ScaleView's reader, tested (0015) |
 | Piano roll, drum patterns, step sequencer, Euclidean, notation | Yes | Lower zone > Editor (0009, 0014, 0020) |
 | Modulators: LFO, ADSR/ADR, envelope follower, wavetable from samples | Yes | Automation > Modulate; shown in the device rack; tested (0012). Once a block, not audio rate |
-| Comping, crossfades, sidechains, MIDI learn, loudness, sync, control surfaces | Yes | Asked for on 16 November: decisions 0029-0035. Sync and surfaces not yet tried with real gear |
+| Comping, crossfades, sidechains, MIDI learn, loudness, sync, control surfaces | Yes | Asked for on 16 November: decisions 0029-0035, with MTC in, MMC, HUI and network MIDI added (0043). Sync and surfaces not yet tried with real gear |
 | Automation picks up the last touched control | Yes | Plug-in parameters and the mixer's faders and pan knobs. Automation > Automate; Touch/Latch/Write recording (0024) |
 | X/Y pad: four plug-ins or four samples | Yes | Add > Kalibre > X/Y Morph; tested with samples (0018) |
 | Plug-in delay compensation | Yes | Tested by rendering clicks (0016) |
@@ -36,7 +36,7 @@ Every feature asked for, then the list of basic DAW features
 | Folders in folders, summing, with plug-ins | Yes | Tested (0005) |
 | Retrospective recording, MIDI and audio | Yes | Transport > Capture MIDI / Capture Audio; tested (0017) |
 | Warping: granular, spectral, repitch | Yes | All three, from the file's tempo or warp markers, tested (0022). Markers are added at the cursor (right-click > Warp) and dragged along the clip |
-| Offline effects on clips | Partly | Right-click a clip > Offline Effects (0026). The chain uses each plug-in's default settings until its window can be opened for it |
+| Offline effects on clips | Yes | Right-click a clip > Offline Effects (0026): add plug-ins, Edit Their Settings (their windows in the Devices tab, 0039), Render |
 | Piano roll mouse rules | Yes | Exactly as asked, tested (0009) |
 | Menus in the title bar | Yes | The Mac's menu bar (0027) |
 | Apple's guidelines and the house colours | Yes | docs/apple-hig-review.md, docs/COLOUR.md; contrast tested |
@@ -46,18 +46,18 @@ Every feature asked for, then the list of basic DAW features
 | Area | Status | Missing |
 | --- | --- | --- |
 | 1. Transport | Yes | Play, stop, record, return to start, loop, punch, overdub (recording adds clips), count-in, metronome (accent, subdivisions, volume), tempo, time signature, tap tempo, pre-roll, follow, playhead, bars/beats, minutes, samples and timecode. Pause isn't separate from stop |
-| 2. Tracks | Partly | Tracks, folders, returns, master; name, colour, volume, pan, mute, solo, arm, input monitoring, enable, lock, delay, sends, outputs. Freeze (track menu: renders it through its plug-ins, unloads them; tested). Not yet: video tracks, track grouping links, input/output choosers in the window (inputs default to 1-2) |
-| 3. MIDI input and editing | Partly | Every keyboard is listened to; overdub, capture, draw/move/resize/delete/duplicate, quantise, transpose, velocity, split, join, legato, humanise, scale shading. Controller lanes in the piano roll (modulation, expression, sustain, pitch bend, pressure, any CC: click the lane's name), drawn freehand, right-drag erases; no MPE; MIDI channel filtering per track not in the window |
-| 4. Audio recording and editing | Partly | Multitrack recording to 24-bit WAV, punch, split, duplicate, trim, fades, reverse, time-stretch, pitch-shift, clip gain (in the file), non-destructive. Takes from loop passes or recording over audio, comped by dragging across take lanes (0029); crossfades where clips overlap and draggable equal-power fades (0030). Not yet: normalise, silence and transient detection, audio quantise, sample editing, spectral display |
-| 5. Arrangement | Partly | Ruler, grid, snap, loop, markers, zoom, scroll, clips (loop, mute, lock, rename, consolidate), track versions. Not yet: arrangement sections, ripple editing, linked editing, clip launching |
-| 6. Mixer and routing | Partly | Faders, pan, mute, solo, polarity, mono, peak meters, inserts, sends pre and post, returns, folders as buses, plug-in delay compensation. Sidechains from any track into a plug-in's second input (0031; AU and VST3, not yet CLAP). Not yet: hardware inserts, multi-output instruments, surround, RMS meters |
-| 7. Automation | Partly | Lanes, breakpoints, linear/stepped/curved, drawing points, Read/Touch/Latch/Write, last touched, tempo automation. Not yet: trim mode's behaviour, copy/paste of automation, mute and send automation playback |
-| 8. Instruments | Partly | Any AU/VST3/CLAP instrument; the X/Y morph plays samples. No built-in synth or sampler yet |
-| 9. Plug-in hosting | Partly | Scanning (crash-safe), search, by maker, bypass, remove, reorder, state, latency, last-touched. MIDI learn onto any plug-in parameter or a track's volume, pan and mute (0032). Not yet: presets browser, A/B |
-| 10. Audio engine | Partly | Device, rate, buffer, inputs and outputs (browser > Audio), offline rendering, PDC. Not yet: CPU meters per track, dropout counter |
-| 11. Projects | Partly | New, open, save, save as, autosave every three minutes (File > Open the Last Autosave), a JSON format that survives versions. Not yet: templates, collect and save, relink |
-| 12. Export | Partly | Mix and every track as WAV, AIFF or FLAC, 16/24/32-bit, dither, normalise, tail, loop range; the mix at -14, -16 or -23 LUFS with a -1 dBTP ceiling (0033); MIDI file. Not yet: MP3, batch, metadata |
-| 13. Sync and control | Partly | MIDI clock out and in, Song Position, MTC out, Ableton Link (0034); Mackie Control surfaces and OSC (0035), see docs/CONTROL.md. Not yet: MTC in, MMC, HUI, network MIDI setup inside Kalibre (macOS's own works) |
-| 14. Metering | Partly | Peak meters with clip marks; on the master, loudness (momentary, short-term, integrated LUFS, range), true peak and correlation, with history (0033). Not yet: spectrum, oscilloscope, phase scope, tuner |
-| 15. Workflow | Partly | Keys for everything common, undo history (500), context menus, drag and drop, Text Size. Not yet: customisable keys, workspaces |
-| 16. Collaboration | Partly | Audio and MIDI import/export, stems. Not yet: AAF/OMF/XML, archiving |
+| 2. Tracks | Yes | Tracks, folders, returns, master; name, colour, volume, pan, mute, solo, arm, input monitoring, enable, lock, delay, sends, outputs, freeze. Track groups (volume, pan, mute, solo, arm together, 0037). Audio input, MIDI input and channel, and output chosen in the track menu. A video on the timeline with its own tab (0046; the picture on the Mac only) |
+| 3. MIDI input and editing | Yes | Every keyboard is listened to; overdub, capture, draw/move/resize/delete/duplicate, quantise, transpose, velocity, split, join, legato, humanise, scale shading, controller lanes. MPE: a channel a note, each with its own bend, pressure and slide, recorded and drawn (0042). Per-track MIDI channel in the track menu |
+| 4. Audio recording and editing | Yes | Multitrack recording, punch, split, duplicate, trim, fades, reverse, time-stretch, pitch-shift, clip gain, takes and comping (0029), crossfades (0030). Normalise, Strip Silence, transient detection, Quantise Audio, a sample editor with a spectrogram (0036); tested |
+| 5. Arrangement | Yes | Ruler, grid, snap, loop, markers, zoom, clips, track versions. Sections (move, duplicate, delete with their bars), insert/delete/duplicate bars, ripple delete, linked clips, a clip launcher with scenes (0037); tested |
+| 6. Mixer and routing | Yes | Faders, pan, mute, solo, polarity, mono, peak and RMS meters, inserts, sends, returns, folders as buses, PDC, sidechains for AU, VST3 and CLAP. Hardware inserts with a measured round trip, instruments' further outputs on tracks, surround (quad, 5.1, 7.1) with multichannel export (0038, 0040); tested |
+| 7. Automation | Yes | Lanes, breakpoints, curves, Read/Touch/Latch/Write/Trim (Trim keeps the shape, moved by the hand), last touched, tempo automation, mix moves written, copy and paste, mute and send lanes played (0038); tested |
+| 8. Instruments | Yes | Any AU/VST3/CLAP instrument; Kalibre Synth and Kalibre Sampler (0039); the X/Y morph; tested |
+| 9. Plug-in hosting | Yes | Scanning, search, bypass, remove, reorder, state, latency, last touched, MIDI learn. Presets (saved per plug-in, the plug-in's own programs, a browser tab) and A/B compare, each undoable (0039) |
+| 10. Audio engine | Yes | Device, rate, buffer, inputs and outputs, offline rendering, PDC. CPU per track in the mixer, the whole load and dropouts in the top bar (0038) |
+| 11. Projects | Yes | New, open, save, autosave, a JSON format that survives versions. Templates, Collect All Files and Save, Relink Missing Files, archives (0041); tested |
+| 12. Export | Yes | Mix and tracks as WAV, AIFF, FLAC or MP3 (320 kb/s), 16/24/32-bit, dither, normalise, loudness targets, MIDI. Song Details written into WAV and MP3; Export Several at Once (0041); tested. FLAC and AIFF carry no tags |
+| 13. Sync and control | Yes | MIDI clock in and out, Song Position, MTC out and chased in, MMC out and in, Ableton Link, Mackie Control, HUI, OSC, the Mac's network MIDI from the Studio tab (0034, 0035, 0043). Not yet tried with real gear |
+| 14. Metering | Yes | Peak and RMS meters, loudness, true peak and correlation (0033); spectrum, oscilloscope, phase scope and tuner in the Meters tab (0044) |
+| 15. Workflow | Yes | Keys for everything, every one changeable (the browser's Keys tab), workspaces (View > Workspaces) (0045), undo history, context menus, drag and drop, Text Size |
+| 16. Collaboration | Partly | Audio and MIDI import/export, stems, Final Cut XML out and in, archives (0041). AAF and OMF aren't written: they need the AAF SDK's binary container; XML carries the clips to Resolve, Premiere and Logic |

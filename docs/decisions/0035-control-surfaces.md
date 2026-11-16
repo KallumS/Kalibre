@@ -10,5 +10,5 @@ Mackie Control, the protocol most surfaces speak, with banks of eight strips: mo
 
 ## Consequences
 
-- HUI (the older Pro Tools protocol) isn't spoken: most HUI surfaces also have an MCU mode.
+- HUI came later (0043).
 - Not tried with a real surface yet; tested by feeding the protocol in and reading what comes back.

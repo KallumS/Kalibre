@@ -55,3 +55,31 @@ listed.
 Kalibre sends back, when they change: `/kalibre/playing`, `/kalibre/recording`,
 `/kalibre/position` (bar.beat.tick), `/kalibre/tempo`, and for the first 32
 tracks `/kalibre/track/N/name`, `/volume`, `/pan`, `/mute`, `/solo`.
+
+## HUI (decision 0043)
+
+Choose the surface's ports under **HUI in** and **HUI out** in the Studio tab.
+Kalibre pings it every second so it stays online.
+
+| On the surface | Does |
+| --- | --- |
+| Fader (touch-sensitive) | The strip's volume; touch to release is one undo step |
+| V-Pot | Pan |
+| Mute, Solo, Rec, Select | The strip's track |
+| Bank and Channel left/right | Move the eight strips along |
+| Play, Stop, Record, Rewind, Fast Forward | The transport (rewind and forward go a bar) |
+
+The strips' displays show four letters of each track's name, and the meters
+the track's level.
+
+## Timecode and Machine Control (decision 0043)
+
+- **Chase MTC**: choose the input whose timecode Kalibre follows. It starts
+  where the timecode is, stays within a tenth of a second, and stops when the
+  timecode stops.
+- **Machine Control (MMC)**: Kalibre sends locate and play when it starts and
+  stop when it stops, to the ports ticked for clock.
+- **Obey Machine Control**: play, stop, locate and record from any input.
+- **Network MIDI**: switches on the Mac's own network MIDI session; another
+  computer or an iPad connects to it, and it appears as a MIDI port (click
+  Look Again).

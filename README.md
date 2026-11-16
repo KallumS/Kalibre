@@ -39,10 +39,28 @@ grow and shrink with it.
   to use it there. **Crossfades** wherever audio overlaps.
 - **Sidechains** from any track into a plug-in. **MIDI learn** for any knob.
 - **Loudness meters** (LUFS, true peak, range) and export at -14 LUFS.
-- **Sync**: MIDI clock and timecode out, clock in, Ableton Link.
-- **Control surfaces**: Mackie Control (X-Touch, FaderPort...) and OSC.
+- **Sync**: MIDI clock and timecode out, clock and timecode in, Machine
+  Control, Ableton Link, the Mac's network MIDI.
+- **Control surfaces**: Mackie Control (X-Touch, FaderPort...), HUI and OSC.
+- **Audio tools**: normalise, strip silence, quantise audio to the grid, a
+  sample editor with a spectrogram.
+- **Sections** you move and duplicate whole, ripple editing, linked clips,
+  track groups, and a **clip launcher** for playing ideas in loops.
+- **Kalibre Synth and Sampler**, **presets** and **A/B** for every plug-in,
+  hardware inserts, instruments' extra outputs on their own tracks,
+  **surround** up to 7.1, **MPE**.
+- **Meters**: peak and RMS, spectrum, oscilloscope, phase scope, a tuner;
+  CPU for each track.
+- **Files**: templates, collect and save, relink, archives, MP3 with the
+  song's details, several exports at once, Final Cut XML; a **video** track.
+- **Every key changeable**, and saved **workspaces**.
 - **Lua scripts**, as in REAPER.
 - Menus in the Mac's menu bar; the house colours; Apple's guidelines.
+
+![The sample editor](docs/sample-editor.png)
+![Kalibre Synth and Sampler](docs/synth-and-sampler.png)
+![The clip launcher](docs/launcher.png)
+![The Meters tab](docs/meters.png)
 
 What's done and what isn't, feature by feature: **[docs/FEATURES.md](docs/FEATURES.md)**.
 **ARA** (Melodyne) is built in; it, the plug-in windows and the menus still need trying on a Mac.
