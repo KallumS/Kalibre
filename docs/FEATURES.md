@@ -23,7 +23,9 @@ Every feature asked for, then the list of basic DAW features
 | Scripting | Yes | Lua 5.4, Scripts menu, docs/SCRIPTING.md, tested (0019) |
 | Audio and MIDI on the same track | Yes | 0003 |
 | Plug-in windows in the lower zone, side by side, resized with the zone | Built, untried | 0002. Resizable plug-ins are resized keeping their shape; others are scaled (VST3 and CLAP honour this; some AUs can't be scaled and show at their own size) |
-| Track versions (right-click > New Version) | Yes | Version number on the header; tested (0006) |
+| Track versions (right-click > New Version) | Yes | Version number on the header; four at most, each with its own plug-ins, chosen with the mixer's 1 to 4 buttons, several tracks at once with Shift-click; tested (0006, 0050) |
+| Summing track | Yes | Track > Add Summing Track: armed, it records the master from where recording starts; tested (0052) |
+| Cue track | Yes | Track > Add Cue Track: after the master, its plug-ins, pan and mono heard but never exported; tested (0051) |
 | MIDI effects before instruments | Yes | Tested (0007) |
 | ARA (Melodyne) | Built, untried | 0028. The track's audio clips become the plug-in's playback regions; its edits are saved with the project. One document per plug-in, so Melodyne's multi-track view shows one track |
 | Scale chosen, chord shown at the top, scale shaded in the piano roll | Yes | Top bar (Scale, Chord), chord lane, View > Shade the Scale; ScaleView's reader, tested (0015) |
@@ -53,7 +55,7 @@ Every feature asked for, then the list of basic DAW features
 | 3. MIDI input and editing | Yes | Every keyboard is listened to; overdub, capture, draw/move/resize/delete/duplicate, quantise, transpose, velocity, split, join, legato, humanise, scale shading, controller lanes. MPE: a channel a note, each with its own bend, pressure and slide, recorded and drawn (0042). Per-track MIDI channel in the track menu |
 | 4. Audio recording and editing | Yes | Multitrack recording, punch, split, duplicate, trim, fades, reverse, time-stretch, pitch-shift, clip gain, takes and comping (0029), crossfades (0030). Normalise, Strip Silence, transient detection, Quantise Audio, a sample editor with a spectrogram (0036); tested |
 | 5. Arrangement | Yes | Ruler, grid, snap, loop, markers, zoom, clips, track versions. Sections (move, duplicate, delete with their bars), insert/delete/duplicate bars, ripple delete, linked clips, a clip launcher with scenes (0037); tested |
-| 6. Mixer and routing | Yes | Faders, pan, mute, solo, polarity, mono, peak and RMS meters, inserts, sends, returns, folders as buses, PDC, sidechains for AU, VST3 and CLAP. Hardware inserts with a measured round trip, instruments' further outputs on tracks, surround (quad, 5.1, 7.1) with multichannel export (0038, 0040); tested |
+| 6. Mixer and routing | Yes | Faders, pan, mute, solo, polarity, mono (a button on every strip), versions 1 to 4, a Cue track after the master (0050, 0051), peak and RMS meters, inserts, sends, returns, folders as buses, PDC, sidechains for AU, VST3 and CLAP. Hardware inserts with a measured round trip, instruments' further outputs on tracks, surround (quad, 5.1, 7.1) with multichannel export (0038, 0040); tested |
 | 7. Automation | Yes | Lanes, breakpoints, curves, Read/Touch/Latch/Write/Trim (Trim keeps the shape, moved by the hand), last touched, tempo automation, mix moves written, copy and paste, mute and send lanes played (0038); tested |
 | 8. Instruments | Yes | Any AU/VST3/CLAP instrument; Kalibre Synth and Kalibre Sampler (0039); the X/Y morph; tested |
 | 9. Plug-in hosting | Yes | Scanning in a helper, so a crashing plug-in is turned off instead of closing Kalibre; the Plug-in Manager (0047). Search, bypass, remove, reorder, state, latency, last touched, MIDI learn. Presets (saved per plug-in, the plug-in's own programs, a browser tab) and A/B compare, each undoable (0039) |

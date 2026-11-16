@@ -150,6 +150,32 @@ int main (int argc, char** argv)
         c.zoneTab = ZoneTab::Mixer;
         c.viewChanged();
         shoot ("7-mixer");
+        // Versions in the mixer (decision 0050) and the Cue track after the master (decision 0051).
+        {
+            const auto keep = c.project;
+            for (int i : { 1, 2 })
+            {
+                const Id tid = c.project.tracks[(size_t) i].id;
+                edit::newVersion (c.project, tid);
+                edit::newVersion (c.project, tid);
+                if (i == 2) edit::newVersion (c.project, tid);
+            }
+            edit::selectVersion (c.project, c.project.tracks[1].id, 1);
+            edit::addTrack (c.project, TrackKind::Summing, "Summing");
+            edit::addCue (c.project);
+            c.project.cue.front().mono = true;
+            c.project.cue.front().pan = -0.3;
+            c.selectedTracks = { c.project.tracks[1].id, c.project.tracks[2].id };
+            c.focusTrack = c.project.tracks[2].id;
+            window.lowerHeight = 420;
+            c.refresh();
+            shoot ("16-mixer-versions-and-cue");
+            window.lowerHeight = 320;
+            c.project = keep;
+            c.focusTrack = c.project.tracks[1].id;
+            c.selectedTracks = { c.focusTrack };
+            c.refresh();
+        }
         // The vocal's takes, with the band folded so they're in view.
         c.project.tracks[0].collapsed = true;
         c.zoneTab = ZoneTab::Devices;

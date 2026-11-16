@@ -63,7 +63,7 @@ public:
     Fader* fader (Id track) const;
     TrackSource* source (Id track) const;
     // Where a track's recording is written: its source, or for a Summing
-    // track the recorder hearing the master (decision 0049).
+    // track the recorder hearing the master (decision 0052).
     TrackSource* recordSource (Id track) const;
     int latencySamples();
     double sampleRate() const { return rate; }
@@ -169,7 +169,7 @@ private:
     struct TrackNodes
     {
         Node::Ptr source, fader;
-        Node::Ptr recorder;   // a Summing track's: hears the master, records it (decision 0049)
+        Node::Ptr recorder;   // a Summing track's: hears the master, records it (decision 0052)
         std::map<Id, Node::Ptr> sends;
     };
     std::map<Id, TrackNodes> tracks;

@@ -693,7 +693,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                     graph.addConnection ({ { audioIn->nodeID, inCh }, { src, ch } }, Kind::none);
                 }
             if ((t->id == live || t->armed) && ! t->isCue() && t->kind != TrackKind::Summing) connectMidi (midiIn->nodeID, src);
-            // A Summing track's recorder hears the master's first two channels (decision 0049).
+            // A Summing track's recorder hears the master's first two channels (decision 0052).
             if (nodes.recorder)
                 for (int ch = 0; ch < 2; ++ch)
                     graph.addConnection ({ { tracks[project.master.id].fader->nodeID, ch }, { nodes.recorder->nodeID, ch } }, Kind::none);

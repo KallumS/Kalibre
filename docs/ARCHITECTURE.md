@@ -38,7 +38,7 @@
 | `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |
 | `Engine/Warp.*` | Audio in memory, and warping (0022). |
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
-| `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). |
+| `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050). |
 | `Engine/BuiltinInstruments.*`, `HardwareInsert.*` | Kalibre Synth and Sampler (0039); the hardware insert and the interface's channels it shares (0040). |
 | `Engine/Mp3Writer.*` | MP3 export through Shine (0041). |
 | `Engine/NetworkMidi*` | The Mac's network MIDI session (0043). |
@@ -59,8 +59,10 @@
 ## How sound flows
 
     MIDI keyboard ─► Source ─► MIDI effects ─► instruments ─┐
-    clips ─────────► Source ── audio clips ─────────────────┴► audio effects ─► Fader ─► folder or master ─► out
-                                                                                  └─► Sends ─► returns
+    clips ─────────► Source ── audio clips ─────────────────┴► audio effects ─► Fader ─► folder or master ─┐
+                                                                                  └─► Sends ─► returns    │
+    master ─► Cue track's effects and fader (live only, never exported, 0051) ─► out  ◄──────────────────┘
+       └─► a Summing track's recorder (0052)
 
 When the project changes, the controller calls `Engine::sync`: instances
 still wanted are kept, new ones made, deactivated ones dropped; the graph is
@@ -81,4 +83,6 @@ loop wraps inside the block, and runs the graph.
 - The graph's ends take their channel count when it's prepared: prepare it before wiring a different number of outputs (a surround render was silent until it did).
 - The wiring's key holds each device node's own number, so a device replaced under the same id is rewired.
 - `main` is Kalibre's own (Main.cpp): with `--kalibre-scan` it's the scanner's helper and never starts the app. Test programs that scan do the same.
+- A track's `devices` are its active version's; the others' wait in their versions under the same ids, and the engine keys instances by (version, device) (0050). `Project::device` finds only the playing ones.
+- The engine's "no jump" position is `noJump` (-1e9), not -1: positions below zero are real (a count-in). With -1, live playback jumped back to -1 s every block.
 - What the clip launcher plays (`Track::launch`) isn't saved and survives Undo.

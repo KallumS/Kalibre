@@ -322,7 +322,7 @@ void Controller::record()
         if (auto* s = engine.recordSource (id))
         {
             const auto* t = project.track (id);
-            // A Summing track records the master (decision 0049); others their input.
+            // A Summing track records the master (decision 0052); others their input.
             if (t && (t->kind == TrackKind::Summing || t->input.audioChannel >= 0))
                 s->startRecording (folder.getNonexistentChildFile (String (t->name).replaceCharacters ("/\\:", "---") + " "
                                                                    + Time::getCurrentTime().formatted ("%Y-%m-%d %H%M%S"), ".wav"),
@@ -348,7 +348,7 @@ void Controller::finishRecording()
         if (! t.armed) continue;
         auto* s = engine.source (t.id);
         if (! s) continue;
-        // Audio: a Summing track's is the master's (decision 0049).
+        // Audio: a Summing track's is the master's (decision 0052).
         if (auto* rs = engine.recordSource (t.id); rs && rs->isRecording())
         {
             auto* s = rs;
@@ -368,7 +368,7 @@ void Controller::finishRecording()
                 c.audio.fileSampleRate = sr;
                 c.audio.fileChannels = channels;
                 // A Summing track's first moments belong before where recording began
-                // (the master arrives after the graph's delay): they're left out (decision 0049).
+                // (the master arrives after the graph's delay): they're left out (decision 0052).
                 if (const double lead = s->recordLatencySeconds.load(); lead > 0 && lead < seconds)
                 {
                     c.audio.sourceStart = lead;

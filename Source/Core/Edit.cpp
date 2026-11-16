@@ -94,7 +94,7 @@ Id addTrack (Project& p, TrackKind kind, const std::string& name, Id after, Id p
     t.versions.front().name = "Version 1";
     t.versions.front().ownDevices = true;
     if (kind == TrackKind::Folder) t.height = 40;
-    // A Summing track records the master, not an input (decision 0049).
+    // A Summing track records the master, not an input (decision 0052).
     if (kind == TrackKind::Summing) { t.input.audioChannel = -1; t.input.midiDevice = "None"; t.colour = 0xffE3C26F; }
     if (kind == TrackKind::Return) t.colour = 0xff8F96A2;
     if (parent != 0 && (! p.track (parent) || ! p.track (parent)->isFolder())) parent = 0;

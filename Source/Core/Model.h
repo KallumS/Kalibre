@@ -17,7 +17,7 @@
     and automation are shared by all versions.
 
     Two kinds of track besides: a Summing track records the master's output
-    when it's armed (decision 0049), and the Cue track (one at most, kept in
+    when it's armed (decision 0052), and the Cue track (one at most, kept in
     `Project::cue`) comes after the master: heard, never exported (decision
     0051).
 

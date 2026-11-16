@@ -1,7 +1,9 @@
 /*
     Mixer - every track's channel strip, in the lower zone: volume, pan,
-    mute, solo, its meter, its sends, where its sound goes. Folders and
-    returns are strips like any other, the master last.
+    mute, solo, mono, its meter, its sends, where its sound goes. Folders and
+    returns are strips like any other, then the master, then the Cue track
+    (decision 0051). Each track's 1 to 4 buttons choose its version (decision
+    0050); Shift-click strips to choose several and switch them together.
 */
 
 #pragma once
@@ -47,7 +49,9 @@ private:
     juce::OwnedArray<ChannelStrip> strips;
     LoudnessPanel loudness;
     juce::String shape;
+    Id anchor = 0;   // the strip last clicked: Shift-click chooses from it
     void rebuild();
+    void choose (Id, const juce::ModifierKeys&);
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
 };

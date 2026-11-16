@@ -1,5 +1,5 @@
 // Versions with their own plug-ins (decision 0050), the Summing track
-// (decision 0049) and the Cue track (decision 0051), played through the live
+// (decision 0052) and the Cue track (decision 0051), played through the live
 // audio path with a stand-in sound card, and exported.
 #include "Check.h"
 #include "Controller.h"
@@ -274,4 +274,40 @@ TEST ("summing: armed, it records the master from where recording starts, in tim
     playLive (engine, 0.5);
     c.stop();
     CHECK_EQ (c.project.track (sum)->clips().size(), size_t (1));
+}
+
+TEST ("versions: choosing a number switches every chosen track that has it, and leaves the others")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id a = edit::addTrack (c.project, TrackKind::Track, "A");
+    const Id b = edit::addTrack (c.project, TrackKind::Track, "B");
+    const Id d = edit::addTrack (c.project, TrackKind::Track, "C");
+    c.refresh();
+    // A new track is on version 1; a new version is the one chosen.
+    CHECK_EQ (c.project.track (a)->activeVersion, 0);
+    c.newVersion (a);
+    c.newVersion (b);
+    CHECK_EQ (c.project.track (a)->activeVersion, 1);
+    // Version 1 on all three; then 2, which C hasn't got.
+    c.chooseVersion ({ a, b, d }, 0);
+    CHECK_EQ (c.project.track (a)->activeVersion, 0);
+    CHECK_EQ (c.project.track (b)->activeVersion, 0);
+    c.chooseVersion ({ a, b, d }, 1);
+    CHECK_EQ (c.project.track (a)->activeVersion, 1);
+    CHECK_EQ (c.project.track (b)->activeVersion, 1);
+    CHECK_EQ (c.project.track (d)->activeVersion, 0);
+    CHECK (c.message.contains ("no version 2"));
+    // One step to undo.
+    c.undo();
+    CHECK_EQ (c.project.track (a)->activeVersion, 0);
+    CHECK_EQ (c.project.track (b)->activeVersion, 0);
+    // A fifth version isn't made.
+    c.newVersion (a); c.newVersion (a); c.newVersion (a);
+    CHECK_EQ (c.project.track (a)->versions.size(), size_t (4));
+    c.newVersion (a);
+    CHECK_EQ (c.project.track (a)->versions.size(), size_t (4));
+    CHECK (c.message.contains ("four versions at most"));
 }

@@ -51,3 +51,6 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0047. Plug-ins are scanned in a helper, and turned off when they crash](0047-plug-ins-scanned-in-a-helper.md)
 - [0048. The app icon](0048-the-app-icon.md)
 - [0049. Quitting always ends the program](0049-quitting-always-ends.md)
+- [0050. Versions have their own plug-ins, four at most, chosen from the mixer](0050-versions-have-their-own-plug-ins.md)
+- [0051. The Cue track](0051-the-cue-track.md)
+- [0052. The Summing track](0052-the-summing-track.md)

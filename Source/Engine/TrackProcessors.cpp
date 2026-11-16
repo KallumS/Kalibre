@@ -365,7 +365,7 @@ void TrackSource::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
         lastEnd = -1;
     }
 
-    // A Summing track recording the master doesn't play into it too (decision 0049).
+    // A Summing track recording the master doesn't play into it too (decision 0052).
     if (clock.playing && ! (d->summing && d->armed && clock.recording))
     {
         applyAutomation (*d, clock.start);
