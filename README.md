@@ -98,6 +98,7 @@ grow and shrink with it.
 ![A plug-in shown smaller to fit a short rack](docs/fitted-to-the-rack.png)
 ![The step sequencer lighting the step being played](docs/steps-playing.png)
 ![Auto: a violin line's CC lanes, drawn as AutoCC plays strings](docs/auto-cc.png)
+![Arming four ways: audio (red), MIDI (blue), both, MIDI input](docs/arm-four-ways.png)
 ![The clip launcher](docs/launcher.png)
 ![The Meters tab](docs/meters.png)
 
