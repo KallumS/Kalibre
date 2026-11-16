@@ -4,9 +4,10 @@ The conversation that built Kalibre, kept so the reasons and the route aren't
 lost when the session's context is compacted. Your messages and Claude's
 replies are in full; each tool call (a command, a file written, a search) is
 listed in one line by what it did, without its output. Private details (an
-email address) and the harness's internal reminders are removed.
+email address) and the harness's internal reminders are removed. Brought up
+to date at the end of the 16 November work.
 
-7 messages from you, 48 replies, 241 tool calls.
+8 messages from you, 67 replies, 302 tool calls.
 
 ## You (2026-11-15 19:34)
 
@@ -70,7 +71,9 @@ Reading your reference repos (VST-Morpher is JUCE/C++, Middaw is Swift) to pick 
 - *Bash*: Read Miderator conventions and detection API
 - *Bash*: Clone JUCE 9.0.5 and check CLAP/ARA support
 
-*[Request interrupted by user]*
+## You (2026-11-15 19:36)
+
+[Request interrupted by user]
 
 
 ## You (2026-11-15 19:36)
@@ -604,3 +607,159 @@ First committing the comping and crossfade work in progress so nothing is lost.
 Now exporting the chat history: the conversation's messages, with private details removed, as a Markdown file in `docs/sessions/`.
 
 - *Bash*: Export a sanitized chat history to docs
+- *Bash*: Check the exported history
+
+## Claude (2026-11-16 00:31)
+
+The history is exported. Also saving your three attached reference files, then updating the docs with what's done so far.
+
+- *Bash*: Save references, decisions, docs; commit and push
+- *Bash*: Check the @ in the reference file
+
+## Claude (2026-11-16 00:32)
+
+Fine (not an email). Backup done. Updating the task list and continuing with sidechain routing.
+
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+- *Bash*: Locate device creation and wiring
+- *Bash*: Implement sidechain routing and its test
+
+## Claude (2026-11-16 00:33)
+
+Sidechain routing works and is aligned by delay compensation (test passes). Adding the menu to choose a sidechain source on a plug-in.
+
+- *Bash*: Sidechain menu, docs; commit
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 00:34)
+
+Now MIDI learn: pure mapping logic in the core with tests, then the engine and menus.
+
+- *Bash*: MIDI learn core with tests
+
+## Claude (2026-11-16 00:34)
+
+Core works. Wiring MIDI learn into the engine's MIDI input and the Automation menu.
+
+- *Bash*: Find MIDI input code in engine
+- *Bash*: Read the MIDI input handler
+- *Bash*: Wire MIDI learn into engine, controller, menus
+- *Bash*: Fix mute mapping, add key, build and test
+- *Bash*: Mute learnable; test MIDI learn end to end
+- *Bash*: Document MIDI learn; commit
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 00:36)
+
+Now loudness meters: an EBU R128 / ITU BS.1770 meter in the core (momentary, short-term, integrated, loudness range, true peak, correlation), with tests against known signals.
+
+- *Bash*: Loudness meter core with tests
+
+## Claude (2026-11-16 00:37)
+
+Loudness meter matches the standard's reference readings (all 4 tests pass first time). Now putting it on the master and in the mixer, plus loudness-normalised export.
+
+- *Bash*: Meter on the master; loudness export target
+- *Bash*: Loudness panel in mixer; export at a loudness
+- *Bash*: Fix compile; test export loudness
+
+## Claude (2026-11-16 00:40)
+
+Loudness works end to end (export lands at -14 LUFS; the master meter reads correctly). Committing and checking the mixer render.
+
+- *Bash*: Render mixer and takes
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/mixer-crop.png
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/takes.png
+- *Bash*: Find and fix mangled non-ASCII text
+- *Bash*: Render the takes view
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/takes.png
+
+## Claude (2026-11-16 00:40)
+
+Take lanes render correctly (accent marks where each take is used). Committing loudness work.
+
+- *Bash*: Document and commit loudness
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 00:41)
+
+Next, sync: MIDI clock out/in, MIDI timecode (MTC) out, and Ableton Link. First the pure timing maths in the core, with tests.
+
+- *Bash*: Check Ableton Link versions
+- *Bash*: Fetch Link SDK and read its API
+- *Bash*: Sync core with tests
+
+## Claude (2026-11-16 00:42)
+
+Sync maths tested. Now the settings for sync and control surfaces (kept per Mac, not per project), then the engine side.
+
+- *Bash*: Control settings in core
+
+## Claude (2026-11-16 00:42)
+
+Now the engine side of sync, including Ableton Link (its SDK is GPL v2-or-later, which combines fine with Kalibre's AGPL).
+
+- *Bash*: Read Link CMake config and clock API
+- *Bash*: Read Link's CMake target setup
+- *Write*: /home/user/Kalibre/Source/Engine/SyncDevices.h
+- *Write*: /home/user/Kalibre/Source/Engine/SyncDevices.cpp
+- *Bash*: Wire sync devices into the engine
+- *Bash*: Check position store code
+- *Bash*: Controller sync commands; build with Link
+
+## Claude (2026-11-16 00:44)
+
+Link's build file switched the C++ version under us; restoring C++20 after it.
+
+- *Bash*: Restore C++20 and rebuild
+
+## Claude (2026-11-16 00:46)
+
+Sync engine compiles with Link. Moving to control surfaces now (both live in the same settings tab): Mackie Control protocol in the core with tests first.
+
+- *TaskUpdate*: 
+- *Bash*: Mackie protocol in core with tests
+- *Bash*: Fix test expectation; rerun
+
+## Claude (2026-11-16 00:47)
+
+Mackie protocol tested. Now the surfaces themselves (Mackie Control over MIDI, and OSC for apps like TouchOSC), wired to the controller.
+
+- *Write*: /home/user/Kalibre/Source/App/Surfaces.h
+- *Write*: /home/user/Kalibre/Source/App/Surfaces.cpp
+- *Bash*: Add surfaces to the app
+
+## Claude (2026-11-16 00:48)
+
+Now the Studio tab in the browser, where sync and control surfaces are set up.
+
+- *Bash*: Studio settings tab; build everything
+- *Bash*: Test Mackie and OSC surfaces
+
+## Claude (2026-11-16 00:53)
+
+Surfaces pass their tests. Checking the Studio tab visually.
+
+- *Bash*: Render the studio tab
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/studio.png
+
+## Claude (2026-11-16 00:53)
+
+Studio tab and loudness panel render properly. Small fix (no unit after a dash), then docs and push for the Mac build.
+
+- *Bash*: Docs for sync and surfaces; commit and push
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 00:54)
+
+Everything requested is built. Running the full test suites once more, refreshing the chat-history backup, then watching the Mac build.
+
+- *Bash*: Run all tests; save renders to docs
+- *Bash*: Refresh history backup and README; push

@@ -35,6 +35,12 @@ grow and shrink with it.
 - **Warping**: repitch, granular or spectral, from the loop's tempo or warp
   markers. **Offline effects** on single clips.
 - **ARA** plug-ins like Melodyne read the track's audio clips directly.
+- **Takes and comping**: every pass of a loop is a take; drag across a take
+  to use it there. **Crossfades** wherever audio overlaps.
+- **Sidechains** from any track into a plug-in. **MIDI learn** for any knob.
+- **Loudness meters** (LUFS, true peak, range) and export at -14 LUFS.
+- **Sync**: MIDI clock and timecode out, clock in, Ableton Link.
+- **Control surfaces**: Mackie Control (X-Touch, FaderPort...) and OSC.
 - **Lua scripts**, as in REAPER.
 - Menus in the Mac's menu bar; the house colours; Apple's guidelines.
 
