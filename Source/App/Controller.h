@@ -15,6 +15,7 @@
 #include "ControlSettings.h"
 #include "Patterns.h"
 #include "Song.h"
+#include "Keys.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -219,6 +220,9 @@ public:
     juce::File studioFile() const;
     void setStudio (const ControlSettings&);
     std::function<void()> onStudioChanged;   // the surfaces reconfigure
+
+    // The window's keys (decision 0045): registered by the window, kept with the app.
+    Keys keys;
 
     // Scripts.
     juce::File scriptsFolder() const;

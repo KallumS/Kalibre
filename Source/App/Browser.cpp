@@ -171,13 +171,13 @@ struct Browser::PresetList : public ListBoxModel
 };
 
 //==============================================================================
-Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl)
+Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl), keysPanel (ctrl.keys)
 {
     setTitle ("Browser");
     addChildComponent (studioView);
     studioView.setViewedComponent (&studio, false);
     studioView.setScrollBarsShown (true, false);
-    for (auto* b : { &pluginsTab, &presetsTab, &filesTab, &audioTab, &studioTab })
+    for (auto* b : { &pluginsTab, &presetsTab, &filesTab, &audioTab, &studioTab, &keysTab })
     {
         b->setRadioGroupId (3);
         b->setClickingTogglesState (true);
@@ -188,6 +188,8 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl)
     audioTab.onClick = [this] { showTab (Tab::Audio); };
     studioTab.onClick = [this] { showTab (Tab::Studio); };
     presetsTab.onClick = [this] { showTab (Tab::Presets); };
+    keysTab.onClick = [this] { showTab (Tab::Keys); };
+    addChildComponent (keysPanel);
     addAndMakeVisible (search);
     search.setTextToShowWhenEmpty ("Search", theme::textSecondary);
     search.setTitle ("Search");
@@ -293,6 +295,9 @@ void Browser::showTab (Tab t)
     audioTab.setToggleState (t == Tab::Audio, dontSendNotification);
     studioTab.setToggleState (t == Tab::Studio, dontSendNotification);
     presetsTab.setToggleState (t == Tab::Presets, dontSendNotification);
+    keysTab.setToggleState (t == Tab::Keys, dontSendNotification);
+    keysPanel.setVisible (t == Tab::Keys);
+    if (t == Tab::Keys) keysPanel.refresh();
     presetBox.setVisible (t == Tab::Presets);
     if (t == Tab::Presets) { presets->refresh (search.getText()); presetBox.updateContent(); }
     studioView.setVisible (t == Tab::Studio);
@@ -336,8 +341,9 @@ void Browser::resized()
         r.removeFromTop (4);
     };
     placeRow ({ &pluginsTab, &presetsTab, &filesTab });
-    placeRow ({ &audioTab, &studioTab });
+    placeRow ({ &audioTab, &studioTab, &keysTab });
     r.removeFromTop (theme::px (8));
+    if (tab == Tab::Keys) { keysPanel.setBounds (r); return; }
     if (tab == Tab::Studio)
     {
         studioView.setBounds (r);

@@ -85,3 +85,39 @@ TEST ("window: the menus are all there")
            && names.contains ("Automation") && names.contains ("View") && names.contains ("Scripts"));
     for (int i = 0; i < names.size(); ++i) CHECK (w.getMenuForIndex (i, names[i]).getNumItems() > 0);
 }
+
+TEST ("window: a key can be given to another command, the menus say so, and a workspace brings a layout back")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = demo::song();
+        c.refresh();
+        MainComponent window (c);
+        c.keys.file = File();   // not kept
+        // M mutes; give it to the mixer instead, and Mute loses it.
+        c.keys.set ("mixer", KeyPress ('m'));
+        CHECK (! c.keys.keyFor ("mute").isValid());
+        c.zoneTab = ZoneTab::Devices;
+        CHECK (window.keyPressed (KeyPress ('m')));
+        CHECK (c.zoneTab == ZoneTab::Mixer);
+        CHECK_EQ (c.keys.textFor ("mixer"), String ("M"));
+        c.keys.resetAll();
+        CHECK (c.keys.keyFor ("mute") == KeyPress ('m'));
+
+        // A workspace: the meters at 200 points high, then something else, then back.
+        c.zoneTab = ZoneTab::Meters;
+        window.lowerHeight = 200;
+        CHECK (window.saveWorkspace ("Test Space"));
+        c.zoneTab = ZoneTab::Editor;
+        window.lowerHeight = 400;
+        CHECK (window.loadWorkspace (window.workspacesFolder().getChildFile ("Test Space.json")));
+        CHECK (c.zoneTab == ZoneTab::Meters);
+        CHECK_EQ (window.lowerHeight, 200);
+        window.workspacesFolder().getChildFile ("Test Space.json").deleteFile();
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

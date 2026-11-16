@@ -76,12 +76,13 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
 {
     PopupMenu m;
     auto& p = c.project;
+    auto k = [this] (const char* id) { return c.keys.textFor (id); };   // the key it has now (decision 0045)
     switch (index)
     {
         case 0:   // File
         {
-            m.addItem (item ("New", [this] { checkSaved ([this] { c.newProject(); }); }, cmd ("N")));
-            m.addItem (item (ui::u8 ("Open\xe2\x80\xa6"), [this] { openFile(); }, cmd ("O")));
+            m.addItem (item ("New", [this] { checkSaved ([this] { c.newProject(); }); }, k ("new")));
+            m.addItem (item (ui::u8 ("Open\xe2\x80\xa6"), [this] { openFile(); }, k ("open")));
             m.addItem (item ("Open the Last Autosave", [this]
             {
                 const auto f = c.autosaveFile();
@@ -99,8 +100,8 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             if (templates.getNumItems() == 0) templates.addItem (item ("No templates yet: File > Save as Template", [] {}, {}, false));
             m.addSubMenu ("New from Template", templates);
             m.addSeparator();
-            m.addItem (item ("Save", [this] { saveFile(); }, cmd ("S")));
-            m.addItem (item (ui::u8 ("Save As\xe2\x80\xa6"), [this] { c.file = File(); saveFile(); }, shiftCmd ("S")));
+            m.addItem (item ("Save", [this] { saveFile(); }, k ("save")));
+            m.addItem (item (ui::u8 ("Save As\xe2\x80\xa6"), [this] { c.file = File(); saveFile(); }, k ("saveAs")));
             m.addItem (item (ui::u8 ("Save as Template\xe2\x80\xa6"), [this]
             {
                 auto* w = new AlertWindow ("Save as Template", "New songs can start from this one's tracks, plug-ins and routing.", MessageBoxIconType::NoIcon);
@@ -133,17 +134,8 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             }));
             m.addItem (item (ui::u8 ("Song Details\xe2\x80\xa6"), [this] { songDetails(); }));
             m.addSeparator();
-            m.addItem (item (ui::u8 ("Import Audio or MIDI\xe2\x80\xa6"), [this]
-            {
-                chooser = std::make_unique<FileChooser> ("Import", File::getSpecialLocation (File::userMusicDirectory), "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.mid;*.midi");
-                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles | FileBrowserComponent::canSelectMultipleItems,
-                                      [this] (const FileChooser& fc)
-                {
-                    Id track = c.focusTrack;
-                    for (auto& f : fc.getResults()) { c.importFile (f, track, c.cursor); track = 0; }
-                });
-            }, cmd ("I")));
-            m.addItem (item (ui::u8 ("Export the Mix\xe2\x80\xa6"), [this] { exportAudio (false); }, shiftCmd ("E")));
+            m.addItem (item (ui::u8 ("Import Audio or MIDI\xe2\x80\xa6"), [this] { importFiles(); }, k ("import")));
+            m.addItem (item (ui::u8 ("Export the Mix\xe2\x80\xa6"), [this] { exportAudio (false); }, k ("exportMix")));
             PopupMenu loud;
             loud.addItem (item (ui::u8 ("For Streaming (-14 LUFS)\xe2\x80\xa6"), [this] { exportAudio (false, -14.0); }));
             loud.addItem (item (ui::u8 ("For Apple Music (-16 LUFS)\xe2\x80\xa6"), [this] { exportAudio (false, -16.0); }));
@@ -178,15 +170,15 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         }
         case 1:   // Edit
         {
-            m.addItem (item (c.history.canUndo() ? "Undo " + String (c.history.undoLabel()) : String ("Undo"), [this] { c.undo(); }, cmd ("Z"), c.history.canUndo()));
-            m.addItem (item (c.history.canRedo() ? "Redo " + String (c.history.redoLabel()) : String ("Redo"), [this] { c.redo(); }, shiftCmd ("Z"), c.history.canRedo()));
+            m.addItem (item (c.history.canUndo() ? "Undo " + String (c.history.undoLabel()) : String ("Undo"), [this] { c.undo(); }, k ("undo"), c.history.canUndo()));
+            m.addItem (item (c.history.canRedo() ? "Redo " + String (c.history.redoLabel()) : String ("Redo"), [this] { c.redo(); }, k ("redo"), c.history.canRedo()));
             m.addSeparator();
-            m.addItem (item ("Delete", [this] { c.deleteSelection(); }, ui::u8 ("\xe2\x8c\xab")));
-            m.addItem (item ("Duplicate", [this] { c.duplicateSelection(); }, cmd ("D")));
-            m.addItem (item ("Split at the Cursor", [this] { c.splitAtCursor(); }, cmd ("E")));
-            m.addItem (item ("Choose Every Note", [this] { c.selectAllNotes(); }, cmd ("A"), c.selectedClip != 0));
+            m.addItem (item ("Delete", [this] { c.deleteSelection(); }, k ("delete")));
+            m.addItem (item ("Duplicate", [this] { c.duplicateSelection(); }, k ("duplicate")));
+            m.addItem (item ("Split at the Cursor", [this] { c.splitAtCursor(); }, k ("split")));
+            m.addItem (item ("Choose Every Note", [this] { c.selectAllNotes(); }, k ("chooseAll"), c.selectedClip != 0));
             m.addSeparator();
-            m.addItem (item ("Quantise", [this] { c.quantiseSelection(); }, "Q", c.selectedClip != 0));
+            m.addItem (item ("Quantise", [this] { c.quantiseSelection(); }, k ("quantise"), c.selectedClip != 0));
             m.addItem (item ("Legato", [this] { const Id cid = c.selectedClip; auto ids = c.selectedNotes; c.apply ("Legato", [=] (Project& pr) { edit::legato (pr, cid, ids); }); }, {}, c.selectedClip != 0));
             m.addItem (item ("Humanise", [this] { const Id cid = c.selectedClip; auto ids = c.selectedNotes; c.apply ("Humanise", [=] (Project& pr) { edit::humanise (pr, cid, ids, PPQ / 48, 8, (unsigned) Time::currentTimeMillis()); }); }, {}, c.selectedClip != 0));
             m.addItem (item ("Join the Chosen Notes", [this] { const Id cid = c.selectedClip; auto ids = c.selectedNotes; c.apply ("Join Notes", [=] (Project& pr) { edit::joinNotes (pr, cid, ids); }); }, {}, c.selectedNotes.size() > 1));
@@ -238,8 +230,8 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         }
         case 2:   // Track
         {
-            m.addItem (item ("Add Track", [this] { c.addTrack (TrackKind::Track); }, cmd ("T")));
-            m.addItem (item ("Add Folder", [this] { c.addTrack (TrackKind::Folder); }, shiftCmd ("T")));
+            m.addItem (item ("Add Track", [this] { c.addTrack (TrackKind::Track); }, k ("addTrack")));
+            m.addItem (item ("Add Folder", [this] { c.addTrack (TrackKind::Folder); }, k ("addFolder")));
             // Stereo or surround (decision 0040).
             PopupMenu formats;
             for (auto f : { SurroundFormat::Stereo, SurroundFormat::Quad, SurroundFormat::Surround51, SurroundFormat::Surround71 })
@@ -336,10 +328,10 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         case 3:   // Transport
         {
             m.addItem (item (c.engine.isPlaying() ? "Stop" : "Play", [this] { c.togglePlay(); }, "Space"));
-            m.addItem (item ("Record", [this] { c.record(); }, "R", true, c.engine.isRecording()));
+            m.addItem (item ("Record", [this] { c.record(); }, k ("record"), true, c.engine.isRecording()));
             m.addItem (item ("Go to the Start", [this] { c.goToStart(); }, "Return"));
             m.addSeparator();
-            m.addItem (item ("Loop", [this] { c.toggleLoop(); }, "L", true, p.loop.on));
+            m.addItem (item ("Loop", [this] { c.toggleLoop(); }, k ("loop"), true, p.loop.on));
             m.addItem (item ("Punch In and Out", [this] { c.apply ("Punch", [] (Project& pr) { pr.punch.on = ! pr.punch.on; }); }, {}, true, p.punch.on));
             m.addItem (item ("Set the Punch Range to the Loop", [this] { c.apply ("Punch Range", [] (Project& pr) { pr.punch.start = pr.loop.start; pr.punch.end = pr.loop.end; pr.punch.on = true; }); }));
             m.addItem (item ("Metronome", [this] { c.apply ("Metronome", [] (Project& pr) { pr.metronome.on = ! pr.metronome.on; }); }, {}, true, p.metronome.on));
@@ -349,7 +341,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 sub.addItem (item (s == 1 ? String ("Beats") : String ("Beats in ") + String (s), [this, s] { c.apply ("Click", [s] (Project& pr) { pr.metronome.subdivision = s; }); }, {}, true, p.metronome.subdivision == s));
             m.addSubMenu ("Metronome Clicks", sub);
             m.addSeparator();
-            m.addItem (item ("Capture MIDI", [this] { c.captureMidi(); }, shiftCmd ("R")));
+            m.addItem (item ("Capture MIDI", [this] { c.captureMidi(); }, k ("capture")));
             m.addItem (item ("Capture Audio (the Last 30 Seconds)", [this] { c.captureAudio (30); }));
             m.addSeparator();
             m.addItem (item ("Tap Tempo", [this] { c.tapTempo(); }));
@@ -380,7 +372,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addSubMenu (c.lastTouched.valid() ? "Modulate " + c.lastTouched.name : String ("Modulate the Last Touched Control"), mods);
             m.addSeparator();
             m.addItem (item (c.lastTouched.valid() ? "MIDI Learn " + c.lastTouched.name + ui::u8 ("\xe2\x80\xa6") : ui::u8 ("MIDI Learn the Last Touched Control\xe2\x80\xa6"),
-                             [this] { c.learnLastTouched(); }, cmd ("L"), c.lastTouched.valid()));
+                             [this] { c.learnLastTouched(); }, k ("learn"), c.lastTouched.valid()));
             PopupMenu maps;
             for (size_t i = 0; i < p.midiMappings.size(); ++i)
             {
@@ -401,13 +393,13 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         }
         case 5:   // View
         {
-            m.addItem (item ("Devices", [this] { c.zoneTab = ZoneTab::Devices; c.viewChanged(); }, "D", true, c.zoneTab == ZoneTab::Devices));
-            m.addItem (item ("Editor", [this] { c.zoneTab = ZoneTab::Editor; c.viewChanged(); }, "E", true, c.zoneTab == ZoneTab::Editor));
-            m.addItem (item ("Mixer", [this] { c.zoneTab = ZoneTab::Mixer; c.viewChanged(); }, "X", true, c.zoneTab == ZoneTab::Mixer));
-            m.addItem (item ("Clip Launcher", [this] { c.zoneTab = ZoneTab::Launcher; c.viewChanged(); }, "G", true, c.zoneTab == ZoneTab::Launcher));
-            m.addItem (item ("Meters", [this] { c.zoneTab = ZoneTab::Meters; c.viewChanged(); }, "Y", true, c.zoneTab == ZoneTab::Meters));
+            m.addItem (item ("Devices", [this] { c.zoneTab = ZoneTab::Devices; c.viewChanged(); }, k ("devices"), true, c.zoneTab == ZoneTab::Devices));
+            m.addItem (item ("Editor", [this] { c.zoneTab = ZoneTab::Editor; c.viewChanged(); }, k ("editor"), true, c.zoneTab == ZoneTab::Editor));
+            m.addItem (item ("Mixer", [this] { c.zoneTab = ZoneTab::Mixer; c.viewChanged(); }, k ("mixer"), true, c.zoneTab == ZoneTab::Mixer));
+            m.addItem (item ("Clip Launcher", [this] { c.zoneTab = ZoneTab::Launcher; c.viewChanged(); }, k ("launcher"), true, c.zoneTab == ZoneTab::Launcher));
+            m.addItem (item ("Meters", [this] { c.zoneTab = ZoneTab::Meters; c.viewChanged(); }, k ("meters"), true, c.zoneTab == ZoneTab::Meters));
             m.addSeparator();
-            m.addItem (item ("Browser", [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); }, cmd ("B"), true, browserShown));
+            m.addItem (item ("Browser", [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); }, k ("browser"), true, browserShown));
             m.addItem (item ("Section Lane", [this] { c.showSectionLane = ! c.showSectionLane; c.viewChanged(); }, {}, true, c.showSectionLane));
             m.addItem (item ("Chord Lane", [this] { c.showChordLane = ! c.showChordLane; c.viewChanged(); }, {}, true, c.showChordLane));
             m.addItem (item ("Tempo Lane", [this] { c.showTempoLane = ! c.showTempoLane; c.viewChanged(); }, {}, true, c.showTempoLane));
@@ -415,9 +407,30 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Follow Playback", [this] { c.followPlayback = ! c.followPlayback; c.viewChanged(); }, {}, true, c.followPlayback));
             m.addItem (item ("Zoom to Fit", [this] { arrange.zoomToFit(); }, "F"));
             m.addSeparator();
+            // Workspaces (decision 0045): the window's layout, by name.
+            PopupMenu spaces, remove;
+            for (auto& f : workspacesFolder().findChildFiles (File::findFiles, false, "*.json"))
+            {
+                spaces.addItem (item (f.getFileNameWithoutExtension(), [this, f] { loadWorkspace (f); }));
+                remove.addItem (item (f.getFileNameWithoutExtension(), [this, f] { f.deleteFile(); c.say ("Deleted the workspace " + f.getFileNameWithoutExtension().quoted() + "."); }));
+            }
+            if (spaces.getNumItems() > 0) spaces.addSeparator();
+            spaces.addItem (item (ui::u8 ("Save This Layout as a Workspace\xe2\x80\xa6"), [this]
+            {
+                auto* w = new AlertWindow ("Save a Workspace", "The browser, the lower zone and its height, the lanes and the zoom, by name.", MessageBoxIconType::NoIcon);
+                w->addTextEditor ("name", "Mixing");
+                w->addButton ("Save", 1, KeyPress (KeyPress::returnKey));
+                w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+                ui::present (w, ModalCallbackFunction::create ([this, w] (int r)
+                {
+                    if (r == 1 && w->getTextEditorContents ("name").trim().isNotEmpty()) saveWorkspace (w->getTextEditorContents ("name").trim());
+                }), true);
+            }));
+            if (remove.getNumItems() > 0) spaces.addSubMenu ("Delete a Workspace", remove);
+            m.addSubMenu ("Workspaces", spaces);
             PopupMenu sizes;
             for (int s : { 100, 125, 150, 200 })
-                sizes.addItem (item (String (s) + "%", [this, s] { setTextSize ((float) s / 100.0f); }, s == 100 ? cmd ("0") : String(), true, roundToInt (theme::scale() * 100) == s));
+                sizes.addItem (item (String (s) + "%", [this, s] { setTextSize ((float) s / 100.0f); }, s == 100 ? k ("actualSize") : String(), true, roundToInt (theme::scale() * 100) == s));
             m.addSubMenu ("Text Size", sizes);
             break;
         }
@@ -445,7 +458,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         }
         case 7:   // Help
         {
-            m.addItem (item ("Keys", [this] { showShortcuts(); }));
+            m.addItem (item ("Keys", [this] { showBrowser (Browser::Tab::Keys); }));
             m.addItem (item ("Kalibre on GitHub", [] { URL ("https://github.com/KallumS/Kalibre").launchInDefaultBrowser(); }));
             break;
         }

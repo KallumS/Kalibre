@@ -41,12 +41,14 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
     browser.setVisible (browserShown);
     setWantsKeyboardFocus (true);
     setTitle ("Kalibre");
+    registerKeys();
     c.addChangeListener (this);
     setSize (1440, 900);
 }
 
 MainComponent::~MainComponent()
 {
+    c.keys.all().clear();   // their actions point at this window
     c.removeChangeListener (this);
     if (auto* s = settingsStore().getUserSettings())
     {
@@ -135,45 +137,113 @@ void MainComponent::mouseDrag (const MouseEvent& e)
 //==============================================================================
 bool MainComponent::keyPressed (const KeyPress& k)
 {
-    const auto mods = k.getModifiers();
-    const bool cmd = mods.isCommandDown();
-    const auto ch = CharacterFunctions::toUpperCase (k.getTextCharacter());
-    const int code = k.getKeyCode();
+    // Every key is the user's to change (decision 0045), in the browser's Keys tab.
+    return c.keys.handle (KeyPress (k.getKeyCode(), k.getModifiers().withoutMouseButtons(), 0));
+}
 
-    if (code == KeyPress::spaceKey && ! cmd) { c.togglePlay(); return true; }
-    if (code == KeyPress::returnKey && ! cmd) { c.goToStart(); return true; }
-    if (code == KeyPress::escapeKey) { c.selectedNotes.clear(); c.selectedClips.clear(); c.dismiss(); return true; }
-    if (code == KeyPress::deleteKey || code == KeyPress::backspaceKey) { c.deleteSelection(); return true; }
-    if (cmd)
+File MainComponent::workspacesFolder() const
+{
+    auto f = c.scriptsFolder().getParentDirectory().getChildFile ("Workspaces");
+    f.createDirectory();
+    return f;
+}
+
+bool MainComponent::saveWorkspace (const String& name)
+{
+    DynamicObject::Ptr o = new DynamicObject();
+    o->setProperty ("browser", browserShown);
+    o->setProperty ("browserTab", (int) browser.shownTab());
+    o->setProperty ("lowerHeight", lowerHeight);
+    o->setProperty ("zoneTab", (int) c.zoneTab);
+    o->setProperty ("editor", (int) c.editor);
+    o->setProperty ("textSize", (double) theme::scale());
+    o->setProperty ("chordLane", c.showChordLane);
+    o->setProperty ("tempoLane", c.showTempoLane);
+    o->setProperty ("sectionLane", c.showSectionLane);
+    o->setProperty ("follow", c.followPlayback);
+    o->setProperty ("zoom", arrange.timeline.pixelsPerTick);
+    const auto f = workspacesFolder().getChildFile (File::createLegalFileName (name) + ".json");
+    if (! f.replaceWithText (JSON::toString (var (o.get())))) { c.say ("The workspace couldn't be saved.", true); return false; }
+    c.say ("Saved the workspace " + name.quoted() + ": View > Workspaces brings it back.");
+    return true;
+}
+
+bool MainComponent::loadWorkspace (const File& f)
+{
+    const auto v = JSON::parse (f.loadFileAsString());
+    if (! v.isObject()) return false;
+    browserShown = (bool) v.getProperty ("browser", browserShown);
+    browser.setVisible (browserShown);
+    browser.showTab ((Browser::Tab) (int) v.getProperty ("browserTab", 0));
+    lowerHeight = (int) v.getProperty ("lowerHeight", lowerHeight);
+    c.zoneTab = (ZoneTab) jlimit (0, 4, (int) v.getProperty ("zoneTab", 0));
+    c.editor = (EditorKind) jlimit (0, 4, (int) v.getProperty ("editor", 0));
+    c.showChordLane = (bool) v.getProperty ("chordLane", c.showChordLane);
+    c.showTempoLane = (bool) v.getProperty ("tempoLane", c.showTempoLane);
+    c.showSectionLane = (bool) v.getProperty ("sectionLane", c.showSectionLane);
+    c.followPlayback = (bool) v.getProperty ("follow", c.followPlayback);
+    const double zoom = (double) v.getProperty ("zoom", 0.0);
+    if (zoom > 0) arrange.timeline.pixelsPerTick = zoom;
+    setTextSize ((float) (double) v.getProperty ("textSize", (double) theme::scale()));
+    c.viewChanged();
+    c.say ("The workspace " + f.getFileNameWithoutExtension().quoted() + ".");
+    return true;
+}
+
+void MainComponent::importFiles()
+{
+    chooser = std::make_unique<FileChooser> ("Import", File::getSpecialLocation (File::userMusicDirectory), "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.mid;*.midi");
+    chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles | FileBrowserComponent::canSelectMultipleItems,
+                          [this] (const FileChooser& fc)
     {
-        if (ch == 'Z') { if (mods.isShiftDown()) c.redo(); else c.undo(); return true; }
-        if (ch == 'S') { if (mods.isShiftDown()) { auto f = c.file; c.file = File(); saveFile(); } else saveFile(); return true; }
-        if (ch == 'O') { openFile(); return true; }
-        if (ch == 'N') { checkSaved ([this] { c.newProject(); }); return true; }
-        if (ch == 'T') { c.addTrack (mods.isShiftDown() ? TrackKind::Folder : TrackKind::Track); return true; }
-        if (ch == 'D') { c.duplicateSelection(); return true; }
-        if (ch == 'E') { c.splitAtCursor(); return true; }
-        if (ch == 'A') { c.selectAllNotes(); return true; }
-        if (ch == 'B') { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); return true; }
-        if (ch == 'R' && mods.isShiftDown()) { c.captureMidi(); return true; }
-        if (ch == 'L') { c.learnLastTouched(); return true; }
-        if (ch == '=' || ch == '+') { setTextSize (jmin (2.0f, theme::scale() + 0.25f)); return true; }
-        if (ch == '-') { setTextSize (jmax (1.0f, theme::scale() - 0.25f)); return true; }
-        if (ch == '0') { setTextSize (1.0f); return true; }
-        return false;
-    }
-    if (ch == 'R') { c.record(); return true; }
-    if (ch == 'L') { c.toggleLoop(); return true; }
-    if (ch == 'Q') { c.quantiseSelection(); return true; }
-    if (ch == 'D') { c.zoneTab = ZoneTab::Devices; c.viewChanged(); return true; }
-    if (ch == 'E') { c.zoneTab = ZoneTab::Editor; c.viewChanged(); return true; }
-    if (ch == 'X') { c.zoneTab = ZoneTab::Mixer; c.viewChanged(); return true; }
-    if (ch == 'G') { c.zoneTab = ZoneTab::Launcher; c.viewChanged(); return true; }
-    if (ch == 'Y') { c.zoneTab = ZoneTab::Meters; c.viewChanged(); return true; }
-    if (ch == 'M') { c.apply ("Mute", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->mute = ! t->mute; }); return true; }
-    if (ch == 'S') { c.apply ("Solo", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->solo = ! t->solo; }); return true; }
-    if (ch == 'F') { arrange.zoomToFit(); return true; }
-    return false;
+        Id track = c.focusTrack;
+        for (auto& f : fc.getResults()) { c.importFile (f, track, c.cursor); track = 0; }
+    });
+}
+
+void MainComponent::registerKeys()
+{
+    using K = KeyPress;
+    const auto cmd = ModifierKeys::commandModifier, shift = ModifierKeys::shiftModifier;
+    auto& keys = c.keys;
+    auto zone = [this] (ZoneTab t) { return [this, t] { c.zoneTab = t; c.viewChanged(); }; };
+    keys.add ("play", "Play or Stop", K (K::spaceKey), [this] { c.togglePlay(); });
+    keys.add ("start", "Go to the Start", K (K::returnKey), [this] { c.goToStart(); });
+    keys.add ("record", "Record", K ('r'), [this] { c.record(); });
+    keys.add ("loop", "Loop", K ('l'), [this] { c.toggleLoop(); });
+    keys.add ("dismiss", "Let Go of the Choice", K (K::escapeKey), [this] { c.selectedNotes.clear(); c.selectedClips.clear(); c.dismiss(); });
+    keys.add ("delete", "Delete", K (K::backspaceKey), [this] { c.deleteSelection(); });
+    keys.add ("delete2", "Delete (Forward)", K (K::deleteKey), [this] { c.deleteSelection(); });
+    keys.add ("undo", "Undo", K ('z', cmd, 0), [this] { c.undo(); });
+    keys.add ("redo", "Redo", K ('z', cmd | shift, 0), [this] { c.redo(); });
+    keys.add ("save", "Save", K ('s', cmd, 0), [this] { saveFile(); });
+    keys.add ("saveAs", "Save As", K ('s', cmd | shift, 0), [this] { c.file = File(); saveFile(); });
+    keys.add ("open", "Open", K ('o', cmd, 0), [this] { openFile(); });
+    keys.add ("new", "New", K ('n', cmd, 0), [this] { checkSaved ([this] { c.newProject(); }); });
+    keys.add ("addTrack", "Add Track", K ('t', cmd, 0), [this] { c.addTrack (TrackKind::Track); });
+    keys.add ("addFolder", "Add Folder", K ('t', cmd | shift, 0), [this] { c.addTrack (TrackKind::Folder); });
+    keys.add ("duplicate", "Duplicate", K ('d', cmd, 0), [this] { c.duplicateSelection(); });
+    keys.add ("split", "Split at the Cursor", K ('e', cmd, 0), [this] { c.splitAtCursor(); });
+    keys.add ("chooseAll", "Choose Every Note", K ('a', cmd, 0), [this] { c.selectAllNotes(); });
+    keys.add ("browser", "Show or Hide the Browser", K ('b', cmd, 0), [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); });
+    keys.add ("capture", "Capture MIDI", K ('r', cmd | shift, 0), [this] { c.captureMidi(); });
+    keys.add ("learn", "MIDI Learn", K ('l', cmd, 0), [this] { c.learnLastTouched(); });
+    keys.add ("bigger", "Bigger Text", K ('=', cmd, 0), [this] { setTextSize (jmin (2.0f, theme::scale() + 0.25f)); });
+    keys.add ("smaller", "Smaller Text", K ('-', cmd, 0), [this] { setTextSize (jmax (1.0f, theme::scale() - 0.25f)); });
+    keys.add ("actualSize", "Text at 100%", K ('0', cmd, 0), [this] { setTextSize (1.0f); });
+    keys.add ("import", "Import Audio or MIDI", K ('i', cmd, 0), [this] { importFiles(); });
+    keys.add ("exportMix", "Export the Mix", K ('e', cmd | shift, 0), [this] { exportAudio (false); });
+    keys.add ("quantise", "Quantise", K ('q'), [this] { c.quantiseSelection(); });
+    keys.add ("devices", "Devices", K ('d'), zone (ZoneTab::Devices));
+    keys.add ("editor", "Editor", K ('e'), zone (ZoneTab::Editor));
+    keys.add ("mixer", "Mixer", K ('x'), zone (ZoneTab::Mixer));
+    keys.add ("launcher", "Clip Launcher", K ('g'), zone (ZoneTab::Launcher));
+    keys.add ("meters", "Meters", K ('y'), zone (ZoneTab::Meters));
+    keys.add ("mute", "Mute the Chosen Tracks", K ('m'), [this] { c.apply ("Mute", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->mute = ! t->mute; }); });
+    keys.add ("solo", "Solo the Chosen Tracks", K ('s'), [this] { c.apply ("Solo", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->solo = ! t->solo; }); });
+    keys.add ("fit", "Zoom to Fit", K ('f'), [this] { arrange.zoomToFit(); });
+    keys.file = settingsStore().getUserSettings() ? settingsStore().getUserSettings()->getFile().getSiblingFile ("Keys.json") : File();
+    keys.load();
 }
 
 //==============================================================================

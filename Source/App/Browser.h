@@ -13,6 +13,7 @@
 #pragma once
 
 #include "Controller.h"
+#include "KeysPanel.h"
 #include "StudioPanel.h"
 #include "Theme.h"
 
@@ -29,8 +30,9 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    enum class Tab { Plugins, Files, Audio, Studio, Presets };
+    enum class Tab { Plugins, Files, Audio, Studio, Presets, Keys };
     void showTab (Tab);
+    Tab shownTab() const { return tab; }
 
 private:
     Controller& c;
@@ -38,9 +40,11 @@ private:
     theme::HouseButton filesTab { "Files", "Audio and MIDI files." };
     theme::HouseButton audioTab { "Audio", "The audio interface, sample rate and buffer size." };
     theme::HouseButton presetsTab { "Presets", "Saved presets for the chosen track's plug-ins." };
+    theme::HouseButton keysTab { "Keys", "Every command and its key: change any of them." };
     theme::HouseButton studioTab { "Studio", "Sync (MIDI clock, timecode, Link) and control surfaces (Mackie Control, OSC)." };
     juce::Viewport studioView;
     StudioPanel studio;
+    KeysPanel keysPanel;
     theme::HouseButton scan { ui::u8 ("Scan"), "Look for plug-ins installed since the last scan." };
     juce::TextEditor search;
 

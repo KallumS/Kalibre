@@ -81,6 +81,14 @@ private:
     juce::Rectangle<int> dividerArea() const;
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void showShortcuts();
+    void registerKeys();
+public:
+    // Workspaces (decision 0045): the window's layout, saved by name.
+    juce::File workspacesFolder() const;
+    bool saveWorkspace (const juce::String& name);
+    bool loadWorkspace (const juce::File&);
+private:
+    void importFiles();
 };
 
 } // namespace kal
