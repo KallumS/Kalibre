@@ -4,6 +4,7 @@
 #include "TimedPlugin.h"
 #include "HardwareInsert.h"
 #include "Surround.h"
+#include "Mp3Writer.h"
 
 namespace kal
 {
@@ -906,13 +907,33 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     graph.prepareToPlay (renderRate, block);
 
     out.deleteFile();
+    const bool mp3 = o.format == "mp3";
     auto fmt = formatFor (o.format);
-    std::unique_ptr<OutputStream> stream (out.createOutputStream().release());
     std::unique_ptr<AudioFormatWriter> writer;
-    if (stream)
-        writer = fmt->createWriterFor (stream, AudioFormatWriterOptions().withSampleRate (renderRate)
-                                                   .withNumChannels (outChannels).withBitsPerSample (o.bitDepth));
-    if (! writer)
+    if (! mp3)
+    {
+        // The song's details: RIFF INFO and ISRC in a WAV (decision 0041).
+        std::unordered_map<String, String> tags;
+        const auto& m = o.metadata;
+        if (o.format == "wav")
+        {
+            auto put = [&tags] (const char* key, const std::string& v) { if (! v.empty()) tags[key] = String (v); };
+            put (WavAudioFormat::riffInfoTitle, m.title);
+            put (WavAudioFormat::riffInfoArtist, m.artist);
+            put (WavAudioFormat::riffInfoProductName, m.album);
+            put (WavAudioFormat::riffInfoGenre, m.genre);
+            put (WavAudioFormat::riffInfoComment, m.comment);
+            if (m.year > 0) put (WavAudioFormat::riffInfoDateCreated, std::to_string (m.year));
+            if (m.trackNumber > 0) put (WavAudioFormat::riffInfoTrackNumber, std::to_string (m.trackNumber));
+            put (WavAudioFormat::internationalStandardRecordingCode, m.isrc);
+        }
+        std::unique_ptr<OutputStream> stream (out.createOutputStream().release());
+        if (stream)
+            writer = fmt->createWriterFor (stream, AudioFormatWriterOptions().withSampleRate (renderRate)
+                                                       .withNumChannels (outChannels).withBitsPerSample (o.bitDepth)
+                                                       .withMetadataValues (tags));
+    }
+    if (! writer && ! mp3)
     {
         error = "The file couldn't be written.";
         graph.setNonRealtime (false);
@@ -982,16 +1003,20 @@ bool Engine::render (const Project& project, const File& folder, const File& out
             const float peak = result.getMagnitude (0, frames);
             if (peak > 0) result.applyGain (Decibels::decibelsToGain (-0.3f) / peak);
         }
-        if (o.dither && o.bitDepth < 32)
+        if (o.dither && (o.bitDepth < 32 || mp3))
         {
             // Triangular dither at the last bit.
             Random r;
-            const float lsb = 1.0f / (float) (1 << (o.bitDepth - 1));
+            const float lsb = 1.0f / (float) (1 << ((mp3 ? 16 : o.bitDepth) - 1));
             for (int ch = 0; ch < outChannels; ++ch)
                 for (int i = 0; i < frames; ++i)
                     result.addSample (ch, i, (r.nextFloat() - r.nextFloat()) * lsb);
         }
-        writer->writeFromAudioSampleBuffer (result, 0, frames);
+        if (mp3)
+        {
+            if (! writeMp3 (out, result, renderRate, o.metadata, o.mp3Kbps, error)) cancelled = true;
+        }
+        else writer->writeFromAudioSampleBuffer (result, 0, frames);
     }
     writer.reset();
     if (cancelled) out.deleteFile();

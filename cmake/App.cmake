@@ -44,6 +44,19 @@ include(${link_SOURCE_DIR}/AbletonLinkConfig.cmake)
 # Link's config sets C++17 for everything after it; Kalibre is C++20.
 set(CMAKE_CXX_STANDARD 20)
 
+# Shine, a small fixed-point MP3 encoder (LGPL-2.0): MP3 export (decision 0041).
+FetchContent_Declare(shine
+    GIT_REPOSITORY https://github.com/toots/shine.git
+    GIT_TAG        ab5e3526b64af1a2eaa43aa6f441a7312e013519)
+FetchContent_GetProperties(shine)
+if(NOT shine_POPULATED)
+    FetchContent_Populate(shine)
+endif()
+file(GLOB SHINE_SOURCES ${shine_SOURCE_DIR}/src/lib/*.c)
+add_library(KalibreShine STATIC ${SHINE_SOURCES})
+target_include_directories(KalibreShine PUBLIC ${shine_SOURCE_DIR}/src/lib)
+set_target_properties(KalibreShine PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
+
 option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" ${APPLE})
 if(KALIBRE_ARA)
     FetchContent_Declare(ara_sdk
@@ -68,6 +81,7 @@ add_library(KalibreApp STATIC
     Source/Engine/MorphProcessor.cpp
     Source/Engine/BuiltinInstruments.cpp
     Source/Engine/HardwareInsert.cpp
+    Source/Engine/Mp3Writer.cpp
     Source/Engine/Warp.cpp
     Source/Engine/Engine.cpp
     Source/Engine/AraHost.cpp
@@ -76,6 +90,7 @@ add_library(KalibreApp STATIC
     Source/App/Controller.cpp
     Source/App/AudioEditing.cpp
     Source/App/Presets.cpp
+    Source/App/ProjectFiles.cpp
     Source/App/SampleEditor.cpp
     Source/App/LauncherView.cpp
     Source/App/OfflineFxView.cpp
@@ -102,6 +117,7 @@ target_include_directories(KalibreApp PUBLIC
 target_link_libraries(KalibreApp
     PUBLIC
         KalibreCore
+        KalibreShine
         signalsmith-stretch
         Ableton::Link
         juce::juce_osc
@@ -156,7 +172,8 @@ target_link_libraries(Kalibre PRIVATE
 # (so a change can be seen from a Linux container, decision 0023).
 if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
-    target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp)
+    target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp
+    Tests/App/TestFiles.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1)
     target_link_libraries(KalibreAppTests PRIVATE KalibreApp juce::juce_recommended_config_flags)

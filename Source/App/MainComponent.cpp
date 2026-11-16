@@ -222,7 +222,7 @@ void MainComponent::exportAudio (bool stems, double loudnessTarget)
 {
     chooser = std::make_unique<FileChooser> (stems ? "Export every track" : "Export the mix",
                                              c.projectFolder().getChildFile ((c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Mix")) + ".wav"),
-                                             "*.wav;*.aiff;*.flac");
+                                             "*.wav;*.aiff;*.flac;*.mp3");
     chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this, stems, loudnessTarget] (const FileChooser& fc)
     {
         auto f = fc.getResult();
@@ -233,7 +233,7 @@ void MainComponent::exportAudio (bool stems, double loudnessTarget)
         o.start = p.loop.on ? p.tempo.secondsAt (p.loop.start) : 0.0;
         o.end = p.loop.on ? p.tempo.secondsAt (p.loop.end) : p.tempo.secondsAt (p.endTick());
         o.format = f.getFileExtension().trimCharactersAtStart (".").toLowerCase();
-        if (o.format != "aiff" && o.format != "flac") o.format = "wav";
+        if (o.format != "aiff" && o.format != "flac" && o.format != "mp3") o.format = "wav";
         if (o.format == "flac") o.bitDepth = 24;
         o.loudnessTarget = loudnessTarget;
         c.say ("Exporting" + String (ui::u8 ("\xe2\x80\xa6")));
@@ -248,6 +248,77 @@ void MainComponent::exportMidi()
     {
         if (fc.getResult() != File()) c.exportMidi (fc.getResult().withFileExtension (".mid"));
     });
+}
+
+// Several exports in one go (decision 0041): chosen with ticks, into a folder.
+void MainComponent::exportBatch()
+{
+    auto* w = new AlertWindow ("Export Several at Once", "Into one folder, named after the song. The loop range when it's on, otherwise the whole song.", MessageBoxIconType::NoIcon);
+    auto tick = [w] (const String& name, bool on)
+    {
+        auto* b = new ToggleButton (name);
+        b->setToggleState (on, dontSendNotification);
+        b->setSize (300, 24);
+        w->addCustomComponent (b);
+        return b;
+    };
+    auto* wav = tick ("The Mix as WAV", true);
+    auto* mp3 = tick ("The Mix as MP3 (320 kb/s)", true);
+    auto* stems = tick ("Every Track as WAV", false);
+    auto* midi = tick ("The MIDI", false);
+    auto* loud = tick ("The Mix at -14 LUFS (for streaming)", false);
+    w->addButton (ui::u8 ("Choose the Folder\xe2\x80\xa6"), 1, KeyPress (KeyPress::returnKey));
+    w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+    ui::present (w, ModalCallbackFunction::create ([this, w, wav, mp3, stems, midi, loud] (int r)
+    {
+        Controller::Batch b;
+        b.mixWav = wav->getToggleState();
+        b.mixMp3 = mp3->getToggleState();
+        b.stems = stems->getToggleState();
+        b.midi = midi->getToggleState();
+        b.loudness = loud->getToggleState() ? -14.0 : 0.0;
+        for (int i = w->getNumCustomComponents(); --i >= 0;) delete w->getCustomComponent (i);
+        if (r != 1) return;
+        chooser = std::make_unique<FileChooser> ("Choose where the exports go", c.projectFolder());
+        chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectDirectories, [this, b] (const FileChooser& fc)
+        {
+            if (! fc.getResult().isDirectory()) return;
+            const String song = c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Mix");
+            c.say ("Exporting" + String (ui::u8 ("\xe2\x80\xa6")));
+            c.exportBatch (fc.getResult().getChildFile (song + " " + Time::getCurrentTime().formatted ("%Y-%m-%d %H.%M")), b);
+        });
+    }), true);
+}
+
+// The song's details, written into every export (decision 0041).
+void MainComponent::songDetails()
+{
+    const auto& m = c.project.metadata;
+    auto* w = new AlertWindow ("Song Details", "Written into exported WAV and MP3 files.", MessageBoxIconType::NoIcon);
+    w->addTextEditor ("title", String (m.title), "Title");
+    w->addTextEditor ("artist", String (m.artist), "Artist");
+    w->addTextEditor ("album", String (m.album), "Album");
+    w->addTextEditor ("year", m.year > 0 ? String (m.year) : String(), "Year");
+    w->addTextEditor ("track", m.trackNumber > 0 ? String (m.trackNumber) : String(), "Track Number");
+    w->addTextEditor ("genre", String (m.genre), "Genre");
+    w->addTextEditor ("isrc", String (m.isrc), "ISRC");
+    w->addTextEditor ("comment", String (m.comment), "Comment");
+    w->addButton ("Keep", 1, KeyPress (KeyPress::returnKey));
+    w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+    ui::present (w, ModalCallbackFunction::create ([this, w] (int r)
+    {
+        if (r != 1) return;
+        Metadata m;
+        m.title = w->getTextEditorContents ("title").trim().toStdString();
+        m.artist = w->getTextEditorContents ("artist").trim().toStdString();
+        m.album = w->getTextEditorContents ("album").trim().toStdString();
+        m.year = w->getTextEditorContents ("year").getIntValue();
+        m.trackNumber = w->getTextEditorContents ("track").getIntValue();
+        m.genre = w->getTextEditorContents ("genre").trim().toStdString();
+        m.isrc = w->getTextEditorContents ("isrc").trim().toStdString();
+        m.comment = w->getTextEditorContents ("comment").trim().toStdString();
+        c.apply ("Song Details", [m] (Project& p) { p.metadata = m; });
+    }), true);
 }
 
 void MainComponent::showShortcuts()

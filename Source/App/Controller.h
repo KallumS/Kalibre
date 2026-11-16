@@ -107,6 +107,21 @@ public:
     bool exportMidi (const juce::File&);
     bool exportAudio (const juce::File&, const Engine::RenderOptions&, bool stems);
 
+    // A project's files (decision 0041; ProjectFiles.cpp).
+    juce::File resolve (const std::string& path) const;   // absolute, or from the project's folder
+    std::vector<std::string> missingFiles() const;
+    int relinkFrom (const juce::File& folder);             // returns how many were found
+    bool collectAndSave();                                 // every file into the project's folder, then save
+    bool archive (const juce::File& zip);                  // the project and its files in one .zip
+    juce::File templatesFolder() const;
+    bool saveTemplate (const juce::String& name, bool keepMusic);
+    bool newFromTemplate (const juce::File&);
+    bool exportXml (const juce::File&);
+    bool importXml (const juce::File&);
+    // Several exports at once into a folder: the mix as WAV and MP3, every track, the MIDI.
+    struct Batch { bool mixWav = true, mixMp3 = true, stems = false, midi = false; double loudness = 0; };
+    bool exportBatch (const juce::File& folder, const Batch&);
+
     //==========================================================================
     // Tracks and clips.
     Id addTrack (TrackKind, const juce::String& name = {});

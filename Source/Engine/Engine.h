@@ -127,7 +127,9 @@ public:
         double loudnessTarget = 0;          // LUFS (e.g. -14); 0 leaves the level alone
         double truePeakCeiling = -1.0;      // dBTP the loudness gain may not push past
         bool dither = true;
-        juce::String format = "wav";        // wav, aiff, flac
+        juce::String format = "wav";        // wav, aiff, flac, mp3
+        int mp3Kbps = 320;
+        Metadata metadata;                  // the song's details, written into the file (decision 0041)
     };
     // Renders the project as it would play (not in real time) into a file.
     // The device is paused while it works. `progress` returning false cancels.

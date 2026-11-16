@@ -554,6 +554,10 @@ bool Controller::open (const File& f)
     cursor = 0;
     syncEngine();
     say ("Opened " + f.getFileNameWithoutExtension() + ".");
+    // Files that have moved since (decision 0041).
+    if (const auto missing = missingFiles(); ! missing.empty())
+        say ("Opened " + f.getFileNameWithoutExtension() + ". " + String ((int) missing.size()) + (missing.size() == 1 ? " audio file is" : " audio files are")
+             + " missing: File > Relink Missing Files finds them in a folder.", true);
     return true;
 }
 
@@ -729,8 +733,11 @@ bool Controller::exportMidi (const File& f)
     return true;
 }
 
-bool Controller::exportAudio (const File& f, const Engine::RenderOptions& options, bool stems)
+bool Controller::exportAudio (const File& f, const Engine::RenderOptions& given, bool stems)
 {
+    auto options = given;
+    options.metadata = project.metadata;   // the song's details go into the file (decision 0041)
+    if (options.metadata.title.empty() && file.existsAsFile()) options.metadata.title = file.getFileNameWithoutExtension().toStdString();
     storeDeviceStates();
     String error;
     bool ok = true;

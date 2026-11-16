@@ -56,6 +56,8 @@ public:
     void saveFile (std::function<void()> then = {});
     void exportAudio (bool stems, double loudnessTarget = 0);
     void exportMidi();
+    void exportBatch();
+    void songDetails();
     void setTextSize (float);
     void showBrowser (Browser::Tab);
     void hideBrowser() { browserShown = false; browser.setVisible (false); resized(); }

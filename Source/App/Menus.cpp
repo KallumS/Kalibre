@@ -92,9 +92,46 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                     if (c.open (f)) { c.file = keep; c.dirty = true; c.say ("Opened the autosave from " + f.getLastModificationTime().toString (true, true, false) + ". Save to keep it."); }
                 });
             }));
+            // Templates (decision 0041).
+            PopupMenu templates;
+            for (auto& f : c.templatesFolder().findChildFiles (File::findFiles, false, "*.kalibre"))
+                templates.addItem (item (f.getFileNameWithoutExtension(), [this, f] { checkSaved ([this, f] { c.newFromTemplate (f); }); }));
+            if (templates.getNumItems() == 0) templates.addItem (item ("No templates yet: File > Save as Template", [] {}, {}, false));
+            m.addSubMenu ("New from Template", templates);
             m.addSeparator();
             m.addItem (item ("Save", [this] { saveFile(); }, cmd ("S")));
             m.addItem (item (ui::u8 ("Save As\xe2\x80\xa6"), [this] { c.file = File(); saveFile(); }, shiftCmd ("S")));
+            m.addItem (item (ui::u8 ("Save as Template\xe2\x80\xa6"), [this]
+            {
+                auto* w = new AlertWindow ("Save as Template", "New songs can start from this one's tracks, plug-ins and routing.", MessageBoxIconType::NoIcon);
+                w->addTextEditor ("name", c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("My Template"));
+                w->addButton ("Tracks and Plug-ins", 1, KeyPress (KeyPress::returnKey));
+                w->addButton ("With the Music Too", 2);
+                w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+                ui::present (w, ModalCallbackFunction::create ([this, w] (int r)
+                {
+                    if (r > 0) c.saveTemplate (w->getTextEditorContents ("name").trim(), r == 2);
+                }), true);
+            }));
+            m.addItem (item ("Collect All Files and Save", [this] { if (! c.file.existsAsFile()) saveFile ([this] { c.collectAndSave(); }); else c.collectAndSave(); }));
+            m.addItem (item (ui::u8 ("Relink Missing Files\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Choose the folder the missing files are in (folders inside it are searched too)", File::getSpecialLocation (File::userHomeDirectory));
+                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectDirectories, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult().isDirectory()) c.relinkFrom (fc.getResult());
+                });
+            }, {}, ! c.missingFiles().empty()));
+            m.addItem (item (ui::u8 ("Archive the Project\xe2\x80\xa6"), [this]
+            {
+                const String song = c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Untitled");
+                chooser = std::make_unique<FileChooser> ("Archive the project and its files", c.projectFolder().getParentDirectory().getChildFile (song + ".zip"), "*.zip");
+                chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult() != File()) c.archive (fc.getResult().withFileExtension (".zip"));
+                });
+            }));
+            m.addItem (item (ui::u8 ("Song Details\xe2\x80\xa6"), [this] { songDetails(); }));
             m.addSeparator();
             m.addItem (item (ui::u8 ("Import Audio or MIDI\xe2\x80\xa6"), [this]
             {
@@ -114,6 +151,24 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addSubMenu ("Export the Mix at a Loudness", loud);
             m.addItem (item (ui::u8 ("Export Every Track\xe2\x80\xa6"), [this] { exportAudio (true); }));
             m.addItem (item (ui::u8 ("Export MIDI\xe2\x80\xa6"), [this] { exportMidi(); }));
+            m.addItem (item (ui::u8 ("Export Several at Once\xe2\x80\xa6"), [this] { exportBatch(); }));
+            m.addSeparator();
+            m.addItem (item (ui::u8 ("Export Final Cut XML\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Export the audio clips as Final Cut XML", c.projectFolder().getChildFile ("Song.xml"), "*.xml");
+                chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult() != File()) c.exportXml (fc.getResult().withFileExtension (".xml"));
+                });
+            }));
+            m.addItem (item (ui::u8 ("Import Final Cut XML\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Import a Final Cut XML", File::getSpecialLocation (File::userHomeDirectory), "*.xml;*.fcpxml");
+                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult().existsAsFile()) c.importXml (fc.getResult());
+                });
+            }));
            #if ! JUCE_MAC
             m.addSeparator();
             m.addSubMenu ("Kalibre", appMenu());
