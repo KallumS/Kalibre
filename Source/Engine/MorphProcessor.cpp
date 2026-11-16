@@ -1,6 +1,7 @@
 #include "MorphProcessor.h"
 
 #include "BuiltinInstruments.h"
+#include "Editors.h"
 #include "ContainerProcessor.h"
 #include "HardwareInsert.h"
 #include "Morph.h"
@@ -218,7 +219,7 @@ void MorphProcessor::fillInPluginDescription (PluginDescription& d) const
 static void dropEditor (MorphProcessor::Corner& c)
 {
     if (c.plugin)
-        if (auto* e = c.plugin->getActiveEditor()) delete e;
+        editors::close (c.plugin->getActiveEditor());
 }
 
 bool MorphProcessor::loadPlugin (int c, const PluginRef& ref, String& error)
@@ -597,7 +598,7 @@ public:
     ~MorphEditor() override
     {
         proc.onCornersChanged = nullptr;
-        delete cornerEditor.getComponent();
+        editors::close (cornerEditor.getComponent());
     }
 
     void cornerMenu (int c)
@@ -631,12 +632,12 @@ public:
     void showCorner (int c)
     {
         shown = c;
-        delete cornerEditor.getComponent();
+        editors::close (cornerEditor.getComponent());
         cornerEditor = nullptr;
         if (auto* plug = proc.corner (c).plugin.get())
             if (plug->hasEditor())
             {
-                cornerEditor = plug->createEditorIfNeeded();
+                cornerEditor = editors::open (*plug);
                 if (cornerEditor) addAndMakeVisible (*cornerEditor);
             }
         for (int i = 0; i < 4; ++i) buttons[i]->setToggleState (i == c && cornerEditor != nullptr, dontSendNotification);

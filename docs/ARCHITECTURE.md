@@ -39,6 +39,8 @@
 | `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |
 | `Engine/Warp.*` | Audio in memory, and warping (0022). |
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
+| `Engine/Editors.h` | Opening and closing plug-ins' windows, telling the plug-in first (0056). |
+| `Engine/LoudnessMatch.h` | Match Loudness: output held to the input's short-term loudness (0056). |
 | `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050). |
 | `Engine/BuiltinInstruments.*`, `HardwareInsert.*` | Kalibre Synth and Sampler (0039); the hardware insert and the interface's channels it shares (0040). |
 | `Engine/Mp3Writer.*` | MP3 export through Shine (0041). |
@@ -79,6 +81,7 @@ loop wraps inside the block, and runs the graph.
 - A track's devices stay MIDI effects, instruments, audio effects (`edit::normaliseChain`).
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).
 - A plug-in's window is deleted before its instance: the engine keeps removed instances for a second and a half.
+- A plug-in's window is opened and closed with `editors::open` and `editors::close`, never `delete`: JUCE 9 needs the plug-in told first, or it won't open another (0056).
 - Graph channels are set before connecting to them: a connection to a channel that doesn't exist yet is silently refused (that cost a render).
 - Every colour comes from `Theme.h`; every word is 7:1.
 - The graph's ends take their channel count when it's prepared: prepare it before wiring a different number of outputs (a surround render was silent until it did).

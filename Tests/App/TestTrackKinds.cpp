@@ -437,3 +437,106 @@ TEST ("zero crossings: with the option on, a cut lands on the very sample where 
         CHECK (std::abs (clips[1].audio.startFine - e.fine) < 1e-12);
     }
 }
+
+TEST ("match loudness: a plug-in that turns the sound down 10 dB is brought back up, in the mix and the export")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    // Eight seconds of noise.
+    const auto f = folder().getChildFile ("noise8.wav");
+    {
+        f.deleteFile();
+        AudioBuffer<float> b (2, 48000 * 8);
+        Random r (11);
+        for (int i = 0; i < b.getNumSamples(); ++i) { const float v = 0.2f * (r.nextFloat() - 0.5f); b.setSample (0, i, v); b.setSample (1, i, v); }
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (32));
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    }
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Noise");
+    Clip c = audioClip (f, 0, p.tempo.tickAt (8.0));
+    c.audio.sourceLength = 8.0;
+    edit::addClip (p, t, c);
+    p.track (t)->pan = 0;
+    const Id fx = edit::addDevice (p, t, gain (-10), DeviceRole::AudioFx);
+
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 8.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    String error;
+    auto rmsOfLast = [] (const AudioBuffer<float>& b, double seconds)
+    {
+        const int n = (int) (seconds * 48000), from = b.getNumSamples() - n;
+        return b.getRMSLevel (0, from, n);
+    };
+    const auto off = folder().getChildFile ("match-off.wav");
+    CHECK (engine.render (p, folder(), off, o, {}, error));
+    p.device (fx)->matchLoudness = true;
+    const auto on = folder().getChildFile ("match-on.wav");
+    CHECK (engine.render (p, folder(), on, o, {}, error));
+    const float quiet = rmsOfLast (read (off), 2.0), matched = rmsOfLast (read (on), 2.0);
+    // Down 10 dB without it; with it, back to the noise's own level (0.2 / sqrt 12 = 0.0577).
+    CHECK (std::abs (Decibels::gainToDecibels (quiet / 0.0577f) + 10.0f) < 0.5f);
+    CHECK (std::abs (Decibels::gainToDecibels (matched / 0.0577f)) < 1.0f);
+    CHECK (std::abs (engine.matchingDb (fx) - 10.0f) < 1.0f);
+}
+
+#include "BuiltinInstruments.h"
+#include "DeviceRack.h"
+#include "Editors.h"
+
+TEST ("plug-in windows: closed properly, so a plug-in opens its own window again; adding devices leaves the others' windows alone")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Synths");
+    c.focusTrack = t;
+    c.refresh();
+
+    // Open, close, open: its own window each time, never a generic stand-in.
+    {
+        PluginRef r = synthRef();
+        String error;
+        auto inst = plugins.create (r, 48000, 512, error);
+        CHECK (inst != nullptr);
+        if (inst)
+        {
+            for (int i = 0; i < 3; ++i)
+            {
+                auto* e = editors::open (*inst);
+                CHECK (dynamic_cast<GenericAudioProcessorEditor*> (e) == nullptr);
+                CHECK (inst->getActiveEditor() == e);
+                editors::close (e);
+                CHECK (inst->getActiveEditor() == nullptr);
+            }
+        }
+    }
+
+    // In the rack: a third device added; the first two keep the very windows they had.
+    DeviceRack rack (c);
+    rack.setSize (1400, 360);
+    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument); });
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    auto editorsIn = [] (Component& root)
+    {
+        std::vector<AudioProcessorEditor*> found;
+        std::function<void (Component&)> walk = [&] (Component& comp)
+        {
+            if (auto* e = dynamic_cast<AudioProcessorEditor*> (&comp)) found.push_back (e);
+            for (auto* child : comp.getChildren()) walk (*child);
+        };
+        walk (root);
+        return found;
+    };
+    const auto before = editorsIn (rack);
+    CHECK_EQ (before.size(), size_t (2));
+    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    const auto after = editorsIn (rack);
+    CHECK_EQ (after.size(), size_t (3));
+    for (auto* e : before) CHECK (std::find (after.begin(), after.end(), e) != after.end());
+    for (auto* e : after) CHECK (dynamic_cast<GenericAudioProcessorEditor*> (e) == nullptr);
+}

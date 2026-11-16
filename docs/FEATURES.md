@@ -22,7 +22,7 @@ Every feature asked for, then the list of basic DAW features
 | Tempo and time signature, automatable | Yes | Top bar; Transport > Ramp the Tempo to Here; View > Tempo Lane. Ramps integrated exactly, tested (0004) |
 | Scripting | Yes | Lua 5.4, Scripts menu, docs/SCRIPTING.md, tested (0019) |
 | Audio and MIDI on the same track | Yes | 0003 |
-| Plug-in windows in the lower zone, side by side, resized with the zone | Built, untried | 0002. Resizable plug-ins are resized keeping their shape; others are scaled (VST3 and CLAP honour this; some AUs can't be scaled and show at their own size) |
+| Plug-in windows in the lower zone, side by side, resized with the zone | Yes | 0002, 0056. Each at its own size, centred (resizable ones fitted to the zone), scrolling if taller; the ⧉ button moves one into a window of its own and back; Match Loudness on each effect. Kept when devices are added (they went blank before) |
 | Track versions (right-click > New Version) | Yes | Version number on the header; four at most, each with its own plug-ins, chosen with the mixer's 1 to 4 buttons, several tracks at once with Shift-click; tested (0006, 0050) |
 | Summing track | Yes | Track > Add Summing Track: armed, it records the master from where recording starts; tested (0052) |
 | Shift and Option to choose | Yes | Shift-click a range, Option-click adds, Shift-Option-click takes out: tracks (arrangement and mixer), their buttons, clips, notes and the Plug-in Manager; tested (0009, 0053) |

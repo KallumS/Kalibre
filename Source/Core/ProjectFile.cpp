@@ -42,7 +42,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AudioData, file, sourceStart, s
                                                  startFine, endFine)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (PluginRef, format, identifier, name, manufacturer, uid, isInstrument, description)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Device, id, role, plugin, state, bypassed, active, useAra, araState, sidechainFrom, editorScale,
-                                                 stateB, onB)
+                                                 stateB, onB, matchLoudness)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (OfflineFx, chain, includeTail)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Clip, id, kind, name, start, length, offset, loopLength, colour, muted, locked,
                                                  midi, audio, offlineFx, fromTake, link)

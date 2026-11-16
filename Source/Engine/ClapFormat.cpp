@@ -946,7 +946,7 @@ bool ClapInstance::requestResize (uint32_t w, uint32_t h)
 
 void ClapInstance::editorClosing()
 {
-    if (auto* e = editorWindow.getComponent()) delete e;
+    if (auto* e = editorWindow.getComponent()) { editorBeingDeleted (e); delete e; }   // told first (decision 0056)
 }
 
 } // namespace

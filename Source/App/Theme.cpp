@@ -165,13 +165,7 @@ void LookAndFeel::drawButtonText (Graphics& g, TextButton& b, bool, bool)
     g.setColour (b.isEnabled() ? ink : edge);
     const auto area = b.getLocalBounds();
     g.drawText (b.getButtonText(), area.reduced (2, 0), Justification::centred, true);
-    // Chosen is shown by shape too, not by the accent alone.
-    if (b.getToggleState())
-    {
-        const auto w = jmin ((float) area.getWidth() - 6.0f, (float) GlyphArrangement::getStringWidth (f, b.getButtonText()));
-        const auto baseline = (float) area.getCentreY() + f.getHeight() * 0.5f;
-        g.fillRect (Rectangle<float> (w, 2.0f).withCentre ({ (float) area.getCentreX(), jmin ((float) area.getBottom() - 3.0f, baseline + 1.0f) }));
-    }
+    // No bar under a chosen button's label: the user didn't want it (17 November).
 }
 
 void LookAndFeel::drawTickBox (Graphics& g, Component& c, float x, float y, float w, float h, bool ticked, bool enabled,

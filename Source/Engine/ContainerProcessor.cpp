@@ -1,5 +1,6 @@
 #include "ContainerProcessor.h"
 
+#include "Editors.h"
 #include "PluginManager.h"
 #include "Theme.h"
 
@@ -78,7 +79,7 @@ ContainerProcessor::~ContainerProcessor()
 {
     for (auto& s : slots)
         if (s.plugin)
-            if (auto* e = s.plugin->getActiveEditor()) delete e;
+            editors::close (s.plugin->getActiveEditor());
 }
 
 void ContainerProcessor::fillInPluginDescription (PluginDescription& d) const
@@ -135,7 +136,7 @@ bool ContainerProcessor::loadPlugin (int i, const PluginRef& ref, String& error)
     {
         const ScopedLock sl (slotLock);
         auto& s = slots[(size_t) i];
-        if (s.plugin) if (auto* e = s.plugin->getActiveEditor()) delete e;
+        if (s.plugin) editors::close (s.plugin->getActiveEditor());
         s.ref = ref;
         s.plugin = std::move (instance);
         prepareSlot (s);
@@ -151,7 +152,7 @@ void ContainerProcessor::clearSlot (int i)
     {
         const ScopedLock sl (slotLock);
         auto& s = slots[(size_t) i];
-        if (s.plugin) if (auto* e = s.plugin->getActiveEditor()) delete e;
+        if (s.plugin) editors::close (s.plugin->getActiveEditor());
         s.plugin.reset();
         s.ref = {};
         prepareSlot (s);
@@ -557,7 +558,7 @@ public:
     ~ContainerEditor() override
     {
         proc.onSlotsChanged = nullptr;
-        delete inner.getComponent();
+        editors::close (inner.getComponent());
     }
 
     void rebuild()
@@ -573,14 +574,14 @@ public:
 
     void show (int i)
     {
-        delete inner.getComponent();
+        editors::close (inner.getComponent());
         inner = nullptr;
         shown = i;
         if (i >= 0)
             if (auto* plug = proc.slot (i).plugin.get())
                 if (plug->hasEditor())
                 {
-                    inner = plug->createEditorIfNeeded();
+                    inner = editors::open (*plug);
                     if (inner) addAndMakeVisible (*inner);
                 }
         for (auto* r : rows) r->name.setToggleState (r->i == shown && inner != nullptr, dontSendNotification);

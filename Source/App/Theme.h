@@ -152,8 +152,8 @@ public:
 };
 
 //==============================================================================
-// A house button: dark ink on light grey, yellow when on with a bar under its
-// label (chosen is shown by shape too), a title for VoiceOver, Space presses it.
+// A house button: dark ink on light grey, yellow when on, a title for
+// VoiceOver, Space presses it, and its tip shown when the pointer rests on it.
 class HouseButton : public juce::TextButton
 {
 public:

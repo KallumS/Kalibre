@@ -57,3 +57,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0053. Shift-click chooses a range, Option-click adds](0053-shift-and-option-to-choose.md)
 - [0054. Snap to zero crossings](0054-snap-to-zero-crossings.md)
 - [0055. The Container](0055-the-container.md)
+- [0056. Plug-in panels: own size, their own windows on request, Match Loudness](0056-plug-in-panels-and-windows.md)

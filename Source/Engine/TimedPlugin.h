@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include "LoudnessMatch.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <atomic>
@@ -37,6 +39,10 @@ public:
     // and costing nothing, so choosing its version is instant.
     std::atomic<bool> parked { false };
 
+    // Match Loudness (decision 0056): what comes out kept as loud as what went in.
+    std::atomic<bool> matchLoudness { false };
+    LoudnessMatch match;
+
     // Kept in step when the plug-in's latency changes (the engine is told).
     void latencyChanged() { setLatencySamples (inner->getLatencySamples()); }
 
@@ -57,6 +63,7 @@ public:
         inner->setRateAndBufferSizeDetails (rate, block);
         inner->prepareToPlay (rate, block);
         setLatencySamples (inner->getLatencySamples());
+        match.prepare (rate, block);
     }
     void releaseResources() override { inner->releaseResources(); }
 
@@ -64,11 +71,14 @@ public:
     {
         if (parked.load (std::memory_order_relaxed)) { audio.clear(); midi.clear(); return; }
         const auto start = juce::Time::getHighResolutionTicks();
+        const bool matching = matchLoudness.load (std::memory_order_relaxed);
+        if (matching) match.keepInput (audio, audio.getNumSamples());
         {
             const juce::ScopedLock lock (inner->getCallbackLock());
             if (inner->isSuspended()) { audio.clear(); midi.clear(); }
             else inner->processBlock (audio, midi);
         }
+        if (matching || match.appliedDb.load() != 0.0f) match.apply (audio, audio.getNumSamples(), matching);
         busyTicks.fetch_add (juce::Time::getHighResolutionTicks() - start, std::memory_order_relaxed);
     }
 

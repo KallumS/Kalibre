@@ -57,6 +57,8 @@ public:
     juce::AudioPluginInstance* instance (Id device) const;
     // Load (decision 0038): each track's plug-ins' share of real time, and blocks that came late.
     double trackCpu (Id track) const;
+    // What Match Loudness is doing to a device's output now, in dB (decision 0056).
+    float matchingDb (Id device) const;
     double cpu() { return deviceManager.getCpuUsage(); }
     int dropouts() const;
     void resetDropouts();

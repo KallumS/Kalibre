@@ -172,6 +172,7 @@ struct Device
     std::string stateB;        // A/B (decision 0039): the other of the two settings being compared
     bool onB = false;          // B is the one loaded
     int stateVersion = 0;      // counts Kalibre's own changes to the state (a preset, A/B), for Undo
+    bool matchLoudness = false; // kept as loud coming out as going in (decision 0056)
 
     bool operator== (const Device&) const = default;
 };

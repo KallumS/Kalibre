@@ -400,6 +400,14 @@ void Engine::measureLoad()
     trackLoad = std::move (load);
 }
 
+float Engine::matchingDb (Id device) const
+{
+    auto it = deviceNodes.find (device);
+    if (it == deviceNodes.end() || ! it->second) return 0;
+    auto* tp = dynamic_cast<TimedPlugin*> (it->second->getProcessor());
+    return tp ? tp->match.appliedDb.load() : 0.0f;
+}
+
 double Engine::trackCpu (Id track) const
 {
     auto it = trackLoad.find (track);
@@ -566,6 +574,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 wantedNodes.insert ({ active, d.id });
                 playing[d.id] = node;
                 park (node, false);
+                if (auto* tp = dynamic_cast<TimedPlugin*> (node->getProcessor())) tp->matchLoudness = d.matchLoudness;
             }
             else if (onMessage) onMessage (String (d.plugin.name) + " couldn't be loaded. " + error);
         }

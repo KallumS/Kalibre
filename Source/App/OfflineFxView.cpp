@@ -40,8 +40,7 @@ void OfflineFxView::open (Id clipId)
             }
             slot->plugin->setPlayConfigDetails (2, 2, rate, 512);
             slot->plugin->prepareToPlay (rate, 512);
-            AudioProcessorEditor* e = slot->plugin->hasEditor() ? slot->plugin->createEditorIfNeeded() : nullptr;
-            if (! e) e = new GenericAudioProcessorEditor (*slot->plugin);
+            auto* e = editors::open (*slot->plugin);
             slot->editor.reset (e);
             slot->natural = e->getBounds();
             strip.addAndMakeVisible (*e);

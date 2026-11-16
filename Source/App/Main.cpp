@@ -54,6 +54,8 @@ public:
     void initialise (const String& commandLine) override
     {
         LookAndFeel::setDefaultLookAndFeel (&look);
+        // What a control does, shown when the pointer rests on it, in every window.
+        tips = std::make_unique<TooltipWindow> (nullptr, 600);
         plugins = std::make_unique<PluginManager>();
         engine = std::make_unique<Engine> (*plugins);
         const auto error = engine->startAudio();
@@ -90,6 +92,7 @@ public:
         controller.reset();
         engine.reset();
         plugins.reset();
+        tips.reset();
         LookAndFeel::setDefaultLookAndFeel (nullptr);
     }
 
@@ -108,6 +111,7 @@ public:
 
 private:
     theme::LookAndFeel look;
+    std::unique_ptr<TooltipWindow> tips;
     std::unique_ptr<PluginManager> plugins;
     std::unique_ptr<Engine> engine;
     std::unique_ptr<Controller> controller;
