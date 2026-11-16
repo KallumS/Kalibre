@@ -9,7 +9,7 @@ without its output. Private details (an email address) and the harness's
 internal reminders are removed, as are the automatic "background task
 finished" notices. Messages you sent while Claude was working are marked so.
 
-15 messages from you, 164 replies, 444 tool calls.
+18 messages from you, 181 replies, 478 tool calls.
 
 ## You (2026-11-16 11:32)
 
@@ -1525,3 +1525,164 @@ There's a message from you at 12:08 that was interrupted before it reached me. R
 Writing the exporter (same format as the first backup: your messages and my replies in full, one line per tool call, private details and internal reminders removed):
 
 - *Bash*: cat > /tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad/export_chat.py <<'EOF' import json, re, sys src, o...
+- *Bash*: grep -rln "17 November" docs Source Tests README.md CLAUDE.md 2>/dev/null; grep -rn "17 November" docs Source Tests README.md 2>/dev/null...
+- *Bash*: grep -rl "17 November" docs Source | xargs sed -i 's/17 November 2026/16 November 2026/g; s/17 November/16 November/g' && grep -rn "17 No...
+
+## Claude (2026-11-16 16:54)
+
+Now the rest of the docs. Checking the README and the scripting guide for anything out of date:
+
+- *Bash*: cat README.md | head -120; grep -n "kind\|version" docs/SCRIPTING.md | head
+
+## Claude (2026-11-16 16:54)
+
+Updating the README's list, the scripting guide (new track kinds, the version limit), and refreshing every screenshot from today's code, so the underline and old layouts are gone:
+
+- *Bash*: grep -n 'kind == "folder"' Source/Script/LuaHost.cpp; python3 - <<'EOF' def sub(p, a, b, n=1):     s=open(p).read(); assert a in s, (p,a)...
+- *Bash*: R=/tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad/renders8; ls $R; convert $R/1-devices.png -resize 50% ...
+- *Read*: /tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad/renders8/w.png
+
+## Claude (2026-11-16 16:55)
+
+The X/Y Morph in the device rack has come out much smaller than it should, so my panel change has a sizing bug for resizable plug-ins. Investigating before refreshing the screenshots:
+
+- *Bash*: grep -n "const auto size = editorSizeFor (area.getHeight());" Source/App/DeviceRack.cpp && sed -i 's|        const auto size = editorSize...
+- *Bash*: R=/tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad/r9; convert $R/1-devices.png -crop 700x260+0+640 $R/d....
+- *Read*: /tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad/r9/d.png
+
+## Claude (2026-11-16 16:56)
+
+False alarm: at full size the X/Y Morph fills its panel correctly. The half-size preview I looked at made it look small. Removing the debug line and refreshing the screenshots:
+
+- *Bash*: python3 - <<'EOF' p='Source/App/DeviceRack.cpp' s=open(p).read() a='''        std::fprintf (stderr, "PANEL natural %s area %s size %s res...
+
+## Claude (2026-11-16 16:56)
+
+Now the session log's headings, an open-items list, and the features list's notes on what's been tried on your Mac:
+
+- *Bash*: grep -n "untried\|Not yet opened\|Built, untried" docs/FEATURES.md | cut -c1-220
+- *Bash*: python3 - <<'EOF' def sub(p, a, b, n=1):     s=open(p).read(); assert a in s, (p,a); open(p,'w').write(s.replace(a,b,n)) p='docs/FEATURES...
+
+## Claude (2026-11-16 16:56)
+
+Pushed. Making sure the small scripting change still builds and passes:
+
+- *Bash*: cmake --build build-core 2>&1 | grep -E "error" | head -3; ./build-core/KalibreTests | tail -1
+
+## Claude (2026-11-16 16:56)
+
+The chat is backed up to GitHub and all the docs are up to date; the core tests (127) still pass after the small scripting change.
+
+**Chat backup:** today's part of the conversation is in `docs/sessions/2026-11-16-chat-history.md`, in the same format as the first backup. Your messages and my replies are in full, including the ones you sent while I was working, and each command is listed in one line. Your email and the system's internal notes are removed.
+
+**Docs updated:**
+- **README:** the new features are added to the list: plug-in scanning and the Plug-in Manager, own windows and Match Loudness, versions 1–4, the Summing and Cue tracks, the Container, MusicXML, Shift/Option selection and zero crossings. The Mixer, Container and Plug-in Manager pictures are added.
+- **Screenshots:** every picture in `docs/` was re-taken from today's code, so none show the old underlines.
+- **Scripting guide:** scripts can now add Summing tracks, and the guide notes the four-version limit.
+- **Features list:** it now records that you've been using the app on your Mac and that plug-in hosting works there; quitting is marked as not yet confirmed on the Mac.
+- **Session log:** it ends with a list of what's still open.
+- **Dates:** I had dated several of today's entries "17 November"; they now read 16 November.
+
+**Decision for you:** in the backup I found a message you sent at 12:08 that was cut off before I did anything with it. You asked to Shift-drag a section, for example the Chorus from bar 64 to bar 49, with all the tracks' music in it moving too, and what was at bar 49 shifting to after the Chorus. That isn't built. Do you still want it?
+
+## You (2026-11-16 16:58)
+
+You mentioned that Kalibre already works that way, is that correct?
+
+## Claude (2026-11-16 16:58)
+
+I didn't say that in this conversation. I'd only started checking when your message was interrupted. But the README does say "Sections you move and duplicate whole", so let me check what the code actually does:
+
+- *Bash*: grep -n "moveSection\|Section" Source/Core/Song.h | head -20; sed -n 1,40p docs/decisions/0037-song-shape.md | grep -n -i "section" 
+- *Bash*: sed -n 40,47p Source/Core/Song.h; grep -n "^void moveSection" -A30 Source/Core/Song.cpp; grep -n "moveSection\|Move Earlier\|Move Later\|...
+- *Bash*: grep -n "moveTime" Source/Core/Song.h; grep -n "moveTime" -B3 -A16 Tests/TestSong.cpp | head -40
+- *Bash*: sed -n 1,38p Tests/TestSong.cpp | grep -n "twoTracks\|bar =" ; cat >> Tests/TestSong.cpp <<'EOF'  TEST ("song: moving the Chorus from bar...
+
+## Claude (2026-11-16 16:58)
+
+Your example passes: moving the Chorus takes all three tracks' music with it, and the verse moves to after it. Committing that test so it stays checked:
+
+- *Bash*: python3 - <<'EOF' p='docs/sessions/2026-11-16.md' s=open(p).read() a='''- **Sections moved with their music** (asked at 12:08, interrupte...
+
+## Claude (2026-11-16 16:58)
+
+Mostly, yes, though I hadn't actually said so in this chat (the README describes sections as moved whole). I checked the code and ran your exact example as a new test: Chorus at bar 65, Verse at bar 49, Piano, Guitar and Strings on both.
+
+**What works today:** right-click a section's name in the Sections lane (just under the bar numbers) and choose **Move Earlier** or **Move Later**.
+- The section moves along with all its music on every track.
+- Whatever was in the way moves to after it, so in your example the Verse ends up after the Chorus.
+- Clips that cross the section's edges are split, and automation, markers, tempo and time-signature changes move too.
+- It's one undo step.
+
+**What's missing:** Shift-dragging a section to a bar of your choosing. The menu only swaps it one section at a time, so bar 49 is reachable only if another section starts there; with no section at bar 49, you can't drop the Chorus there.
+
+The test is now part of the suite. Should I add Shift-drag on the section name to move it to any bar, with everything in it?
+
+## You (2026-11-16 16:59)
+
+Yes please
+
+## Claude (2026-11-16 16:59)
+
+Building it. First, how the Sections lane handles the mouse today, and how the "move a stretch of time" function interprets its target:
+
+- *Bash*: grep -n "^void moveTime" -A30 Source/Core/Song.cpp; grep -n "sectionLaneHeight\|sectionMenu\|inSectionLane\|Drag::" Source/App/Arrange.cp...
+- *Bash*: sed -n 565,600p Source/App/Arrange.cpp; sed -n 1090,1102p Source/App/Arrange.cpp; grep -n "void Arrange::mouseUp" -A6 Source/App/Arrange....
+- *Bash*: python3 - <<'EOF' def sub(p, a, b, n=1):     s=open(p).read(); assert a in s, (p,a); open(p,'w').write(s.replace(a,b,n)) sub('Source/Core...
+
+## Claude (2026-11-16 16:59)
+
+Moving re-creates the section under a new identity, so the test couldn't find it afterwards. A moved section should stay the same section, so I'll keep its identity through the move:
+
+- *Bash*: python3 - <<'EOF' def sub(p, a, b, n=1):     s=open(p).read(); assert a in s, (p,a); open(p,'w').write(s.replace(a,b,n)) sub('Source/Core...
+
+## Claude (2026-11-16 17:00)
+
+Core passes. Now the arrangement view:
+
+- *Bash*: grep -n "theme::playhead" Source/App/Arrange.cpp | head -5; grep -n "class Arrange" -A6 Source/App/Arrange.h; grep -n "void mouseMove\|ge...
+- *Bash*: sed -n 1015,1035p Source/App/Arrange.cpp; grep -n "void Arrange::mouseMove" -A12 Source/App/Arrange.cpp | head -15
+- *Bash*: python3 - <<'EOF' def sub(p, a, b, n=1):     s=open(p).read(); assert a in s, (p,a); open(p,'w').write(s.replace(a,b,n)) p='Source/App/Ar...
+
+## Claude (2026-11-16 17:01)
+
+Builds. Trying it in the real app: a clip, a four-bar section over it, then Shift-drag the section later:
+
+- *Bash*: S=/tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad; cd /home/user/Kalibre; export DISPLAY=:99; pgrep Xvfb...
+- *Read*: /tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad/s1c.png
+- *Bash*: S=/tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad; export DISPLAY=:99; xdotool mousemove 520 228 click 1...
+- *Read*: /tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad/s2c.png
+
+## Claude (2026-11-16 17:01)
+
+Section 1 covers bars 2–5, with the clip inside it. Shift-dragging it four bars later, with a screenshot mid-drag:
+
+- *Bash*: S=/tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad; export DISPLAY=:99; xdotool mousemove 500 199; xdotoo...
+- *Read*: /tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad/s34.png
+- *Bash*: ./build-core/KalibreTests | tail -1; timeout 900 xvfb-run -a -s "-screen 0 1600x1000x24" ./build/KalibreAppTests_artefacts/Debug/KalibreA...
+- *Bash*: sleep 720; echo waited
+
+## Claude (2026-11-16 17:02)
+
+You can now Shift-drag a section to any bar. All tests pass (129 core, 47 app), and the docs are updated. The Mac build is running; I'll confirm when it's ready to download.
+
+**How it works:** hold Shift and drag a section's name in the Sections lane (the strip just under the bar numbers).
+- While you drag, a white outline in the lane and a line down through the tracks show where it will start. It always lands on a bar line.
+- When you let go, the section moves with all its music on every track, and what was there moves out of the way. If you drop it partway into another section, that section is cut at the drop point and its later part follows the moved section.
+- It's one undo step, and the message line confirms it, e.g. "Chorus moved to bar 49, with everything in it."
+- A plain click still jumps to the section, and the right-click menu still has Move Earlier and Move Later.
+- Resting the pointer on the Sections lane shows a tip explaining all this.
+
+**How it was checked**
+- Tests cover your example (Chorus from bar 65 to bar 49), dropping into the middle of another section, moving a section later, and dropping it where it already is (nothing changes).
+- In the running app, I made a section over a clip and Shift-dragged it four bars later. The outline showed the landing spot, and the section and its clip both moved.
+
+## You (2026-11-16 17:03)
+
+Thanks, backup chat and update docs again as I'm about to compact
+
+## Claude (2026-11-16 17:03)
+
+Regenerating the chat backup with everything up to now, and checking the docs are current:
+
+- *Bash*: python3 -I /tmp/claude-0/-home-user-Kalibre/deb8402e-abfb-543a-907a-82b55522740a/scratchpad/export_chat.py /root/.claude/projects/-home-u...

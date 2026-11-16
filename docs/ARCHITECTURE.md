@@ -56,6 +56,7 @@
 | `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md). |
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
 | `tools/RenderWindow.cpp` | Draws the window into PNGs on CI (0023). |
+| `tools/export-chat.py` | Writes a session's transcript as the chat backup in `docs/sessions/`. |
 | `Scripts/` | Example scripts. |
 | `Resources/` | The app icon: `Icon.svg`, and `Icon.png` drawn from it (0048). |
 | `ThirdParty/` | Lua 5.4 (MIT) and nlohmann/json (MIT). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link and Shine (LGPL, MP3) are fetched by CMake. |
