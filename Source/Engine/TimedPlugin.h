@@ -1,0 +1,115 @@
+/*
+    TimedPlugin - a plug-in in the graph, with a stopwatch round it (decision 0038).
+
+    The graph holds this, not the plug-in itself, so each plug-in's time in
+    the audio thread can be added up per track: the mixer's CPU readings.
+    Everything else passes straight through: its buses (copied from the
+    plug-in, sidechain included, so channel numbers are the same), latency,
+    tail, MIDI, bypass, the play head, offline rendering and extensions
+    (ARA, VST3). Engine::instance() hands out the plug-in inside, so editors,
+    parameters and state never see the wrapper.
+*/
+
+#pragma once
+
+#include <juce_audio_processors/juce_audio_processors.h>
+
+#include <atomic>
+
+namespace kal
+{
+
+class TimedPlugin : public juce::AudioPluginInstance
+{
+public:
+    explicit TimedPlugin (std::unique_ptr<juce::AudioPluginInstance> p)
+        : AudioPluginInstance (busesOf (*p)), inner (std::move (p))
+    {
+        setLatencySamples (inner->getLatencySamples());
+    }
+
+    juce::AudioPluginInstance& plugin() { return *inner; }
+
+    // Audio-thread time spent in the plug-in, in high-resolution ticks.
+    std::atomic<juce::int64> busyTicks { 0 };
+
+    // Kept in step when the plug-in's latency changes (the engine is told).
+    void latencyChanged() { setLatencySamples (inner->getLatencySamples()); }
+
+    //==========================================================================
+    const juce::String getName() const override { return inner->getName(); }
+    void fillInPluginDescription (juce::PluginDescription& d) const override { inner->fillInPluginDescription (d); }
+    juce::AudioPluginExtensions::ARAClient* getARAClient() override { return inner->getARAClient(); }
+    const juce::AudioPluginExtensions::ARAClient* getARAClient() const override { return inner->getARAClient(); }
+    juce::AudioPluginExtensions::AudioUnitClient* getAudioUnitClient() override { return inner->getAudioUnitClient(); }
+    const juce::AudioPluginExtensions::AudioUnitClient* getAudioUnitClient() const override { return inner->getAudioUnitClient(); }
+    juce::AudioPluginExtensions::VSTClient* getVSTClient() override { return inner->getVSTClient(); }
+    const juce::AudioPluginExtensions::VSTClient* getVSTClient() const override { return inner->getVSTClient(); }
+    juce::AudioPluginExtensions::VST3Client* getVST3Client() override { return inner->getVST3Client(); }
+    const juce::AudioPluginExtensions::VST3Client* getVST3Client() const override { return inner->getVST3Client(); }
+
+    void prepareToPlay (double rate, int block) override
+    {
+        inner->setRateAndBufferSizeDetails (rate, block);
+        inner->prepareToPlay (rate, block);
+        setLatencySamples (inner->getLatencySamples());
+    }
+    void releaseResources() override { inner->releaseResources(); }
+
+    void processBlock (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
+    {
+        const auto start = juce::Time::getHighResolutionTicks();
+        {
+            const juce::ScopedLock lock (inner->getCallbackLock());
+            if (inner->isSuspended()) { audio.clear(); midi.clear(); }
+            else inner->processBlock (audio, midi);
+        }
+        busyTicks.fetch_add (juce::Time::getHighResolutionTicks() - start, std::memory_order_relaxed);
+    }
+
+    void processBlockBypassed (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
+    {
+        const juce::ScopedLock lock (inner->getCallbackLock());
+        inner->processBlockBypassed (audio, midi);
+    }
+
+    juce::AudioProcessorParameter* getBypassParameter() const override { return inner->getBypassParameter(); }
+    void setPlayHead (juce::AudioPlayHead* h) override { AudioPluginInstance::setPlayHead (h); inner->setPlayHead (h); }
+    void setNonRealtime (bool offline) noexcept override { AudioPluginInstance::setNonRealtime (offline); inner->setNonRealtime (offline); }
+
+    double getTailLengthSeconds() const override { return inner->getTailLengthSeconds(); }
+    bool acceptsMidi() const override { return inner->acceptsMidi(); }
+    bool producesMidi() const override { return inner->producesMidi(); }
+    bool isMidiEffect() const override { return inner->isMidiEffect(); }
+    bool supportsDoublePrecisionProcessing() const override { return false; }
+
+    // The graph never shows editors; the window asks the plug-in itself.
+    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
+    bool hasEditor() const override { return false; }
+
+    int getNumPrograms() override { return inner->getNumPrograms(); }
+    int getCurrentProgram() override { return inner->getCurrentProgram(); }
+    void setCurrentProgram (int i) override { inner->setCurrentProgram (i); }
+    const juce::String getProgramName (int i) override { return inner->getProgramName (i); }
+    void changeProgramName (int i, const juce::String& n) override { inner->changeProgramName (i, n); }
+    void getStateInformation (juce::MemoryBlock& m) override { inner->getStateInformation (m); }
+    void setStateInformation (const void* d, int n) override { inner->setStateInformation (d, n); }
+
+    // The layout is the plug-in's, fixed when it was wrapped.
+    bool isBusesLayoutSupported (const BusesLayout& l) const override { return l == inner->getBusesLayout(); }
+
+private:
+    std::unique_ptr<juce::AudioPluginInstance> inner;
+
+    static BusesProperties busesOf (const juce::AudioProcessor& p)
+    {
+        BusesProperties b;
+        for (int i = 0; i < p.getBusCount (true); ++i)
+            if (auto* bus = p.getBus (true, i)) b.addBus (true, bus->getName(), bus->getLastEnabledLayout(), bus->isEnabled());
+        for (int i = 0; i < p.getBusCount (false); ++i)
+            if (auto* bus = p.getBus (false, i)) b.addBus (false, bus->getName(), bus->getLastEnabledLayout(), bus->isEnabled());
+        return b;
+    }
+};
+
+} // namespace kal

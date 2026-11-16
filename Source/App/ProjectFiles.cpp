@@ -1,0 +1,256 @@
+/*
+    The Controller's file commands (decision 0041): relinking, Collect and
+    Save, archiving, templates, Final Cut XML and batch exports. The work on
+    the project itself is Core/ProjectTools; this moves the files.
+*/
+
+#include "Controller.h"
+
+#include "Edit.h"
+#include "ProjectFile.h"
+#include "ProjectTools.h"
+
+namespace kal
+{
+using namespace juce;
+
+File Controller::resolve (const std::string& path) const
+{
+    return File::isAbsolutePath (path) ? File (path) : projectFolder().getChildFile (String (path));
+}
+
+std::vector<std::string> Controller::missingFiles() const
+{
+    std::vector<std::string> out;
+    for (auto& f : projecttools::referencedFiles (project))
+        if (! resolve (f).existsAsFile()) out.push_back (f);
+    return out;
+}
+
+int Controller::relinkFrom (const File& folder)
+{
+    const auto missing = missingFiles();
+    if (missing.empty()) { say ("No files are missing."); return 0; }
+    std::vector<std::string> candidates;
+    for (const auto& e : RangedDirectoryIterator (folder, true, "*", File::findFiles))
+    {
+        if (e.getFile().hasFileExtension ("wav;aif;aiff;flac;mp3;ogg;m4a;caf;mov;mp4"))
+            candidates.push_back (e.getFile().getFullPathName().toStdString());
+        if (candidates.size() > 50000) break;
+    }
+    const auto found = projecttools::relinkByName (missing, candidates);
+    if (! found.empty()) apply ("Relink Files", [found] (Project& p) { projecttools::replaceFiles (p, found); });
+    const int still = (int) (missing.size() - found.size());
+    say ("Found " + String ((int) found.size()) + " of " + String ((int) missing.size()) + " missing files."
+         + (still > 0 ? " " + String (still) + " still missing: try another folder." : String()), still > 0);
+    return (int) found.size();
+}
+
+bool Controller::collectAndSave()
+{
+    if (! file.existsAsFile()) { say ("Save the project first, so its files have a folder to go in."); return false; }
+    const auto folder = projectFolder();
+    const auto audio = folder.getChildFile ("Audio");
+    audio.createDirectory();
+    std::map<std::string, std::string> moved;
+    int copied = 0, missing = 0;
+    for (auto& f : projecttools::referencedFiles (project))
+    {
+        const auto src = resolve (f);
+        if (src.isAChildOf (folder)) continue;   // already with the project
+        if (! src.existsAsFile()) { ++missing; continue; }
+        auto dest = audio.getChildFile (src.getFileName());
+        if (dest.existsAsFile() && dest.getSize() != src.getSize()) dest = audio.getNonexistentChildFile (src.getFileNameWithoutExtension(), src.getFileExtension());
+        if (! dest.existsAsFile() && ! src.copyFileTo (dest)) { say ("Couldn't copy " + src.getFileName() + ".", true); return false; }
+        moved[f] = ("Audio/" + dest.getFileName()).toStdString();
+        ++copied;
+    }
+    if (! moved.empty()) apply ("Collect Files", [moved] (Project& p) { projecttools::replaceFiles (p, moved); });
+    const bool ok = save();
+    say ("Collected " + String (copied) + (copied == 1 ? " file" : " files") + " into the project's Audio folder and saved."
+         + (missing > 0 ? " " + String (missing) + " could not be found." : String()), missing > 0);
+    return ok;
+}
+
+bool Controller::archive (const File& zip)
+{
+    storeDeviceStates();
+    Project copy = project;
+    std::map<std::string, std::string> inside;
+    std::vector<std::pair<File, String>> files;
+    std::set<String> used;
+    for (auto& f : projecttools::referencedFiles (project))
+    {
+        const auto src = resolve (f);
+        if (! src.existsAsFile()) continue;
+        String name = src.getFileName();
+        for (int n = 2; used.count (name.toLowerCase()); ++n) name = src.getFileNameWithoutExtension() + " " + String (n) + src.getFileExtension();
+        used.insert (name.toLowerCase());
+        inside[f] = ("Audio/" + name).toStdString();
+        files.push_back ({ src, name });
+    }
+    projecttools::replaceFiles (copy, inside);
+    const String song = file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Untitled");
+    ZipFile::Builder builder;
+    const auto projectText = String (file::save (copy));
+    builder.addEntry (new MemoryInputStream (projectText.toRawUTF8(), projectText.getNumBytesAsUTF8(), true), 9, song + "/" + song + ".kalibre", Time::getCurrentTime());
+    for (auto& [src, name] : files) builder.addFile (src, 0, song + "/Audio/" + name);   // audio is stored, not squeezed
+    zip.deleteFile();
+    FileOutputStream out (zip);
+    if (! out.openedOk() || ! builder.writeToStream (out, nullptr)) { say ("The archive couldn't be written.", true); return false; }
+    say ("Archived the project and " + String ((int) files.size()) + " files into " + zip.getFileName() + ". Unzip it anywhere and open the .kalibre inside.");
+    return true;
+}
+
+File Controller::templatesFolder() const
+{
+    auto f = scriptsFolder().getParentDirectory().getChildFile ("Templates");
+    f.createDirectory();
+    return f;
+}
+
+bool Controller::saveTemplate (const String& name, bool keepMusic)
+{
+    storeDeviceStates();
+    const auto t = projecttools::asTemplate (project, keepMusic);
+    const auto f = templatesFolder().getChildFile (File::createLegalFileName (name) + ".kalibre");
+    if (! f.replaceWithText (String (file::save (t)))) { say ("The template couldn't be saved.", true); return false; }
+    say ("Saved the template " + name.quoted() + ". File > New from Template starts a song from it.");
+    return true;
+}
+
+bool Controller::newFromTemplate (const File& f)
+{
+    std::string error;
+    auto loaded = file::load (f.loadFileAsString().toStdString(), &error);
+    if (! loaded) { say (String (error), true); return false; }
+    engine.stop();
+    project = std::move (*loaded);
+    history.clear();
+    file = File();
+    dirty = false;
+    focusTrack = project.tracks.empty() ? 0 : project.tracks.front().id;
+    selectedTracks.clear();
+    if (focusTrack) selectedTracks.push_back (focusTrack);
+    selectedClip = 0;
+    selectedNotes.clear();
+    cursor = 0;
+    syncEngine();
+    say ("A new song from the template " + f.getFileNameWithoutExtension().quoted() + ".");
+    return true;
+}
+
+bool Controller::exportXml (const File& f)
+{
+    auto seconds = [this] (const std::string& path)
+    {
+        double s = 0, sr = 0;
+        int ch = 0;
+        return AudioCache::describe (resolve (path), s, sr, ch) ? s : 0.0;
+    };
+    // Paths in the XML are absolute: the other program doesn't know the project's folder.
+    Project copy = project;
+    std::map<std::string, std::string> absolute;
+    for (auto& p : projecttools::referencedFiles (project)) absolute[p] = resolve (p).getFullPathName().toStdString();
+    projecttools::replaceFiles (copy, absolute);
+    if (! f.replaceWithText (String (projecttools::fcpXml (copy, seconds, 25)))) { say ("The XML couldn't be written.", true); return false; }
+    say ("Exported the audio clips as Final Cut XML: " + f.getFileName() + ". MIDI clips aren't in it; export them as audio first.");
+    return true;
+}
+
+bool Controller::importXml (const File& f)
+{
+    auto xml = parseXML (f);
+    if (! xml || ! xml->hasTagName ("xmeml")) { say ("That isn't a Final Cut XML file.", true); return false; }
+    auto* sequence = xml->getChildByName ("sequence");
+    if (! sequence) sequence = xml->getChildByName ("project") ? xml->getChildByName ("project")->getChildByName ("children")->getChildByName ("sequence") : nullptr;
+    if (! sequence) { say ("The XML has no sequence in it.", true); return false; }
+    const double fps = jmax (1.0, sequence->getChildByName ("rate") ? sequence->getChildByName ("rate")->getChildElementAllSubText ("timebase", "25").getDoubleValue() : 25.0);
+    auto* audio = sequence->getChildByName ("media") ? sequence->getChildByName ("media")->getChildByName ("audio") : nullptr;
+    if (! audio) { say ("The XML has no audio in it.", true); return false; }
+    std::map<String, String> filePaths;
+    int clips = 0;
+    apply ("Import XML", [&] (Project& p)
+    {
+        int index = 0;
+        for (auto* track : audio->getChildWithTagNameIterator ("track"))
+        {
+            const Id t = edit::addTrack (p, TrackKind::Track, "XML " + std::to_string (++index));
+            for (auto* item : track->getChildWithTagNameIterator ("clipitem"))
+            {
+                auto* fileEl = item->getChildByName ("file");
+                if (! fileEl) continue;
+                const auto id = fileEl->getStringAttribute ("id");
+                if (auto* url = fileEl->getChildByName ("pathurl"))
+                {
+                    auto path = URL::removeEscapeChars (url->getAllSubText().trim().fromFirstOccurrenceOf ("file://", false, true));
+                    if (path.startsWith ("localhost")) path = path.fromFirstOccurrenceOf ("localhost", false, false);
+                    filePaths[id] = path;
+                }
+                const auto path = filePaths[id];
+                if (path.isEmpty()) continue;
+                const double start = item->getChildElementAllSubText ("start", "0").getDoubleValue() / fps;
+                const double end = item->getChildElementAllSubText ("end", "0").getDoubleValue() / fps;
+                const double in = item->getChildElementAllSubText ("in", "0").getDoubleValue() / fps;
+                if (end <= start || start < 0) continue;
+                Clip c;
+                c.kind = Clip::Kind::Audio;
+                c.name = item->getChildElementAllSubText ("name", {}).toStdString();
+                c.start = p.tempo.tickAt (start);
+                c.length = jmax<Tick> (1, p.tempo.tickAt (end) - c.start);
+                c.audio.file = path.toStdString();
+                c.audio.sourceStart = in;
+                c.audio.sourceLength = end - start;
+                double seconds = 0, sr = 0;
+                int ch = 0;
+                if (AudioCache::describe (File (path), seconds, sr, ch)) { c.audio.fileSampleRate = sr; c.audio.fileChannels = ch; }
+                edit::addClip (p, t, c);
+                ++clips;
+            }
+        }
+    });
+    say ("Imported " + String (clips) + " clips from " + f.getFileName() + ".", false, true);
+    return clips > 0;
+}
+
+bool Controller::exportBatch (const File& folder, const Batch& b)
+{
+    folder.createDirectory();
+    const String song = file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Mix");
+    Engine::RenderOptions o;
+    o.start = project.loop.on ? project.tempo.secondsAt (project.loop.start) : 0.0;
+    o.end = project.loop.on ? project.tempo.secondsAt (project.loop.end) : project.tempo.secondsAt (project.endTick());
+    o.loudnessTarget = b.loudness;
+    bool ok = true;
+    int made = 0;
+    if (b.mixWav) { o.format = "wav"; ok = exportAudio (folder.getChildFile (song + ".wav"), o, false) && ok; ++made; }
+    if (b.mixMp3) { o.format = "mp3"; ok = exportAudio (folder.getChildFile (song + ".mp3"), o, false) && ok; ++made; }
+    if (b.stems)
+    {
+        auto stemsFolder = folder.getChildFile ("Tracks");
+        stemsFolder.createDirectory();
+        o.format = "wav";
+        o.loudnessTarget = 0;
+        ok = exportAudio (stemsFolder.getChildFile (song + ".wav"), o, true) && ok;
+        ++made;
+    }
+    if (b.midi) { ok = exportMidi (folder.getChildFile (song + ".mid")) && ok; ++made; }
+    if (ok) say ("Exported " + String (made) + (made == 1 ? " thing" : " things") + " into " + folder.getFullPathName() + ".");
+    return ok;
+}
+
+bool Controller::importVideo (const File& f, Tick at)
+{
+    if (! f.existsAsFile()) return false;
+    const auto path = f.getFullPathName().toStdString();
+    apply ("Import Video", [path, at] (Project& p) { p.video.file = path; p.video.start = at; });
+    // Its sound, on a track of its own, if the Mac can read it.
+    const Id t = addTrack (TrackKind::Track, f.getFileNameWithoutExtension() + " Sound");
+    const bool sound = importFile (f, t, at);
+    if (! sound) apply ("Remove Empty Track", [t] (Project& p) { edit::removeTrack (p, t); });
+    zoneTab = ZoneTab::Video;
+    say ("The video starts at the cursor, in the Video tab." + String (sound ? " Its sound is on its own track." : " Its sound couldn't be read: export it as WAV from the video program and import that."), ! sound);
+    return true;
+}
+
+} // namespace kal
