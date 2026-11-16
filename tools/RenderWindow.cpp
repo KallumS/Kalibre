@@ -98,6 +98,12 @@ int main (int argc, char** argv)
         c.zoneTab = ZoneTab::Mixer;
         c.viewChanged();
         shoot ("7-mixer");
+        // The vocal's takes, with the band folded so they're in view.
+        c.project.tracks[0].collapsed = true;
+        c.zoneTab = ZoneTab::Devices;
+        c.refresh();
+        shoot ("9-takes");
+        c.project.tracks[0].collapsed = false;
         c.showTempoLane = true;
         c.project.tempo.setTempos ({ { 0, 96, true }, { PPQ * 16, 120, false } });
         window.setTextSize (2.0f);

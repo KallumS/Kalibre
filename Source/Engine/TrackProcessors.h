@@ -20,6 +20,7 @@
 #pragma once
 
 #include "Capture.h"
+#include "Loudness.h"
 #include "Modulation.h"
 #include "Playback.h"
 #include "Swap.h"
@@ -77,8 +78,12 @@ public:
 
     float takePeak (int channel) { return (channel == 0 ? peakL : peakR).exchange (0.0f); }
 
+    // Loudness (decision 0033): measured on the master.
+    std::atomic<bool> measureLoudness { false }, resetLoudness { false };
+    loudness::Meter loudnessMeter;
+
     const juce::String getName() const override { return "Fader"; }
-    void prepareToPlay (double, int) override { smoothedGain.reset (getSampleRate(), 0.02); }
+    void prepareToPlay (double rate, int) override { smoothedGain.reset (rate, 0.02); loudnessMeter.prepare (rate); }
     void releaseResources() override {}
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     double getTailLengthSeconds() const override { return 0; }

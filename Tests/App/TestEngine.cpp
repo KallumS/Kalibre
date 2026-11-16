@@ -293,3 +293,39 @@ TEST ("midi learn: a learned controller moves a track's volume, pan and mute")
     c.forgetMapping (0);
     CHECK_EQ (c.project.midiMappings.size(), size_t (1));
 }
+
+TEST ("loudness: an export at -14 LUFS comes out at -14 LUFS, and the master's meter reads it")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p;
+    // Four seconds of a 997 Hz tone at -30 dBFS.
+    const auto f = tempFolder().getChildFile ("tone.wav");
+    f.deleteFile();
+    AudioBuffer<float> b (2, 48000 * 4);
+    for (int k = 0; k < b.getNumSamples(); ++k)
+        for (int ch = 0; ch < 2; ++ch) b.setSample (ch, k, 0.0316f * std::sin (2.0f * 3.14159265f * 997.0f * (float) k / 48000.0f));
+    {
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (32));
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    }
+    const Id t = edit::addTrack (p, TrackKind::Track, "Tone");
+    edit::addClip (p, t, audioClip (f, 0, PPQ * 8));
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 4.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    o.loudnessTarget = -14.0;
+    const auto out = tempFolder().getChildFile ("loud.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (out));
+    AudioBuffer<float> got (2, (int) r->lengthInSamples);
+    r->read (&got, 0, got.getNumSamples(), 0, true, true);
+    const auto measured = loudness::measure (got.getReadPointer (0), got.getReadPointer (1), got.getNumSamples(), 48000);
+    CHECK (std::abs (measured.integrated + 14.0) < 0.2);
+    // The master fader measured the render as it went: about -30 LUFS before the gain.
+    CHECK (std::abs (engine.fader (p.master.id)->loudnessMeter.integrated() + 30.0) < 0.5);
+}

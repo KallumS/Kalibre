@@ -55,8 +55,8 @@ Every feature asked for, then the list of basic DAW features
 | 9. Plug-in hosting | Partly | Scanning (crash-safe), search, by maker, bypass, remove, reorder, state, latency, last-touched. MIDI learn onto any plug-in parameter or a track's volume, pan and mute (0032). Not yet: presets browser, A/B |
 | 10. Audio engine | Partly | Device, rate, buffer, inputs and outputs (browser > Audio), offline rendering, PDC. Not yet: CPU meters per track, dropout counter |
 | 11. Projects | Partly | New, open, save, save as, autosave every three minutes (File > Open the Last Autosave), a JSON format that survives versions. Not yet: templates, collect and save, relink |
-| 12. Export | Partly | Mix and every track as WAV, AIFF or FLAC, 16/24/32-bit, dither, normalise, tail, loop range; MIDI file. Not yet: MP3, loudness targets, batch, metadata |
+| 12. Export | Partly | Mix and every track as WAV, AIFF or FLAC, 16/24/32-bit, dither, normalise, tail, loop range; the mix at -14, -16 or -23 LUFS with a -1 dBTP ceiling (0033); MIDI file. Not yet: MP3, batch, metadata |
 | 13. Sync and control | Not yet | MIDI clock, MTC, Mackie/HUI, OSC, Link |
-| 14. Metering | Partly | Peak meters with clip marks. Not yet: LUFS, true peak, spectrum, correlation |
+| 14. Metering | Partly | Peak meters with clip marks; on the master, loudness (momentary, short-term, integrated LUFS, range), true peak and correlation, with history (0033). Not yet: spectrum, oscilloscope, phase scope, tuner |
 | 15. Workflow | Partly | Keys for everything common, undo history (500), context menus, drag and drop, Text Size. Not yet: customisable keys, workspaces |
 | 16. Collaboration | Partly | Audio and MIDI import/export, stems. Not yet: AAF/OMF/XML, archiving |

@@ -34,3 +34,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0030. Crossfades and fades](0030-crossfades.md)
 - [0031. Sidechain routing](0031-sidechain.md)
 - [0032. MIDI learn](0032-midi-learn.md)
+- [0033. Loudness meters and loudness-matched export](0033-loudness.md)

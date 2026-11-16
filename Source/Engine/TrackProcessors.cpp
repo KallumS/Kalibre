@@ -48,6 +48,11 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
     old = peakR.load();
     while (pr > old && ! peakR.compare_exchange_weak (old, pr)) {}
     level = jmax (pl, pr);
+    if (measureLoudness.load())
+    {
+        if (resetLoudness.exchange (false)) loudnessMeter.reset();
+        loudnessMeter.process (l, r, n);
+    }
 }
 
 //==============================================================================

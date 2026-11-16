@@ -209,12 +209,12 @@ void MainComponent::saveFile (std::function<void()> then)
     });
 }
 
-void MainComponent::exportAudio (bool stems)
+void MainComponent::exportAudio (bool stems, double loudnessTarget)
 {
     chooser = std::make_unique<FileChooser> (stems ? "Export every track" : "Export the mix",
                                              c.projectFolder().getChildFile ((c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Mix")) + ".wav"),
                                              "*.wav;*.aiff;*.flac");
-    chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this, stems] (const FileChooser& fc)
+    chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this, stems, loudnessTarget] (const FileChooser& fc)
     {
         auto f = fc.getResult();
         if (f == File()) return;
@@ -226,6 +226,7 @@ void MainComponent::exportAudio (bool stems)
         o.format = f.getFileExtension().trimCharactersAtStart (".").toLowerCase();
         if (o.format != "aiff" && o.format != "flac") o.format = "wav";
         if (o.format == "flac") o.bitDepth = 24;
+        o.loudnessTarget = loudnessTarget;
         c.say ("Exporting" + String (ui::u8 ("\xe2\x80\xa6")));
         c.exportAudio (f, o, stems);
     });

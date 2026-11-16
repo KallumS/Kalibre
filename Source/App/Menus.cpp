@@ -98,6 +98,11 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 });
             }, cmd ("I")));
             m.addItem (item (ui::u8 ("Export the Mix\xe2\x80\xa6"), [this] { exportAudio (false); }, shiftCmd ("E")));
+            PopupMenu loud;
+            loud.addItem (item (ui::u8 ("For Streaming (-14 LUFS)\xe2\x80\xa6"), [this] { exportAudio (false, -14.0); }));
+            loud.addItem (item (ui::u8 ("For Apple Music (-16 LUFS)\xe2\x80\xa6"), [this] { exportAudio (false, -16.0); }));
+            loud.addItem (item (ui::u8 ("For Broadcast (-23 LUFS)\xe2\x80\xa6"), [this] { exportAudio (false, -23.0); }));
+            m.addSubMenu ("Export the Mix at a Loudness", loud);
             m.addItem (item (ui::u8 ("Export Every Track\xe2\x80\xa6"), [this] { exportAudio (true); }));
             m.addItem (item (ui::u8 ("Export MIDI\xe2\x80\xa6"), [this] { exportMidi(); }));
            #if ! JUCE_MAC

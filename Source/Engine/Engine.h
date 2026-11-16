@@ -20,6 +20,7 @@
 #pragma once
 
 #include "AraHost.h"
+#include "Loudness.h"
 #include "MidiLearn.h"
 #include "PluginManager.h"
 #include "TrackProcessors.h"
@@ -117,6 +118,8 @@ public:
         double sampleRate = 48000;
         int bitDepth = 24;
         bool normalise = false;
+        double loudnessTarget = 0;          // LUFS (e.g. -14); 0 leaves the level alone
+        double truePeakCeiling = -1.0;      // dBTP the loudness gain may not push past
         bool dither = true;
         juce::String format = "wav";        // wav, aiff, flac
     };
@@ -130,6 +133,7 @@ public:
 
     Shared shared;
     AudioCache cache;
+    double lastExportLoudness = loudness::silence;   // what the last export measured, after its gain
 
     // AudioIODeviceCallback (the audio thread)
     void audioDeviceIOCallbackWithContext (const float* const*, int, float* const*, int, int,

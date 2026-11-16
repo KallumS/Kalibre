@@ -53,7 +53,7 @@ public:
     void checkSaved (std::function<void()> then);
     void openFile();
     void saveFile (std::function<void()> then = {});
-    void exportAudio (bool stems);
+    void exportAudio (bool stems, double loudnessTarget = 0);
     void exportMidi();
     void setTextSize (float);
 

@@ -631,7 +631,11 @@ bool Controller::exportAudio (const File& f, const Engine::RenderOptions& option
         }
     }
     syncEngine();
-    if (ok) say (stems ? "Exported every track to " + f.getParentDirectory().getFileName() + "." : "Exported " + f.getFileName() + ".");
+    if (ok && options.loudnessTarget < 0 && ! stems)
+        say ("Exported " + f.getFileName() + " at " + String (engine.lastExportLoudness, 1) + " LUFS"
+             + (engine.lastExportLoudness > options.loudnessTarget + 0.2 || engine.lastExportLoudness < options.loudnessTarget - 0.2
+                    ? " (held back so its peaks stay under " + String (options.truePeakCeiling, 0) + " dBTP)." : "."));
+    else if (ok) say (stems ? "Exported every track to " + f.getParentDirectory().getFileName() + "." : "Exported " + f.getFileName() + ".");
     else say ("The export didn't finish. " + error, true);
     return ok;
 }

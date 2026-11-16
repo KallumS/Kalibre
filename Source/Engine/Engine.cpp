@@ -610,6 +610,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         auto& nodes = tracks[t->id];
         if (auto* f = dynamic_cast<Fader*> (nodes.fader->getProcessor()))
         {
+            f->measureLoudness = t->kind == TrackKind::Master;
             f->volumeDb = (float) t->volumeDb;
             f->pan = (float) t->pan;
             f->audible = heard (*t) && t->enabled;
@@ -809,7 +810,19 @@ bool Engine::render (const Project& project, const File& folder, const File& out
 
     if (! cancelled)
     {
-        if (o.normalise)
+        if (o.loudnessTarget < 0)
+        {
+            // To a loudness, but never past the true-peak ceiling.
+            const auto found = loudness::measure (result.getReadPointer (0), result.getReadPointer (1), frames, renderRate);
+            if (found.integrated > loudness::silence + 1)
+            {
+                double gainDb = o.loudnessTarget - found.integrated;
+                gainDb = std::min (gainDb, o.truePeakCeiling - found.truePeak);
+                result.applyGain (Decibels::decibelsToGain ((float) gainDb));
+                lastExportLoudness = found.integrated + gainDb;
+            }
+        }
+        else if (o.normalise)
         {
             const float peak = result.getMagnitude (0, frames);
             if (peak > 0) result.applyGain (Decibels::decibelsToGain (-0.3f) / peak);

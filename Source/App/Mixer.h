@@ -14,6 +14,24 @@ namespace kal
 
 class ChannelStrip;
 
+// The master's loudness (decision 0033): momentary, short-term, integrated,
+// range, true peak and correlation, with the history of the short-term reading.
+class LoudnessPanel : public juce::Component
+{
+public:
+    explicit LoudnessPanel (Controller&);
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void tick();
+
+private:
+    Controller& c;
+    theme::HouseButton reset { "Reset", "Start measuring the integrated loudness and range again." };
+    std::vector<float> history;   // short-term, once a tick
+    double m = -100, s = -100, i = -100, lra = 0, tp = -100, corr = 0;
+    float heldPeak = -100;
+};
+
 class Mixer : public juce::Component, private juce::ChangeListener, private juce::Timer
 {
 public:
@@ -27,6 +45,7 @@ private:
     juce::Viewport viewport;
     juce::Component strip;
     juce::OwnedArray<ChannelStrip> strips;
+    LoudnessPanel loudness;
     juce::String shape;
     void rebuild();
     void changeListenerCallback (juce::ChangeBroadcaster*) override;

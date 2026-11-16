@@ -168,8 +168,111 @@ public:
 };
 
 //==============================================================================
-Mixer::Mixer (Controller& ctrl) : c (ctrl)
+LoudnessPanel::LoudnessPanel (Controller& ctrl) : c (ctrl)
 {
+    setTitle ("Loudness");
+    addAndMakeVisible (reset);
+    reset.onClick = [this]
+    {
+        if (auto* f = c.engine.fader (c.project.master.id)) f->resetLoudness = true;
+        history.clear();
+        heldPeak = -100;
+    };
+}
+
+void LoudnessPanel::tick()
+{
+    if (auto* f = c.engine.fader (c.project.master.id))
+    {
+        const auto& meter = f->loudnessMeter;
+        m = meter.momentary(); s = meter.shortTerm(); i = meter.integrated();
+        lra = meter.range(); tp = meter.truePeakDb(); corr = meter.correlation();
+        heldPeak = jmax (heldPeak, (float) tp);
+        if (c.engine.isPlaying())
+        {
+            history.push_back ((float) s);
+            if (history.size() > 600) history.erase (history.begin());   // a minute at ten a second
+        }
+    }
+    repaint();
+}
+
+void LoudnessPanel::paint (Graphics& g)
+{
+    g.setColour (theme::sunken);
+    g.fillRoundedRectangle (getLocalBounds().toFloat(), 5.0f);
+    auto r = getLocalBounds().reduced (theme::px (10), theme::px (8));
+    g.setColour (theme::text);
+    g.setFont (theme::font (theme::bodyPoints, true));
+    g.drawText ("Loudness", r.removeFromTop (theme::px (20)), Justification::centredLeft, false);
+    r.removeFromTop (theme::px (4));
+    auto value = [] (double v, int places = 1) { return v <= -99.0 ? ui::u8 ("\xe2\x80\x94") : String (v, places); };
+    struct Line { const char* name; String text; const char* unit; };
+    const Line lines[] {
+        { "Momentary", value (m), "LUFS" }, { "Short-term", value (s), "LUFS" }, { "Integrated", value (i), "LUFS" },
+        { "Range", value (lra), "LU" }, { "True peak", value (heldPeak), "dBTP" }, { "Correlation", String (corr, 2), "" },
+    };
+    for (auto& line : lines)
+    {
+        auto row = r.removeFromTop (theme::px (20));
+        g.setColour (theme::textSecondary);
+        g.setFont (theme::font (theme::smallPoints));
+        g.drawText (line.name, row, Justification::centredLeft, false);
+        g.setColour (String (line.name) == "True peak" && heldPeak > -1.0f ? theme::warnText : theme::text);
+        g.setFont (theme::font (theme::bodyPoints, true));
+        g.drawText (line.text + (String (line.unit).isEmpty() ? String() : " " + String (line.unit)), row, Justification::centredRight, false);
+    }
+    // Correlation: a bar from -1 to +1; left of centre is out of phase.
+    r.removeFromTop (theme::px (4));
+    auto bar = r.removeFromTop (theme::px (8)).toFloat();
+    g.setColour (theme::roll);
+    g.fillRoundedRectangle (bar, 3.0f);
+    g.setColour (theme::rule);
+    g.fillRect (bar.getCentreX(), bar.getY(), 1.0f, bar.getHeight());
+    const float cx = bar.getX() + bar.getWidth() * (float) (corr + 1.0) * 0.5f;
+    g.setColour (corr < 0 ? theme::warn : theme::control);
+    g.fillRect (Rectangle<float> (jmin (cx, bar.getCentreX()), bar.getY() + 1, std::abs (cx - bar.getCentreX()), bar.getHeight() - 2));
+
+    // The short-term history, against lines at -14 (streaming) and -23 (broadcast).
+    r.removeFromTop (theme::px (8));
+    auto graph = r.withTrimmedBottom (theme::px (36)).toFloat();
+    if (graph.getHeight() < 30) return;
+    g.setColour (theme::roll);
+    g.fillRect (graph);
+    auto yOf = [&] (float lufs) { return graph.getBottom() - (jlimit (-40.0f, 0.0f, lufs) + 40.0f) / 40.0f * graph.getHeight(); };
+    g.setFont (theme::font (theme::smallPoints));
+    for (float ref : { -14.0f, -23.0f })
+    {
+        g.setColour (theme::rule);
+        g.fillRect (graph.getX(), yOf (ref), graph.getWidth(), 1.0f);
+        g.setColour (theme::textSecondary);
+        g.drawText (String ((int) ref), graph.withY (yOf (ref) - 13).withHeight (12).toNearestInt(), Justification::topRight, false);
+    }
+    if (history.size() > 1)
+    {
+        Path p;
+        const float step = graph.getWidth() / 600.0f;
+        float x = graph.getRight() - step * (float) history.size();
+        bool started = false;
+        for (float v : history)
+        {
+            if (v > -70.0f) { if (! started) { p.startNewSubPath (x, yOf (v)); started = true; } else p.lineTo (x, yOf (v)); }
+            x += step;
+        }
+        g.setColour (theme::control);
+        g.strokePath (p, PathStrokeType (1.5f));
+    }
+}
+
+void LoudnessPanel::resized()
+{
+    reset.setBounds (getLocalBounds().reduced (theme::px (10), theme::px (8)).removeFromBottom (theme::px (28)).removeFromLeft (reset.idealWidth()));
+}
+
+//==============================================================================
+Mixer::Mixer (Controller& ctrl) : c (ctrl), loudness (ctrl)
+{
+    addAndMakeVisible (loudness);
     setTitle ("Mixer");
     addAndMakeVisible (viewport);
     viewport.setViewedComponent (&strip, false);
@@ -204,13 +307,20 @@ void Mixer::changeListenerCallback (ChangeBroadcaster*)
     repaint();
 }
 
-void Mixer::timerCallback() { for (auto* s : strips) s->tick(); }
+void Mixer::timerCallback()
+{
+    for (auto* s : strips) s->tick();
+    loudness.tick();
+}
 
 void Mixer::paint (Graphics& g) { g.fillAll (theme::ground); }
 
 void Mixer::resized()
 {
-    viewport.setBounds (getLocalBounds().reduced (theme::px (8), theme::px (6)));
+    auto area = getLocalBounds().reduced (theme::px (8), theme::px (6));
+    loudness.setBounds (area.removeFromRight (theme::px (220)));
+    area.removeFromRight (theme::px (8));
+    viewport.setBounds (area);
     const int h = jmax (theme::px (200), viewport.getHeight() - viewport.getScrollBarThickness());
     const int w = theme::px (84);
     int x = 0;
