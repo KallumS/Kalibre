@@ -51,6 +51,8 @@ add_library(KalibreCore STATIC
     Source/Core/Capture.cpp
     Source/Core/ProjectFile.cpp
     Source/Core/Notation.cpp
+    Source/Core/MusicXml.cpp
+    Source/Core/Xml.cpp
     Source/Core/Comp.cpp
     Source/Core/MidiLearn.cpp
     Source/Core/Loudness.cpp
@@ -85,6 +87,7 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestCapture.cpp
         Tests/TestFile.cpp
         Tests/TestNotation.cpp
+        Tests/TestMusicXml.cpp
         Tests/TestScript.cpp
         Tests/TestComp.cpp
         Tests/TestMidiLearn.cpp

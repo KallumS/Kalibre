@@ -26,6 +26,7 @@
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
 | `Core/Hui.*` | The HUI protocol (0043). |
+| `Core/Xml.*`, `Core/MusicXml.*` | A small XML reader and writer (Miderator's), and MusicXML in and out (0057). |
 | `Core/ProjectFile.*` | `.kalibre` files: JSON with nlohmann/json. |
 | `Source/Script/LuaHost.*` | The `kalibre` Lua API (0019). |
 | `Source/Engine/` | JUCE's audio side. |

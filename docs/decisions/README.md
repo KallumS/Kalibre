@@ -58,3 +58,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0054. Snap to zero crossings](0054-snap-to-zero-crossings.md)
 - [0055. The Container](0055-the-container.md)
 - [0056. Plug-in panels: own size, their own windows on request, Match Loudness](0056-plug-in-panels-and-windows.md)
+- [0057. MusicXML in and out](0057-musicxml.md)

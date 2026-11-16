@@ -26,6 +26,7 @@ Every feature asked for, then the list of basic DAW features
 | Track versions (right-click > New Version) | Yes | Version number on the header; four at most, each with its own plug-ins, chosen with the mixer's 1 to 4 buttons, several tracks at once with Shift-click; tested (0006, 0050) |
 | Summing track | Yes | Track > Add Summing Track: armed, it records the master from where recording starts; tested (0052) |
 | Shift and Option to choose | Yes | Shift-click a range, Option-click adds, Shift-Option-click takes out: tracks (arrangement and mixer), their buttons, clips, notes and the Plug-in Manager; tested (0009, 0053) |
+| MusicXML | Yes | File > Import MusicXML… (.musicxml, .xml, .mxl) and Export MusicXML…, for Dorico, MuseScore, Sibelius, Finale; tested (0057). Triplets come out as 1/32s; markings and lyrics aren't carried |
 | Container | Yes | Add > Kalibre > Container: up to eight plug-ins in a row, each with On, Solo, Stereo/Mid/Side, a band, volume and pan; Match Loudness by LUFS-S; tested (0055) |
 | Snap to zero crossings | Yes | Edit > Snap to Zero Crossings, or the sample editor's button: clip edges, splits and sample-editor ranges land on the exact sample where the waveform crosses zero; tested (0054) |
 | Cue track | Yes | Track > Add Cue Track: after the master, its plug-ins, pan and mono heard but never exported; tested (0051) |
@@ -68,4 +69,4 @@ Every feature asked for, then the list of basic DAW features
 | 13. Sync and control | Yes | MIDI clock in and out, Song Position, MTC out and chased in, MMC out and in, Ableton Link, Mackie Control, HUI, OSC, the Mac's network MIDI from the Studio tab (0034, 0035, 0043). Not yet tried with real gear |
 | 14. Metering | Yes | Peak and RMS meters, loudness, true peak and correlation (0033); spectrum, oscilloscope, phase scope and tuner in the Meters tab (0044) |
 | 15. Workflow | Yes | Keys for everything, every one changeable (the browser's Keys tab), workspaces (View > Workspaces) (0045), undo history, context menus, drag and drop, Text Size |
-| 16. Collaboration | Partly | Audio and MIDI import/export, stems, Final Cut XML out and in, archives (0041). AAF and OMF aren't written: they need the AAF SDK's binary container; XML carries the clips to Resolve, Premiere and Logic |
+| 16. Collaboration | Partly | Audio and MIDI import/export, MusicXML in and out (0057), stems, Final Cut XML out and in, archives (0041). AAF and OMF aren't written: they need the AAF SDK's binary container; XML carries the clips to Resolve, Premiere and Logic |

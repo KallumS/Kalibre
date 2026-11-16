@@ -540,3 +540,43 @@ TEST ("plug-in windows: closed properly, so a plug-in opens its own window again
     for (auto* e : before) CHECK (std::find (after.begin(), after.end(), e) != after.end());
     for (auto* e : after) CHECK (dynamic_cast<GenericAudioProcessorEditor*> (e) == nullptr);
 }
+
+TEST ("musicxml: out of one song and, zipped as .mxl, into an empty one, with its tempo and key")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    c.project.tempo.setTempos ({ { 0, 84.0, false } });
+    c.project.scale.root = 7;   // F
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Melody");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 8);
+    for (int i = 0; i < 6; ++i) { Note n; n.start = PPQ * i; n.length = PPQ / 2 * 3; n.pitch = 65 + i; edit::addNote (c.project, clip, n); }
+    c.refresh();
+    const auto xml = folder().getChildFile ("melody.musicxml");
+    CHECK (c.exportMusicXml (xml));
+    CHECK (xml.loadFileAsString().contains ("<part-name>Melody</part-name>"));
+
+    // Zipped, as notation programs save it.
+    const auto mxl = folder().getChildFile ("melody.mxl");
+    mxl.deleteFile();
+    {
+        ZipFile::Builder zip;
+        MemoryOutputStream container;
+        container << "<?xml version=\"1.0\"?><container><rootfiles><rootfile full-path=\"score.musicxml\"/></rootfiles></container>";
+        zip.addEntry (new MemoryInputStream (container.getMemoryBlock(), true), 9, "META-INF/container.xml", Time::getCurrentTime());
+        zip.addEntry (new FileInputStream (xml), 9, "score.musicxml", Time::getCurrentTime());
+        FileOutputStream out (mxl);
+        CHECK (zip.writeToStream (out, nullptr));
+    }
+    c.newProject();
+    const size_t before = c.project.tracks.size();
+    CHECK (c.importMusicXml (mxl));
+    CHECK_EQ (c.project.tracks.size(), before + 1);
+    const auto& made = c.project.tracks.back();
+    CHECK_EQ (made.name, std::string ("Melody"));
+    CHECK (! made.clips().empty());
+    if (! made.clips().empty()) CHECK_EQ (made.clips().front().midi.notes.size(), size_t (6));
+    CHECK (std::abs (c.project.tempo.bpmAt (0) - 84.0) < 0.01);
+    CHECK_EQ (c.project.scale.root, 7);
+}

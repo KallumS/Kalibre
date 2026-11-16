@@ -5,6 +5,8 @@
 */
 
 #include "Controller.h"
+#include "MusicXml.h"
+#include "Theme.h"
 
 #include "Edit.h"
 #include "ProjectFile.h"
@@ -250,6 +252,90 @@ bool Controller::importVideo (const File& f, Tick at)
     if (! sound) apply ("Remove Empty Track", [t] (Project& p) { edit::removeTrack (p, t); });
     zoneTab = ZoneTab::Video;
     say ("The video starts at the cursor, in the Video tab." + String (sound ? " Its sound is on its own track." : " Its sound couldn't be read: export it as WAV from the video program and import that."), ! sound);
+    return true;
+}
+
+//==============================================================================
+// MusicXML (decision 0057).
+bool Controller::exportMusicXml (const File& f)
+{
+    // The chosen tracks that have MIDI, or every track that has.
+    auto hasMidi = [] (const Track& t) { for (auto& cl : t.clips()) if (cl.isMidi()) return true; return false; };
+    std::vector<Id> ids;
+    for (auto& t : project.tracks)
+        if (hasMidi (t) && std::find (selectedTracks.begin(), selectedTracks.end(), t.id) != selectedTracks.end()) ids.push_back (t.id);
+    if (ids.size() < 2)
+    {
+        ids.clear();
+        for (auto& t : project.tracks) if (hasMidi (t)) ids.push_back (t.id);
+    }
+    if (ids.empty()) { say ("There are no MIDI clips to write as notation.", true); return false; }
+    if (! f.replaceWithText (String::fromUTF8 (musicxml::write (project, ids).c_str())))
+    {
+        say ("The MusicXML file couldn't be written.", true);
+        return false;
+    }
+    say ("Exported " + String ((int) ids.size()) + (ids.size() == 1 ? " track" : " tracks") + " as MusicXML: " + f.getFileName()
+         + ". Notes are squared to 1/32s for the page.");
+    return true;
+}
+
+bool Controller::importMusicXml (const File& f)
+{
+    String text;
+    if (f.hasFileExtension ("mxl"))
+    {
+        // Zipped: the score is the file META-INF/container.xml names, or the first one outside META-INF.
+        ZipFile zip (f);
+        String inner;
+        if (auto* c = zip.getEntry ("META-INF/container.xml"))
+            if (std::unique_ptr<InputStream> in (zip.createStreamForEntry (*c)); in)
+                if (auto xml = parseXML (in->readEntireStreamAsString()))
+                    if (auto* rootfiles = xml->getChildByName ("rootfiles"))
+                        if (auto* rf = rootfiles->getChildByName ("rootfile")) inner = rf->getStringAttribute ("full-path");
+        for (int i = 0; inner.isEmpty() && i < zip.getNumEntries(); ++i)
+        {
+            const auto name = zip.getEntry (i)->filename;
+            if (! name.startsWith ("META-INF") && (name.endsWithIgnoreCase (".xml") || name.endsWithIgnoreCase (".musicxml"))) inner = name;
+        }
+        if (auto* e = zip.getEntry (inner))
+            if (std::unique_ptr<InputStream> in (zip.createStreamForEntry (*e)); in) text = in->readEntireStreamAsString();
+        if (text.isEmpty()) { say ("There's no score inside " + f.getFileName() + ".", true); return false; }
+    }
+    else text = f.loadFileAsString();
+
+    const auto score = musicxml::read (text.toStdString());
+    if (! score.ok) { say (String (score.error), true); return false; }
+
+    // Into an empty song, the score's tempo, time signatures and key come too;
+    // into one with music in it, the parts go in at the bar the cursor is in.
+    bool empty = true;
+    for (auto& t : project.tracks) if (! t.clips().empty()) empty = false;
+    const Tick at = empty ? 0 : project.tempo.barStart (project.tempo.barAt (cursor));
+    std::vector<Id> made;
+    apply ("Import MusicXML", [&] (Project& p)
+    {
+        if (empty)
+        {
+            if (! score.tempos.empty()) p.tempo.setTempos (score.tempos);
+            if (! score.meters.empty()) p.tempo.setMeters (score.meters);
+            if (score.key) p.scale = *score.key;
+            if (! score.title.empty() && p.metadata.title.empty()) p.metadata.title = score.title;
+        }
+        Id after = focusTrack;
+        for (auto& part : score.parts)
+        {
+            const Id t = edit::addTrack (p, TrackKind::Track, part.name, after);
+            after = t;
+            if (auto* tr = p.track (t)) tr->colour = theme::trackColours()[(int) (made.size() + p.tracks.size()) % theme::trackColours().size()].getARGB();
+            const Id clip = edit::addMidiClip (p, t, at, std::max<Tick> (score.length, PPQ * 4));
+            if (auto* cl = p.clip (clip)) { cl->name = part.name; for (auto n : part.notes) edit::addNote (p, clip, n); }
+            made.push_back (t);
+        }
+    });
+    if (! made.empty()) selectTracks (made);
+    say ("Imported " + String ((int) made.size()) + (made.size() == 1 ? " part" : " parts") + " from " + f.getFileName()
+         + ", each on a track of its own. Add an instrument to hear them" + (empty ? String (". The score's tempo, time signatures and key came too.") : String (".")), false, true);
     return true;
 }
 

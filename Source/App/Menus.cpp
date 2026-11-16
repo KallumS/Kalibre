@@ -130,6 +130,14 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item (ui::u8 ("Song Details\xe2\x80\xa6"), [this] { songDetails(); }));
             m.addSeparator();
             m.addItem (item (ui::u8 ("Import Audio or MIDI\xe2\x80\xa6"), [this] { importFiles(); }, k ("import")));
+            m.addItem (item (ui::u8 ("Import MusicXML\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Import a score: each part becomes a track", File::getSpecialLocation (File::userDocumentsDirectory), "*.musicxml;*.xml;*.mxl");
+                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult().existsAsFile()) c.importMusicXml (fc.getResult());
+                });
+            }));
             m.addItem (item (ui::u8 ("Import Video\xe2\x80\xa6"), [this]
             {
                 chooser = std::make_unique<FileChooser> ("Import a video", File::getSpecialLocation (File::userMoviesDirectory), "*.mov;*.mp4;*.m4v");
@@ -147,6 +155,15 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addSubMenu ("Export the Mix at a Loudness", loud);
             m.addItem (item (ui::u8 ("Export Every Track\xe2\x80\xa6"), [this] { exportAudio (true); }));
             m.addItem (item (ui::u8 ("Export MIDI\xe2\x80\xa6"), [this] { exportMidi(); }));
+            m.addItem (item (ui::u8 ("Export MusicXML\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Export the notes as MusicXML, for Dorico, MuseScore, Sibelius or Finale",
+                                                         c.projectFolder().getChildFile ((c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Song")) + ".musicxml"), "*.musicxml");
+                chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult() != File()) c.exportMusicXml (fc.getResult().withFileExtension (".musicxml"));
+                });
+            }));
             m.addItem (item (ui::u8 ("Export Several at Once\xe2\x80\xa6"), [this] { exportBatch(); }));
             m.addSeparator();
             m.addItem (item (ui::u8 ("Export Final Cut XML\xe2\x80\xa6"), [this]

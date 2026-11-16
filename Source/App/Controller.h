@@ -113,6 +113,10 @@ public:
     bool importFile (const juce::File&, Id track, Tick at);   // audio, MIDI
     bool importVideo (const juce::File&, Tick at);           // the picture, and its sound on a track (decision 0046)
     bool exportMidi (const juce::File&);
+    // MusicXML (decision 0057): the chosen tracks (or every track with MIDI) out;
+    // a score (.musicxml, .xml or zipped .mxl) in, a track for each part.
+    bool exportMusicXml (const juce::File&);
+    bool importMusicXml (const juce::File&);
     bool exportAudio (const juce::File&, const Engine::RenderOptions&, bool stems);
 
     // A project's files (decision 0041; ProjectFiles.cpp).
