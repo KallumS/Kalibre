@@ -16,7 +16,9 @@ Every feature asked for, then the list of basic DAW features
 | Apple silicon Mac app | Yes, on CI | Built for arm64 on every push, with the tests passing on macOS; download Actions > Build > Kalibre-macOS. Not yet opened by the user |
 | Hosts AU, VST3 and CLAP | Built, untried | AU and VST3 through JUCE; CLAP through Kalibre's own host (0021). Kalibre menu > Scan for Plug-ins. Each plug-in is scanned in a helper: one that crashes, hangs or won't open is turned off and the scan carries on (0047). Tried on the Mac: the first scan crashed Kalibre, which led to 0047 |
 | Plug-in Manager | Yes | Kalibre > Plug-in Manager… (or View): every plug-in and every one turned off, with why; search, sort, scan again, turn off and on, show in Finder. Its own window (0002 amended). Tested (0047) |
-| Everything in one window | Yes | 0002. Small questions appear over the window, inside it |
+| Everything in one window | Yes | 0002. Small questions appear over the window, inside it. Settings may have their own window (amended 16 November; the Plug-in Manager) |
+| App icon | Yes | A K with a calibrated stem and a yellow arm (0048) |
+| Quitting ends the program | Yes, untried on the Mac | A watchdog ends it five seconds after shutdown starts, so a plug-in or driver can't keep it running (0049) |
 | Tempo and time signature, automatable | Yes | Top bar; Transport > Ramp the Tempo to Here; View > Tempo Lane. Ramps integrated exactly, tested (0004) |
 | Scripting | Yes | Lua 5.4, Scripts menu, docs/SCRIPTING.md, tested (0019) |
 | Audio and MIDI on the same track | Yes | 0003 |

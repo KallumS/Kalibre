@@ -49,3 +49,5 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0045. Customisable keys and workspaces](0045-keys-and-workspaces.md)
 - [0046. Video](0046-video.md)
 - [0047. Plug-ins are scanned in a helper, and turned off when they crash](0047-plug-ins-scanned-in-a-helper.md)
+- [0048. The app icon](0048-the-app-icon.md)
+- [0049. Quitting always ends the program](0049-quitting-always-ends.md)

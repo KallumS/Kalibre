@@ -162,6 +162,7 @@ juce_add_gui_app(Kalibre
     BUNDLE_ID             "com.kallumshah.kalibre"
     VERSION               ${PROJECT_VERSION}
     DOCUMENT_EXTENSIONS   kalibre
+    ICON_BIG              "${CMAKE_SOURCE_DIR}/Resources/Icon.png"
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT "Kalibre records from your audio interface."
     HARDENED_RUNTIME_ENABLED FALSE

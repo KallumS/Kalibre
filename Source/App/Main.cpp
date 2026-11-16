@@ -2,7 +2,10 @@
 
 #include "MainComponent.h"
 
+#include <chrono>
+#include <cstdlib>
 #include <cstring>
+#include <thread>
 
 namespace kal
 {
@@ -78,6 +81,11 @@ public:
 
     void shutdown() override
     {
+        // Leaving can't wait on a plug-in or a driver that won't let go: the
+        // project was saved or let go before this, so after five seconds the
+        // process ends whatever is still unwinding. A Kalibre still running
+        // after it was quit is also one the Mac reopens at login.
+        std::thread ([] { std::this_thread::sleep_for (std::chrono::seconds (5)); std::_Exit (0); }).detach();
         window.reset();
         controller.reset();
         engine.reset();

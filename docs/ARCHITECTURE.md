@@ -53,6 +53,7 @@
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
 | `tools/RenderWindow.cpp` | Draws the window into PNGs on CI (0023). |
 | `Scripts/` | Example scripts. |
+| `Resources/` | The app icon: `Icon.svg`, and `Icon.png` drawn from it (0048). |
 | `ThirdParty/` | Lua 5.4 (MIT) and nlohmann/json (MIT). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link and Shine (LGPL, MP3) are fetched by CMake. |
 
 ## How sound flows
