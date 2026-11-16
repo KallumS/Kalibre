@@ -804,6 +804,42 @@ void writeValue (AutomationLane& lane, Tick from, Tick to, double value)
     addPoint (lane, { to, value, 0, false });
 }
 
+void writeTrim (AutomationLane& lane, const AutomationLane& original, Tick from, Tick to, double delta)
+{
+    if (to < from) std::swap (from, to);
+    const double fallback = 0.5;
+    // What the original had inside keeps its shape, moved.
+    std::vector<AutoPoint> inside;
+    for (auto& p : original.points)
+        if (p.tick > from && p.tick < to) { auto q = p; q.value = std::clamp (p.value + delta, 0.0, 1.0); inside.push_back (q); }
+    eraseIf (lane.points, [from, to] (const AutoPoint& p) { return p.tick >= from && p.tick <= to; });
+    addPoint (lane, { from, valueAt (original, from, fallback) + delta });
+    for (auto& q : inside) addPoint (lane, q);
+    addPoint (lane, { to, valueAt (original, to, fallback) + delta });
+}
+
+std::vector<AutoPoint> copyPoints (const AutomationLane& lane, Tick from, Tick to)
+{
+    std::vector<AutoPoint> out;
+    if (to <= from || lane.points.empty()) return out;
+    out.push_back ({ 0, valueAt (lane, from, 0.5) });
+    for (auto& p : lane.points)
+        if (p.tick > from && p.tick < to) { auto q = p; q.tick -= from; out.push_back (q); }
+    out.push_back ({ to - from - 1, valueAt (lane, to - 1, 0.5) });
+    return out;
+}
+
+void pastePoints (AutomationLane& lane, const std::vector<AutoPoint>& points, Tick at, Tick length)
+{
+    if (points.empty()) return;
+    const double after = valueAt (lane, at + length, points.back().value);
+    const bool had = ! lane.points.empty();
+    eraseIf (lane.points, [at, length] (const AutoPoint& p) { return p.tick >= at && p.tick < at + length; });
+    for (auto p : points) { p.tick += at; addPoint (lane, p); }
+    // What follows carries on as it was.
+    if (had) addPoint (lane, { at + length, after });
+}
+
 //==============================================================================
 void History::push (const Project& before, std::string label)
 {

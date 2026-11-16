@@ -25,24 +25,44 @@ public:
         for (auto* s : { &fader, &pan })
         {
             addAndMakeVisible (s);
-            s->onDragStart = [this, s]
+            // Moved while playing, it writes automation (Touch, Latch, Write, Trim).
+            auto target = [s, this]
+            {
+                AutoTarget a;
+                a.kind = s == &pan ? AutoTarget::Kind::Pan : AutoTarget::Kind::Volume;
+                return a;
+            };
+            auto normal = [s, this] { return s == &pan ? (pan.getValue() + 1.0) / 2.0 : (fader.getValue() + 60.0) / 66.0; };
+            s->onDragStart = [this, s, target, normal]
             {
                 before = c.project;
                 c.touchedMix (id, s == &pan ? AutoTarget::Kind::Pan : AutoTarget::Kind::Volume, s == &pan ? "Pan" : "Volume");
+                c.writeAutomation (id, target(), normal(), 1);
             };
-            s->onValueChange = [this]
+            s->onValueChange = [this, s, target, normal]
             {
                 if (auto* t = c.project.track (id)) { t->volumeDb = fader.getValue(); t->pan = pan.getValue(); }
                 if (auto* f = c.engine.fader (id)) { f->volumeDb = (float) fader.getValue(); f->pan = (float) pan.getValue(); }
                 c.dirty = true;
+                if (s->isMouseButtonDown()) c.writeAutomation (id, target(), normal(), 0);
             };
-            s->onDragEnd = [this] { if (! (before == c.project)) c.history.push (before, "Mix"); c.refresh(); };
+            s->onDragEnd = [this, target, normal]
+            {
+                if (! (before == c.project)) c.history.push (before, "Mix");
+                c.writeAutomation (id, target(), normal(), 2);
+                c.refresh();
+            };
         }
         for (auto* b : { &mute, &solo, &phase }) addAndMakeVisible (b);
         mute.onClick = [this]
         {
             c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; });
             c.touchedMix (id, AutoTarget::Kind::Mute, "Mute");
+            AutoTarget a;
+            a.kind = AutoTarget::Kind::Mute;
+            const bool on = c.project.track (id) && c.project.track (id)->mute;
+            c.writeAutomation (id, a, on ? 1.0 : 0.0, 1);
+            c.writeAutomation (id, a, on ? 1.0 : 0.0, 2);
         };
         solo.onClick = [this] { c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
         phase.onClick = [this] { c.apply ("Polarity", [this] (Project& p) { if (auto* t = p.track (id)) t->phaseInvert = ! t->phaseInvert; }); };
@@ -72,14 +92,16 @@ public:
             const auto* target = c.project.track (s.target);
             k->setTitle ("Send to " + String (target ? target->name : "?"));
             k->setTooltip (k->getTitle());
-            k->onDragStart = [this] { before = c.project; };
-            k->onValueChange = [this, k, target = s.target]
+            auto sendTarget = [target = s.target] { AutoTarget a; a.kind = AutoTarget::Kind::SendLevel; a.send = target; return a; };
+            k->onDragStart = [this, k, sendTarget] { before = c.project; c.writeAutomation (id, sendTarget(), (k->getValue() + 60.0) / 66.0, 1); };
+            k->onValueChange = [this, k, target = s.target, sendTarget]
             {
                 if (auto* tr = c.project.track (id))
                     for (auto& x : tr->sends) if (x.target == target) x.gainDb = k->getValue();
+                if (k->isMouseButtonDown()) c.writeAutomation (id, sendTarget(), (k->getValue() + 60.0) / 66.0, 0);
                 c.refresh();
             };
-            k->onDragEnd = [this] { if (! (before == c.project)) c.history.push (before, "Send"); };
+            k->onDragEnd = [this, k, sendTarget] { if (! (before == c.project)) c.history.push (before, "Send"); c.writeAutomation (id, sendTarget(), (k->getValue() + 60.0) / 66.0, 2); };
             addAndMakeVisible (k);
         }
         resized();
@@ -111,6 +133,21 @@ public:
             const float db = Decibels::gainToDecibels (meter[ch], -60.0f);
             g.setColour (db > -0.1f ? theme::warn : db > -6.0f ? theme::meterAmber : theme::meterGreen);
             g.fillRect (filled);
+            // RMS (decision 0038): the average level, a light line across the peak bar.
+            const float rv = level (rms[ch]);
+            if (rv > 0.0f)
+            {
+                g.setColour (theme::playhead);
+                g.fillRect (bar.getX(), bar.getBottom() - roundToInt ((float) bar.getHeight() * rv), bar.getWidth(), 2);
+            }
+        }
+        // The track's plug-ins' share of the processor (decision 0038).
+        if (t->kind != TrackKind::Master || ! t->devices.empty())
+        {
+            g.setColour (theme::textSecondary);
+            g.setFont (theme::font (theme::smallPoints));
+            g.drawText ("CPU " + String (cpu * 100.0, cpu < 0.1 ? 1 : 0) + "%", getLocalBounds().removeFromBottom (theme::px (16)).reduced (4, 0),
+                        Justification::centredLeft, false);
         }
         if (held > 1.0f)
         {
@@ -123,7 +160,7 @@ public:
     Rectangle<int> meterArea() const
     {
         auto r = getLocalBounds().reduced (4).withTrimmedTop (theme::px (22) + theme::px (40) + theme::px (24) + (int) sends.size() * theme::px (28));
-        r.removeFromBottom (theme::px (16));
+        r.removeFromBottom (theme::px (32));
         return r.removeFromRight (theme::px (10));
     }
 
@@ -139,6 +176,7 @@ public:
         phase.setBounds (row.removeFromLeft (bw).reduced (1));
         for (auto* s : sends) s->setBounds (r.removeFromTop (theme::px (28)).withSizeKeepingCentre (theme::px (28), theme::px (28)));
         r.removeFromRight (theme::px (12));
+        r.removeFromBottom (theme::px (16));   // the CPU reading
         fader.setBounds (r);
     }
 
@@ -152,6 +190,9 @@ public:
                 if (p > 1.0f) held = 2.0f;
             }
         held *= 0.98f;
+        if (auto* f = c.engine.fader (id)) { rms[0] = f->rmsL.load(); rms[1] = f->rmsR.load(); }
+        const double now = c.engine.trackCpu (id);
+        if (std::abs (now - cpu) > 0.0005) { cpu = now; repaint(); }
         repaint (meterArea().expanded (2));
     }
 
@@ -162,8 +203,9 @@ public:
     Slider fader, pan;
     theme::HouseButton mute { "M", "Mute.", true }, solo { "S", "Solo.", true }, phase { ui::u8 ("\xc3\x98"), "Invert the polarity.", true };
     OwnedArray<Slider> sends;
-    float meter[2] {};
+    float meter[2] {}, rms[2] {};
     float held = 0;
+    double cpu = 0;
     Project before;
 };
 

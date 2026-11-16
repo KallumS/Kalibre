@@ -1,6 +1,7 @@
 #include "Engine.h"
 
 #include "Edit.h"
+#include "TimedPlugin.h"
 
 namespace kal
 {
@@ -31,7 +32,7 @@ Engine::~Engine()
     player.setProcessor (nullptr);
     araSessions.clear();
     for (auto& [id, node] : deviceNodes)
-        if (node) node->getProcessor()->removeListener (this);
+        if (auto* p = pluginOf (node)) p->removeListener (this);
     graph.clear();
 }
 
@@ -76,6 +77,7 @@ void Engine::audioDeviceStopped()
 void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numIns, float* const* outs, int numOuts,
                                                int n, const AudioIODeviceCallbackContext& context)
 {
+    const auto callbackStart = Time::getHighResolutionTicks();
     auto& c = shared.clock;
     const auto* map = tempo.take();
     double p = pos.load();
@@ -140,6 +142,8 @@ void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numI
     }
     if (c.playing) pos.store (next);
     else pos.store (p);
+    // A block that took longer than it lasts is a dropout (decision 0038).
+    if (Time::highResolutionTicksToSeconds (Time::getHighResolutionTicks() - callbackStart) > n / rate) ++late;
 }
 
 //==============================================================================
@@ -263,7 +267,7 @@ void Engine::audition (Id track, int pitch, int velocity, double seconds)
 Id Engine::deviceIdOf (AudioProcessor* p) const
 {
     for (auto& [id, node] : deviceNodes)
-        if (node && node->getProcessor() == p) return id;
+        if (node && pluginOf (node) == p) return id;
     return 0;
 }
 
@@ -295,10 +299,17 @@ void Engine::audioProcessorParameterChangeGestureEnd (AudioProcessor* p, int ind
     touched (p, index, p->getParameters()[index] ? p->getParameters()[index]->getValue() : 0.0f, 2);
 }
 
-void Engine::audioProcessorChanged (AudioProcessor*, const ChangeDetails& d)
+void Engine::audioProcessorChanged (AudioProcessor* p, const ChangeDetails& d)
 {
     if (d.latencyChanged)
-        MessageManager::callAsync ([this] { graph.rebuild(); });
+        MessageManager::callAsync ([this, p]
+        {
+            // The wrapper takes on the plug-in's new latency before the graph lines things up again.
+            for (auto& [id, node] : deviceNodes)
+                if (pluginOf (node) == p)
+                    if (auto* t = dynamic_cast<TimedPlugin*> (node->getProcessor())) t->latencyChanged();
+            graph.rebuild();
+        });
     if (d.nonParameterStateChanged && onDevicePluginChanged)
         MessageManager::callAsync ([this] { if (onDevicePluginChanged) onDevicePluginChanged(); });
 }
@@ -312,6 +323,7 @@ void Engine::bury (Node::Ptr node)
 
 void Engine::timerCallback()
 {
+    if (++loadCountdown >= 10) { loadCountdown = 0; measureLoad(); }
     const auto now = Time::getMillisecondCounter();
     graveyard.erase (std::remove_if (graveyard.begin(), graveyard.end(),
                                      [now] (const auto& g) { return now - g.second > 1500; }),
@@ -322,10 +334,64 @@ void Engine::timerCallback()
 }
 
 //==============================================================================
+AudioPluginInstance* Engine::pluginOf (const Node::Ptr& node)
+{
+    if (! node) return nullptr;
+    if (auto* t = dynamic_cast<TimedPlugin*> (node->getProcessor())) return &t->plugin();
+    return dynamic_cast<AudioPluginInstance*> (node->getProcessor());
+}
+
 AudioPluginInstance* Engine::instance (Id device) const
 {
     auto it = deviceNodes.find (device);
-    return it == deviceNodes.end() || ! it->second ? nullptr : dynamic_cast<AudioPluginInstance*> (it->second->getProcessor());
+    return it == deviceNodes.end() ? nullptr : pluginOf (it->second);
+}
+
+void Engine::measureLoad()
+{
+    // Each track's plug-ins' share of real time since the last look (decision 0038).
+    const auto now = Time::getHighResolutionTicks();
+    const double elapsed = Time::highResolutionTicksToSeconds (now - lastLoadTicks);
+    lastLoadTicks = now;
+    if (elapsed <= 0) return;
+    std::map<Id, double> load;
+    for (auto& [track, devices] : trackDevices)
+    {
+        double busy = 0;
+        for (auto d : devices)
+        {
+            auto it = deviceNodes.find (d);
+            if (it == deviceNodes.end() || ! it->second) continue;
+            if (auto* t = dynamic_cast<TimedPlugin*> (it->second->getProcessor()))
+            {
+                const auto total = t->busyTicks.load();
+                busy += Time::highResolutionTicksToSeconds (total - lastBusy[d]);
+                lastBusy[d] = total;
+            }
+        }
+        load[track] = busy / elapsed;
+    }
+    trackLoad = std::move (load);
+}
+
+double Engine::trackCpu (Id track) const
+{
+    auto it = trackLoad.find (track);
+    return it == trackLoad.end() ? 0.0 : it->second;
+}
+
+int Engine::dropouts() const
+{
+    int xruns = 0;
+    if (auto* d = const_cast<AudioDeviceManager&> (deviceManager).getCurrentAudioDevice()) xruns = jmax (0, d->getXRunCount());
+    return late.load() + xruns - dropoutBase;
+}
+
+void Engine::resetDropouts()
+{
+    late = 0;
+    dropoutBase = 0;
+    dropoutBase = dropouts();
 }
 
 Fader* Engine::fader (Id track) const
@@ -393,8 +459,8 @@ Engine::Node::Ptr Engine::nodeForDevice (const Device& d, String& error)
     }
     enableSidechain (*instance);
     instance->addListener (this);
-    auto node = graph.addNode (std::move (instance));
-    if (auto old = deviceNodes[d.id]) { old->getProcessor()->removeListener (this); bury (old); }
+    auto node = graph.addNode (std::make_unique<TimedPlugin> (std::move (instance)));
+    if (auto old = deviceNodes[d.id]) { if (auto* op = pluginOf (old)) op->removeListener (this); bury (old); }
     deviceNodes[d.id] = node;
     deviceKeys[d.id] = key;
     return node;
@@ -421,9 +487,11 @@ void Engine::sync (const Project& project, Id live, const File& folder)
 
     // Nodes for every track, and for every active device.
     std::set<Id> wantedTracks, wantedDevices;
+    trackDevices.clear();
     for (auto* t : all)
     {
         wantedTracks.insert (t->id);
+        for (auto& d : t->devices) trackDevices[t->id].push_back (d.id);
         auto& nodes = tracks[t->id];
         if (! nodes.source) nodes.source = graph.addNode (std::make_unique<TrackSource> (shared, t->id), {}, Kind::none);
         if (! nodes.fader) nodes.fader = graph.addNode (std::make_unique<Fader>(), {}, Kind::none);
@@ -447,7 +515,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
     {
         if (wantedDevices.count (it->first)) { ++it; continue; }
         araSessions.erase (it->first);   // the ARA document goes before its plug-in
-        if (it->second) it->second->getProcessor()->removeListener (this);
+        if (auto* op = pluginOf (it->second)) op->removeListener (this);
         bury (it->second);
         deviceKeys.erase (it->first);
         it = deviceNodes.erase (it);
@@ -638,6 +706,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 if (auto* g = dynamic_cast<SendGain*> (it->second->getProcessor()))
                 {
                     g->gainDb = (float) s.gainDb;
+                    g->automatedDb = std::numeric_limits<float>::quiet_NaN();   // a lane sets it again below
                     g->on = ! s.muted;
                 }
 
@@ -696,8 +765,10 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                         if (lane.points.size() > 1) data->params.push_back ({ lane, p });
                     break;
                 }
-                case AutoTarget::Kind::Mute:
+                case AutoTarget::Kind::Mute: data->hasMute = ! lane.points.empty(); data->mute = lane; break;
                 case AutoTarget::Kind::SendLevel:
+                    if (auto it = nodes.sends.find (lane.target.send); it != nodes.sends.end() && lane.points.size() > 1)
+                        data->sends.push_back ({ lane, dynamic_cast<SendGain*> (it->second->getProcessor()) });
                     break;
             }
         }

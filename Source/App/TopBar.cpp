@@ -29,7 +29,7 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     playButton.setTitle ("Play");
     recordButton.setTitle ("Record");
     start.setTitle ("Go to Start");
-    for (auto* r : { &position, &tempo, &signature, &scale, &chord, &cpu })
+    for (auto* r : { &position, &tempo, &signature, &scale, &chord, &cpu, &load })
     {
         addAndMakeVisible (r);
         r->setRepaintsOnMouseActivity (true);
@@ -41,6 +41,9 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     chord.label = "Chord";
     chord.big = true;
     cpu.label = "Delay";
+    load.label = "CPU";
+    load.setTooltip (theme::wrapTip ("How busy the audio is, and how many times it ran late (a dropout: a click or gap). Click to count the dropouts from zero. The mixer shows each track's share."));
+    load.onDown = [this] (const MouseEvent&) { c.engine.resetDropouts(); };
     position.setTooltip ("Click to show bars and beats, minutes, samples or timecode.");
     tempo.setTooltip (theme::wrapTip ("Drag up or down to change the tempo, double-click to type it. Tempo changes and ramps are drawn in the tempo lane (View > Tempo Lane)."));
     signature.setTooltip ("Double-click to change the time signature from the bar the cursor is in.");
@@ -165,6 +168,8 @@ void TopBar::resized()
 
     cpu.setBounds (r.removeFromRight (theme::px (76)));
     r.removeFromRight (gap);
+    load.setBounds (r.removeFromRight (theme::px (92)));
+    r.removeFromRight (gap);
     follow.setBounds (r.removeFromRight (follow.idealWidth()).withSizeKeepingCentre (follow.idealWidth(), ch));
     r.removeFromRight (gap);
     const int each = jmax (theme::px (100), (r.getWidth() - gap) / 2);
@@ -173,7 +178,7 @@ void TopBar::resized()
     chord.setBounds (r.removeFromLeft (jmin (r.getWidth(), theme::px (220))));
 
     // Anything that still can't fit is hidden rather than squashed; every one is also in the menus.
-    for (auto* comp : std::initializer_list<Component*> { &countIn, &punch, &click, &follow, &cpu, &chord, &scale, &tap, &signature })
+    for (auto* comp : std::initializer_list<Component*> { &countIn, &punch, &click, &follow, &cpu, &load, &chord, &scale, &tap, &signature })
         comp->setVisible (comp->getRight() <= getWidth() - theme::px (4) && comp->getWidth() >= theme::px (24));
 
     const int barsHeight = (twoRows ? 2 : 1) * rowH;
@@ -229,6 +234,8 @@ void TopBar::update()
 
     const int latency = c.engine.latencySamples();
     cpu.value = String (latency * 1000.0 / jmax (1.0, c.engine.sampleRate()), 1) + " ms";
+    const int drops = c.engine.dropouts();
+    load.value = String (roundToInt (c.engine.cpu() * 100.0)) + "%" + (drops > 0 ? ui::u8 (" Â· ") + String (drops) + (drops == 1 ? " drop" : " drops") : String());
 
     playButton.setToggleState (c.engine.isPlaying(), dontSendNotification);
     playButton.setButtonText (c.engine.isPlaying() ? String::fromUTF8 ("\xe2\x96\xa0") : String::fromUTF8 ("\xe2\x96\xb6"));
@@ -239,7 +246,7 @@ void TopBar::update()
     click.setToggleState (p.metronome.on, dontSendNotification);
     countIn.setToggleState (p.metronome.countIn, dontSendNotification);
     follow.setToggleState (c.followPlayback, dontSendNotification);
-    for (auto* r : { &position, &tempo, &signature, &scale, &chord, &cpu }) r->repaint();
+    for (auto* r : { &position, &tempo, &signature, &scale, &chord, &cpu, &load }) r->repaint();
     repaint();
 }
 

@@ -168,6 +168,11 @@ public:
     void touched (const Engine::Touch&);
     // A control of Kalibre's own was moved (a fader, a pan knob).
     void touchedMix (Id track, AutoTarget::Kind, const juce::String& name);
+    // A control moved by a hand while playing writes automation in Touch,
+    // Latch, Write and Trim. `value` 0-1; gesture 1 began, 0 a change, 2 ended.
+    void writeAutomation (Id track, const AutoTarget&, double value, int gesture);
+    std::vector<AutoPoint> automationClipboard;   // copied points (decision 0038)
+    Tick automationClipboardLength = 0;
     void automateLastTouched();
     void learnLastTouched();             // MIDI learn: the next knob moved is mapped to it
     void mapped (const MidiMapping&, double value);
@@ -197,7 +202,8 @@ private:
     bool wasRecording = false;
     juce::uint32 lastAutosave = 0;
     double recordFromSeconds = 0;
-    struct Writing { Id track = 0, lane = 0; Tick lastTick = 0; bool on = false; Project before; };
+    struct Writing { Id track = 0, lane = 0; Tick lastTick = 0; bool on = false; Project before; double trimFrom = -1; Tick trimStart = 0; };
+    void finishWriting();
     Writing writing;
 
     void syncEngine();

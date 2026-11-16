@@ -234,6 +234,7 @@ void Controller::play()
 
 void Controller::stop()
 {
+    finishWriting();   // Latch and Write hold until playing stops
     const bool wasPlaying = engine.isPlaying();
     engine.stop();
     if (wasRecording) finishRecording();
@@ -991,34 +992,59 @@ void Controller::touched (const Engine::Touch& t)
     const bool changed = lastTouched.device != t.device || lastTouched.param != t.param;
     lastTouched = { owner->id, t.device, t.param, AutoTarget::Kind::DeviceParam, t.name };
 
-    // Writing automation while playing, for Touch, Latch and Write.
-    if (engine.isPlaying() && owner->autoMode != AutoMode::Read && owner->autoMode != AutoMode::Off)
-    {
-        if (t.gesture == 1 || ! writing.on)
-        {
-            writing.on = true;
-            writing.before = project;
-            writing.track = owner->id;
-            writing.lastTick = playhead();
-        }
-        AutoTarget target;
-        target.kind = AutoTarget::Kind::DeviceParam;
-        target.device = t.device;
-        target.param = t.param;
-        target.paramName = t.name.toStdString();
-        auto& lane = edit::laneFor (*owner, target, t.value);
-        if (lane.id == 0) lane.id = project.newId();
-        const Tick now = playhead();
-        edit::writeValue (lane, writing.lastTick, now, t.value);
-        writing.lastTick = now;
-        if (t.gesture == 2 && owner->autoMode == AutoMode::Touch)
-        {
-            writing.on = false;
-            history.push (writing.before, "Write Automation");
-            refresh();
-        }
-    }
+    // Writing automation while playing, for Touch, Latch, Write and Trim.
+    AutoTarget target;
+    target.kind = AutoTarget::Kind::DeviceParam;
+    target.device = t.device;
+    target.param = t.param;
+    target.paramName = t.name.toStdString();
+    writeAutomation (owner->id, target, t.value, t.gesture);
     if (changed) sendChangeMessage();
+}
+
+void Controller::writeAutomation (Id trackId, const AutoTarget& target, double value, int gesture)
+{
+    auto* owner = project.track (trackId);
+    if (! owner || ! engine.isPlaying() || owner->autoMode == AutoMode::Read || owner->autoMode == AutoMode::Off) return;
+    if (gesture == 1 || ! writing.on || writing.track != trackId)
+    {
+        if (writing.on) finishWriting();
+        writing.on = true;
+        writing.before = project;
+        writing.track = trackId;
+        writing.lastTick = playhead();
+    }
+    auto& lane = edit::laneFor (*owner, target, value);
+    if (lane.id == 0) lane.id = project.newId();
+    const Tick now = playhead();
+    if (owner->autoMode == AutoMode::Trim)
+    {
+        // Trim (decision 0038): the lane keeps its shape, moved by how far the hand moved
+        // the control from what the lane said when the touch began.
+        const AutomationLane* original = nullptr;
+        if (auto* bt = writing.before.track (trackId))
+            for (auto& l : bt->automation) if (l.target == target) original = &l;
+        if (original && ! original->points.empty())
+        {
+            if (gesture == 1 || writing.trimFrom < 0) { writing.trimFrom = edit::valueAt (*original, now, value); writing.trimStart = now; }
+            const double delta = value - writing.trimFrom;
+            edit::writeTrim (lane, *original, writing.trimStart, now, delta);
+        }
+        else edit::writeValue (lane, writing.lastTick, now, value);
+    }
+    else edit::writeValue (lane, writing.lastTick, now, value);
+    writing.lastTick = now;
+    if (gesture == 2 && (owner->autoMode == AutoMode::Touch || owner->autoMode == AutoMode::Trim)) finishWriting();
+}
+
+void Controller::finishWriting()
+{
+    if (! writing.on) return;
+    writing.on = false;
+    writing.trimFrom = -1;
+    history.push (writing.before, "Write Automation");
+    dirty = true;
+    refresh();
 }
 
 void Controller::touchedMix (Id track, AutoTarget::Kind kind, const String& name)

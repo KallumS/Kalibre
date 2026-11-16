@@ -222,3 +222,31 @@ TEST ("undo: one step per push, redo after undo")
     CHECK (p.tracks.empty());
     CHECK (! h.canUndo());
 }
+
+TEST ("automation: trim moves what was written by the hand's change, keeping its shape")
+{
+    AutomationLane lane;
+    edit::addPoint (lane, { 0, 0.2 });
+    edit::addPoint (lane, { PPQ * 2, 0.6 });
+    edit::addPoint (lane, { PPQ * 4, 0.2 });
+    const auto original = lane;
+    edit::writeTrim (lane, original, PPQ, PPQ * 3, 0.1);
+    CHECK (std::abs (edit::valueAt (lane, PPQ * 2, 0) - 0.7) < 1e-9);
+    CHECK (std::abs (edit::valueAt (lane, PPQ, 0) - 0.5) < 1e-9);       // 0.4 on the slope, plus 0.1
+    CHECK (std::abs (edit::valueAt (lane, PPQ * 4, 0) - 0.2) < 1e-9);   // outside: untouched
+}
+
+TEST ("automation: copied points paste at another place, the rest carrying on")
+{
+    AutomationLane lane;
+    edit::addPoint (lane, { 0, 0.0 });
+    edit::addPoint (lane, { PPQ, 1.0 });
+    edit::addPoint (lane, { PPQ * 8, 0.5 });
+    const auto pts = edit::copyPoints (lane, 0, PPQ * 2);
+    CHECK_EQ (pts.front().tick, (Tick) 0);
+    CHECK_EQ (pts.front().value, 0.0);
+    edit::pastePoints (lane, pts, PPQ * 4, PPQ * 2);
+    CHECK (std::abs (edit::valueAt (lane, PPQ * 5, 0) - 1.0) < 1e-9);
+    CHECK (std::abs (edit::valueAt (lane, PPQ * 4, 0) - 0.0) < 1e-9);
+    CHECK (std::abs (edit::valueAt (lane, PPQ * 8, 0) - 0.5) < 1e-9);
+}

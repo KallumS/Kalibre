@@ -55,7 +55,7 @@ private:
         void mouseDoubleClick (const juce::MouseEvent& e) override { if (onDouble) onDouble (e); }
         void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w) override { if (onWheel) onWheel (w); }
     };
-    Readout position, tempo, signature, scale, chord, cpu;
+    Readout position, tempo, signature, scale, chord, cpu, load;
 
     // The message line.
     theme::HouseButton undoMessage { "Undo", "Undo what the message describes." };

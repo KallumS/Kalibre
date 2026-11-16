@@ -1672,6 +1672,31 @@ void Arrange::laneMenu (const Row& row, Point<int> at)
     {
         const int laneIndex = row.automation;
         const Id tid = t->id;
+        // Copy and paste (decision 0038): the loop range's points, or the bar clicked.
+        const auto& loop = c.project.loop;
+        const bool useLoop = loop.end > loop.start && tick >= loop.start && tick < loop.end;
+        const int clickedBar = c.project.tempo.barAt (tick);
+        const Tick from = useLoop ? loop.start : c.project.tempo.barStart (clickedBar);
+        const Tick to = useLoop ? loop.end : c.project.tempo.barStart (clickedBar + 1);
+        m.addItem (useLoop ? "Copy the Loop Range" : "Copy This Bar", [this, tid, laneIndex, from, to]
+        {
+            const auto* tr = c.project.track (tid);
+            if (! tr || laneIndex >= (int) tr->automation.size()) return;
+            c.automationClipboard = edit::copyPoints (tr->automation[(size_t) laneIndex], from, to);
+            c.automationClipboardLength = to - from;
+            c.say ("Copied " + String ((int) c.automationClipboard.size()) + " points. Right-click where they go and choose Paste.");
+        });
+        m.addItem ("Paste Here", ! c.automationClipboard.empty(), false, [this, tid, laneIndex, at = c.snapTick (tick)]
+        {
+            const auto pts = c.automationClipboard;
+            const Tick len = c.automationClipboardLength;
+            c.apply ("Paste Automation", [=] (Project& p) { edit::pastePoints (p.track (tid)->automation[(size_t) laneIndex], pts, at, len); });
+        });
+        m.addItem (useLoop ? "Clear the Loop Range" : "Clear This Bar", [this, tid, laneIndex, from, to]
+        {
+            c.apply ("Clear Automation", [=] (Project& p) { edit::removePointsIn (p.track (tid)->automation[(size_t) laneIndex], from, to - 1); });
+        });
+        m.addSeparator();
         m.addItem ("Hide This Lane", [this, tid, laneIndex] { c.apply ("Hide Lane", [=] (Project& p) { p.track (tid)->automation[(size_t) laneIndex].shown = false; }); });
         m.addItem ("Delete This Lane", [this, tid, laneIndex] { c.apply ("Delete Lane", [=] (Project& p) { auto& a = p.track (tid)->automation; a.erase (a.begin() + laneIndex); }); });
         m.showMenuAsync (PopupMenu::Options());

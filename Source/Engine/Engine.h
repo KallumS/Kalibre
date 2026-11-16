@@ -55,6 +55,11 @@ public:
     void sync (const Project&, Id liveTrack, const juce::File& projectFolder);
 
     juce::AudioPluginInstance* instance (Id device) const;
+    // Load (decision 0038): each track's plug-ins' share of real time, and blocks that came late.
+    double trackCpu (Id track) const;
+    double cpu() { return deviceManager.getCpuUsage(); }
+    int dropouts() const;
+    void resetDropouts();
     Fader* fader (Id track) const;
     TrackSource* source (Id track) const;
     int latencySamples();
@@ -194,6 +199,15 @@ private:
     void timerCallback() override;
 
     Node::Ptr nodeForDevice (const Device&, juce::String& error);
+    static juce::AudioPluginInstance* pluginOf (const Node::Ptr&);
+    std::map<Id, std::vector<Id>> trackDevices;
+    std::map<Id, juce::int64> lastBusy;
+    std::map<Id, double> trackLoad;
+    juce::int64 lastLoadTicks = 0;
+    int loadCountdown = 0;
+    std::atomic<int> late { 0 };
+    int dropoutBase = 0;
+    void measureLoad();
     Id deviceIdOf (juce::AudioProcessor*) const;
     void bury (Node::Ptr);
 };

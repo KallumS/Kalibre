@@ -329,3 +329,35 @@ TEST ("loudness: an export at -14 LUFS comes out at -14 LUFS, and the master's m
     // The master fader measured the render as it went: about -30 LUFS before the gain.
     CHECK (std::abs (engine.fader (p.master.id)->loudnessMeter.integrated() + 30.0) < 0.5);
 }
+
+TEST ("automation: a mute lane silences a click; a send lane's level is followed; the plug-in's time is counted")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p;
+    const auto click = clickFile (0.5);
+    const Id t = edit::addTrack (p, TrackKind::Track, "Muted by automation");
+    edit::addClip (p, t, audioClip (click, 0, PPQ * 4));
+    PluginRef lag;
+    lag.format = "Kalibre";
+    lag.identifier = "test-latency:10";
+    lag.name = "Latency";
+    const Id dev = edit::addDevice (p, t, lag, DeviceRole::AudioFx);
+    AutoTarget mute;
+    mute.kind = AutoTarget::Kind::Mute;
+    auto& lane = edit::laneFor (*p.track (t), mute, 0.0);
+    lane.id = p.newId();
+    edit::addPoint (lane, { 0, 1.0, 0, true });   // muted from the start
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 1.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("mute-auto.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    CHECK (clicksIn (out).empty());
+
+    // Unmuted at 0.25 s (half a beat at 120): the click at 0.5 s is heard.
+    edit::addPoint (lane, { PPQ / 2, 0.0, 0, true });
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    CHECK_EQ (clicksIn (out).size(), size_t (1));
+    CHECK (engine.instance (dev) != nullptr);   // the plug-in itself, not its stopwatch
+}

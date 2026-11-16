@@ -73,7 +73,9 @@ public:
     std::atomic<float> automatedVolume { std::numeric_limits<float>::quiet_NaN() };
     std::atomic<float> automatedPan { std::numeric_limits<float>::quiet_NaN() };
     std::atomic<bool> audible { true }, phaseInvert { false }, mono { false };
+    std::atomic<int> automatedMute { -1 };          // -1: not automated; 0 or 1 from a mute lane
     std::atomic<float> peakL { 0 }, peakR { 0 };   // since the window last read them
+    std::atomic<float> rmsL { 0 }, rmsR { 0 };     // average level over the last 300 ms (decision 0038)
     std::atomic<float> level { 0 };                 // for envelope followers
 
     float takePeak (int channel) { return (channel == 0 ? peakL : peakR).exchange (0.0f); }
@@ -101,6 +103,7 @@ public:
 
 private:
     juce::SmoothedValue<float> smoothedGain { 1.0f }, smoothedL { 1.0f }, smoothedR { 1.0f };
+    double meanL = 0, meanR = 0;   // mean squares, smoothed
 };
 
 //==============================================================================
@@ -110,6 +113,7 @@ public:
     SendGain() : AudioProcessor (BusesProperties().withInput ("In", juce::AudioChannelSet::stereo())
                                                   .withOutput ("Out", juce::AudioChannelSet::stereo())) {}
     std::atomic<float> gainDb { -6 };
+    std::atomic<float> automatedDb { std::numeric_limits<float>::quiet_NaN() };   // from a send lane
     std::atomic<bool> on { true };
 
     const juce::String getName() const override { return "Send"; }
@@ -118,8 +122,11 @@ public:
     void processBlock (juce::AudioBuffer<float>& b, juce::MidiBuffer& m) override
     {
         m.clear();
-        b.applyGainRamp (0, b.getNumSamples(), last, on ? juce::Decibels::decibelsToGain (gainDb.load(), -100.0f) : 0.0f);
-        last = on ? juce::Decibels::decibelsToGain (gainDb.load(), -100.0f) : 0.0f;
+        const float autoDb = automatedDb.load();
+        const float db = std::isnan (autoDb) ? gainDb.load() : autoDb;
+        const float g = on ? juce::Decibels::decibelsToGain (db, -100.0f) : 0.0f;
+        b.applyGainRamp (0, b.getNumSamples(), last, g);
+        last = g;
     }
     double getTailLengthSeconds() const override { return 0; }
     bool acceptsMidi() const override { return false; }
@@ -164,8 +171,9 @@ public:
         playback::CompiledTrack compiled;
         std::vector<std::shared_ptr<const CachedAudio>> regionAudio;
         std::vector<ParamLane> params;
-        bool hasVolume = false, hasPan = false;
-        AutomationLane volume, pan;
+        bool hasVolume = false, hasPan = false, hasMute = false;
+        AutomationLane volume, pan, mute;
+        std::vector<std::pair<AutomationLane, SendGain*>> sends;   // send levels, automated
         std::vector<ModulatorRun> modulators;
         TempoMap tempo;
         bool audible = true;          // false when muted: notes still stop cleanly

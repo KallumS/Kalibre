@@ -21,7 +21,7 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
     const float autoPan = automatedPan.load();
     const float db = std::isnan (autoVol) ? volumeDb.load() : autoVol;
     const float p = jlimit (-1.0f, 1.0f, std::isnan (autoPan) ? pan.load() : autoPan);
-    float gain = audible ? Decibels::decibelsToGain (db, -100.0f) : 0.0f;
+    float gain = audible && automatedMute.load() != 1 ? Decibels::decibelsToGain (db, -100.0f) : 0.0f;
     if (phaseInvert) gain = -gain;
     // Constant-power pan law: -3 dB in the middle.
     const float angle = (p + 1.0f) * MathConstants<float>::pi * 0.25f;
@@ -48,6 +48,17 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
     old = peakR.load();
     while (pr > old && ! peakR.compare_exchange_weak (old, pr)) {}
     level = jmax (pl, pr);
+    // RMS over about 300 ms: a block's mean square into a running average.
+    if (n > 0)
+    {
+        double sl = 0, sr = 0;
+        for (int i = 0; i < n; ++i) { sl += (double) l[i] * l[i]; sr += (double) r[i] * r[i]; }
+        const double k = 1.0 - std::exp (-(double) n / (getSampleRate() > 0 ? getSampleRate() * 0.3 : 14400.0));
+        meanL += (sl / n - meanL) * k;
+        meanR += (sr / n - meanR) * k;
+        rmsL = (float) std::sqrt (meanL);
+        rmsR = (float) std::sqrt (meanR);
+    }
     if (measureLoudness.load())
     {
         if (resetLoudness.exchange (false)) loudnessMeter.reset();
@@ -222,7 +233,19 @@ void TrackSource::applyAutomation (const Data& d, double seconds)
                                                    : std::numeric_limits<float>::quiet_NaN();
             d.fader->automatedPan = d.hasPan ? (float) (edit::valueAt (d.pan, tick, 0.5) * 2.0 - 1.0)
                                              : std::numeric_limits<float>::quiet_NaN();
+            d.fader->automatedMute = d.hasMute ? (edit::valueAt (d.mute, tick, 0.0) >= 0.5 ? 1 : 0) : -1;
         }
+        // Send levels run over -60..+6 dB like the fader.
+        for (auto& [lane, send] : d.sends)
+            if (send) send->automatedDb = (float) (edit::valueAt (lane, tick, 0.9) * 66.0 - 60.0);
+    }
+    else if (d.fader)
+    {
+        // Automation off: the controls are as they're set.
+        d.fader->automatedVolume = std::numeric_limits<float>::quiet_NaN();
+        d.fader->automatedPan = std::numeric_limits<float>::quiet_NaN();
+        d.fader->automatedMute = -1;
+        for (auto& [lane, send] : d.sends) if (send) send->automatedDb = std::numeric_limits<float>::quiet_NaN();
     }
 }
 

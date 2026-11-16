@@ -115,6 +115,12 @@ void removePointsIn (AutomationLane&, Tick from, Tick to);
 // Writes a value at a tick as a performer would: Touch and Latch replace what
 // was there from the last write to here.
 void writeValue (AutomationLane&, Tick from, Tick to, double value);
+// Trim mode: over [from, to] the lane becomes what it was (`original`) moved by `delta`.
+void writeTrim (AutomationLane&, const AutomationLane& original, Tick from, Tick to, double delta);
+// Copy and paste: the points of [from, to), from `from`, with its two edges' values.
+std::vector<AutoPoint> copyPoints (const AutomationLane&, Tick from, Tick to);
+// Replaces [at, at + length) with them.
+void pastePoints (AutomationLane&, const std::vector<AutoPoint>&, Tick at, Tick length);
 
 //==============================================================================
 // Undo (snapshots; the project is small without its audio)
