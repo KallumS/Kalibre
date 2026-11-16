@@ -59,6 +59,7 @@ add_library(KalibreCore STATIC
     Source/Core/Mackie.cpp
     Source/Core/AudioTools.cpp
     Source/Core/Song.cpp
+    Source/Core/Surround.cpp
     Source/Script/LuaHost.cpp)
 target_include_directories(KalibreCore PUBLIC Source/Core Source/Script ThirdParty)
 target_link_libraries(KalibreCore PUBLIC KalibreLua)
@@ -88,7 +89,8 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestSync.cpp
         Tests/TestMackie.cpp
         Tests/TestAudioTools.cpp
-        Tests/TestSong.cpp)
+        Tests/TestSong.cpp
+        Tests/TestSurround.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)

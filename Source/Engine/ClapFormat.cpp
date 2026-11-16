@@ -231,6 +231,18 @@ public:
         tail     = static_cast<const clap_plugin_tail_t*>     (plugin->get_extension (plugin, CLAP_EXT_TAIL));
         timers   = static_cast<const clap_plugin_timer_support_t*> (plugin->get_extension (plugin, CLAP_EXT_TIMER_SUPPORT));
         notePorts = static_cast<const clap_plugin_note_ports_t*> (plugin->get_extension (plugin, CLAP_EXT_NOTE_PORTS));
+        audioPorts = static_cast<const clap_plugin_audio_ports_t*> (plugin->get_extension (plugin, CLAP_EXT_AUDIO_PORTS));
+
+        // A second input port is a sidechain (decision 0031): offered as JUCE's second input bus.
+        if (audioPorts && description.numInputChannels > 0 && audioPorts->count (plugin, true) >= 2)
+        {
+            clap_audio_port_info_t info {};
+            if (audioPorts->get (plugin, 1, true, &info) && info.channel_count > 0)
+            {
+                sidechainPortChannels = (int) jmin (2u, info.channel_count);
+                addBus (true);
+            }
+        }
 
         if (notePorts && notePorts->count (plugin, true) > 0)
         {
@@ -296,9 +308,26 @@ public:
     }
     AudioProcessorEditor* createEditor() override;
 
+    bool canAddBus (bool isInput) const override { return isInput && getBusCount (true) == 1 && sidechainPortChannels > 0; }
+
+    bool canApplyBusCountChange (bool isInput, bool adding, BusProperties& props) override
+    {
+        if (! adding || ! canAddBus (isInput)) return false;
+        props.busName = "Sidechain";
+        props.defaultLayout = sidechainPortChannels == 1 ? AudioChannelSet::mono() : AudioChannelSet::stereo();
+        props.isActivatedByDefault = false;
+        return true;
+    }
+
     bool isBusesLayoutSupported (const BusesLayout& l) const override
     {
-        for (auto& set : l.inputBuses)  if (! set.isDisabled() && set != AudioChannelSet::stereo()) return false;
+        for (int i = 0; i < l.inputBuses.size(); ++i)
+        {
+            const auto& set = l.inputBuses.getReference (i);
+            if (set.isDisabled()) continue;
+            if (i == 1) { if (set.size() != sidechainPortChannels) return false; continue; }
+            if (set != AudioChannelSet::stereo()) return false;
+        }
         for (auto& set : l.outputBuses) if (! set.isDisabled() && set != AudioChannelSet::stereo()) return false;
         return true;
     }
@@ -312,6 +341,7 @@ public:
         lastBlock = blockSize;
         active = plugin->activate (plugin, sampleRate, 1, (uint32_t) jmax (1, blockSize));
         scratchIn.setSize (2, jmax (1, blockSize));
+        scratchSide.setSize (2, jmax (1, blockSize));
         scratchOut.setSize (2, jmax (1, blockSize));
         if (latency && active) setLatencySamples ((int) latency->get (plugin));
     }
@@ -409,9 +439,22 @@ public:
             scratchIn.copyFrom (c, 0, buffer, jmin (c, jmax (0, buffer.getNumChannels() - 1)), 0, frames);
         float* inPtrs[2] { scratchIn.getWritePointer (0), scratchIn.getWritePointer (1) };
         float* outPtrs[2] { scratchOut.getWritePointer (0), scratchOut.getWritePointer (1) };
-        clap_audio_buffer_t in {}, out {};
+        clap_audio_buffer_t ins[2] {}, out {};
+        auto& in = ins[0];
         in.data32 = inPtrs; in.channel_count = 2;
         out.data32 = outPtrs; out.channel_count = 2;
+        // The sidechain, when it's switched on: the buffer's channels after the main input's.
+        float* sidePtrs[2] { scratchSide.getWritePointer (0), scratchSide.getWritePointer (1) };
+        bool side = false;
+        if (getBusCount (true) > 1 && getBus (true, 1)->isEnabled())
+        {
+            const int first = getChannelIndexInProcessBlockBuffer (true, 1, 0);
+            for (int c = 0; c < sidechainPortChannels; ++c)
+                if (first + c < buffer.getNumChannels()) scratchSide.copyFrom (c, 0, buffer, first + c, 0, frames);
+            ins[1].data32 = sidePtrs;
+            ins[1].channel_count = (uint32_t) sidechainPortChannels;
+            side = true;
+        }
 
         clap_event_transport_t transport {};
         fillTransport (transport);
@@ -420,8 +463,8 @@ public:
         p.steady_time = (int64_t) steadyTime;
         p.frames_count = (uint32_t) frames;
         p.transport = &transport;
-        p.audio_inputs = inChannels > 0 ? &in : nullptr;
-        p.audio_inputs_count = inChannels > 0 ? 1u : 0u;
+        p.audio_inputs = inChannels > 0 ? ins : nullptr;
+        p.audio_inputs_count = inChannels > 0 ? (side ? 2u : 1u) : 0u;
         p.audio_outputs = outChannels > 0 ? &out : nullptr;
         p.audio_outputs_count = outChannels > 0 ? 1u : 0u;
         auto inList = inEvents.input();
@@ -764,7 +807,9 @@ public:
     int lastBlock = 512;
     uint64_t steadyTime = 0;
 
-    AudioBuffer<float> scratchIn, scratchOut;
+    AudioBuffer<float> scratchIn, scratchOut, scratchSide;
+    const clap_plugin_audio_ports_t* audioPorts = nullptr;
+    int sidechainPortChannels = 0;   // the second input port's channels, 0 for none
     EventList inEvents, outEvents;
 
     struct PendingParam { clap_id id; double value; };

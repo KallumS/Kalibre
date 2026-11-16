@@ -208,6 +208,7 @@ private:
     std::atomic<int> late { 0 };
     int dropoutBase = 0;
     void measureLoad();
+    std::shared_ptr<bool> aliveToken = std::make_shared<bool> (true);   // for messages sent to the message thread
     Id deviceIdOf (juce::AudioProcessor*) const;
     void bury (Node::Ptr);
 };

@@ -4,6 +4,7 @@
 #include "DeviceRack.h"
 #include "MidiLearn.h"
 #include "Song.h"
+#include "Surround.h"
 #include "MainComponent.h"
 
 namespace kal
@@ -184,6 +185,19 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         {
             m.addItem (item ("Add Track", [this] { c.addTrack (TrackKind::Track); }, cmd ("T")));
             m.addItem (item ("Add Folder", [this] { c.addTrack (TrackKind::Folder); }, shiftCmd ("T")));
+            // Stereo or surround (decision 0040).
+            PopupMenu formats;
+            for (auto f : { SurroundFormat::Stereo, SurroundFormat::Quad, SurroundFormat::Surround51, SurroundFormat::Surround71 })
+                formats.addItem (item (surround::name (f), [this, f]
+                {
+                    c.apply ("Mix Format", [f] (Project& pr) { pr.surround = f; });
+                    const int needed = surround::channels (f);
+                    const int have = c.engine.devices().getCurrentAudioDevice()
+                                       ? c.engine.devices().getCurrentAudioDevice()->getActiveOutputChannels().countNumberOfSetBits() : 2;
+                    if (needed > have)
+                        c.say ("The mix is " + String (surround::name (f)) + ": switch on " + String (needed) + " outputs in the browser's Audio tab to hear every speaker. Exports have every channel.");
+                }, {}, true, p.surround == f));
+            m.addSubMenu ("Mix Format", formats);
             m.addItem (item ("Add Return", [this] { c.addTrack (TrackKind::Return); }));
             m.addItem (item ("Put the Chosen Tracks in a Folder", [this] { c.folderFromSelection(); }));
             m.addSeparator();

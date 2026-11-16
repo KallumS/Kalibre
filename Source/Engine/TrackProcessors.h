@@ -24,6 +24,8 @@
 #include "Modulation.h"
 #include "Playback.h"
 #include "Swap.h"
+
+#include <array>
 #include "Warp.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -74,6 +76,12 @@ public:
     std::atomic<float> automatedPan { std::numeric_limits<float>::quiet_NaN() };
     std::atomic<bool> audible { true }, phaseInvert { false }, mono { false };
     std::atomic<int> automatedMute { -1 };          // -1: not automated; 0 or 1 from a mute lane
+    // Surround (decision 0040): the mix's format; a bus (folder, master) passes every
+    // channel on, a track is placed among the speakers by its pan and front-back.
+    std::atomic<int> format { 0 };
+    std::atomic<bool> bus { false };
+    std::atomic<float> frontBack { 1.0f };
+    float currentGain() const { return lastGain.load(); }
     std::atomic<float> peakL { 0 }, peakR { 0 };   // since the window last read them
     std::atomic<float> rmsL { 0 }, rmsR { 0 };     // average level over the last 300 ms (decision 0038)
     std::atomic<float> level { 0 };                 // for envelope followers
@@ -85,7 +93,12 @@ public:
     loudness::Meter loudnessMeter;
 
     const juce::String getName() const override { return "Fader"; }
-    void prepareToPlay (double rate, int) override { smoothedGain.reset (rate, 0.02); loudnessMeter.prepare (rate); }
+    void prepareToPlay (double rate, int) override
+    {
+        smoothedGain.reset (rate, 0.02);
+        for (auto& sp : speaker) sp.reset (rate, 0.02);
+        loudnessMeter.prepare (rate);
+    }
     void releaseResources() override {}
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     double getTailLengthSeconds() const override { return 0; }
@@ -104,6 +117,8 @@ public:
 private:
     juce::SmoothedValue<float> smoothedGain { 1.0f }, smoothedL { 1.0f }, smoothedR { 1.0f };
     double meanL = 0, meanR = 0;   // mean squares, smoothed
+    std::array<juce::SmoothedValue<float>, 8> speaker;
+    std::atomic<float> lastGain { 1.0f };
 };
 
 //==============================================================================
@@ -115,6 +130,7 @@ public:
     std::atomic<float> gainDb { -6 };
     std::atomic<float> automatedDb { std::numeric_limits<float>::quiet_NaN() };   // from a send lane
     std::atomic<bool> on { true };
+    std::atomic<Fader*> follow { nullptr };   // in a surround mix, a post-fader send follows this fader's level
 
     const juce::String getName() const override { return "Send"; }
     void prepareToPlay (double, int) override {}
@@ -124,7 +140,8 @@ public:
         m.clear();
         const float autoDb = automatedDb.load();
         const float db = std::isnan (autoDb) ? gainDb.load() : autoDb;
-        const float g = on ? juce::Decibels::decibelsToGain (db, -100.0f) : 0.0f;
+        float g = on ? juce::Decibels::decibelsToGain (db, -100.0f) : 0.0f;
+        if (auto* f = follow.load()) g *= std::abs (f->currentGain());
         b.applyGainRamp (0, b.getNumSamples(), last, g);
         last = g;
     }

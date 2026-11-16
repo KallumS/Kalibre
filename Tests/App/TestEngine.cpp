@@ -410,3 +410,81 @@ TEST ("instruments: the built-in synth and sampler play a track's notes")
     CHECK (! clicks.empty());
     if (! clicks.empty()) CHECK (std::abs (clicks.front() - 12000) <= 2);   // 0.5 s of sample in 0.25 s
 }
+
+#include "HardwareInsert.h"
+
+namespace
+{
+std::vector<float> peaksPerChannel (const File& f, int& channels)
+{
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    std::vector<float> out;
+    channels = r ? (int) r->numChannels : 0;
+    if (! r) return out;
+    AudioBuffer<float> b ((int) r->numChannels, (int) r->lengthInSamples);
+    r->read (&b, 0, b.getNumSamples(), 0, true, true);
+    for (int ch = 0; ch < b.getNumChannels(); ++ch) out.push_back (b.getMagnitude (ch, 0, b.getNumSamples()));
+    return out;
+}
+} // namespace
+
+TEST ("surround: a 5.1 mix exports six channels, a track ahead in the centre and one behind left in the left surround")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p;
+    p.surround = SurroundFormat::Surround51;
+    const auto click = clickFile (0.5);
+    const Id a = edit::addTrack (p, TrackKind::Track, "Ahead");
+    edit::addClip (p, a, audioClip (click, 0, PPQ * 4));
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 1.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("surround.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    int channels = 0;
+    auto pk = peaksPerChannel (out, channels);
+    CHECK_EQ (channels, 6);
+    if (pk.size() == 6)
+    {
+        CHECK (pk[2] > 0.9f);                       // centre
+        CHECK (pk[0] < 0.01f && pk[1] < 0.01f && pk[4] < 0.01f);
+    }
+    p.track (a)->pan = -0.94;
+    p.track (a)->frontBack = -0.34;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    pk = peaksPerChannel (out, channels);
+    if (pk.size() == 6) CHECK (pk[4] > 0.85f && pk[2] < 0.01f);
+}
+
+TEST ("routing: an instrument's second output plays on a track of its own; a hardware insert passes sound through when exporting")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p;
+    const Id main = edit::addTrack (p, TrackKind::Track, "Multi");
+    PluginRef multi;
+    multi.format = "Kalibre";
+    multi.identifier = "test-multiout";
+    multi.name = "Multi-Out Test";
+    multi.isInstrument = true;
+    const Id dev = edit::addDevice (p, main, multi, DeviceRole::Instrument);
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 0.5; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("multiout.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    int channels = 0;
+    auto pk = peaksPerChannel (out, channels);
+    CHECK (! pk.empty() && pk[0] < 0.001f);         // only its main output: silent
+    const Id aux = edit::addTrack (p, TrackKind::Track, "Multi 3-4");
+    p.track (aux)->sourceDevice = dev;
+    p.track (aux)->sourcePair = 1;
+    edit::addDevice (p, aux, hardwareInsertRef(), DeviceRole::AudioFx);
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    pk = peaksPerChannel (out, channels);
+    // 0.25 through the pan law's centre (+3 dB on each side of -3 dB): 0.25 at unity.
+    CHECK (! pk.empty() && std::abs (pk[0] - 0.25f) < 0.01f);
+}

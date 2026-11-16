@@ -1,14 +1,16 @@
 #include "TrackProcessors.h"
 
 #include "Edit.h"
+#include "Surround.h"
 
 namespace kal
 {
 using namespace juce;
 
 //==============================================================================
+// Eight channels, for up to 7.1 (decision 0040); a stereo mix uses the first two.
 Fader::Fader()
-    : AudioProcessor (BusesProperties().withInput ("In", AudioChannelSet::stereo()).withOutput ("Out", AudioChannelSet::stereo()))
+    : AudioProcessor (BusesProperties().withInput ("In", AudioChannelSet::discreteChannels (8)).withOutput ("Out", AudioChannelSet::discreteChannels (8)))
 {
 }
 
@@ -23,6 +25,43 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
     const float p = jlimit (-1.0f, 1.0f, std::isnan (autoPan) ? pan.load() : autoPan);
     float gain = audible && automatedMute.load() != 1 ? Decibels::decibelsToGain (db, -100.0f) : 0.0f;
     if (phaseInvert) gain = -gain;
+    lastGain = gain;
+    const auto fmt = (SurroundFormat) format.load();
+    if (fmt != SurroundFormat::Stereo && b.getNumChannels() >= surround::channels (fmt))
+    {
+        // Surround: a bus passes every channel at its level; a track is placed among the speakers.
+        const int chans = surround::channels (fmt);
+        smoothedGain.setTargetValue (gain);
+        const auto spk = surround::gains (fmt, p, frontBack.load());
+        for (int ch = 0; ch < 8; ++ch) speaker[(size_t) ch].setTargetValue (spk[(size_t) ch]);
+        float pk[2] {};
+        for (int i = 0; i < n; ++i)
+        {
+            const float g = smoothedGain.getNextValue();
+            if (bus.load())
+                for (int ch = 0; ch < chans; ++ch) b.getWritePointer (ch)[i] *= g;
+            else
+            {
+                const float m = (b.getSample (0, i) + b.getSample (1, i)) * 0.5f * g;
+                for (int ch = 0; ch < chans; ++ch) b.getWritePointer (ch)[i] = m * speaker[(size_t) ch].getNextValue();
+            }
+            pk[0] = jmax (pk[0], std::abs (b.getSample (0, i)));
+            pk[1] = jmax (pk[1], std::abs (b.getSample (1, i)));
+        }
+        for (int ch = chans; ch < b.getNumChannels(); ++ch) b.clear (ch, 0, n);
+        float old = peakL.load();
+        while (pk[0] > old && ! peakL.compare_exchange_weak (old, pk[0])) {}
+        old = peakR.load();
+        while (pk[1] > old && ! peakR.compare_exchange_weak (old, pk[1])) {}
+        level = jmax (pk[0], pk[1]);
+        if (measureLoudness.load())
+        {
+            if (resetLoudness.exchange (false)) loudnessMeter.reset();
+            loudnessMeter.process (b.getWritePointer (0), b.getWritePointer (1), n);
+        }
+        return;
+    }
+    for (int ch = 2; ch < b.getNumChannels(); ++ch) b.clear (ch, 0, n);
     // Constant-power pan law: -3 dB in the middle.
     const float angle = (p + 1.0f) * MathConstants<float>::pi * 0.25f;
     smoothedGain.setTargetValue (gain);

@@ -2,6 +2,7 @@
 
 #include "Modulation.h"
 #include "BuiltinInstruments.h"
+#include "HardwareInsert.h"
 #include "MorphProcessor.h"
 
 namespace kal
@@ -199,6 +200,32 @@ public:
             m.addSubMenu ("Sidechain From", sc);
             m.addSeparator();
         }
+        // An instrument's further outputs, as tracks of their own (decision 0040).
+        if (d->role == DeviceRole::Instrument && owner)
+            if (auto* inst = c.engine.instance (id); inst && inst->getTotalNumOutputChannels() > 2)
+            {
+                const int pairs = inst->getTotalNumOutputChannels() / 2;
+                int made = 0;
+                for (auto& t : c.project.tracks) if (t.sourceDevice == id) ++made;
+                m.addItem ("Its Other Outputs as Tracks (" + String (pairs - 1) + ")", made == 0, false, [this, pairs, ownerId = owner->id]
+                {
+                    const String name (device()->plugin.name);
+                    c.apply ("Instrument Outputs", [this, pairs, ownerId, name] (Project& p)
+                    {
+                        Id after = ownerId;
+                        const auto* o = p.track (ownerId);
+                        const Id parent = o ? o->parent : 0;
+                        for (int k = 1; k < pairs; ++k)
+                        {
+                            const Id t = edit::addTrack (p, TrackKind::Track, (name + " " + String (k * 2 + 1) + "-" + String (k * 2 + 2)).toStdString(), after, parent);
+                            if (auto* tr = p.track (t)) { tr->sourceDevice = id; tr->sourcePair = k; if (o) tr->colour = o->colour; }
+                            after = t;
+                        }
+                    });
+                    c.say ("Each of the instrument's outputs now has a track: mix and process them separately.", false, true);
+                });
+                m.addSeparator();
+            }
         m.addItem ("Automate the Last Touched Control", c.lastTouched.device == id, false, [this] { c.automateLastTouched(); });
         PopupMenu mods;
         const char* kinds[] { "LFO", "ADSR", "ADR", "Envelope Follower", "Wavetable" };
@@ -475,6 +502,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     for (auto& [maker, menu] : byMaker[2]) effects.addSubMenu (maker, menu);
     kalibre.addItem ("Kalibre Synth", [&c, track] { c.addBuiltIn (track, synthRef(), DeviceRole::Instrument); });
     kalibre.addItem ("Kalibre Sampler", [&c, track] { c.addBuiltIn (track, samplerRef(), DeviceRole::Instrument); });
+    kalibre.addItem ("Hardware Insert (Outboard Gear)", [&c, track] { c.addBuiltIn (track, hardwareInsertRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();
     kalibre.addItem ("X/Y Morph as an Instrument (Samples or Instruments)", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::Instrument); });
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });

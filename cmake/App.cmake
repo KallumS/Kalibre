@@ -67,6 +67,7 @@ add_library(KalibreApp STATIC
     Source/Engine/TrackProcessors.cpp
     Source/Engine/MorphProcessor.cpp
     Source/Engine/BuiltinInstruments.cpp
+    Source/Engine/HardwareInsert.cpp
     Source/Engine/Warp.cpp
     Source/Engine/Engine.cpp
     Source/Engine/AraHost.cpp

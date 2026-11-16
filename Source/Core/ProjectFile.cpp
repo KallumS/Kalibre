@@ -63,7 +63,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Track, id, name, colour, kind, 
                                                  armed, monitor, phaseInvert, mono, locked, hidden, enabled, frozen, frozenFile,
                                                  delayMs, group, input, output, versions, activeVersion, devices, sends,
                                                  automation, autoMode, modulators, articulationMap,
-                                                 slots, mpe, sourceDevice, sourcePair)
+                                                 slots, mpe, sourceDevice, sourcePair, frontBack)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Marker, id, tick, name)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Section, id, name, start, end, colour)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Metadata, title, artist, album, genre, comment, isrc, year, trackNumber)

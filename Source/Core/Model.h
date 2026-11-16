@@ -385,6 +385,7 @@ struct Track
 
     double volumeDb = 0.0;
     double pan = 0.0;            // -1..1
+    double frontBack = 1.0;      // in a surround mix: -1 behind .. 1 in front (decision 0040)
     bool mute = false, solo = false, armed = false;
     Monitor monitor = Monitor::Auto;
     bool phaseInvert = false, mono = false;

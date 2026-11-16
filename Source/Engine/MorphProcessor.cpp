@@ -1,6 +1,7 @@
 #include "MorphProcessor.h"
 
 #include "BuiltinInstruments.h"
+#include "HardwareInsert.h"
 #include "Morph.h"
 #include "PluginManager.h"
 #include "Theme.h"
@@ -23,6 +24,43 @@ PluginRef morphRef()
 
 namespace
 {
+// An instrument with two stereo outputs: silence on the first, a steady 0.25
+// on the second (the tests use it for instruments' further outputs).
+class MultiOutTest : public AudioPluginInstance
+{
+public:
+    MultiOutTest()
+        : AudioPluginInstance (BusesProperties().withOutput ("Main", AudioChannelSet::stereo(), true)
+                                                .withOutput ("Aux", AudioChannelSet::stereo(), false)) {}
+    const String getName() const override { return "Multi-Out Test"; }
+    void fillInPluginDescription (PluginDescription& d) const override { d.name = getName(); d.pluginFormatName = "Kalibre"; d.isInstrument = true; }
+    void prepareToPlay (double, int) override {}
+    void releaseResources() override {}
+    void processBlock (AudioBuffer<float>& b, MidiBuffer& m) override
+    {
+        m.clear();
+        b.clear();
+        for (int ch = 2; ch < b.getNumChannels(); ++ch) FloatVectorOperations::fill (b.getWritePointer (ch), 0.25f, b.getNumSamples());
+    }
+    bool isBusesLayoutSupported (const BusesLayout& l) const override
+    {
+        for (auto& o : l.outputBuses) if (! o.isDisabled() && o != AudioChannelSet::stereo()) return false;
+        return l.inputBuses.isEmpty();
+    }
+    double getTailLengthSeconds() const override { return 0; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return false; }
+    bool hasEditor() const override { return false; }
+    AudioProcessorEditor* createEditor() override { return nullptr; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const String&) override {}
+    void getStateInformation (MemoryBlock&) override {}
+    void setStateInformation (const void*, int) override {}
+};
+
 // A device that only delays the sound by a fixed number of samples and says
 // so: the tests use it to hold plug-in delay compensation to account.
 class LatencyTest : public AudioPluginInstance
@@ -114,8 +152,10 @@ public:
 std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginManager& pm)
 {
     if (ref.identifier == "test-sidechain") return std::make_unique<SidechainTest>();
+    if (ref.identifier == "test-multiout") return std::make_unique<MultiOutTest>();
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
     if (auto inst = makeInstrument (ref)) return inst;
+    if (ref.identifier == "hardware-insert") return std::make_unique<HardwareInsert>();
     if (String (ref.identifier).startsWith ("test-latency:"))
         return std::make_unique<LatencyTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getIntValue());
     return nullptr;

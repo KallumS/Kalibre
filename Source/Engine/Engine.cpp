@@ -2,6 +2,8 @@
 
 #include "Edit.h"
 #include "TimedPlugin.h"
+#include "HardwareInsert.h"
+#include "Surround.h"
 
 namespace kal
 {
@@ -67,6 +69,13 @@ void Engine::audioDeviceAboutToStart (AudioIODevice* device)
     shared.clock.rate = rate;
     cache.setSampleRate (rate);
     player.audioDeviceAboutToStart (device);
+    // The interface's channels may have changed: wire the outputs again.
+    MessageManager::callAsync ([this, alive = std::weak_ptr<bool> (aliveToken)]
+    {
+        if (alive.expired()) return;
+        shape.clear();
+        if (onAudioReady) onAudioReady();
+    });
 }
 
 void Engine::audioDeviceStopped()
@@ -132,7 +141,19 @@ void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numI
         info.setLoopPoints (AudioPlayHead::LoopPoints { map->ticksAt (loopStart.load()) / PPQ, map->ticksAt (loopEnd.load()) / PPQ });
         shared.songTicks = c.playing ? ticks : -1.0;
     }
+    // Hardware inserts (decision 0040) read the inputs and add to the outputs.
+    auto& hw = HardwareBus::get();
+    hw.inputs = ins;
+    hw.numInputs = numIns;
+    hw.numOutputs = numOuts;
+    hw.samples = n;
+    hw.live = true;
+    if (hw.sends.getNumChannels() < numOuts || hw.sends.getNumSamples() < n) hw.sends.setSize (jmax (numOuts, 2), jmax (n, 4096), false, false, true);
+    hw.sends.clear();
     player.audioDeviceIOCallbackWithContext (ins, numIns, outs, numOuts, n, context);
+    for (int ch = 0; ch < numOuts; ++ch)
+        if (outs[ch]) FloatVectorOperations::add (outs[ch], hw.sends.getReadPointer (ch), n);
+    hw.live = false;
     if (map)
     {
         // Sync messages are timed to when this block is heard.
@@ -458,6 +479,10 @@ Engine::Node::Ptr Engine::nodeForDevice (const Device& d, String& error)
         if (m.fromBase64Encoding (d.state)) instance->setStateInformation (m.getData(), (int) m.getSize());
     }
     enableSidechain (*instance);
+    // An instrument with more outputs than two has them all switched on (decision 0040).
+    if (d.role == DeviceRole::Instrument)
+        for (int i = 1; i < instance->getBusCount (false); ++i)
+            if (auto* bus = instance->getBus (false, i)) bus->enable (true);
     instance->addListener (this);
     auto node = graph.addNode (std::make_unique<TimedPlugin> (std::move (instance)));
     if (auto old = deviceNodes[d.id]) { if (auto* op = pluginOf (old)) op->removeListener (this); bury (old); }
@@ -538,8 +563,14 @@ void Engine::sync (const Project& project, Id live, const File& folder)
 
     // The wiring, as text: rebuilt only when it changes.
     String newShape;
+    const int busChannels = surround::channels (project.surround);
+    const bool surroundMix = busChannels > 2;
+    newShape << "fmt" << busChannels << "/" << graph.getTotalNumOutputChannels() << ";";
     for (auto* t : all)
     {
+        if (t->sourceDevice != 0)
+            if (auto it = deviceNodes.find (t->sourceDevice); it != deviceNodes.end() && it->second)
+                newShape << "src" << (int64) t->sourceDevice << ":" << t->sourcePair << ":" << (int64) it->second->nodeID.uid << ";";
         newShape << (int64) t->id << ":" << (int) t->kind << ":" << (int64) project.outputOf (t->id) << ":" << (t->id == live ? 1 : 0)
                  << (t->armed ? "a" : "") << (int) t->monitor << "/" << t->input.audioChannel << "[";
         // The node's own number too: a device replaced by another under the same id is rewired.
@@ -556,6 +587,10 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         auto connectAudio = [&] (NodeID from, NodeID to)
         {
             for (int ch = 0; ch < 2; ++ch) graph.addConnection ({ { from, ch }, { to, ch } }, Kind::none);
+        };
+        auto connectChannels = [&] (NodeID from, NodeID to, int count)
+        {
+            for (int ch = 0; ch < count; ++ch) graph.addConnection ({ { from, ch }, { to, ch } }, Kind::none);
         };
         auto connectMidi = [&] (NodeID from, NodeID to)
         {
@@ -633,14 +668,34 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                     graph.addConnection ({ { from->second.fader->nodeID, 1 }, { deviceNodes[d.id]->nodeID, first } }, Kind::none);
             }
 
-            // Out: to its folder, the track it is routed to, or the master.
+            // Out: to its folder, the track it is routed to, or the master. In a
+            // surround mix every channel goes; a bus's plug-ins take the front two
+            // and the rest go straight to its fader (decision 0040).
             if (t->kind == TrackKind::Master)
-                connectAudio (nodes.fader->nodeID, audioOut->nodeID);
+                connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
             else
             {
                 const Id out = project.outputOf (t->id);
-                connectAudio (nodes.fader->nodeID, entry[out == 0 ? project.master.id : out]);
+                const Id target = out == 0 ? project.master.id : out;
+                const auto targetEntry = entry[target];
+                const auto targetFader = tracks[target].fader->nodeID;
+                if (targetEntry == targetFader) connectChannels (nodes.fader->nodeID, targetFader, busChannels);
+                else
+                {
+                    connectAudio (nodes.fader->nodeID, targetEntry);
+                    for (int ch = 2; ch < busChannels; ++ch) graph.addConnection ({ { nodes.fader->nodeID, ch }, { targetFader, ch } }, Kind::none);
+                }
             }
+
+            // An instrument's further outputs, each on a track of its own.
+            if (t->sourceDevice != 0)
+                if (auto it = deviceNodes.find (t->sourceDevice); it != deviceNodes.end() && it->second)
+                {
+                    const int first = t->sourcePair * 2;
+                    if (first + 1 < it->second->getProcessor()->getTotalNumOutputChannels())
+                        for (int ch = 0; ch < 2; ++ch)
+                            graph.addConnection ({ { it->second->nodeID, first + ch }, { entry[t->id], ch } }, Kind::none);
+                }
 
             // Sends.
             std::set<Id> keep;
@@ -650,7 +705,9 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 keep.insert (s.target);
                 auto& sendNode = nodes.sends[s.target];
                 if (! sendNode) sendNode = graph.addNode (std::make_unique<SendGain>(), {}, Kind::none);
-                connectAudio (s.preFader ? preFader[t->id] : nodes.fader->nodeID, sendNode->nodeID);
+                // In surround the fader's output is many channels: a post-fader send takes the
+                // stereo sound before it and follows the fader's level instead.
+                connectAudio (s.preFader || surroundMix ? preFader[t->id] : nodes.fader->nodeID, sendNode->nodeID);
                 connectAudio (sendNode->nodeID, entry[s.target]);
             }
             for (auto it = nodes.sends.begin(); it != nodes.sends.end();)
@@ -701,6 +758,9 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             f->audible = heard (*t) && t->enabled;
             f->phaseInvert = t->phaseInvert;
             f->mono = t->mono;
+            f->format = (int) project.surround;
+            f->bus = t->kind == TrackKind::Master || t->isFolder();
+            f->frontBack = (float) t->frontBack;
         }
         for (auto& s : t->sends)
             if (auto it = nodes.sends.find (s.target); it != nodes.sends.end())
@@ -708,6 +768,8 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 {
                     g->gainDb = (float) s.gainDb;
                     g->automatedDb = std::numeric_limits<float>::quiet_NaN();   // a lane sets it again below
+                    g->follow = project.surround != SurroundFormat::Stereo && ! s.preFader
+                                  ? dynamic_cast<Fader*> (nodes.fader->getProcessor()) : nullptr;
                     g->on = ! s.muted;
                 }
 
@@ -816,8 +878,13 @@ bool Engine::render (const Project& project, const File& folder, const File& out
                      std::function<bool (float)> progress, String& error)
 {
     const bool wasPlaying = playing.load();
+    const Id wasLive = liveTrack;
     playing = false;
     deviceManager.removeAudioCallback (this);
+    // Every channel of the mix's format is rendered (decision 0040).
+    const int outChannels = surround::channels (project.surround);
+    graph.setPlayConfigDetails (0, outChannels, rate, 512);
+    graph.prepareToPlay (rate, 512);   // the graph's ends take on the channels before wiring
     sync (project, 0, folder);
 
     // Clips still loading are waited for (a render must not miss them).
@@ -835,7 +902,7 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     const double renderRate = rate;
     const int block = 512;
     graph.setNonRealtime (true);
-    graph.setPlayConfigDetails (0, 2, renderRate, block);
+    graph.setPlayConfigDetails (0, outChannels, renderRate, block);
     graph.prepareToPlay (renderRate, block);
 
     out.deleteFile();
@@ -844,7 +911,7 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     std::unique_ptr<AudioFormatWriter> writer;
     if (stream)
         writer = fmt->createWriterFor (stream, AudioFormatWriterOptions().withSampleRate (renderRate)
-                                                   .withNumChannels (2).withBitsPerSample (o.bitDepth));
+                                                   .withNumChannels (outChannels).withBitsPerSample (o.bitDepth));
     if (! writer)
     {
         error = "The file couldn't be written.";
@@ -857,9 +924,9 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     const double total = (o.end - o.start) + o.tail;
     const auto frames = (int) std::ceil (total * renderRate);
     const int latency = graph.getLatencySamples();
-    AudioBuffer<float> result (2, frames);
+    AudioBuffer<float> result (outChannels, frames);
     result.clear();
-    AudioBuffer<float> buf (2, block);
+    AudioBuffer<float> buf (outChannels, block);
     MidiBuffer midi;
     auto& c = shared.clock;
     double t = o.start;
@@ -886,7 +953,7 @@ bool Engine::render (const Project& project, const File& folder, const File& out
         {
             const int at = done + i;
             if (at >= 0 && at < frames)
-                for (int ch = 0; ch < 2; ++ch) result.setSample (ch, at, buf.getSample (ch, i));
+                for (int ch = 0; ch < outChannels; ++ch) result.setSample (ch, at, buf.getSample (ch, i));
         }
         t += block / renderRate;
         if (progress && ! progress ((float) jlimit (0.0, 1.0, (double) (done + latency) / (frames + latency))))
@@ -920,7 +987,7 @@ bool Engine::render (const Project& project, const File& folder, const File& out
             // Triangular dither at the last bit.
             Random r;
             const float lsb = 1.0f / (float) (1 << (o.bitDepth - 1));
-            for (int ch = 0; ch < 2; ++ch)
+            for (int ch = 0; ch < outChannels; ++ch)
                 for (int i = 0; i < frames; ++i)
                     result.addSample (ch, i, (r.nextFloat() - r.nextFloat()) * lsb);
         }
@@ -933,6 +1000,9 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     c.playing = false;
     playing = wasPlaying;
     deviceManager.addAudioCallback (this);
+    // Wired again for the interface's channels.
+    shape.clear();
+    sync (project, wasLive, folder);
     return ! cancelled;
 }
 

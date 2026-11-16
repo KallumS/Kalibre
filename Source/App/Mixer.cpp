@@ -53,6 +53,17 @@ public:
                 c.refresh();
             };
         }
+        // Front to back, in a surround mix (decision 0040).
+        depth.setSliderStyle (Slider::RotaryHorizontalVerticalDrag);
+        depth.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
+        depth.setRange (-1.0, 1.0, 0.01);
+        depth.setDoubleClickReturnValue (true, 1.0);
+        depth.setTitle ("Front to Back");
+        depth.setTooltip ("Where the track is from front (right) to back (left) in the surround mix. Pan is left to right.");
+        depth.onDragStart = [this] { before = c.project; };
+        depth.onValueChange = [this] { if (auto* t = c.project.track (id)) t->frontBack = depth.getValue(); if (auto* f = c.engine.fader (id)) f->frontBack = (float) depth.getValue(); c.dirty = true; };
+        depth.onDragEnd = [this] { if (! (before == c.project)) c.history.push (before, "Surround Position"); c.refresh(); };
+        addChildComponent (depth);
         for (auto* b : { &mute, &solo, &phase }) addAndMakeVisible (b);
         mute.onClick = [this]
         {
@@ -78,6 +89,8 @@ public:
         if (! t) return;
         fader.setValue (t->volumeDb, dontSendNotification);
         pan.setValue (t->pan, dontSendNotification);
+        depth.setValue (t->frontBack, dontSendNotification);
+        depth.setVisible (c.project.surround != SurroundFormat::Stereo && t->kind != TrackKind::Master && ! t->isFolder());
         mute.setToggleState (t->mute, dontSendNotification);
         solo.setToggleState (t->solo, dontSendNotification);
         phase.setToggleState (t->phaseInvert, dontSendNotification);
@@ -168,7 +181,13 @@ public:
     {
         auto r = getLocalBounds().reduced (4);
         r.removeFromTop (theme::px (22));
-        pan.setBounds (r.removeFromTop (theme::px (40)).withSizeKeepingCentre (theme::px (40), theme::px (40)));
+        auto knobs = r.removeFromTop (theme::px (40));
+        if (depth.isVisible())
+        {
+            pan.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2).withSizeKeepingCentre (theme::px (34), theme::px (34)));
+            depth.setBounds (knobs.withSizeKeepingCentre (theme::px (34), theme::px (34)));
+        }
+        else pan.setBounds (knobs.withSizeKeepingCentre (theme::px (40), theme::px (40)));
         auto row = r.removeFromTop (theme::px (24));
         const int bw = (row.getWidth() - 4) / 3;
         mute.setBounds (row.removeFromLeft (bw).reduced (1));
@@ -200,7 +219,7 @@ public:
 
     Controller& c;
     Id id;
-    Slider fader, pan;
+    Slider fader, pan, depth;
     theme::HouseButton mute { "M", "Mute.", true }, solo { "S", "Solo.", true }, phase { ui::u8 ("\xc3\x98"), "Invert the polarity.", true };
     OwnedArray<Slider> sends;
     float meter[2] {}, rms[2] {};
