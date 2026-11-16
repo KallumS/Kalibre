@@ -4,11 +4,10 @@ The conversation that built Kalibre, kept so the reasons and the route aren't
 lost when the session's context is compacted. Your messages and Claude's
 replies are in full; each tool call (a command, a file written, a search) is
 listed in one line by what it did, without its output. Private details (an
-email address) and the harness's internal reminders are removed. The session
-log only holds what was still in it when this was made: the earliest hours
-are summarised in `2026-11-15.md` rather than kept word for word.
+email address) and the harness's internal reminders are removed. The
+summaries written at each compaction are left out: they repeat what's here.
 
-10 messages from you, 70 replies, 308 tool calls.
+9 messages from you, 123 replies, 581 tool calls.
 
 ## You (2026-11-15 19:34)
 
@@ -54,6 +53,8 @@ Please use title bar menus to save GUI space where appropriate.
 
 If you use agents, please limit them to one at a time.
 
+## Claude (2026-11-15 19:34)
+
 - *Bash*: Inspect repo state
 - *Bash*: Extract text from DAW features docx
 - *mcp__claude-code-remote__list_repos*: kallums
@@ -74,12 +75,9 @@ Reading your reference repos (VST-Morpher is JUCE/C++, Middaw is Swift) to pick 
 
 ## You (2026-11-15 19:36)
 
-[Request interrupted by user]
-
-
-## You (2026-11-15 19:36)
-
 Please consider the following as the codebase and pick the best for the task: JUCE/ C++, Swift, Rust or Lua
+
+## Claude (2026-11-15 19:36)
 
 - *Bash*: Read detection and app theme code
 - *Bash*: Read key and chord detection logic
@@ -501,10 +499,11 @@ Try the Mac app with Melodyne and your FabFilter plug-ins. If a plug-in window m
 
 The code is organised the way your other repos are: `README.md` for you, `CLAUDE.md` for future sessions, and under `docs/` the architecture, 28 decision records, the Apple guidelines review, the colour scheme and the scripting API. Example scripts are in `Scripts/`.
 
-
 ## You (2026-11-15 22:41)
 
 Build these please:  Not built yet: comping, crossfades, sidechain routing, MIDI learn, loudness meters, sync and control surfaces
+
+## Claude (2026-11-15 22:42)
 
 - *Bash*: Check repo state before starting
 - *ToolSearch*: select:TaskCreate,TaskUpdate
@@ -560,40 +559,23 @@ Crossfades done and tested. Adding a vocal track with takes to the render demo s
 
 You've hit your 5-hour limit · resets 12:30am (UTC)
 
-
-## You (2026-11-15 23:33)
-
-This session's worker process was restarted. If your previous turn was already complete, take no action and wait for the next event. Otherwise, continue from where you left off.
-
-
-## Claude (2026-11-15 23:33)
-
 You've hit your 5-hour limit · resets 12:30am (UTC)
-
 
 ## You (2026-11-15 23:38)
 
 I'm about to hit compaction, could you backup the entire chat history onto the GitHub and then the docs? Then compact, and continue with the work
 
-
 ## Claude (2026-11-15 23:38)
 
 You've hit your 5-hour limit · resets 12:30am (UTC)
 
-
-## You (2026-11-16 00:28)
-
-This session's worker process was restarted. If your previous turn was already complete, take no action and wait for the next event. Otherwise, continue from where you left off.
-
-
-## Claude (2026-11-16 00:28)
-
 You've hit your 5-hour limit · resets 12:30am (UTC)
-
 
 ## You (2026-11-16 00:31)
 
 I'm about to hit compaction, could you backup the entire chat history onto the GitHub and then the docs? Then continue your work
+
+## Claude (2026-11-16 00:31)
 
 - *Bash*: Check work state and find transcript
 
@@ -803,11 +785,6 @@ None of the sync or surface features has been tried with real gear yet. When you
 
 **Mac build:** the build of everything up to the loudness meters passed. The newest run adds Link and the surfaces: https://github.com/KallumS/Kalibre/actions/runs/43783172332. I'm watching it and will fix anything it turns up.
 
-
-## You (2026-11-16 01:05)
-
-[background task finished]
-
 - *TaskUpdate*: 
 
 ## Claude (2026-11-16 01:05)
@@ -816,10 +793,11 @@ The newest build passed on both Mac and Linux, so everything from this round is 
 
 Sync and the control surfaces still need trying with real gear (a drum machine, a Link app, a fader surface).
 
-
 ## You (2026-11-16 01:11)
 
 Back up the chat and docs
+
+## Claude (2026-11-16 01:11)
 
 - *Bash*: Check repo state
 
@@ -828,3 +806,615 @@ Back up the chat and docs
 Working tree is clean and pushed. Refreshing the chat backup with everything up to now, and noting the latest results in the docs.
 
 - *Bash*: Refresh history backup and session log; push
+
+## Claude (2026-11-16 01:12)
+
+The chat and docs are backed up and pushed to GitHub on `claude/custom-daw-macos-r6rhux`.
+
+- **Chat:** `docs/sessions/2026-11-15-chat-history.md` now runs up to this message. Your email address and the system's internal notes are removed, and each tool step is one line. The saved log no longer holds the first hours of the session word for word, so that part comes from the summary in `docs/sessions/2026-11-15.md`.
+- **Session log:** `docs/sessions/2026-11-15.md` now ends with a "Where it stands" section. It records that the latest Mac and Linux builds passed (86 core and 17 app tests), and what hasn't been tried on your Mac yet: plug-in windows, Melodyne, and sync and control surfaces with real gear.
+- **Other docs:** the rest were already up to date and pushed with the last change: `README.md`, `docs/FEATURES.md`, `docs/ARCHITECTURE.md`, `docs/CONTROL.md`, decisions 0001–0035, the screenshots, and your three original files in `docs/reference/`.
+
+## You (2026-11-16 01:13)
+
+Build the remaining features in FEATURES.md
+
+## Claude (2026-11-16 01:13)
+
+- *Bash*: List remaining items in FEATURES.md
+
+## You (2026-11-16 01:15)
+
+Build the remaining features in FEATURES.md
+
+## Claude (2026-11-16 01:15)
+
+- *Bash*: Check repo and build state
+- *Bash*: List repo and build dirs
+- *Bash*: Show file sizes and Model.h
+- *Bash*: Read engine headers
+- *Bash*: Read controller and lower zone
+- *Bash*: Read Engine.cpp part 1
+
+## Claude (2026-11-16 01:17)
+
+Working through the remaining FEATURES.md items, group by group; reading the engine now before writing code.
+
+- *Bash*: Read Engine.cpp part 2
+- *Bash*: Read TrackProcessors.cpp
+- *ToolSearch*: select:TaskCreate,TaskUpdate
+- *TaskCreate*: Core AudioTools + Editor for audio clips
+- *TaskCreate*: Core time edits, link propagation, launcher tab
+- *TaskCreate*: Engine + mixer
+- *TaskCreate*: Instruments and plug-in hosting
+- *TaskCreate*: Engine wiring
+- *TaskCreate*: Files
+- *TaskCreate*: Rest
+- *TaskCreate*: FEATURES, decisions, session log
+- *TaskUpdate*: 
+- *Bash*: Find audio clip editing code
+- *Bash*: Read warp mapping and clip menu
+
+## Claude (2026-11-16 01:18)
+
+Building the audio tools now (normalise, silence, transients, audio quantise, sample editor, spectral view).
+
+- *Bash*: Find waveform drawing and file helpers
+- *Bash*: See test style
+- *Write*: /home/user/Kalibre/Source/Core/AudioTools.h
+- *Write*: /home/user/Kalibre/Source/Core/AudioTools.cpp
+- *Bash*: Wire AudioTools into build and Warp
+
+## Claude (2026-11-16 01:19)
+
+Now tests for these.
+
+- *Write*: /home/user/Kalibre/Tests/TestAudioTools.cpp
+- *Bash*: Build and run core tests
+- *Bash*: Read Theme.h
+- *Bash*: Read Edit.h
+- *Bash*: Read clip edit functions
+- *Bash*: Add strip silence edit and test
+- *Bash*: Find path resolution
+- *Bash*: Check path resolution and controller includes
+
+## Claude (2026-11-16 01:20)
+
+Writing the sample editor (Editor tab for audio clips) and the clip commands now.
+
+- *Bash*: Add controller audio commands
+- *Bash*: Add files to app build; view PianoRoll header
+
+## Claude (2026-11-16 01:21)
+
+Now the SampleEditor component.
+
+- *Write*: /home/user/Kalibre/Source/App/SampleEditor.h
+- *Write*: /home/user/Kalibre/Source/App/SampleEditor.cpp
+- *Bash*: Integrate sample editor in lower zone
+- *Bash*: Fix sample editor bounds
+- *Bash*: Add clip menu items and build app
+- *Bash*: Inspect render tool
+- *Bash*: Read render tool
+- *Bash*: Render sample editor
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/11-sample-editor.png
+- *Bash*: Fix render browser hiding
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/11-sample-editor.png
+- *Bash*: Run app tests; check assertion source
+
+## Claude (2026-11-16 01:24)
+
+Audio tools done and rendered; committing, then on to arrangement features.
+
+- *Bash*: Commit and push audio tools
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+- *Bash*: Read Playback and TempoMap API
+- *Bash*: See serialisation macros
+- *Bash*: Read rest of ProjectFile
+- *Bash*: Extend model and file format
+- *Bash*: Build core after model change
+
+## Claude (2026-11-16 01:26)
+
+Model extended (sections, links, launcher, metadata, video, A/B, MPE). Now writing the song-structure edits (sections, ripple, links, groups, launcher).
+
+- *Write*: /home/user/Kalibre/Source/Core/Song.h
+- *Bash*: Check clip lookup and automation helpers
+- *Write*: /home/user/Kalibre/Source/Core/Song.cpp
+- *Bash*: Launcher in playback; add Song to build
+- *Write*: /home/user/Kalibre/Tests/TestSong.cpp
+- *Bash*: Build and run song tests
+- *Bash*: Read apply/refresh/delete
+
+## Claude (2026-11-16 01:29)
+
+Song edits pass their tests (sections, ripple, links, groups, launcher). Wiring them into the window now.
+
+- *Bash*: Hook links/groups/ripple into controller
+- *Bash*: Add launcher commands to controller
+- *Bash*: Fix stopped-launch behaviour
+- *Bash*: Let slot clips be found by id
+- *Write*: /home/user/Kalibre/Source/App/LauncherView.h
+- *Write*: /home/user/Kalibre/Source/App/LauncherView.cpp
+- *Bash*: Add Launcher tab; find menus to extend
+- *Bash*: Read track header menu and clip menu start
+- *Bash*: Check outputOf
+- *Bash*: Add input/output/group and link menus
+- *Bash*: Read ruler drawing and marker menu
+- *Bash*: Read ruler mouse handling
+
+## Claude (2026-11-16 01:31)
+
+Adding a sections lane under the ruler (right-click to add, rename, duplicate, move, delete sections).
+
+- *Bash*: Find ruler offsets
+- *Bash*: Section lane drawing and menu
+- *Bash*: Look at menus
+- *Bash*: Read Edit and View menus
+- *Bash*: Edit/View menu items, build
+- *Bash*: Fix and rebuild
+
+## Claude (2026-11-16 01:33)
+
+Builds. Adding sections and a launcher render to check the look.
+
+- *Bash*: Render launcher
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/12-launcher.png
+- *Bash*: Test, commit, push arrangement
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 01:33)
+
+Arrangement pushed. Next: automation (trim, copy/paste, mute and send playback), RMS meters, CPU and dropouts.
+
+- *Bash*: Find automation write and read code
+- *Bash*: Read touched and applyAutomation
+- *Bash*: Check mixer touch calls
+- *Bash*: Read mixer strip code
+- *Bash*: Look for graph node processing hooks
+- *Bash*: Inspect ProcessOp and node ordering
+- *Bash*: Find processor access sites
+
+## Claude (2026-11-16 01:34)
+
+Writing a timing wrapper around each plug-in so the mixer can show CPU per track.
+
+- *Write*: /home/user/Kalibre/Source/Engine/TimedPlugin.h
+- *Bash*: Wrap plugins, add CPU and dropouts
+- *Bash*: Fix namespace and rebuild
+- *Bash*: Check JUCE 9 extensions API
+- *Bash*: Read AudioPluginInstance API and ARA usage
+- *Bash*: Forward extension getters
+- *Bash*: Mute/send automation playback and RMS
+- *Bash*: View applyAutomation
+- *Bash*: Reset when automation off; read writeValue
+
+## Claude (2026-11-16 01:37)
+
+Now core trim and copy/paste functions with tests.
+
+- *Bash*: Trim/copy/paste in core with tests
+- *Bash*: Generalise automation writing with trim
+- *Bash*: Read mixer meter and layout
+- *Bash*: Mixer writes automation, shows RMS and CPU
+- *Bash*: Find top bar readouts
+- *Bash*: Inspect cpu readout in TopBar
+- *Bash*: Read top bar layout
+- *Bash*: Top bar CPU/dropouts readout
+- *Bash*: Read automation lane menu
+- *Bash*: Automation lane copy/paste, build
+- *Bash*: Run app tests
+
+## Claude (2026-11-16 01:39)
+
+PDC and sidechain still pass through the new plug-in wrapper. Adding an engine test for mute automation.
+
+- *Bash*: Read engine test helpers
+- *Bash*: Add and run mute automation engine test
+- *Bash*: Re-render
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/7-mixer.png
+- *Bash*: Commit and push automation/metering
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+- *Bash*: Check CI runs
+
+## Claude (2026-11-16 01:40)
+
+Audio-tools build passed on the Mac CI. Now: built-in synth and sampler, presets, A/B, offline-effect settings.
+
+- *Bash*: Read how built-ins are created
+- *Bash*: See built-in factory and UI hooks
+- *Bash*: Read DeviceRack top
+- *Bash*: Read DeviceRack remaining relevant parts
+
+## Claude (2026-11-16 01:41)
+
+Writing the built-in synth and sampler now.
+
+- *Write*: /home/user/Kalibre/Source/Engine/BuiltinInstruments.h
+- *Bash*: See morph editor styling
+- *Write*: /home/user/Kalibre/Source/Engine/BuiltinInstruments.cpp
+- *Bash*: Register instruments, build
+- *Bash*: Declare preset functions
+- *Write*: /home/user/Kalibre/Source/App/Presets.cpp
+- *Bash*: Make preset loads undoable
+
+## Claude (2026-11-16 01:43)
+
+Making Undo put a plug-in's previous settings back (for preset loads and A/B).
+
+- *Bash*: Read undo/redo
+- *Bash*: Reload changed plugin states on undo/redo
+- *Bash*: Track Kalibre-made state changes for undo
+- *Bash*: A/B and Presets buttons on device header
+
+## Claude (2026-11-16 01:45)
+
+Adding a Presets tab to the browser too.
+
+- *Bash*: Read Browser.h
+- *Bash*: Presets tab in browser
+
+## Claude (2026-11-16 01:46)
+
+Now editing offline-effect settings: the Devices tab shows a clip's offline chain with each plug-in's own window.
+
+- *Bash*: Offline FX editing view
+- *Bash*: Test built-in instruments
+- *Bash*: Debug sampler test
+- *Bash*: Debug sampler directly
+
+## Claude (2026-11-16 01:49)
+
+Found a real engine bug: a device replaced under the same id kept its old wiring. Fixing.
+
+- *Bash*: Include node id in wiring shape; rerun
+- *Bash*: Render synth and sampler
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/13-synth-and-sampler.png
+
+## Claude (2026-11-16 01:50)
+
+Knob readouts show too many decimals, and the A/B button reads "B" next to Bypass's "B". Tidying both.
+
+- *Bash*: Readable knob values, clearer A/B label
+- *Bash*: Crop render to device area
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/crop13.png
+- *Bash*: Commit instruments/presets; check CI
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 01:52)
+
+CI is green through the plug-in wrapper. Next group: hardware inserts, multi-output instruments, surround, CLAP sidechain. Checking how the CLAP host handles audio ports first.
+
+- *Bash*: Inspect CLAP audio port handling
+- *Bash*: Read CLAP instance buses and process
+- *Bash*: Read CLAP instance constructor
+- *Bash*: CLAP sidechain port support
+- *Bash*: Surround panning core with tests
+
+## Claude (2026-11-16 01:53)
+
+Surround panning tested. Now wiring surround, multi-output instruments and hardware inserts into the engine.
+
+- *Bash*: Fader surround mode and send following
+- *Bash*: Prepare speaker smoothers
+- *Bash*: Hardware insert device
+
+## Claude (2026-11-16 01:55)
+
+Now the engine wiring: surround buses, instrument outputs, the hardware bus.
+
+- *Bash*: Engine surround, outputs, hardware bus wiring
+- *Bash*: UI for surround, outputs, hardware insert
+- *Bash*: Read test built-ins
+- *Bash*: Tests for surround, multi-out, hardware insert
+- *Bash*: Print surround peaks
+- *Bash*: Find IO node channel update in JUCE
+- *Bash*: See when IO nodes get updated
+- *Bash*: Check onAudioReady handling
+- *Bash*: Prepare graph before wiring render
+- *Bash*: Guard async callback, commit routing
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 02:00)
+
+Routing pushed. Next: projects and export — templates, collect and save, relink, MP3, batch, metadata, XML, archive. Checking an MP3 encoder can be fetched.
+
+- *Bash*: Fetch shine MP3 encoder
+- *Bash*: Inspect shine API and arch selection
+- *Bash*: Read shine API and existing FetchContent
+- *Bash*: See link fetch pattern and shine encode API
+- *Bash*: Check JUCE metadata support
+
+## Claude (2026-11-16 02:01)
+
+Shine (LGPL MP3 encoder) is fetchable. Writing the project-file tools in the core first.
+
+- *Write*: /home/user/Kalibre/Source/Core/ProjectTools.h
+- *Write*: /home/user/Kalibre/Source/Core/ProjectTools.cpp
+- *Bash*: Project tools tests
+
+## Claude (2026-11-16 02:02)
+
+Core tools pass. Now the MP3 writer and wiring shine into the build.
+
+- *Bash*: MP3 writer with shine
+- *Bash*: Read exportAudio and open
+- *Bash*: Check the build output
+
+## Claude (2026-11-16 02:05)
+
+Builds. Now MP3 + metadata in the export, and the controller's file commands.
+
+- *Bash*: MP3 and tags in render
+- *Bash*: Controller file commands
+- *Bash*: Read File menu
+- *Bash*: File menu items, batch export and song details
+- *Bash*: See window test setup; fix leak
+- *Bash*: App tests for file features
+- *Bash*: Wait for background build
+
+## Claude (2026-11-16 02:10)
+
+Writing file-feature tests while the build runs; waiting on it now.
+
+- *Bash*: Wait for build then build tests
+- *Bash*: Run app tests
+- *Bash*: Run app tests capturing output
+- *Bash*: Get backtrace of crash
+- *Bash*: Check debugger and rerun
+- *Bash*: Backtrace past the benign trap
+- *Bash*: Debug crash with log
+- *Bash*: Check runner and use catchsegv
+- *Bash*: Run the new tests one by one
+- *Bash*: Backtrace the collect test crash
+
+## Claude (2026-11-16 02:12)
+
+Test mistakes (a new project starts with one track). Fixing the tests.
+
+- *Bash*: Fix tests and rerun all
+- *Bash*: Run all app tests to log
+- *Bash*: Backtrace full run crash
+- *Bash*: Fix test helper; rerun
+
+## Claude (2026-11-16 02:13)
+
+All 24 app tests pass. Committing projects/export work.
+
+- *Bash*: Commit, push, check CI
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 02:13)
+
+Projects/export green on CI. Last feature group: sync (MTC in, MMC, HUI, network MIDI), MPE, analysers, custom keys, workspaces, video. Reading the sync code first.
+
+- *Bash*: Read sync headers
+- *Bash*: Read Surfaces structure
+- *Bash*: Read Surfaces implementation
+- *Bash*: Read StudioPanel and settings serialization
+
+## Claude (2026-11-16 02:14)
+
+Writing the core of MTC chasing, MMC and HUI, with tests.
+
+- *Bash*: HUI, MTC in, MMC core plus tests
+- *Bash*: Fix MTC test
+- *Bash*: Read SyncDevices.cpp
+- *Bash*: Read sync command handling
+- *Bash*: MTC chase and MMC in the engine
+
+## Claude (2026-11-16 02:17)
+
+Now HUI in the surfaces code.
+
+- *Bash*: Read Mackie feedback & timer
+- *Bash*: Declare HUI members
+- *Bash*: HUI handling in Surfaces
+
+## Claude (2026-11-16 02:18)
+
+HUI built. Now network MIDI (macOS's own session switched on from the Studio tab) and the Studio tab controls.
+
+- *Bash*: Network MIDI and Studio tab controls
+- *Bash*: Read surfaces test setup
+- *Bash*: HUI app test
+- *Bash*: Commit sync work
+
+## Claude (2026-11-16 02:19)
+
+Sync committed. Now the analysers: spectrum, oscilloscope, phase scope and tuner in a Meters tab.
+
+- *Bash*: Meters tab with analysers and tuner
+
+## Claude (2026-11-16 02:21)
+
+You've hit your 5-hour limit · resets 5:30am (UTC)
+
+- *Bash*: Check state after restart and rebuild
+
+## Claude (2026-11-16 05:31)
+
+Picking up where I stopped: the Meters tab (spectrum, scope, phase, tuner) builds. Rendering it to check.
+
+- *Bash*: Render the meters tab
+- *Read*: /tmp/claude-0/-home-user-Kalibre/566cd92c-a38d-5cd2-a3ac-3684222329c8/scratchpad/renders/14-meters.png
+
+## Claude (2026-11-16 05:32)
+
+Meters look right. Testing and committing.
+
+- *Bash*: Run tests, commit meters
+
+## Claude (2026-11-16 05:33)
+
+Committed. Next: customisable keys and workspaces. Reading the current menu key wiring first.
+
+- *Bash*: Find menu items with shortcut text
+- *Bash*: Keys registry
+- *Bash*: Register keyboard commands in the window
+- *Bash*: Menus show current keys
+- *Bash*: Keys tab in browser; build
+
+## Claude (2026-11-16 05:35)
+
+Keys build. Now workspaces (saved window layouts, View > Workspaces).
+
+- *Bash*: Find browser tab state and arrange zoom
+- *Bash*: Workspaces save/load and menu
+
+## Claude (2026-11-16 05:35)
+
+Now a test for keys and workspaces, then build.
+
+- *Bash*: Test keys and workspaces
+- *Bash*: Commit keys and workspaces
+
+## Claude (2026-11-16 05:36)
+
+Next: MPE (per-note pitch, pressure and slide). Checking how played MIDI becomes notes.
+
+- *Bash*: Read capture API
+- *Bash*: Read piano roll lane code
+- *Bash*: Find lane drawing
+- *Bash*: Read note and lane painting
+
+## Claude (2026-11-16 05:37)
+
+Writing the MPE core (playback on per-note channels, recording into note expression) with tests.
+
+- *Bash*: MPE core with tests
+- *Bash*: Find where captured notes are stored
+- *Bash*: Context for captured notes
+- *Bash*: MPE UI: track toggle, lanes, recording
+- *Bash*: Commit MPE
+
+## Claude (2026-11-16 05:38)
+
+Now video: a video file on the timeline, shown in a lower-zone Video tab and kept in step with the playhead. Checking JUCE's video support per platform.
+
+- *Bash*: Inspect juce_video support
+- *Bash*: Check platform guards
+- *Bash*: Video tab and import
+- *Bash*: Check importFile filtering
+- *Bash*: Video marker, test, full app tests
+- *Bash*: Commit video, check CI
+- *TaskUpdate*: 
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 05:41)
+
+All features built; Mac CI green up to the meters. Now updating the docs (FEATURES, decisions 0036–0046, architecture, session log) while CI runs on the last pushes.
+
+- *Bash*: Read docs to update
+
+## Claude (2026-11-16 05:41)
+
+Writing the decision records 0036–0046.
+
+- *Bash*: Write decision records 0036-0046
+
+## Claude (2026-11-16 05:42)
+
+Now FEATURES.md rows.
+
+- *Bash*: Update FEATURES.md
+- *Bash*: Survey ARCHITECTURE.md
+- *Bash*: Read ARCHITECTURE.md parts
+- *Bash*: Update ARCHITECTURE.md
+- *Bash*: CONTROL.md, session log, renders into docs
+- *Bash*: Read README top
+- *Bash*: Read rest of README list
+- *Bash*: README, commit docs, check CI
+
+## Claude (2026-11-16 05:43)
+
+Docs pushed. Waiting for the Mac build of the latest changes (video and MPE are the ones not yet built on a Mac).
+
+- *Bash*: Wait for CI on the video commit
+
+## Claude (2026-11-16 05:43)
+
+Waiting on the Mac CI run for the last commits; I'll check the result when it finishes.
+
+- *Bash*: Read CI result
+- *Bash*: Check recent commits
+
+## Claude (2026-11-16 05:48)
+
+MPE passed on the Mac; the video commit (which adds Apple's video framework) is still building. Waiting for it.
+
+- *Bash*: Wait for CI on video and docs commits
+
+## Claude (2026-11-16 05:48)
+
+Waiting for the last Mac build to finish.
+
+- *Bash*: Read CI result
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 05:52)
+
+Everything left in FEATURES.md is built except AAF/OMF export. Every push built the Mac app on CI and passed its tests on macOS. The newest download is Actions > Build > Kalibre-macOS, from the run for the docs commit (2bac9ab).
+
+**What's new:**
+- **Audio:** Normalise, Strip Silence, and Quantise Audio (moves each hit onto the grid). Choosing an audio clip opens a sample editor in the Editor tab, with a Spectrum view.
+- **Arrangement:**
+  - A Sections lane under the ruler: move, duplicate or delete whole parts of the song.
+  - Insert or delete bars, and ripple delete (later clips close the gap).
+  - Linked clips (Duplicate Linked), track groups, and a clip launcher with scenes (press G).
+- **Automation:** Trim mode now works. Moving the mixer's faders, pan, mute and sends while playing records automation. Mute and send automation now plays back. Copy and paste works on automation lanes.
+- **Meters:**
+  - The mixer shows RMS levels and CPU use for each track.
+  - The top bar shows overall CPU and counts dropouts (clicks or gaps).
+  - A new Meters tab (press Y) has a spectrum, an oscilloscope, a phase scope and a tuner.
+- **Instruments and plug-ins:**
+  - Kalibre Synth and Kalibre Sampler.
+  - Presets: save your own or load the plug-in's own, from each plug-in's Presets button or the browser's new Presets tab.
+  - A/B compare on every plug-in. Loading a preset or switching A/B can be undone.
+  - Offline effects can now be adjusted in their own windows before rendering.
+- **Routing:**
+  - Surround mixing in quad, 5.1 or 7.1 (Track > Mix Format), with multichannel export.
+  - An instrument's extra outputs can go on tracks of their own.
+  - Hardware inserts, with a Ping button that measures the delay so everything stays in time.
+  - CLAP sidechains, and input and output choosers in the track menu.
+- **Files and export:**
+  - Templates, Collect All Files and Save, Relink Missing Files, and project archives.
+  - MP3 export, with Song Details (title, artist and so on) written into WAV and MP3 files.
+  - Export Several at Once, and Final Cut XML export and import.
+- **MPE:** each note gets its own bend, pressure and slide, recorded from MPE keyboards or drawn in the piano roll.
+- **Sync and control:** chasing incoming timecode, MIDI Machine Control in and out, HUI control surfaces, and the Mac's network MIDI. These are set up in the browser's Studio tab.
+- **Workflow:** every key can be changed in the browser's Keys tab, and you can save window layouts with View > Workspaces.
+- **Video:** File > Import Video puts the film on the timeline with its sound on a separate track. The picture follows the playhead in a Video tab.
+
+**Two engine bugs found and fixed along the way:**
+- A plug-in replaced by another kept the old one's connections.
+- A surround export came out silent.
+
+**Not done:** AAF and OMF export. Both need a large binary file format (the AAF SDK). Final Cut XML carries the same clips to DaVinci Resolve, Premiere and Logic instead.
+
+**Not yet tried with real hardware or on a Mac screen:** sync, the HUI and Mackie surfaces, hardware inserts, MPE keyboards and video playback. These are covered only by feeding the protocols and audio in through tests.
+
+All tests pass: 116 core and 27 engine/window. The docs are updated: FEATURES.md, decision records 0036–0046, ARCHITECTURE.md, CONTROL.md, the README with new screenshots, and a session log for today.
+
+## You (2026-11-16 09:23)
+
+Thanks. Back up the chat history
+
+## Claude (2026-11-16 09:23)
+
+- *Bash*: Look at the earlier backup and transcripts
+- *Bash*: Inspect transcript format and backup tail
+- *Bash*: Check transcript time span
+
+## Claude (2026-11-16 09:23)
+
+The transcript covers the whole session from the first message. Writing an exporter that regenerates the backup in the same format.
+
+- *Bash*: Export chat history to docs
+
