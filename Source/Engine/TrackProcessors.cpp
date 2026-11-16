@@ -16,6 +16,23 @@ Fader::Fader()
 
 void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
 {
+    // What comes out goes to the analysers too, once the block is done.
+    struct Tap
+    {
+        Fader& f; AudioBuffer<float>& b;
+        ~Tap()
+        {
+            if (! f.tap.load() || b.getNumChannels() < 2) return;
+            int w = f.tapWrite.load();
+            for (int i = 0; i < b.getNumSamples(); ++i)
+            {
+                f.tapL[(size_t) w].store (b.getSample (0, i), std::memory_order_relaxed);
+                f.tapR[(size_t) w].store (b.getSample (1, i), std::memory_order_relaxed);
+                w = (w + 1) % tapSize;
+            }
+            f.tapWrite = w;
+        }
+    } tapOnExit { *this, b };
     m.clear();
     const int n = b.getNumSamples();
     if (b.getNumChannels() < 2) return;

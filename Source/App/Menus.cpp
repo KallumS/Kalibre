@@ -405,6 +405,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Editor", [this] { c.zoneTab = ZoneTab::Editor; c.viewChanged(); }, "E", true, c.zoneTab == ZoneTab::Editor));
             m.addItem (item ("Mixer", [this] { c.zoneTab = ZoneTab::Mixer; c.viewChanged(); }, "X", true, c.zoneTab == ZoneTab::Mixer));
             m.addItem (item ("Clip Launcher", [this] { c.zoneTab = ZoneTab::Launcher; c.viewChanged(); }, "G", true, c.zoneTab == ZoneTab::Launcher));
+            m.addItem (item ("Meters", [this] { c.zoneTab = ZoneTab::Meters; c.viewChanged(); }, "Y", true, c.zoneTab == ZoneTab::Meters));
             m.addSeparator();
             m.addItem (item ("Browser", [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); }, cmd ("B"), true, browserShown));
             m.addItem (item ("Section Lane", [this] { c.showSectionLane = ! c.showSectionLane; c.viewChanged(); }, {}, true, c.showSectionLane));

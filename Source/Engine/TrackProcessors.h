@@ -82,6 +82,23 @@ public:
     std::atomic<bool> bus { false };
     std::atomic<float> frontBack { 1.0f };
     float currentGain() const { return lastGain.load(); }
+
+    // The analysers' tap (decision 0044): the last 8192 samples out, for the window to read.
+    static constexpr int tapSize = 8192;
+    std::atomic<bool> tap { false };
+    std::array<std::atomic<float>, tapSize> tapL {}, tapR {};
+    std::atomic<int> tapWrite { 0 };
+    // Copies the newest `n` samples (n <= tapSize) into l and r.
+    void recent (float* l, float* r, int n) const
+    {
+        const int end = tapWrite.load();
+        for (int i = 0; i < n; ++i)
+        {
+            const int k = (end - n + i + tapSize * 2) % tapSize;
+            l[i] = tapL[(size_t) k].load (std::memory_order_relaxed);
+            r[i] = tapR[(size_t) k].load (std::memory_order_relaxed);
+        }
+    }
     std::atomic<float> peakL { 0 }, peakR { 0 };   // since the window last read them
     std::atomic<float> rmsL { 0 }, rmsR { 0 };     // average level over the last 300 ms (decision 0038)
     std::atomic<float> level { 0 };                 // for envelope followers

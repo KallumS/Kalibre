@@ -761,6 +761,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             f->phaseInvert = t->phaseInvert;
             f->mono = t->mono;
             f->format = (int) project.surround;
+            f->tap = t->kind == TrackKind::Master || t->id == live;   // the analysers and the tuner (decision 0044)
             f->bus = t->kind == TrackKind::Master || t->isFolder();
             f->frontBack = (float) t->frontBack;
         }

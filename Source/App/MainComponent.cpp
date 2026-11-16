@@ -169,6 +169,7 @@ bool MainComponent::keyPressed (const KeyPress& k)
     if (ch == 'E') { c.zoneTab = ZoneTab::Editor; c.viewChanged(); return true; }
     if (ch == 'X') { c.zoneTab = ZoneTab::Mixer; c.viewChanged(); return true; }
     if (ch == 'G') { c.zoneTab = ZoneTab::Launcher; c.viewChanged(); return true; }
+    if (ch == 'Y') { c.zoneTab = ZoneTab::Meters; c.viewChanged(); return true; }
     if (ch == 'M') { c.apply ("Mute", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->mute = ! t->mute; }); return true; }
     if (ch == 'S') { c.apply ("Solo", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->solo = ! t->solo; }); return true; }
     if (ch == 'F') { arrange.zoomToFit(); return true; }

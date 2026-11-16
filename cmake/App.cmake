@@ -94,6 +94,7 @@ add_library(KalibreApp STATIC
     Source/App/SampleEditor.cpp
     Source/App/LauncherView.cpp
     Source/App/OfflineFxView.cpp
+    Source/App/MetersView.cpp
     Source/App/TopBar.cpp
     Source/App/Arrange.cpp
     Source/App/PianoRoll.cpp

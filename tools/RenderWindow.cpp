@@ -125,6 +125,18 @@ int main (int argc, char** argv)
         song::launch (c.project, c.project.tracks[1].id, 0, 0);
         c.refresh();
         shoot ("12-launcher");
+        // The analysers, while a sine plays out of the master (decision 0044).
+        if (auto* f = c.engine.fader (c.project.master.id))
+            for (int i = 0; i < Fader::tapSize; ++i)
+            {
+                const float v = 0.5f * std::sin ((float) i * 0.0628f) + 0.1f * std::sin ((float) i * 0.9f);
+                f->tapL[(size_t) i] = v;
+                f->tapR[(size_t) i] = v * 0.8f;
+            }
+        c.zoneTab = ZoneTab::Meters;
+        c.viewChanged();
+        MessageManager::getInstance()->runDispatchLoopUntil (200);
+        shoot ("14-meters");
         song::backToArrangement (c.project);
         // Kalibre's own synth and sampler, side by side (decision 0039).
         {
