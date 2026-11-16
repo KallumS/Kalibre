@@ -5,6 +5,8 @@
 #include "Controller.h"
 #include "Edit.h"
 #include "Engine.h"
+#include "ProjectFile.h"
+#include "PluginManager.h"
 
 using namespace kal;
 using namespace juce;
@@ -608,4 +610,86 @@ TEST ("questions: plug-in windows in the main window step aside while Kalibre as
     host.removeChildComponent (editor);
     editors::close (editor);
     ui::setHost (nullptr);
+}
+
+TEST ("plug-ins: a VST3 effect is an audio effect, though its description has no channel counts (BitFuzzer was filed as a MIDI effect)")
+{
+    // JUCE reads a VST3's moduleinfo.json for its description: no channel counts, 0 in and 0 out.
+    PluginDescription d;
+    d.pluginFormatName = "VST3";
+    d.name = "BitFuzzer";
+    d.category = "Fx|Distortion";
+    d.numInputChannels = d.numOutputChannels = 0;
+    CHECK (PluginManager::roleFor (d) == DeviceRole::AudioFx);
+    d.category = "Fx|Instrument";
+    d.isInstrument = true;
+    CHECK (PluginManager::roleFor (d) == DeviceRole::Instrument);
+
+    // A project saved with it as a MIDI effect, before its instrument: put back after it on opening.
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Bass");
+    d = {};
+    d.pluginFormatName = "VST3";
+    d.name = "BitFuzzer";
+    d.fileOrIdentifier = "/Library/Audio/Plug-Ins/VST3/BitFuzzer.vst3";
+    d.category = "Fx|Distortion";
+    const Id fx = edit::addDevice (p, t, PluginManager::refFor (d), DeviceRole::MidiFx);
+    const Id synth = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+    const auto f = folder().getChildFile ("refile.kalibre");
+    CHECK (f.replaceWithText (String (file::save (p))));
+    CHECK (c.open (f));
+    const auto* track = c.project.track (t);
+    CHECK (track != nullptr);
+    if (! track) return;
+    CHECK_EQ (track->devices.size(), size_t (2));
+    if (track->devices.size() != 2) return;
+    CHECK (track->devices[0].id == synth);
+    CHECK (track->devices[1].id == fx);
+    CHECK (track->devices[1].role == DeviceRole::AudioFx);
+}
+
+TEST ("plug-in panels: a plug-in taller than the zone is shown smaller to fit, the same both ways; never bigger, never stretched")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Synths");
+    c.focusTrack = t;
+    c.refresh();
+    DeviceRack rack (c);
+    rack.setSize (1400, 160);   // a short lower zone
+    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    AudioProcessorEditor* editor = nullptr;
+    std::function<void (Component&)> walk = [&] (Component& comp)
+    {
+        if (auto* e = dynamic_cast<AudioProcessorEditor*> (&comp)) editor = e;
+        for (auto* child : comp.getChildren()) walk (*child);
+    };
+    walk (rack);
+    CHECK (editor != nullptr);
+    if (! editor) return;
+    auto shownIn = [&]
+    {
+        rack.resized();
+        return rack.getLocalArea (editor, editor->getLocalBounds().toFloat());
+    };
+    const auto own = editor->getLocalBounds().toFloat();
+    auto shown = shownIn();
+    CHECK (shown.getHeight() <= 160.0f - 30.0f);                         // under the header, inside the zone
+    CHECK (shown.getHeight() < own.getHeight());                         // smaller than it is
+    CHECK (std::abs (shown.getWidth() / shown.getHeight() - own.getWidth() / own.getHeight()) < 0.02f);   // its shape kept
+    CHECK (rack.getLocalBounds().toFloat().contains (shown));
+
+    // A tall zone: its own size, not made bigger.
+    rack.setSize (1400, 1400);
+    MessageManager::getInstance()->runDispatchLoopUntil (20);
+    shown = shownIn();
+    CHECK (std::abs (shown.getWidth() - (float) editor->getWidth()) < 1.0f);
+    CHECK (std::abs (shown.getHeight() - (float) editor->getHeight()) < 1.0f);
 }

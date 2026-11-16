@@ -92,6 +92,7 @@ public:
     int sectionLaneHeight() const;
     void drawSectionLane (juce::Graphics&, juce::Rectangle<int>);
     void sectionMenu (Id section, Tick at);
+    void trackPanelMenu();
     int laneHeightOf (const Track& t) const { return theme::px (juce::jlimit (t.isFolder() ? 28 : 36, 240, t.height)); }
 
     void zoomToFit();

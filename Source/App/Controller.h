@@ -21,6 +21,9 @@
 
 namespace kal
 {
+// VST3 effects once filed as MIDI effects, put right on opening (decision 0058).
+void refileEffects (Project&);
+
 
 enum class EditorKind { PianoRoll, Drums, Steps, Euclid, Notation };
 enum class ZoneTab { Devices, Editor, Mixer, Launcher, Meters, Video };

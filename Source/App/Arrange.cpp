@@ -325,6 +325,20 @@ void TrackHeader::showMenu()
     m.showMenuAsync (PopupMenu::Options());
 }
 
+// The track panel's own menu, under the tracks: a new one goes at the end,
+// outside any folder.
+void Arrange::trackPanelMenu()
+{
+    auto add = [this] (TrackKind k) { return [this, k] { c.focusTrack = 0; c.addTrack (k); }; };
+    PopupMenu m;
+    m.addItem ("Add Track", add (TrackKind::Track));
+    m.addItem ("Add Folder", add (TrackKind::Folder));
+    m.addItem ("Add Return", add (TrackKind::Return));
+    m.addItem ("Add Summing Track", add (TrackKind::Summing));
+    m.addItem ("Add Cue Track", c.project.cue.empty(), false, add (TrackKind::Cue));
+    m.showMenuAsync (PopupMenu::Options());
+}
+
 void TrackHeader::mouseDown (const MouseEvent& e)
 {
     dragging = false;
@@ -1142,6 +1156,8 @@ void Arrange::mouseDown (const MouseEvent& e)
             return;
         }
     }
+    // Right-click under the tracks, in the track panel or the lanes: add one.
+    if (e.mods.isPopupMenu() && e.y >= lanes.getY() && e.y < lanes.getBottom() && ! rowAt (e.y)) { trackPanelMenu(); return; }
     if (! lanes.contains (e.getPosition())) return;
 
     const auto* row = rowAt (e.y);

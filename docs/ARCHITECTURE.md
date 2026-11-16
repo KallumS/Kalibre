@@ -51,6 +51,7 @@
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp` | More of the Controller: audio commands, presets and A/B, file commands. |
+| `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
 | `App/PluginManagerView.*` | The Plug-in Manager and its window (0047). |
 | `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045). |
 | `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md). |
@@ -84,6 +85,7 @@ loop wraps inside the block, and runs the graph.
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).
 - A plug-in's window is deleted before its instance: the engine keeps removed instances for a second and a half.
 - Anything drawn over the plug-ins' windows must be its own window or go through `ui::present`, which hides them meanwhile: on the Mac they're native views, drawn above everything Kalibre draws (0056).
+- On the Mac nothing Kalibre draws clips a plug-in's window, and a `Viewport` doesn't either: a plug-in in the rack is shown through a `PluginClip` (0058).
 - A plug-in's window is opened and closed with `editors::open` and `editors::close`, never `delete`: JUCE 9 needs the plug-in told first, or it won't open another (0056).
 - Graph channels are set before connecting to them: a connection to a channel that doesn't exist yet is silently refused (that cost a render).
 - Every colour comes from `Theme.h`; every word is 7:1.

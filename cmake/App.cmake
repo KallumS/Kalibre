@@ -114,11 +114,11 @@ add_library(KalibreApp STATIC
     Source/App/Surfaces.cpp
     Source/App/StudioPanel.cpp)
 if(APPLE)
-    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm)
+    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm Source/App/PluginClipMac.mm)
     target_link_libraries(KalibreApp PRIVATE "-framework CoreMIDI")
     target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab (decision 0046)
 else()
-    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp)
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp Source/App/PluginClipOther.cpp)
 endif()
 
 target_include_directories(KalibreApp PUBLIC

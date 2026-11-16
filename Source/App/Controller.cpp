@@ -571,6 +571,34 @@ File Controller::recordingsFolder() const
     return f;
 }
 
+// VST3 effects were filed as MIDI effects, before the instrument, where they
+// heard nothing (decision 0058): put them with the audio effects.
+void refileEffects (Project& p)
+{
+    auto refile = [] (std::vector<Device>& devices)
+    {
+        bool moved = false;
+        for (auto& d : devices)
+            if (d.role == DeviceRole::MidiFx && d.plugin.format == "VST3")
+                if (PluginDescription desc; PluginManager::descriptionFor (d.plugin, desc) && PluginManager::roleFor (desc) == DeviceRole::AudioFx)
+                {
+                    d.role = DeviceRole::AudioFx;
+                    moved = true;
+                }
+        return moved;
+    };
+    auto track = [&] (Track& t)
+    {
+        if (refile (t.devices)) edit::normaliseChain (t);
+        for (auto& v : t.versions)
+            if (refile (v.devices))
+                std::stable_sort (v.devices.begin(), v.devices.end(), [] (const Device& a, const Device& b) { return (int) a.role < (int) b.role; });
+    };
+    for (auto& t : p.tracks) track (t);
+    track (p.master);
+    for (auto& t : p.cue) track (t);
+}
+
 bool Controller::open (const File& f)
 {
     std::string error;
@@ -578,6 +606,7 @@ bool Controller::open (const File& f)
     if (! loaded) { say (String (error), true); return false; }
     engine.stop();
     project = std::move (*loaded);
+    refileEffects (project);
     history.clear();
     file = f;
     dirty = false;

@@ -269,6 +269,9 @@ int main (int argc, char** argv)
             c.refresh();
             window.lowerHeight = 380;
             shoot ("13-synth-and-sampler");
+            // A short zone: shown smaller to fit, its shape kept (decision 0058).
+            window.lowerHeight = 250;
+            shoot ("18-fitted-to-a-short-zone");
             window.lowerHeight = 320;
             c.focusTrack = c.project.tracks[1].id;
         }
