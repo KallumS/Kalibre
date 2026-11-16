@@ -20,12 +20,14 @@
 #pragma once
 
 #include "AraHost.h"
+#include "MidiLearn.h"
 #include "PluginManager.h"
 #include "TrackProcessors.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include <map>
+#include <mutex>
 #include <set>
 
 namespace kal
@@ -93,6 +95,16 @@ public:
         int gesture = 0;   // 1 began, 0 a change, 2 ended
     };
     std::function<void (const Touch&)> onTouched;
+
+    // MIDI learn (decision 0032).
+    std::atomic<bool> learning { false };
+    void setMappings (std::vector<MidiMapping>);
+    std::function<void (int channel, int controller)> onLearned;
+    std::function<void (const MidiMapping&, double value)> onMapped;
+
+    // Messages for control surfaces and sync, taken out before the tracks hear them.
+    std::function<bool (const juce::String& device, const juce::MidiMessage&)> surfaceInput;
+    std::function<void (const juce::String& device, const juce::MidiMessage&)> syncInput;
     std::function<void (const juce::String&)> onMessage;
     std::function<void()> onAudioReady;
     std::function<void()> onDevicePluginChanged;   // a plug-in's own state changed
@@ -127,6 +139,8 @@ public:
 
 private:
     PluginManager& pluginManager;
+    std::mutex mappingLock;
+    std::vector<MidiMapping> mappings;
     juce::AudioDeviceManager deviceManager;
     juce::AudioProcessorGraph graph;
     juce::AudioProcessorPlayer player;

@@ -33,3 +33,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0029. Takes and comping](0029-takes-and-comping.md)
 - [0030. Crossfades and fades](0030-crossfades.md)
 - [0031. Sidechain routing](0031-sidechain.md)
+- [0032. MIDI learn](0032-midi-learn.md)

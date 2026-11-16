@@ -146,6 +146,9 @@ public:
     // A control of Kalibre's own was moved (a fader, a pan knob).
     void touchedMix (Id track, AutoTarget::Kind, const juce::String& name);
     void automateLastTouched();
+    void learnLastTouched();             // MIDI learn: the next knob moved is mapped to it
+    void mapped (const MidiMapping&, double value);
+    void forgetMapping (size_t index);
     void modulateLastTouched (ModKind);
 
     //==========================================================================

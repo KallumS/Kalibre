@@ -269,3 +269,27 @@ TEST ("engine: a track's sound reaches another track's plug-in through its sidec
     r->read (&b, 0, b.getNumSamples(), 0, true, true);
     if (! clicks.empty()) CHECK (std::abs (b.getSample (0, clicks.front()) - 2.0f) < 0.01f);   // both, together
 }
+
+TEST ("midi learn: a learned controller moves a track's volume, pan and mute")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    const Id t = c.project.tracks.front().id;
+    c.touchedMix (t, AutoTarget::Kind::Volume, "Volume");
+    c.learnLastTouched();
+    CHECK (engine.learning.load());
+    engine.learning = false;
+    engine.onLearned (1, 7);
+    CHECK_EQ (c.project.midiMappings.size(), size_t (1));
+    c.mapped (c.project.midiMappings[0], 60.0 / 66.0);
+    CHECK (std::abs (c.project.track (t)->volumeDb) < 1e-6);
+    CHECK (std::abs (engine.fader (t)->volumeDb.load()) < 1e-6f);
+    c.touchedMix (t, AutoTarget::Kind::Mute, "Mute");
+    engine.onLearned (1, 20);
+    CHECK_EQ (c.project.midiMappings.size(), size_t (2));
+    c.mapped (c.project.midiMappings[1], 1.0);
+    CHECK (c.project.track (t)->mute);
+    c.forgetMapping (0);
+    CHECK_EQ (c.project.midiMappings.size(), size_t (1));
+}

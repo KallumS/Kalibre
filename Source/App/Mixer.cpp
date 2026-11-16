@@ -39,7 +39,11 @@ public:
             s->onDragEnd = [this] { if (! (before == c.project)) c.history.push (before, "Mix"); c.refresh(); };
         }
         for (auto* b : { &mute, &solo, &phase }) addAndMakeVisible (b);
-        mute.onClick = [this] { c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; }); };
+        mute.onClick = [this]
+        {
+            c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; });
+            c.touchedMix (id, AutoTarget::Kind::Mute, "Mute");
+        };
         solo.onClick = [this] { c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
         phase.onClick = [this] { c.apply ("Polarity", [this] (Project& p) { if (auto* t = p.track (id)) t->phaseInvert = ! t->phaseInvert; }); };
         mute.setTitle ("Mute");

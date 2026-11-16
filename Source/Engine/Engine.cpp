@@ -27,7 +27,6 @@ Engine::~Engine()
     stopTimer();
     deviceManager.removeAudioCallback (this);
     deviceManager.removeMidiInputDeviceCallback ({}, this);
-    deviceManager.removeMidiInputDeviceCallback ({}, &player);
     player.setProcessor (nullptr);
     araSessions.clear();
     for (auto& [id, node] : deviceNodes)
@@ -48,8 +47,9 @@ String Engine::startAudio (bool withInputs)
     // Every MIDI keyboard plugged in is listened to.
     for (auto& d : MidiInput::getAvailableDevices())
         deviceManager.setMidiInputDeviceEnabled (d.identifier, true);
+    // Every message comes here first: learned controllers, control surfaces and
+    // sync are taken out; the rest is played into the tracks.
     deviceManager.addMidiInputDeviceCallback ({}, this);
-    deviceManager.addMidiInputDeviceCallback ({}, &player);
 
     player.setProcessor (&graph);
     deviceManager.addAudioCallback (this);
@@ -169,9 +169,53 @@ void Engine::setLoop (bool on, double start, double end)
 int Engine::latencySamples() { return graph.getLatencySamples(); }
 
 //==============================================================================
-void Engine::handleIncomingMidiMessage (MidiInput*, const MidiMessage& m)
+void Engine::setMappings (std::vector<MidiMapping> maps)
 {
-    if (m.getRawDataSize() > 3 || m.isActiveSense() || m.isMidiClock()) return;
+    const std::lock_guard<std::mutex> lock (mappingLock);
+    mappings = std::move (maps);
+}
+
+void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
+{
+    if (m.isActiveSense()) return;
+    const String from = source ? source->getIdentifier() : String();
+    // A control surface's own port (decision 0034).
+    if (surfaceInput && surfaceInput (from, m)) return;
+    // Sync from another device (decision 0033).
+    if (m.isMidiClock() || m.isMidiStart() || m.isMidiStop() || m.isMidiContinue() || m.isSongPositionPointer()
+        || m.isQuarterFrame() || m.isFullFrame())
+    {
+        if (syncInput) syncInput (from, m);
+        return;
+    }
+    if (m.getRawDataSize() > 3) return;
+    std::uint8_t bytes[3] {};
+    for (int i = 0; i < m.getRawDataSize(); ++i) bytes[i] = m.getRawData()[i];
+
+    // MIDI learn (decision 0032): the next controller is learned; learned ones move their control.
+    {
+        int channel = 0, controller = 0;
+        if (learning.load() && midimap::keyOf (bytes, channel, controller))
+        {
+            learning = false;
+            MessageManager::callAsync ([this, channel, controller] { if (onLearned) onLearned (channel, controller); });
+            return;
+        }
+        const std::lock_guard<std::mutex> lock (mappingLock);
+        const int index = midimap::match (mappings, bytes);
+        if (index >= 0)
+        {
+            const auto map = mappings[(size_t) index];
+            const double value = midimap::normalised (bytes);
+            MessageManager::callAsync ([this, map, value] { if (onMapped) onMapped (map, value); });
+            return;
+        }
+    }
+
+    auto queued = m;
+    queued.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
+    player.getMidiMessageCollector().addMessageToQueue (queued);
+
     capture::Event e;
     e.wallSeconds = Time::getMillisecondCounterHiRes() / 1000.0;
     e.songTicks = shared.songTicks.load();

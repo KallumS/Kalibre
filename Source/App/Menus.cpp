@@ -2,6 +2,7 @@
 // no space on them. Every command is here, with its key beside it.
 
 #include "DeviceRack.h"
+#include "MidiLearn.h"
 #include "MainComponent.h"
 
 namespace kal
@@ -270,6 +271,19 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             const char* kinds[] { "LFO", "ADSR Envelope", "ADR Envelope", "Envelope Follower", "Wavetable (Draw or Load a Sample)" };
             for (int k = 0; k < 5; ++k) mods.addItem (item (kinds[k], [this, k] { c.modulateLastTouched ((ModKind) k); }, {}, c.lastTouched.valid()));
             m.addSubMenu (c.lastTouched.valid() ? "Modulate " + c.lastTouched.name : String ("Modulate the Last Touched Control"), mods);
+            m.addSeparator();
+            m.addItem (item (c.lastTouched.valid() ? "MIDI Learn " + c.lastTouched.name + ui::u8 ("\xe2\x80\xa6") : ui::u8 ("MIDI Learn the Last Touched Control\xe2\x80\xa6"),
+                             [this] { c.learnLastTouched(); }, cmd ("L"), c.lastTouched.valid()));
+            PopupMenu maps;
+            for (size_t i = 0; i < p.midiMappings.size(); ++i)
+            {
+                const auto& mm = p.midiMappings[i];
+                const String key = (mm.controller == midimap::pitchBend ? String ("Pitch bend") : "CC " + String (mm.controller))
+                                 + (mm.channel > 0 ? ", channel " + String (mm.channel) : String());
+                maps.addItem (item ("Forget " + key + ui::u8 (" \xe2\x86\x92 ") + String (mm.name), [this, i] { c.forgetMapping (i); }));
+            }
+            if (maps.getNumItems() == 0) maps.addItem (item ("None yet", [] {}, {}, false));
+            m.addSubMenu ("MIDI Mappings", maps);
             m.addSeparator();
             const auto* t = c.focus();
             const char* modes[] { "Off", "Read", "Touch", "Latch", "Write", "Trim" };

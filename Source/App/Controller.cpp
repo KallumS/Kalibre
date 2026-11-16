@@ -2,6 +2,7 @@
 
 #include "Capture.h"
 #include "Comp.h"
+#include "MidiLearn.h"
 #include "Harmony.h"
 #include "LuaHost.h"
 #include "MorphProcessor.h"
@@ -18,6 +19,20 @@ Controller::Controller (Engine& e) : engine (e)
     engine.onMessage = [this] (const String& m) { say (m, true); };
     engine.cache.onReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onAudioReady = [this] { syncEngine(); sendChangeMessage(); };
+    engine.onLearned = [this] (int channel, int controller)
+    {
+        if (! lastTouched.valid()) return;
+        auto lt = lastTouched;
+        AutoTarget target;
+        target.kind = lt.kind;
+        target.device = lt.device;
+        target.param = lt.param;
+        target.paramName = lt.name.toStdString();
+        apply ("MIDI Learn", [=] (Project& p) { midimap::learn (p, channel, controller, lt.track, target, lt.name.toStdString()); });
+        say ((controller == midimap::pitchBend ? String ("Pitch bend") : "Controller " + String (controller)) + " on channel "
+             + String (channel) + " now moves " + lt.name + ".", false, true);
+    };
+    engine.onMapped = [this] (const MidiMapping& m, double v) { mapped (m, v); };
     engine.onDevicePluginChanged = [this] { dirty = true; };
     MorphProcessor::choosePlugin = nullptr;
     newProject();
@@ -35,6 +50,7 @@ Controller::~Controller()
 //==============================================================================
 void Controller::syncEngine()
 {
+    engine.setMappings (project.midiMappings);
     engine.sync (project, focusTrack, projectFolder());
     const double ls = project.tempo.secondsAt (project.loop.start), le = project.tempo.secondsAt (project.loop.end);
     engine.setLoop (project.loop.on, ls, le);
@@ -916,6 +932,57 @@ void Controller::touchedMix (Id track, AutoTarget::Kind kind, const String& name
     const auto* t = project.track (track);
     lastTouched = { track, 0, -1, kind, (t ? String (t->name) + " " : String()) + name };
     sendChangeMessage();
+}
+
+void Controller::learnLastTouched()
+{
+    if (! lastTouched.valid()) { say ("Move a control first, on a plug-in or in the mixer; then choose MIDI Learn and move a knob."); return; }
+    engine.learning = true;
+    say ("Move a knob, fader or button on your MIDI controller to map it to " + lastTouched.name + ui::u8 ("\xe2\x80\xa6"));
+}
+
+void Controller::forgetMapping (size_t index)
+{
+    if (index >= project.midiMappings.size()) return;
+    apply ("Forget Mapping", [index] (Project& p) { p.midiMappings.erase (p.midiMappings.begin() + (long) index); });
+}
+
+void Controller::mapped (const MidiMapping& m, double v)
+{
+    auto* t = project.track (m.track);
+    if (! t) return;
+    switch (m.target.kind)
+    {
+        case AutoTarget::Kind::Volume:
+            t->volumeDb = midimap::volumeFromNormal (v);
+            if (auto* f = engine.fader (m.track)) f->volumeDb = (float) t->volumeDb;
+            dirty = true;
+            sendChangeMessage();
+            break;
+        case AutoTarget::Kind::Pan:
+            t->pan = midimap::panFromNormal (v);
+            if (auto* f = engine.fader (m.track)) f->pan = (float) t->pan;
+            dirty = true;
+            sendChangeMessage();
+            break;
+        case AutoTarget::Kind::Mute:
+            if ((v >= 0.5) != t->mute)
+            {
+                const Id id = m.track;
+                const bool on = v >= 0.5;
+                apply (on ? "Mute" : "Unmute", [id, on] (Project& p) { if (auto* x = p.track (id)) x->mute = on; });
+            }
+            break;
+        case AutoTarget::Kind::DeviceParam:
+            // As if a hand moved it: it writes automation in Touch, Latch and Write.
+            if (auto* inst = engine.instance (m.target.device))
+                if (auto* p = inst->getParameters()[m.target.param]) p->setValueNotifyingHost ((float) v);
+            break;
+        case AutoTarget::Kind::SendLevel:
+        case AutoTarget::Kind::MorphX:
+        case AutoTarget::Kind::MorphY:
+            break;
+    }
 }
 
 void Controller::automateLastTouched()

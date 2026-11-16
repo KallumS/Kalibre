@@ -52,7 +52,7 @@ Every feature asked for, then the list of basic DAW features
 | 6. Mixer and routing | Partly | Faders, pan, mute, solo, polarity, mono, peak meters, inserts, sends pre and post, returns, folders as buses, plug-in delay compensation. Sidechains from any track into a plug-in's second input (0031; AU and VST3, not yet CLAP). Not yet: hardware inserts, multi-output instruments, surround, RMS meters |
 | 7. Automation | Partly | Lanes, breakpoints, linear/stepped/curved, drawing points, Read/Touch/Latch/Write, last touched, tempo automation. Not yet: trim mode's behaviour, copy/paste of automation, mute and send automation playback |
 | 8. Instruments | Partly | Any AU/VST3/CLAP instrument; the X/Y morph plays samples. No built-in synth or sampler yet |
-| 9. Plug-in hosting | Partly | Scanning (crash-safe), search, by maker, bypass, remove, reorder, state, latency, last-touched. Not yet: presets browser, A/B, MIDI learn |
+| 9. Plug-in hosting | Partly | Scanning (crash-safe), search, by maker, bypass, remove, reorder, state, latency, last-touched. MIDI learn onto any plug-in parameter or a track's volume, pan and mute (0032). Not yet: presets browser, A/B |
 | 10. Audio engine | Partly | Device, rate, buffer, inputs and outputs (browser > Audio), offline rendering, PDC. Not yet: CPU meters per track, dropout counter |
 | 11. Projects | Partly | New, open, save, save as, autosave every three minutes (File > Open the Last Autosave), a JSON format that survives versions. Not yet: templates, collect and save, relink |
 | 12. Export | Partly | Mix and every track as WAV, AIFF or FLAC, 16/24/32-bit, dither, normalise, tail, loop range; MIDI file. Not yet: MP3, loudness targets, batch, metadata |

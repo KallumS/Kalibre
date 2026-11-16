@@ -148,6 +148,7 @@ bool MainComponent::keyPressed (const KeyPress& k)
         if (ch == 'A') { c.selectAllNotes(); return true; }
         if (ch == 'B') { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); return true; }
         if (ch == 'R' && mods.isShiftDown()) { c.captureMidi(); return true; }
+        if (ch == 'L') { c.learnLastTouched(); return true; }
         if (ch == '=' || ch == '+') { setTextSize (jmin (2.0f, theme::scale() + 0.25f)); return true; }
         if (ch == '-') { setTextSize (jmax (1.0f, theme::scale() - 0.25f)); return true; }
         if (ch == '0') { setTextSize (1.0f); return true; }
