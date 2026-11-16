@@ -64,6 +64,11 @@ public:
         return viewport.getViewArea().translated (-panel.getX(), -panel.getY());
     }
 
+    // Where a device's plug-in window is drawn, in the rack's coordinates, and
+    // the window itself (empty and null when it isn't shown here).
+    juce::Rectangle<int> pluginArea (Id device) const;
+    juce::AudioProcessorEditor* editorOf (Id device) const;
+
 private:
     Controller& c;
     struct RackViewport : juce::Viewport

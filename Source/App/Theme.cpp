@@ -1,4 +1,5 @@
 #include "Theme.h"
+#include "PluginClip.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -434,7 +435,13 @@ struct PluginsAside : public juce::ModalComponentManager::Callback
         for (auto* child : c.getChildren())
         {
             if (! child->isVisible()) continue;
-            if (dynamic_cast<juce::AudioProcessorEditor*> (child) != nullptr) { child->setVisible (false); hidden.emplace_back (child); }
+            // A plug-in's window, or what shows one in the rack (decision 0058:
+            // on the Mac that holds it in a native view of its own, outside this tree).
+            if (dynamic_cast<juce::AudioProcessorEditor*> (child) != nullptr || dynamic_cast<PluginClip*> (child) != nullptr)
+            {
+                child->setVisible (false);
+                hidden.emplace_back (child);
+            }
             else hideIn (*child);
         }
     }

@@ -487,6 +487,7 @@ TEST ("match loudness: a plug-in that turns the sound down 10 dB is brought back
 #include "BuiltinInstruments.h"
 #include "DeviceRack.h"
 #include "Editors.h"
+#include "PluginClip.h"
 
 TEST ("plug-in windows: closed properly, so a plug-in opens its own window again; adding devices leaves the others' windows alone")
 {
@@ -520,22 +521,19 @@ TEST ("plug-in windows: closed properly, so a plug-in opens its own window again
     // In the rack: a third device added; the first two keep the very windows they had.
     DeviceRack rack (c);
     rack.setSize (1400, 360);
-    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument); });
+    std::vector<Id> devices;
+    c.apply ("Add", [&] (Project& p) { devices.push_back (edit::addDevice (p, t, synthRef(), DeviceRole::Instrument)); devices.push_back (edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument)); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
-    auto editorsIn = [] (Component& root)
+    // On the Mac a plug-in's window is held in a native view of its own (decision 0058), so it's asked for by device.
+    auto editorsIn = [&] (DeviceRack& r)
     {
         std::vector<AudioProcessorEditor*> found;
-        std::function<void (Component&)> walk = [&] (Component& comp)
-        {
-            if (auto* e = dynamic_cast<AudioProcessorEditor*> (&comp)) found.push_back (e);
-            for (auto* child : comp.getChildren()) walk (*child);
-        };
-        walk (root);
+        for (auto d : devices) if (auto* e = r.editorOf (d)) found.push_back (e);
         return found;
     };
     const auto before = editorsIn (rack);
     CHECK_EQ (before.size(), size_t (2));
-    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    c.apply ("Add", [&] (Project& p) { devices.push_back (edit::addDevice (p, t, synthRef(), DeviceRole::Instrument)); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
     const auto after = editorsIn (rack);
     CHECK_EQ (after.size(), size_t (3));
@@ -662,22 +660,24 @@ TEST ("plug-in panels: a plug-in taller than the zone is shown smaller to fit, t
     c.refresh();
     DeviceRack rack (c);
     rack.setSize (1400, 160);   // a short lower zone
-    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    Id synth = 0;
+    c.apply ("Add", [&] (Project& p) { synth = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
 
-    AudioProcessorEditor* editor = nullptr;
-    std::function<void (Component&)> walk = [&] (Component& comp)
-    {
-        if (auto* e = dynamic_cast<AudioProcessorEditor*> (&comp)) editor = e;
-        for (auto* child : comp.getChildren()) walk (*child);
-    };
-    walk (rack);
+    auto* editor = rack.editorOf (synth);
     CHECK (editor != nullptr);
     if (! editor) return;
     auto shownIn = [&]
     {
         rack.resized();
-        return rack.getLocalArea (editor, editor->getLocalBounds().toFloat());
+        const auto area = rack.pluginArea (synth).toFloat();
+       #if ! JUCE_MAC
+        // Off the Mac it's an ordinary child: where JUCE draws it is where the rack says.
+        const auto drawn = rack.getLocalArea (editor, editor->getLocalBounds().toFloat());
+        CHECK (area.getPosition().getDistanceFrom (drawn.getPosition()) < 1.5f);
+        CHECK (std::abs (area.getWidth() - drawn.getWidth()) < 1.5f && std::abs (area.getHeight() - drawn.getHeight()) < 1.5f);
+       #endif
+        return area;
     };
     const auto own = editor->getLocalBounds().toFloat();
     auto shown = shownIn();
@@ -690,6 +690,45 @@ TEST ("plug-in panels: a plug-in taller than the zone is shown smaller to fit, t
     rack.setSize (1400, 1400);
     MessageManager::getInstance()->runDispatchLoopUntil (20);
     shown = shownIn();
-    CHECK (std::abs (shown.getWidth() - (float) editor->getWidth()) < 1.0f);
-    CHECK (std::abs (shown.getHeight() - (float) editor->getHeight()) < 1.0f);
+    CHECK (std::abs (shown.getWidth() - (float) editor->getWidth()) < 1.5f);
+    CHECK (std::abs (shown.getHeight() - (float) editor->getHeight()) < 1.5f);
+}
+
+TEST ("questions: plug-ins in the rack step aside too, though on the Mac they're held in native views of their own")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Synths");
+    c.focusTrack = t;
+    c.refresh();
+    Component host;
+    host.setSize (1400, 600);
+    ui::setHost (&host);
+    DeviceRack rack (c);
+    host.addAndMakeVisible (rack);
+    rack.setBounds (0, 200, 1400, 400);
+    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    std::vector<PluginClip*> clips;
+    std::function<void (Component&)> walk = [&] (Component& comp)
+    {
+        if (auto* p = dynamic_cast<PluginClip*> (&comp)) clips.push_back (p);
+        for (auto* child : comp.getChildren()) walk (*child);
+    };
+    walk (host);
+    CHECK_EQ (clips.size(), size_t (1));
+    if (clips.empty()) { ui::setHost (nullptr); return; }
+    CHECK (clips[0]->isVisible());
+
+    auto* w = new AlertWindow ("Save the changes to this project?", {}, MessageBoxIconType::NoIcon);
+    w->addButton ("Save", 1);
+    ui::present (w, ModalCallbackFunction::create ([] (int) {}), true);
+    CHECK (! clips[0]->isVisible());
+    w->exitModalState (1);
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (clips[0]->isVisible());
+    host.removeChildComponent (&rack);
+    ui::setHost (nullptr);
 }

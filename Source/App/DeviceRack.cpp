@@ -804,6 +804,22 @@ void DeviceRack::layoutStrip()
     placeEditors();
 }
 
+juce::Rectangle<int> DeviceRack::pluginArea (Id device) const
+{
+    for (auto* p : panels)
+        if (p->id == device && p->editor)
+            return { p->getX() + p->body.getX() + (p->body.getWidth() - p->fitted.shownWidth()) / 2 - viewport.getViewPositionX() + viewport.getX(),
+                     p->getY() + p->body.getY() + (p->body.getHeight() - p->fitted.shownHeight()) / 2 + viewport.getY(),
+                     p->fitted.shownWidth(), p->fitted.shownHeight() };
+    return {};
+}
+
+juce::AudioProcessorEditor* DeviceRack::editorOf (Id device) const
+{
+    for (auto* p : panels) if (p->id == device) return p->editor.get();
+    return nullptr;
+}
+
 void DeviceRack::placeEditors()
 {
     for (auto* p : panels) p->placeEditor();
