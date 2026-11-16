@@ -1,5 +1,7 @@
 #include "PianoRoll.h"
 
+#include "Mpe.h"
+
 #include "Harmony.h"
 
 namespace kal
@@ -224,7 +226,33 @@ void PianoRoll::paint (Graphics& g)
         g.fillRect (va);
         g.setColour (theme::rule);
         g.fillRect (va.getX(), va.getY(), va.getWidth(), 1);
-        if (laneKind >= 0)
+        if (laneKind >= 200)
+        {
+            // Each note's own expression: a line from its start to its end (decision 0042).
+            for (auto& n : notes)
+            {
+                if (n.expression.empty() && c.selectedNotes.count (n.id) == 0) continue;
+                Path line;
+                const int steps = jmax (2, (int) ((xOf (n.end()) - xOf (n.start)) / 3.0f));
+                for (int k = 0; k <= steps; ++k)
+                {
+                    const Tick at = n.length * k / steps;
+                    const auto e = mpe::expressionAt (n, at);
+                    const double v = laneKind == 200 ? 0.5 + e.bend / 24.0 : laneKind == 201 ? e.pressure : e.timbre;
+                    const float x = xOf (n.start + at);
+                    const float y = (float) va.getBottom() - 3 - (float) (va.getHeight() - 6) * (float) jlimit (0.0, 1.0, v);
+                    if (k == 0) line.startNewSubPath (x, y); else line.lineTo (x, y);
+                }
+                g.setColour (c.selectedNotes.count (n.id) ? theme::accent : trackCol);
+                g.strokePath (line, PathStrokeType (1.5f));
+            }
+            if (laneKind == 200)
+            {
+                g.setColour (theme::rule);
+                g.fillRect (va.getX(), va.getCentreY(), va.getWidth(), 1);
+            }
+        }
+        else if (laneKind >= 0)
         {
             // A controller: a held line between its values.
             const auto type = laneKind == 128 ? EventType::PitchBend : laneKind == 129 ? EventType::ChannelPressure : EventType::Controller;
@@ -528,6 +556,9 @@ String PianoRoll::laneName() const
         case 64:  return "Sustain";
         case 128: return "Pitch Bend";
         case 129: return "Pressure";
+        case 200: return "Note Bend (MPE)";
+        case 201: return "Note Pressure (MPE)";
+        case 202: return "Note Slide (MPE)";
         default:  return "CC " + String (laneKind);
     }
 }
@@ -548,6 +579,16 @@ void PianoRoll::laneMenu()
         if (cc != 1 && cc != 2 && cc != 7 && cc != 11 && cc != 64)
             more.addItem ("CC " + String (cc), true, laneKind == cc, [this, cc] { laneKind = cc; repaint(); });
     m.addSubMenu ("Other Controllers", more);
+    // Each note's own expression, for MPE tracks (decision 0042).
+    m.addSeparator();
+    for (int k : { 200, 201, 202 })
+    {
+        const int saved = laneKind;
+        laneKind = k;
+        const auto name = laneName();
+        laneKind = saved;
+        m.addItem (name, true, laneKind == k, [this, k] { laneKind = k; repaint(); });
+    }
     m.showMenuAsync (PopupMenu::Options());
 }
 
@@ -556,6 +597,37 @@ void PianoRoll::drawLaneValue (const MouseEvent& e)
     auto* clip = c.clip();
     if (! clip) return;
     const auto va = velocityArea();
+    if (laneKind >= 200)
+    {
+        // A note's expression, for the notes sounding there (the chosen ones, if any are).
+        const Tick step = jmax<Tick> (PPQ / 32, c.grid / 4);
+        const Tick tick = jmax<Tick> (0, (relAt ((float) e.x) / step) * step);
+        const double v = jlimit (0.0, 1.0, (double) (va.getBottom() - 3 - e.y) / (va.getHeight() - 6));
+        const Tick from = lastLaneTick < 0 ? tick : jmin (lastLaneTick, tick), to = lastLaneTick < 0 ? tick : jmax (lastLaneTick, tick);
+        for (auto& n : clip->midi.notes)
+        {
+            if (tick < n.start || tick >= n.end()) continue;
+            if (! c.selectedNotes.empty() && ! c.selectedNotes.count (n.id)) continue;
+            auto now = mpe::expressionAt (n, tick - n.start);
+            if (laneKind == 200) now.bend = (v - 0.5) * 24.0;          // a lane's height is two octaves of bend
+            else if (laneKind == 201) now.pressure = v;
+            else now.timbre = v;
+            auto& ex = n.expression;
+            ex.erase (std::remove_if (ex.begin(), ex.end(), [&] (const NoteExpression& x)
+            {
+                return x.tick + n.start >= from && x.tick + n.start <= to && x.tick != lastLaneTick - n.start;
+            }), ex.end());
+            if (! e.mods.isPopupMenu())
+            {
+                now.tick = tick - n.start;
+                ex.push_back (now);
+                std::sort (ex.begin(), ex.end(), [] (const NoteExpression& a, const NoteExpression& b) { return a.tick < b.tick; });
+            }
+        }
+        lastLaneTick = tick;
+        repaint();
+        return;
+    }
     const auto type = laneKind == 128 ? EventType::PitchBend : laneKind == 129 ? EventType::ChannelPressure : EventType::Controller;
     const int full = laneKind == 128 ? 16383 : 127;
     const Tick step = jmax<Tick> (PPQ / 32, c.grid / 4);

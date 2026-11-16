@@ -1,5 +1,7 @@
 #include "Playback.h"
 
+#include "Mpe.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -119,6 +121,14 @@ CompiledTrack compile (const Project& p, const Track& t)
     }
     const double trackDelay = t.delayMs / 1000.0;
     const auto& tempo = p.tempo;
+    std::array<double, 16> mpeBusy {};   // when each member channel is free again
+    mpeBusy[0] = 1.0e300;                // channel 1 is the zone's master
+    if (t.mpe)
+    {
+        // The MPE zone: channel 1 the master, 15 member channels (MCM, RPN 6).
+        for (auto [cc, v] : { std::pair { 101, 0 }, std::pair { 100, 6 }, std::pair { 6, 15 } })
+            out.midi.push_back (message (0.0, 0, 0xB0, cc, v));
+    }
 
     for (const auto& c : t.clips())
     {
@@ -153,6 +163,29 @@ CompiledTrack compile (const Project& p, const Track& t)
                         {
                             out.midi.push_back (message (pre, 1, 0x90 | channel, art->keyswitch, art->keyswitchVelocity));
                             out.midi.push_back (message (pre + 0.0005, 0, 0x80 | channel, art->keyswitch, 0));
+                        }
+                    }
+                    if (t.mpe)
+                    {
+                        // MPE (decision 0042): a channel of its own, 2-16, the one free longest.
+                        int best = 1;
+                        for (int ch = 1; ch < 16; ++ch)
+                            if (mpeBusy[(size_t) ch] < mpeBusy[(size_t) best]) best = ch;
+                        channel = best;
+                        mpeBusy[(size_t) channel] = off;
+                        const auto first = mpe::expressionAt (n, 0);
+                        const int bend = mpe::bendValue (first.bend);
+                        out.midi.push_back (message (on - 0.0005, 1, 0xE0 | channel, bend & 127, bend >> 7));
+                        out.midi.push_back (message (on - 0.0005, 1, 0xB0 | channel, 74, (int) std::lround (first.timbre * 127)));
+                        out.midi.push_back (message (on - 0.0005, 1, 0xD0 | channel, (int) std::lround (first.pressure * 127), 0, 2));
+                        for (auto& e : n.expression)
+                        {
+                            if (e.tick <= 0 || a + e.tick >= b) continue;
+                            const double s = tempo.secondsAt (a + e.tick) + delay;
+                            const int v = mpe::bendValue (e.bend);
+                            out.midi.push_back (message (s, 1, 0xE0 | channel, v & 127, v >> 7));
+                            out.midi.push_back (message (s, 1, 0xD0 | channel, (int) std::lround (e.pressure * 127), 0, 2));
+                            out.midi.push_back (message (s, 1, 0xB0 | channel, 74, (int) std::lround (e.timbre * 127)));
                         }
                     }
                     out.midi.push_back (message (on, 2, 0x90 | channel, n.pitch, std::max (1, n.velocity)));

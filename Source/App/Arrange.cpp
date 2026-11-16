@@ -257,6 +257,12 @@ void TrackHeader::showMenu()
                 c.apply ("MIDI Channel", [this, ch] (Project& p) { if (auto* tr = p.track (id)) tr->input.midiChannel = ch; });
             });
         m.addSubMenu ("MIDI Channel", midiCh);
+        m.addItem ("MPE (a Channel for Each Note)", true, t->mpe, [this]
+        {
+            c.apply ("MPE", [this] (Project& p) { if (auto* tr = p.track (id)) tr->mpe = ! tr->mpe; });
+            if (const auto* tr = c.project.track (id); tr && tr->mpe)
+                c.say ("MPE is on: each note plays on its own channel with its own bend, pressure and slide. Draw them in the piano roll's Note lanes.");
+        });
     }
     if (t->kind != TrackKind::Master)
     {

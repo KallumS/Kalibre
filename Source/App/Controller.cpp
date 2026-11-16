@@ -3,6 +3,7 @@
 #include "Capture.h"
 #include "Comp.h"
 #include "MidiLearn.h"
+#include "Mpe.h"
 #include "Harmony.h"
 #include "LuaHost.h"
 #include "MorphProcessor.h"
@@ -392,6 +393,7 @@ void Controller::finishRecording()
             c.length = looping ? project.loop.end - project.loop.start : r.length;
             c.midi.notes = r.notes;
             c.midi.events = r.events;
+            if (t.mpe) mpe::gatherExpression (c.midi);   // each note's own bends and pressure (decision 0042)
             if (looping)
             {
                 // Each pass is placed on the loop.
@@ -1000,6 +1002,7 @@ void Controller::captureMidi()
     c.length = r.length;
     c.midi.notes = r.notes;
     c.midi.events = r.events;
+    if (t->mpe) mpe::gatherExpression (c.midi);
     Id made = 0;
     const Id tid = t->id;
     apply ("Capture MIDI", [&] (Project& p) { made = edit::addClip (p, tid, c); });
