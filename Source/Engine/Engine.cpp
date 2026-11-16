@@ -225,7 +225,8 @@ void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
     if (surfaceInput && surfaceInput (from, m)) return;
     // Sync from another device (decision 0033).
     if (m.isMidiClock() || m.isMidiStart() || m.isMidiStop() || m.isMidiContinue() || m.isSongPositionPointer()
-        || m.isQuarterFrame() || m.isFullFrame())
+        || m.isQuarterFrame() || m.isFullFrame()
+        || (m.isSysEx() && m.getSysExDataSize() >= 4 && m.getSysExData()[0] == 0x7F && m.getSysExData()[2] == 0x06))   // MMC
     {
         if (syncInput) syncInput (from, m);
         return;

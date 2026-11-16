@@ -1,5 +1,7 @@
 #include "StudioPanel.h"
 
+#include "NetworkMidi.h"
+
 namespace kal
 {
 using namespace juce;
@@ -7,7 +9,7 @@ using namespace juce;
 StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Studio");
-    for (auto* t : { &sendClock, &sendMtc, &link, &linkStartStop, &oscOn })
+    for (auto* t : { &sendClock, &sendMtc, &link, &linkStartStop, &oscOn, &sendMmc, &followMmc, &networkMidi })
     {
         addAndMakeVisible (t);
         t->onClick = [this] { store(); };
@@ -16,7 +18,11 @@ StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
     sendMtc.setTooltip (theme::wrapTip ("Send MIDI timecode to the same ports, for video and other machines that follow time rather than beats."));
     link.setTooltip (theme::wrapTip ("Share the tempo, and start on the same bar, with Live, apps and other computers on the network."));
     mtcRate.addItemList ({ "24 fps", "25 fps", "29.97 fps drop", "30 fps" }, 1);
-    for (auto* box : { &mtcRate, &follow, &mackieIn, &mackieOut })
+    sendMmc.setTooltip (theme::wrapTip ("Send start, stop and locate as MIDI Machine Control to the ports ticked above: recorders and other software follow."));
+    followMmc.setTooltip (theme::wrapTip ("Play, stop, locate and record when another machine sends MIDI Machine Control."));
+    networkMidi.setTooltip (theme::wrapTip ("Switch on the Mac's network MIDI session, so an iPad or another computer can connect. It then shows up as a MIDI port."));
+    followMtc.setTooltip (theme::wrapTip ("Chase timecode from a video machine or another computer: Kalibre starts, stops and locates with it."));
+    for (auto* box : { &mtcRate, &follow, &mackieIn, &mackieOut, &followMtc, &huiIn, &huiOut })
     {
         addAndMakeVisible (box);
         box->onChange = [this] { store(); };
@@ -67,6 +73,13 @@ void StudioPanel::build()
     fill (follow, ins, s.followClock);
     fill (mackieIn, ins, s.mackieIn);
     fill (mackieOut, outs, s.mackieOut);
+    fill (followMtc, ins, s.followMtc);
+    fill (huiIn, ins, s.huiIn);
+    fill (huiOut, outs, s.huiOut);
+    sendMmc.setToggleState (s.sendMmc, dontSendNotification);
+    followMmc.setToggleState (s.followMmc, dontSendNotification);
+    networkMidi.setToggleState (s.networkMidi, dontSendNotification);
+    networkMidi.setEnabled (networkmidi::available());
     link.setToggleState (s.link, dontSendNotification);
     linkStartStop.setToggleState (s.linkStartStop, dontSendNotification);
     oscOn.setToggleState (s.oscOn, dontSendNotification);
@@ -94,6 +107,17 @@ void StudioPanel::store()
     s.followClock = chosen (follow, ins);
     s.mackieIn = chosen (mackieIn, ins);
     s.mackieOut = chosen (mackieOut, outs);
+    s.followMtc = chosen (followMtc, ins);
+    s.huiIn = chosen (huiIn, ins);
+    s.huiOut = chosen (huiOut, outs);
+    s.sendMmc = sendMmc.getToggleState();
+    s.followMmc = followMmc.getToggleState();
+    if (networkMidi.getToggleState() != s.networkMidi)
+    {
+        s.networkMidi = networkMidi.getToggleState();
+        if (! networkmidi::setEnabled (s.networkMidi)) c.say ("The network MIDI session couldn't be switched " + String (s.networkMidi ? "on." : "off."), true);
+        else if (s.networkMidi) c.say ("Network MIDI is on as " + networkmidi::sessionName().quoted() + ". Connect from the other device, then click Look Again.");
+    }
     s.link = link.getToggleState();
     s.linkStartStop = linkStartStop.getToggleState();
     s.oscOn = oscOn.getToggleState();
@@ -119,7 +143,7 @@ void StudioPanel::timerCallback()
 
 int StudioPanel::preferredHeight() const
 {
-    return theme::px (24) * (14 + outs.size()) + theme::px (120);
+    return theme::px (24) * (22 + outs.size()) + theme::px (120);
 }
 
 void StudioPanel::paint (Graphics& g)
@@ -160,12 +184,18 @@ void StudioPanel::resized()
     put (sendMtc);
     labelled ("Timecode", mtcRate);
     labelled ("Follow", follow);
+    labelled ("Chase MTC", followMtc);
+    put (sendMmc);
+    put (followMmc);
+    put (networkMidi);
     put (link);
     put (linkStartStop);
     r.removeFromTop (row);
     heading ("Control Surface");
     labelled ("Mackie in", mackieIn);
     labelled ("Mackie out", mackieOut);
+    labelled ("HUI in", huiIn);
+    labelled ("HUI out", huiOut);
     put (oscOn);
     labelled ("Listen on", oscPort);
     labelled ("Reply to", replyHost);

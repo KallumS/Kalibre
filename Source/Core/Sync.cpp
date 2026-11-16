@@ -103,4 +103,61 @@ void ClockFollower::pulse (double seconds)
     last = seconds;
 }
 
+//==============================================================================
+bool MtcReader::quarterFrame (std::uint8_t data)
+{
+    const int piece = (data >> 4) & 7;
+    pieces[(size_t) piece] = data & 0x0F;
+    if (piece == 0) have = 0;
+    have |= 1 << piece;
+    if (piece != 7 || have != 0xFF) return false;
+    const int frames = pieces[0] | (pieces[1] << 4);
+    const int secs = pieces[2] | (pieces[3] << 4);
+    const int mins = pieces[4] | (pieces[5] << 4);
+    const int hours = pieces[6] | ((pieces[7] & 1) << 4);
+    frameRate = (pieces[7] >> 1) & 3;
+    const double fps = framesPerSecond (frameRate);
+    // The eight began two frames ago, on the frame they describe.
+    position = hours * 3600.0 + mins * 60.0 + secs + (frames + 2) / fps;
+    have = 0;
+    return true;
+}
+
+bool MtcReader::fullFrame (const std::uint8_t* b, int size)
+{
+    if (size < 10 || b[0] != 0xF0 || b[1] != 0x7F || b[3] != 0x01 || b[4] != 0x01) return false;
+    frameRate = (b[5] >> 5) & 3;
+    position = (b[5] & 0x1F) * 3600.0 + b[6] * 60.0 + b[7] + b[8] / framesPerSecond (frameRate);
+    have = 0;
+    return true;
+}
+
+namespace mmc
+{
+std::vector<std::uint8_t> command (Command c, int device)
+{
+    return { 0xF0, 0x7F, (std::uint8_t) (device & 0x7F), 0x06, (std::uint8_t) c, 0xF7 };
+}
+
+std::vector<std::uint8_t> locate (double seconds, int rate, int device)
+{
+    const auto t = timecodeAt (seconds, rate);
+    return { 0xF0, 0x7F, (std::uint8_t) (device & 0x7F), 0x06, 0x44, 0x06, 0x01,
+             (std::uint8_t) ((rate << 5) | (t.hours & 0x1F)), (std::uint8_t) t.minutes, (std::uint8_t) t.seconds, (std::uint8_t) t.frames, 0x00, 0xF7 };
+}
+
+Message decode (const std::uint8_t* b, int size)
+{
+    Message m;
+    if (size < 6 || b[0] != 0xF0 || b[1] != 0x7F || b[3] != 0x06) return m;
+    m.command = b[4];
+    if (m.command == Locate && size >= 13 && b[5] == 0x06 && b[6] == 0x01)
+    {
+        const int rate = (b[7] >> 5) & 3;
+        m.seconds = (b[7] & 0x1F) * 3600.0 + b[8] * 60.0 + b[9] + b[10] / framesPerSecond (rate);
+    }
+    return m;
+}
+} // namespace mmc
+
 } // namespace kal::sync

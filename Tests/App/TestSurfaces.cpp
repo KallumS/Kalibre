@@ -65,3 +65,44 @@ TEST ("surfaces: OSC moves the transport and the tracks")
     s.osc (OSCMessage ("/kalibre/loop", (int32) 1));
     CHECK (c.project.loop.on);
 }
+
+#include "Hui.h"
+
+TEST ("surfaces: a HUI fader, mute and play move Kalibre; the surface is pinged and lit")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = demo::song();
+    c.refresh();
+    Surfaces s (c);
+    std::vector<MidiMessage> sent;
+    s.sendToHui = [&sent] (const MidiMessage& m) { sent.push_back (m); };
+    const auto ids = s.strips();
+    auto feed = [&s] (std::uint8_t a, std::uint8_t b, std::uint8_t v) { s.hui (MidiMessage (a, b, v)); };
+    // Touch strip 1, move it to -12 dB, let go.
+    const auto undoBefore = c.history.size();
+    feed (0xB0, 0x0F, 0x01); feed (0xB0, 0x2F, 0x40);
+    for (auto& b : hui::fader (1, mackie::dbToFader (-12.0))) feed (b[0], b[1], b[2]);
+    feed (0xB0, 0x0F, 0x01); feed (0xB0, 0x2F, 0x00);
+    CHECK (std::abs (c.project.track (ids[1])->volumeDb + 12.0) < 0.05);
+    CHECK_EQ (c.history.size(), undoBefore + 1);
+    feed (0xB0, 0x0F, 0x01); feed (0xB0, 0x2F, 0x40 | hui::port::mute);
+    CHECK (c.project.track (ids[1])->mute);
+    feed (0xB0, 0x0F, hui::zone::transport); feed (0xB0, 0x2F, 0x40 | hui::port::play);
+    CHECK (engine.isPlaying());
+    c.stop();
+    // Pinged, the mute lit (zone 1, port 2 with 0x40), a name sent.
+    bool ping = false, lit = false, name = false;
+    for (size_t i = 0; i < sent.size(); ++i)
+    {
+        const auto& m = sent[i];
+        if (m.isNoteOn (true) && m.getNoteNumber() == 0) ping = true;
+        if (m.isController() && m.getControllerNumber() == 0x2C && m.getControllerValue() == (0x40 | hui::port::mute) && i > 0
+            && sent[i - 1].getControllerValue() == 1) lit = true;
+        if (m.isSysEx()) name = true;
+    }
+    CHECK (lit);
+    CHECK (name);
+    ignoreUnused (ping);
+}

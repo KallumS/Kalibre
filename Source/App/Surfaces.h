@@ -17,6 +17,7 @@
 #pragma once
 
 #include "Controller.h"
+#include "Hui.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_osc/juce_osc.h>
@@ -35,18 +36,27 @@ public:
 
     // What a surface did, as the controller sees it; public for the tests.
     void mackie (const juce::MidiMessage&);
+    void hui (const juce::MidiMessage&);       // a HUI surface (decision 0043)
     void osc (const juce::OSCMessage&);
     std::vector<Id> strips() const;   // the tracks on the eight strips now
     int bank = 0;
 
     // What would be sent to the Mackie surface (the tests read it; otherwise it goes out).
     std::function<void (const juce::MidiMessage&)> sendToSurface;
+    std::function<void (const juce::MidiMessage&)> sendToHui;
 
 private:
     Controller& c;
     juce::SpinLock inputLock;
     juce::String mackieIn;
     std::unique_ptr<juce::MidiOutput> mackieOut;
+    juce::String huiIn;
+    std::unique_ptr<juce::MidiOutput> huiOut;
+    hui::Decoder huiDecoder;
+    std::array<bool, 8> huiTouched {};
+    int huiPlayShown = -1, huiStopShown = -1, huiRecordShown = -1, huiPingCountdown = 0;
+    void huiSend (const std::uint8_t* data, int size);
+    void huiFeedback (bool everything);
     std::array<bool, 9> touched {};
     Project touchBefore;
 
@@ -57,6 +67,7 @@ private:
         std::string name, value;
     };
     std::array<Shown, 9> shown;
+    std::array<Shown, 8> huiShown;
     int playShown = -1, recordShown = -1, cycleShown = -1;
     std::string timeShown;
 

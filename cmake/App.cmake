@@ -108,7 +108,10 @@ add_library(KalibreApp STATIC
     Source/App/Surfaces.cpp
     Source/App/StudioPanel.cpp)
 if(APPLE)
-    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm)
+    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm)
+    target_link_libraries(KalibreApp PRIVATE "-framework CoreMIDI")
+else()
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp)
 endif()
 
 target_include_directories(KalibreApp PUBLIC

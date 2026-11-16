@@ -26,7 +26,8 @@ private:
     juce::Array<juce::MidiDeviceInfo> ins, outs;
     juce::OwnedArray<juce::ToggleButton> clockOuts;
     juce::ToggleButton sendClock { "Clock and Song Position" }, sendMtc { "Timecode (MTC)" };
-    juce::ComboBox mtcRate, follow, mackieIn, mackieOut;
+    juce::ComboBox mtcRate, follow, mackieIn, mackieOut, followMtc, huiIn, huiOut;
+    juce::ToggleButton sendMmc { "Machine Control (MMC)" }, followMmc { "Obey Machine Control" }, networkMidi { "Network MIDI" };
     juce::ToggleButton link { "Ableton Link" }, linkStartStop { "Share Start and Stop" };
     juce::ToggleButton oscOn { "OSC" };
     juce::TextEditor oscPort, replyHost, replyPort;

@@ -21,6 +21,7 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 
 #include <functional>
+#include <atomic>
 #include <memory>
 
 namespace kal
@@ -45,8 +46,8 @@ public:
 
     struct Command
     {
-        enum class Kind { Play, Stop, Locate, Tempo } kind = Kind::Play;
-        double value = 0;   // seconds for Locate, BPM for Tempo, quarter notes for Play-from
+        enum class Kind { Play, Stop, Locate, Tempo, Chase, LocateSeconds, Record } kind = Kind::Play;
+        double value = 0;   // quarter notes for Locate and Play-from, BPM for Tempo, seconds for Chase and LocateSeconds
     };
     std::function<void (const Command&)> onCommand;
 
@@ -65,6 +66,9 @@ private:
     juce::MidiBuffer scratch;
 
     sync::ClockFollower follower;
+    sync::MtcReader mtc;
+    juce::String mtcId;
+    std::atomic<double> lastMtcMs { -1.0 };   // when timecode last came in, while chasing
     juce::String followId;
     int pulsesSinceTempo = 0;
 

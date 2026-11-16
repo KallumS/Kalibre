@@ -54,6 +54,13 @@ Controller::Controller (Engine& e) : engine (e)
                 break;
             case K::Stop: if (engine.isPlaying()) stop(); break;
             case K::Locate: if (! engine.isPlaying()) locate ((Tick) std::llround (cmd.value * PPQ)); break;
+            case K::LocateSeconds: locate (project.tempo.tickAt (std::max (0.0, cmd.value))); break;
+            case K::Record: if (! engine.isRecording()) record(); break;
+            case K::Chase:
+                // Timecode coming in (decision 0043): start there, and keep within a tenth of a second.
+                if (! engine.isPlaying()) { locate (project.tempo.tickAt (std::max (0.0, cmd.value))); play(); }
+                else if (std::abs (engine.position() - cmd.value) > 0.1) engine.locate (std::max (0.0, cmd.value));
+                break;
         }
     };
     if (auto loaded = loadSettings (studioFile().loadFileAsString().toStdString())) studio = *loaded;

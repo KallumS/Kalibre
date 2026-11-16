@@ -26,9 +26,14 @@ struct ControlSettings
     std::string followClock;             // a MIDI input id to follow, or empty
     bool link = false;
     bool linkStartStop = true;
+    std::string followMtc;               // a MIDI input id whose timecode Kalibre chases (decision 0043)
+    bool sendMmc = false;                // MIDI Machine Control out, to the ports ticked for clock
+    bool followMmc = false;              // obey MMC from any input: play, stop, locate, record
+    bool networkMidi = false;            // the Mac's network MIDI session, on (decision 0043)
 
     // Control surfaces (0035)
     std::string mackieIn, mackieOut;     // MIDI ids for a Mackie Control (or compatible) surface
+    std::string huiIn, huiOut;           // and for a HUI surface (decision 0043)
     bool oscOn = false;
     int oscPort = 8000;                  // Kalibre listens here
     std::string oscReplyHost = "127.0.0.1";

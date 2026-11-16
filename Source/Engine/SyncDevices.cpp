@@ -42,6 +42,9 @@ void SyncDevices::configure (const ControlSettings& s)
         }
     followId = String (s.followClock);
     follower.reset();
+    mtcId = String (s.followMtc);
+    mtc.reset();
+    lastMtcMs = -1.0;
     if (s.link && ! link) link = std::make_unique<LinkState>();
     if (link)
     {
@@ -63,6 +66,12 @@ void SyncDevices::command (Command::Kind kind, double value)
 void SyncDevices::block (const Clock& c, const TempoMap& tempo, double heardAtMs, int quantumBeats)
 {
     if (link && link->session.isEnabled()) runLink (c, tempo, quantumBeats);
+    // Chasing timecode (decision 0043): when it stops coming, Kalibre stops.
+    if (const double last = lastMtcMs.load(); last > 0 && c.playing && Time::getMillisecondCounterHiRes() - last > 300.0)
+    {
+        lastMtcMs = -1.0;
+        command (Command::Kind::Stop, 0);
+    }
 
     const ScopedTryLock sl (outputLock);
     if (! sl.isLocked() || outputs.empty())
@@ -85,6 +94,17 @@ void SyncDevices::block (const Clock& c, const TempoMap& tempo, double heardAtMs
         }
     };
 
+    // MIDI Machine Control out: other machines start, stop and locate with Kalibre.
+    auto sendMmc = [&] (const std::vector<std::uint8_t>& bytes) { scratch.addEvent (bytes.data(), (int) bytes.size(), 0); };
+    if (settings.sendMmc)
+    {
+        if (c.playing && (! wasPlaying || c.jumped))
+        {
+            sendMmc (sync::mmc::locate (c.start, settings.mtcRate));
+            sendMmc (sync::mmc::command (sync::mmc::DeferredPlay));
+        }
+        else if (! c.playing && wasPlaying) sendMmc (sync::mmc::command (sync::mmc::Stop));
+    }
     if (c.playing && (! wasPlaying || c.jumped))
     {
         if (wasPlaying) scratch.addEvent (MidiMessage::midiStop(), 0);
@@ -147,6 +167,37 @@ void SyncDevices::send (double heardAtMs, double rate)
 //==============================================================================
 void SyncDevices::input (const String& device, const MidiMessage& m)
 {
+    // MMC from anywhere, when it's obeyed.
+    if (m.isSysEx() && settings.followMmc)
+    {
+        const auto mm = sync::mmc::decode (m.getRawData(), m.getRawDataSize());
+        switch (mm.command)
+        {
+            case sync::mmc::Play: case sync::mmc::DeferredPlay: command (Command::Kind::Play, -1.0); return;
+            case sync::mmc::Stop: case sync::mmc::Pause: command (Command::Kind::Stop, 0); return;
+            case sync::mmc::Locate: command (Command::Kind::LocateSeconds, mm.seconds); return;
+            case sync::mmc::RecordStrobe: command (Command::Kind::Record, 0); return;
+            default: break;
+        }
+    }
+    // Timecode to chase.
+    if (mtcId.isNotEmpty() && (device.isEmpty() || device == mtcId))
+    {
+        if (m.isQuarterFrame())
+        {
+            if (mtc.quarterFrame ((std::uint8_t) ((m.getQuarterFrameSequenceNumber() << 4) | m.getQuarterFrameValue())))
+            {
+                lastMtcMs = Time::getMillisecondCounterHiRes();
+                command (Command::Kind::Chase, mtc.seconds());
+            }
+            return;
+        }
+        if (m.isFullFrame() && mtc.fullFrame (m.getRawData(), m.getRawDataSize()))
+        {
+            command (Command::Kind::LocateSeconds, mtc.seconds());
+            return;
+        }
+    }
     if (followId.isEmpty() || (device.isNotEmpty() && device != followId)) return;
     if (m.isMidiClock())
     {

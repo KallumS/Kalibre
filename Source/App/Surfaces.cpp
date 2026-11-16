@@ -11,12 +11,15 @@ Surfaces::Surfaces (Controller& ctrl) : c (ctrl)
 {
     c.engine.surfaceInput = [this] (const String& device, const MidiMessage& m)
     {
+        bool isMackie = false, isHui = false;
         {
             const SpinLock::ScopedLockType sl (inputLock);
-            if (mackieIn.isEmpty() || device != mackieIn) return false;
+            isMackie = mackieIn.isNotEmpty() && device == mackieIn;
+            isHui = huiIn.isNotEmpty() && device == huiIn;
         }
-        MessageManager::callAsync ([this, m] { mackie (m); });
-        return true;
+        if (isMackie) MessageManager::callAsync ([this, m] { mackie (m); });
+        else if (isHui) MessageManager::callAsync ([this, m] { hui (m); });
+        return isMackie || isHui;
     };
     c.onStudioChanged = [this] { configure(); };
     configure();
@@ -37,7 +40,13 @@ void Surfaces::configure()
     {
         const SpinLock::ScopedLockType sl (inputLock);
         mackieIn = String (s.mackieIn);
+        huiIn = String (s.huiIn);
     }
+    huiOut.reset();
+    if (! s.huiOut.empty()) huiOut = MidiOutput::openDevice (String (s.huiOut));
+    huiShown = {};
+    huiPlayShown = huiStopShown = huiRecordShown = -1;
+    if (huiOut) huiFeedback (true);
     mackieOut.reset();
     if (! s.mackieOut.empty()) mackieOut = MidiOutput::openDevice (String (s.mackieOut));
     shown = {};
@@ -262,6 +271,145 @@ void Surfaces::feedback (bool everything)
 }
 
 //==============================================================================
+// HUI (decision 0043): the same controls as Mackie Control, in HUI's words.
+void Surfaces::hui (const MidiMessage& m)
+{
+    if (m.getRawDataSize() > 3) return;
+    std::uint8_t bytes[3] {};
+    for (int i = 0; i < m.getRawDataSize(); ++i) bytes[i] = m.getRawData()[i];
+    const auto in = huiDecoder.feed (bytes);
+    switch (in.kind)
+    {
+        case hui::Kind::Fader:
+        {
+            auto* t = stripTrack (in.strip);
+            if (! t) break;
+            t->volumeDb = mackie::faderToDb (in.value / 16383.0);
+            if (auto* f = c.engine.fader (t->id)) f->volumeDb = (float) t->volumeDb;
+            c.dirty = true;
+            if (! huiTouched[(size_t) jlimit (0, 7, in.strip)]) c.refresh();
+            else c.viewChanged();
+            c.touchedMix (t->id, AutoTarget::Kind::Volume, "Volume");
+            break;
+        }
+        case hui::Kind::Touch:
+        {
+            const auto s = (size_t) jlimit (0, 7, in.strip);
+            if (in.pressed) { huiTouched[s] = true; touchBefore = c.project; }
+            else
+            {
+                huiTouched[s] = false;
+                if (! (touchBefore == c.project)) c.history.push (touchBefore, "Fader");
+                c.refresh();
+            }
+            break;
+        }
+        case hui::Kind::VPot:
+        {
+            auto* t = stripTrack (in.strip);
+            if (! t) break;
+            t->pan = jlimit (-1.0, 1.0, t->pan + in.delta * 0.02);
+            if (auto* f = c.engine.fader (t->id)) f->pan = (float) t->pan;
+            c.dirty = true;
+            c.viewChanged();
+            break;
+        }
+        case hui::Kind::Switch:
+        {
+            if (! in.pressed) break;
+            if (in.zone < 8)
+            {
+                auto* t = stripTrack (in.zone);
+                const Id id = t ? t->id : 0;
+                auto toggle = [this, id] (const char* label, bool Track::* field)
+                {
+                    if (id) c.apply (label, [id, field] (Project& p) { if (auto* x = p.track (id)) x->*field = ! (x->*field); });
+                };
+                if (in.port == hui::port::mute) toggle ("Mute", &Track::mute);
+                else if (in.port == hui::port::solo) toggle ("Solo", &Track::solo);
+                else if (in.port == hui::port::record) toggle ("Arm", &Track::armed);
+                else if (in.port == hui::port::select && id) c.selectTracks ({ id });
+            }
+            else if (in.zone == hui::zone::transport)
+            {
+                if (in.port == hui::port::play) c.play();
+                else if (in.port == hui::port::stop) c.stop();
+                else if (in.port == hui::port::recordTransport) c.record();
+                else if (in.port == hui::port::rewind || in.port == hui::port::forward)
+                {
+                    const int bar = c.project.tempo.barAt (c.playhead());
+                    c.locate (c.project.tempo.barStart (std::max (0, bar + (in.port == hui::port::forward ? 1 : -1))));
+                }
+            }
+            else if (in.zone == hui::zone::bank)
+            {
+                const int last = std::max (0, (int) c.project.tracks.size() - 1);
+                if (in.port == hui::port::bankLeft) bank = std::max (0, bank - 8);
+                else if (in.port == hui::port::bankRight) bank = std::min (last, bank + 8);
+                else if (in.port == hui::port::channelLeft) bank = std::max (0, bank - 1);
+                else if (in.port == hui::port::channelRight) bank = std::min (last, bank + 1);
+            }
+            huiFeedback (true);
+            break;
+        }
+        case hui::Kind::Ping:
+        case hui::Kind::None:
+            break;
+    }
+}
+
+void Surfaces::huiSend (const std::uint8_t* data, int size)
+{
+    const MidiMessage msg (data, size);
+    if (sendToHui) sendToHui (msg);
+    else if (huiOut) huiOut->sendMessageNow (msg);
+}
+
+void Surfaces::huiFeedback (bool everything)
+{
+    if (! huiOut && ! sendToHui) return;
+    // The surface goes offline without a ping every second.
+    if (--huiPingCountdown <= 0) { const auto p = hui::ping(); huiSend (p.data(), 3); huiPingCountdown = 20; }
+    for (int s = 0; s < 8; ++s)
+    {
+        auto* t = stripTrack (s);
+        auto& was = huiShown[(size_t) s];
+        const int pos = t ? (int) std::lround (mackie::dbToFader (t->volumeDb) * 16383.0) : 0;
+        if (! huiTouched[(size_t) s] && (everything || pos != was.fader))
+        {
+            for (auto& b : hui::fader (s, pos / 16383.0)) huiSend (b.data(), 3);
+            was.fader = pos;
+        }
+        auto light = [&] (int& state, int port, bool on)
+        {
+            if (everything || state != (int) on) { for (auto& b : hui::light (s, port, on)) huiSend (b.data(), 3); state = (int) on; }
+        };
+        light (was.mute, hui::port::mute, t && t->mute);
+        light (was.solo, hui::port::solo, t && t->solo);
+        light (was.arm, hui::port::record, t && t->armed);
+        light (was.select, hui::port::select, t && t->id == c.focusTrack);
+        const int pan = t ? (int) std::lround ((t->pan + 1.0) * 5.0) : -2;
+        if (everything || pan != was.pan) { const auto r = hui::vpotRing (s, t ? t->pan : 0.0); huiSend (r.data(), 3); was.pan = pan; }
+        const auto name = hui::fit4 (t ? t->name : std::string());
+        if (everything || name != was.name) { const auto d = hui::scribble (s, name); huiSend (d.data(), (int) d.size()); was.name = name; }
+        if (t)
+            if (auto* f = c.engine.fader (t->id))
+                for (int side = 0; side < 2; ++side)
+                {
+                    const auto mm = hui::meter (s, side, side == 0 ? f->rmsL.load() * 1.41f : f->rmsR.load() * 1.41f);
+                    if (everything || side == 1 || (int) mm[2] != was.meter) { huiSend (mm.data(), 3); if (side == 0) was.meter = (int) mm[2]; }
+                }
+    }
+    auto light = [&] (int& state, int port, bool on)
+    {
+        if (everything || state != (int) on) { for (auto& b : hui::light (hui::zone::transport, port, on)) huiSend (b.data(), 3); state = (int) on; }
+    };
+    light (huiPlayShown, hui::port::play, c.engine.isPlaying());
+    light (huiStopShown, hui::port::stop, ! c.engine.isPlaying());
+    light (huiRecordShown, hui::port::recordTransport, c.engine.isRecording());
+}
+
+//==============================================================================
 void Surfaces::osc (const OSCMessage& m)
 {
     const auto address = m.getAddressPattern().toString();
@@ -344,6 +492,7 @@ void Surfaces::oscFeedback()
 void Surfaces::timerCallback()
 {
     feedback (false);
+    huiFeedback (false);
     oscFeedback();
 }
 
