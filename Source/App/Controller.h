@@ -120,6 +120,19 @@ public:
     void selectAllNotes();
 
     //==========================================================================
+    // Audio (decision 0036; AudioEditing.cpp).
+    juce::File fileOf (const Clip&, bool rendered = true) const;
+    static bool readAudio (const juce::File&, juce::AudioBuffer<float>&, double& rate);
+    // A sample edit on [start, end) of the clip's file (its own samples): the
+    // result goes into a new file the clip then plays, so Undo brings the old one back.
+    bool editAudio (Id clip, const juce::String& label, int start, int end,
+                    std::function<void (juce::AudioBuffer<float>&, int start, int end)>);
+    void normaliseClip (Id clip);
+    void stripSilence (Id clip, double thresholdDb = -48.0);
+    void quantiseAudio (Id clip, double strength = 1.0);
+    std::vector<double> hitsIn (Id clip, double sensitivity = 0.5);   // seconds into its file
+
+    //==========================================================================
     // Devices.
     void addPlugin (Id track, const juce::PluginDescription&);
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);

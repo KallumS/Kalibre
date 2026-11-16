@@ -1,5 +1,7 @@
 #include "Edit.h"
 
+#include "AudioTools.h"
+
 #include <cmath>
 #include <limits>
 #include <map>
@@ -349,6 +351,36 @@ Id splitClip (Project& p, Id clipId, Tick at)
     owner->clips().push_back (right);
     sortClips (*owner);
     return rightId;
+}
+
+std::vector<Id> keepSourceSpans (Project& p, Id clipId, const std::vector<std::pair<double, double>>& spans)
+{
+    Track* owner = nullptr;
+    auto* c = p.clip (clipId, &owner);
+    if (! c || c->locked || c->isMidi() || c->loopLength > 0) return {};
+    const Clip original = *c;
+    const Tick contentStart = original.start - original.offset;
+    std::vector<Clip> pieces;
+    for (auto [from, to] : spans)
+    {
+        Tick a = audiotools::tickForSource (original.audio, from, p.tempo, contentStart);
+        Tick b = audiotools::tickForSource (original.audio, to, p.tempo, contentStart);
+        a = std::max (a, original.offset);
+        b = std::min (b, original.offset + original.length);
+        if (b - a < 2) continue;
+        Clip piece = original;
+        piece.id = p.newId();
+        piece.start = contentStart + a;
+        piece.offset = a;
+        piece.length = b - a;
+        piece.audio.fadeIn = piece.audio.fadeOut = 0.005;
+        pieces.push_back (piece);
+    }
+    eraseIf (owner->clips(), [clipId] (const Clip& x) { return x.id == clipId; });
+    std::vector<Id> ids;
+    for (auto& piece : pieces) { ids.push_back (piece.id); owner->clips().push_back (piece); }
+    sortClips (*owner);
+    return ids;
 }
 
 Id duplicateClip (Project& p, Id clipId)

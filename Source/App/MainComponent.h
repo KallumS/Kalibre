@@ -58,6 +58,7 @@ public:
     void exportMidi();
     void setTextSize (float);
     void showBrowser (Browser::Tab);
+    void hideBrowser() { browserShown = false; browser.setVisible (false); resized(); }
 
     Controller& controller() { return c; }
     bool browserShown = false;

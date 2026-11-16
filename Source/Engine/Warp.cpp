@@ -1,5 +1,7 @@
 #include "Warp.h"
 
+#include "AudioTools.h"
+
 #include <signalsmith-stretch/signalsmith-stretch.h>
 
 namespace kal
@@ -83,21 +85,7 @@ std::shared_ptr<const CachedAudio> AudioCache::file (const File& f)
 //==============================================================================
 double AudioCache::sourceSecondsAt (const AudioData& a, Tick t)
 {
-    auto markers = a.markers;
-    std::sort (markers.begin(), markers.end(), [] (const WarpMarker& x, const WarpMarker& y) { return x.tick < y.tick; });
-    if (markers.size() >= 2)
-    {
-        size_t i = 0;
-        while (i + 2 < markers.size() && markers[i + 1].tick <= t) ++i;
-        const auto& m0 = markers[i];
-        const auto& m1 = markers[i + 1];
-        if (m1.tick == m0.tick) return m0.sourceSeconds;
-        const double f = (double) (t - m0.tick) / (double) (m1.tick - m0.tick);
-        return m0.sourceSeconds + (m1.sourceSeconds - m0.sourceSeconds) * f;
-    }
-    const double offset = markers.size() == 1 ? markers[0].sourceSeconds - (a.sourceBpm > 0 ? (double) markers[0].tick / PPQ * 60.0 / a.sourceBpm : 0.0) : 0.0;
-    if (a.sourceBpm > 0) return a.sourceStart + offset + (double) t / PPQ * 60.0 / a.sourceBpm;
-    return -1;   // no tempo known: the caller plays it at its own speed
+    return audiotools::sourceSecondsAt (a, t);
 }
 
 std::shared_ptr<CachedAudio> AudioCache::render (const CachedAudio& src, const Clip& clip, const TempoMap& tempo, double rate)

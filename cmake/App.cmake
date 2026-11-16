@@ -72,6 +72,8 @@ add_library(KalibreApp STATIC
     Source/Engine/SyncDevices.cpp
     Source/App/Theme.cpp
     Source/App/Controller.cpp
+    Source/App/AudioEditing.cpp
+    Source/App/SampleEditor.cpp
     Source/App/TopBar.cpp
     Source/App/Arrange.cpp
     Source/App/PianoRoll.cpp

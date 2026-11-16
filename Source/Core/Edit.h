@@ -66,6 +66,9 @@ Id splitClip (Project&, Id clip, Tick at);                         // returns th
 Id duplicateClip (Project&, Id clip);                              // just after itself
 Id consolidateClips (Project&, const std::set<Id>& clips);         // MIDI clips on one track into one
 void sortClips (Track&);
+// Strip Silence (decision 0036): an audio clip becomes one clip for each
+// stretch of its file (seconds) that has sound, each in its place, with short fades.
+std::vector<Id> keepSourceSpans (Project&, Id clip, const std::vector<std::pair<double, double>>& sourceSpans);
 
 //==============================================================================
 // Notes (in a MIDI clip; ticks are the clip's own, from its content start)

@@ -13,6 +13,7 @@
 #include "NotationView.h"
 #include "PatternEditors.h"
 #include "PianoRoll.h"
+#include "SampleEditor.h"
 #include "Theme.h"
 
 namespace kal
@@ -51,6 +52,9 @@ private:
     EuclidEditor euclid;
     NotationView notation;
     Mixer mixer;
+    SampleEditor sample;
+    bool shownAudio = false;
+    bool audioChosen() const;
 
     ZoneTab shownTab = ZoneTab::Devices;
     EditorKind shownEditor = EditorKind::PianoRoll;

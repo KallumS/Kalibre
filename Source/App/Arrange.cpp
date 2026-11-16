@@ -1386,6 +1386,10 @@ void Arrange::clipMenu (Id id)
                 });
             });
         m.addSubMenu ("Transpose", transpose);
+        m.addItem ("Normalise", [this, id] { c.normaliseClip (id); });
+        m.addItem ("Strip Silence", [this, id] { c.stripSilence (id); });
+        m.addItem ("Quantise Audio to the Grid", [this, id] { c.quantiseAudio (id); });
+        m.addItem ("Edit Samples", [this, id] { c.selectClip (id); c.zoneTab = ZoneTab::Editor; c.viewChanged(); });
         m.addItem ("Reverse", true, clip->audio.reversed, [this, id] { c.apply ("Reverse", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->audio.reversed = ! cl->audio.reversed; }); });
         m.addItem ("Fade In and Out (10 ms)", [this, id] { c.apply ("Fades", [id] (Project& p) { if (auto* cl = p.clip (id)) { cl->audio.fadeIn = 0.01; cl->audio.fadeOut = 0.01; } }); });
 

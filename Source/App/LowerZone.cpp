@@ -5,7 +5,7 @@ namespace kal
 using namespace juce;
 
 LowerZone::LowerZone (Controller& ctrl)
-    : c (ctrl), devices (ctrl), roll (ctrl), drums (ctrl), steps (ctrl), euclid (ctrl), notation (ctrl), mixer (ctrl)
+    : c (ctrl), devices (ctrl), roll (ctrl), drums (ctrl), steps (ctrl), euclid (ctrl), notation (ctrl), mixer (ctrl), sample (ctrl)
 {
     for (auto* b : { &devicesTab, &editorTab, &mixerTab })
     {
@@ -20,7 +20,7 @@ LowerZone::LowerZone (Controller& ctrl)
         addChildComponent (b);
     }
     for (auto* b : { &gridButton, &snapButton, &quantise, &legato }) addChildComponent (b);
-    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer })
+    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample })
         addChildComponent (comp);
     drumsView.setViewedComponent (&drums, false);
     euclidView.setViewedComponent (&euclid, false);
@@ -51,20 +51,31 @@ LowerZone::~LowerZone() { c.removeChangeListener (this); }
 
 void LowerZone::changeListenerCallback (ChangeBroadcaster*)
 {
-    if (c.zoneTab != shownTab || c.editor != shownEditor) show();
+    if (c.zoneTab != shownTab || c.editor != shownEditor || audioChosen() != shownAudio) show();
     snapButton.setToggleState (c.snap, dontSendNotification);
+}
+
+bool LowerZone::audioChosen() const
+{
+    const auto* cl = c.project.clip (c.selectedClip);
+    return cl && ! cl->isMidi();
 }
 
 void LowerZone::show()
 {
     shownTab = c.zoneTab;
     shownEditor = c.editor;
+    shownAudio = audioChosen();
     devicesTab.setToggleState (c.zoneTab == ZoneTab::Devices, dontSendNotification);
     editorTab.setToggleState (c.zoneTab == ZoneTab::Editor, dontSendNotification);
     mixerTab.setToggleState (c.zoneTab == ZoneTab::Mixer, dontSendNotification);
-    const bool editing = c.zoneTab == ZoneTab::Editor;
+    // An audio clip is edited in the sample editor; the note editors are for MIDI.
+    const bool audio = c.zoneTab == ZoneTab::Editor && shownAudio;
+    const bool editing = c.zoneTab == ZoneTab::Editor && ! audio;
     for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab, &gridButton, &snapButton, &quantise, &legato })
         b->setVisible (editing);
+    sample.setVisible (audio);
+    if (audio) sample.load();
     rollTab.setToggleState (c.editor == EditorKind::PianoRoll, dontSendNotification);
     drumsTab.setToggleState (c.editor == EditorKind::Drums, dontSendNotification);
     stepsTab.setToggleState (c.editor == EditorKind::Steps, dontSendNotification);
@@ -122,7 +133,7 @@ void LowerZone::resized()
     place (editorTab);
     place (mixerTab);
     bar.removeFromLeft (theme::px (12));
-    if (c.zoneTab == ZoneTab::Editor)
+    if (c.zoneTab == ZoneTab::Editor && ! shownAudio)
     {
         for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab }) place (*b);
         bar.removeFromLeft (theme::px (12));
@@ -130,6 +141,7 @@ void LowerZone::resized()
     }
     for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer })
         comp->setBounds (r);
+    sample.setBounds (r);
     // These two scroll when there's more than fits.
     const int inner = r.getWidth() - drumsView.getScrollBarThickness();
     drums.setSize (inner, jmax (r.getHeight(), drums.preferredHeight()));

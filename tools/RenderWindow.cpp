@@ -107,7 +107,13 @@ int main (int argc, char** argv)
         c.zoneTab = ZoneTab::Mixer;
         c.viewChanged();
         shoot ("10-studio-and-loudness");
-        window.browserShown = false;
+        window.hideBrowser();
+        // An audio clip in the sample editor (decision 0036).
+        for (auto& t : c.project.tracks)
+            if (t.name == "Vocal" && ! t.clips().empty()) c.selectClip (t.clips().front().id);
+        c.zoneTab = ZoneTab::Editor;
+        c.viewChanged();
+        shoot ("11-sample-editor");
         c.project.tracks[0].collapsed = false;
         c.showTempoLane = true;
         c.project.tempo.setTempos ({ { 0, 96, true }, { PPQ * 16, 120, false } });
