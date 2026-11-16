@@ -71,7 +71,9 @@ public:
             g.drawFittedText (String (d->plugin.name), header.removeFromTop (header.getHeight() * 3 / 5), Justification::bottomLeft, 1);
             g.setColour (theme::textSecondary);
             g.setFont (theme::font (theme::smallPoints));
-            g.drawFittedText (String (roles[(int) d->role]) + " " + ui::u8 ("\xc2\xb7") + " " + String (d->plugin.format), header, Justification::topLeft, 1);
+            String sub = String (roles[(int) d->role]) + " " + ui::u8 ("\xc2\xb7") + " " + String (d->plugin.format);
+            if (const auto* from = c.project.track (d->sidechainFrom)) sub << " " << ui::u8 ("\xc2\xb7") << " sidechain: " << String (from->name);
+            g.drawFittedText (sub, header, Justification::topLeft, 1);
             if (! d->active)
             {
                 g.setColour (theme::textSecondary);
@@ -131,6 +133,20 @@ public:
         m.addItem ("Move Left", index > 0, false, [this, index] { c.apply ("Move Plug-in", [this, index] (Project& p) { edit::moveDevice (p, id, index - 1); }); });
         m.addItem ("Move Right", owner && index + 1 < (int) owner->devices.size(), false, [this, index] { c.apply ("Move Plug-in", [this, index] (Project& p) { edit::moveDevice (p, id, index + 1); }); });
         m.addSeparator();
+        // Sidechain (decision 0031): only for plug-ins with a second input.
+        if (c.engine.sidechainChannels (id) > 0 && owner)
+        {
+            PopupMenu sc;
+            sc.addItem ("None", true, d->sidechainFrom == 0, [this] { c.apply ("Sidechain", [this] (Project& p) { if (auto* x = p.device (id)) x->sidechainFrom = 0; }); });
+            for (auto& t : c.project.tracks)
+                if (t.id != owner->id)
+                    sc.addItem (String (t.name), edit::canRoute (c.project, t.id, owner->id), d->sidechainFrom == t.id, [this, tid = t.id]
+                    {
+                        c.apply ("Sidechain", [this, tid] (Project& p) { if (auto* x = p.device (id)) x->sidechainFrom = tid; });
+                    });
+            m.addSubMenu ("Sidechain From", sc);
+            m.addSeparator();
+        }
         m.addItem ("Automate the Last Touched Control", c.lastTouched.device == id, false, [this] { c.automateLastTouched(); });
         PopupMenu mods;
         const char* kinds[] { "LFO", "ADSR", "ADR", "Envelope Follower", "Wavetable" };

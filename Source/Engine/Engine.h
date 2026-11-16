@@ -59,6 +59,9 @@ public:
     // A device's saved state, as the project keeps it (base64).
     std::string stateOf (Id device) const;
     std::string araStateOf (Id device) const;
+    // How many channels a plug-in's sidechain input has (0: none).
+    int sidechainChannels (Id device) const;
+    static bool enableSidechain (juce::AudioProcessor&);
     bool playedByAra (Id track) const;
 
     //==========================================================================

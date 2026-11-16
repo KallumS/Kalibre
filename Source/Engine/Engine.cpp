@@ -297,6 +297,28 @@ std::string Engine::stateOf (Id device) const
     return m.toBase64Encoding().toStdString();
 }
 
+// A plug-in with a second input (a sidechain) gets it switched on, stereo if
+// it takes stereo, otherwise mono (decision 0031).
+bool Engine::enableSidechain (AudioProcessor& p)
+{
+    if (p.getBusCount (true) < 2) return false;
+    auto layout = p.getBusesLayout();
+    for (auto set : { AudioChannelSet::stereo(), AudioChannelSet::mono() })
+    {
+        layout.inputBuses.getReference (1) = set;
+        if (p.checkBusesLayoutSupported (layout) && p.setBusesLayout (layout)) return true;
+    }
+    return false;
+}
+
+int Engine::sidechainChannels (Id device) const
+{
+    auto* p = instance (device);
+    if (! p || p->getBusCount (true) < 2) return 0;
+    if (auto* bus = p->getBus (true, 1)) return bus->isEnabled() ? bus->getNumberOfChannels() : 0;
+    return 0;
+}
+
 Engine::Node::Ptr Engine::nodeForDevice (const Device& d, String& error)
 {
     const auto key = d.plugin.format + "|" + d.plugin.identifier + "|" + std::to_string (d.plugin.uid);
@@ -309,6 +331,7 @@ Engine::Node::Ptr Engine::nodeForDevice (const Device& d, String& error)
         MemoryBlock m;
         if (m.fromBase64Encoding (d.state)) instance->setStateInformation (m.getData(), (int) m.getSize());
     }
+    enableSidechain (*instance);
     instance->addListener (this);
     auto node = graph.addNode (std::move (instance));
     if (auto old = deviceNodes[d.id]) { old->getProcessor()->removeListener (this); bury (old); }
@@ -391,7 +414,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
     {
         newShape << (int64) t->id << ":" << (int) t->kind << ":" << (int64) project.outputOf (t->id) << ":" << (t->id == live ? 1 : 0)
                  << (t->armed ? "a" : "") << (int) t->monitor << "/" << t->input.audioChannel << "[";
-        for (auto& d : t->devices) if (d.active && wantedDevices.count (d.id)) newShape << (int64) d.id << (int) d.role << (d.bypassed ? "b" : "") << ",";
+        for (auto& d : t->devices) if (d.active && wantedDevices.count (d.id)) newShape << (int64) d.id << (int) d.role << (d.bypassed ? "b" : "") << "<" << (int64) d.sidechainFrom << ",";
         newShape << "]{";
         for (auto& s : t->sends) newShape << (int64) s.target << (s.preFader ? "p" : "") << ",";
         newShape << "}";
@@ -464,6 +487,22 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 if (d.active && d.role == DeviceRole::AudioFx && wantedDevices.count (d.id)
                     && deviceNodes[d.id]->getProcessor()->acceptsMidi())
                     connectMidi (midiFrom, deviceNodes[d.id]->nodeID);
+
+            // Sidechains: another track's sound, after its fader, into a plug-in's second input.
+            for (auto& d : t->devices)
+            {
+                if (! d.active || d.sidechainFrom == 0 || ! wantedDevices.count (d.id)) continue;
+                const auto from = tracks.find (d.sidechainFrom);
+                if (from == tracks.end() || ! from->second.fader || ! edit::canRoute (project, d.sidechainFrom, t->id)) continue;
+                auto* proc = deviceNodes[d.id]->getProcessor();
+                const int sc = sidechainChannels (d.id);
+                if (sc <= 0) continue;
+                const int first = proc->getChannelIndexInProcessBlockBuffer (true, 1, 0);
+                for (int ch = 0; ch < sc; ++ch)
+                    graph.addConnection ({ { from->second.fader->nodeID, jmin (ch, 1) }, { deviceNodes[d.id]->nodeID, first + ch } }, Kind::none);
+                if (sc == 1)   // a mono sidechain hears both sides
+                    graph.addConnection ({ { from->second.fader->nodeID, 1 }, { deviceNodes[d.id]->nodeID, first } }, Kind::none);
+            }
 
             // Out: to its folder, the track it is routed to, or the master.
             if (t->kind == TrackKind::Master)

@@ -70,8 +70,49 @@ private:
 };
 } // namespace
 
+namespace
+{
+// A device with a sidechain input that plays only its sidechain: the tests use
+// it to hold sidechain routing to account.
+class SidechainTest : public AudioPluginInstance
+{
+public:
+    SidechainTest()
+        : AudioPluginInstance (BusesProperties().withInput ("In", AudioChannelSet::stereo())
+                                                .withInput ("Sidechain", AudioChannelSet::stereo(), false)
+                                                .withOutput ("Out", AudioChannelSet::stereo())) {}
+    const String getName() const override { return "Sidechain Test"; }
+    void fillInPluginDescription (PluginDescription& d) const override { d.name = getName(); d.pluginFormatName = "Kalibre"; }
+    bool isBusesLayoutSupported (const BusesLayout&) const override { return true; }
+    void prepareToPlay (double, int) override {}
+    void releaseResources() override {}
+    void processBlock (AudioBuffer<float>& b, MidiBuffer&) override
+    {
+        auto side = getBusBuffer (b, true, 1);
+        auto out = getBusBuffer (b, false, 0);
+        AudioBuffer<float> copy (2, b.getNumSamples());
+        copy.clear();
+        for (int ch = 0; ch < jmin (2, side.getNumChannels()); ++ch) copy.copyFrom (ch, 0, side, ch, 0, b.getNumSamples());
+        for (int ch = 0; ch < out.getNumChannels(); ++ch) out.copyFrom (ch, 0, copy, jmin (ch, 1), 0, b.getNumSamples());
+    }
+    double getTailLengthSeconds() const override { return 0; }
+    bool acceptsMidi() const override { return false; }
+    bool producesMidi() const override { return false; }
+    bool hasEditor() const override { return false; }
+    AudioProcessorEditor* createEditor() override { return nullptr; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const String&) override {}
+    void getStateInformation (MemoryBlock&) override {}
+    void setStateInformation (const void*, int) override {}
+};
+} // namespace
+
 std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginManager& pm)
 {
+    if (ref.identifier == "test-sidechain") return std::make_unique<SidechainTest>();
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
     if (String (ref.identifier).startsWith ("test-latency:"))
         return std::make_unique<LatencyTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getIntValue());

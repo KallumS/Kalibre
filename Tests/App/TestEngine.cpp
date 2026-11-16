@@ -225,3 +225,47 @@ TEST ("engine: freezing a track renders it with its plug-ins and unloads them")
     c.freeze (t, false);
     CHECK (engine.instance (dev) != nullptr);
 }
+
+TEST ("engine: a track's sound reaches another track's plug-in through its sidechain, lined up")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p;
+    const auto click = clickFile (0.5);
+    const Id kick = edit::addTrack (p, TrackKind::Track, "Kick");
+    edit::addClip (p, kick, audioClip (click, 0, PPQ * 4));
+    // The kick goes through a 200-sample plug-in, and is kept out of the mix
+    // itself: it's heard only through the other track's sidechain.
+    PluginRef lag;
+    lag.format = "Kalibre";
+    lag.identifier = "test-latency:200";
+    edit::addDevice (p, kick, lag, DeviceRole::AudioFx);
+    const Id bass = edit::addTrack (p, TrackKind::Track, "Bass");
+    edit::addClip (p, bass, audioClip (click, 0, PPQ * 4));
+    PluginRef sc;
+    sc.format = "Kalibre";
+    sc.identifier = "test-sidechain";
+    const Id dev = edit::addDevice (p, bass, sc, DeviceRole::AudioFx);
+    p.device (dev)->sidechainFrom = kick;
+    p.track (kick)->output = bass;   // not into the master: send it somewhere it's replaced
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 1.0; o.tail = 0.2; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("sidechain.wav");
+    String error;
+    // The kick routed into the bass track and also into its sidechain: allowed, it's not a loop.
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    CHECK (engine.sidechainChannels (dev) == 2);
+    p.track (kick)->output = 0;
+    p.track (kick)->volumeDb = 0;
+    p.track (kick)->mute = false;
+    // Now: master hears the kick (delayed by its plug-in, compensated) and the bass track's sidechain copy of it.
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    const auto clicks = clicksIn (out);
+    CHECK_EQ (clicks.size(), size_t (1));
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (out));
+    AudioBuffer<float> b (2, (int) r->lengthInSamples);
+    r->read (&b, 0, b.getNumSamples(), 0, true, true);
+    if (! clicks.empty()) CHECK (std::abs (b.getSample (0, clicks.front()) - 2.0f) < 0.01f);   // both, together
+}
