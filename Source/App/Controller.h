@@ -14,6 +14,7 @@
 #include "Engine.h"
 #include "ControlSettings.h"
 #include "Patterns.h"
+#include "Song.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -21,7 +22,7 @@ namespace kal
 {
 
 enum class EditorKind { PianoRoll, Drums, Steps, Euclid, Notation };
-enum class ZoneTab { Devices, Editor, Mixer };
+enum class ZoneTab { Devices, Editor, Mixer, Launcher, Meters };
 
 class Controller : public juce::ChangeBroadcaster, private juce::Timer
 {
@@ -50,6 +51,8 @@ public:
     ZoneTab zoneTab = ZoneTab::Devices;
     bool showChordLane = true;
     bool showTempoLane = false;
+    bool showSectionLane = true;
+    bool ripple = false;            // deleting clips pulls later ones back (decision 0037)
 
     Track* focus() { return project.track (focusTrack); }
     Clip* clip() { return project.clip (selectedClip); }
@@ -133,6 +136,12 @@ public:
     std::vector<double> hitsIn (Id clip, double sensitivity = 0.5);   // seconds into its file
 
     //==========================================================================
+    // The clip launcher (decision 0037): not undo steps.
+    void launchSlot (Id track, int slot);   // -1 stops the track
+    void launchScene (int scene);
+    void backToArrangement();
+
+    //==========================================================================
     // Devices.
     void addPlugin (Id track, const juce::PluginDescription&);
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
@@ -192,6 +201,9 @@ private:
     Writing writing;
 
     void syncEngine();
+    std::map<Id, Track::Launch> launchStates() const;
+    void restoreLaunches (const std::map<Id, Track::Launch>&);
+    std::vector<song::TrackMix> lastMix;   // the mix as last synced, for grouped tracks
     void timerCallback() override;
     void finishRecording();
 };

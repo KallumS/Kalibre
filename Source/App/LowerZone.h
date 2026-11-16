@@ -9,6 +9,7 @@
 
 #include "Controller.h"
 #include "DeviceRack.h"
+#include "LauncherView.h"
 #include "Mixer.h"
 #include "NotationView.h"
 #include "PatternEditors.h"
@@ -34,6 +35,7 @@ private:
     theme::HouseButton devicesTab { "Devices", "The chosen track's plug-ins. (D)" };
     theme::HouseButton editorTab { "Editor", "The chosen clip's notes. (E)" };
     theme::HouseButton mixerTab { "Mixer", "Every track's volume, pan and sends. (X)" };
+    theme::HouseButton launcherTab { "Launcher", "Clips to play in loops, scene by scene. (G)" };
     theme::HouseButton rollTab { "Piano Roll", "Notes on a piano roll." };
     theme::HouseButton drumsTab { "Drums", "A grid of drum hits." };
     theme::HouseButton stepsTab { "Steps", "A step sequencer: one note a step." };
@@ -53,6 +55,7 @@ private:
     NotationView notation;
     Mixer mixer;
     SampleEditor sample;
+    LauncherView launcher;
     bool shownAudio = false;
     bool audioChosen() const;
 

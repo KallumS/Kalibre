@@ -3,6 +3,7 @@
 
 #include "DeviceRack.h"
 #include "MidiLearn.h"
+#include "Song.h"
 #include "MainComponent.h"
 
 namespace kal
@@ -152,6 +153,31 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 }));
             m.addSubMenu ("Transpose", transpose, c.selectedClip != 0);
             m.addItem (item ("Consolidate the Chosen Clips", [this] { auto clips = c.selectedClips; c.apply ("Consolidate", [clips] (Project& pr) { edit::consolidateClips (pr, clips); }); }, {}, c.selectedClips.size() > 1));
+            m.addSeparator();
+            // The song's shape (decision 0037).
+            m.addItem (item ("Ripple Editing", [this] { c.ripple = ! c.ripple; c.say (c.ripple ? "Ripple editing is on: deleting a clip pulls the later clips on its track back." : "Ripple editing is off."); }, {}, true, c.ripple));
+            m.addItem (item (ui::u8 ("Insert Bars at the Cursor\xe2\x80\xa6"), [this]
+            {
+                auto* w = new AlertWindow ("Insert Bars", "Empty bars go in at the cursor's bar; everything after moves later.", MessageBoxIconType::NoIcon);
+                w->addTextEditor ("bars", "4");
+                w->addButton ("Insert", 1, KeyPress (KeyPress::returnKey));
+                w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+                ui::present (w, ModalCallbackFunction::create ([this, w] (int ok)
+                {
+                    if (ok != 1) return;
+                    const int bars = jlimit (1, 999, w->getTextEditorContents ("bars").getIntValue());
+                    const int bar = c.project.tempo.barAt (c.cursor);
+                    c.apply ("Insert Bars", [bar, bars] (Project& pr)
+                    {
+                        const Tick at = pr.tempo.barStart (bar);
+                        song::insertTime (pr, at, pr.tempo.barStart (bar + bars) - at);
+                    });
+                }), true);
+            }));
+            const bool range = p.loop.end > p.loop.start;
+            m.addItem (item ("Delete the Loop Range's Bars", [this] { const Tick a = c.project.loop.start, b = c.project.loop.end; c.apply ("Delete Bars", [a, b] (Project& pr) { song::removeTime (pr, a, b); }); }, {}, range));
+            m.addItem (item ("Duplicate the Loop Range", [this] { const Tick a = c.project.loop.start, b = c.project.loop.end; c.apply ("Duplicate Bars", [a, b] (Project& pr) { song::duplicateTime (pr, a, b); }); }, {}, range));
+            m.addItem (item ("Add a Section from the Loop Range", [this] { const Tick a = c.project.loop.start, b = c.project.loop.end; c.apply ("Add Section", [a, b] (Project& pr) { song::addSection (pr, "Section " + std::to_string (pr.sections.size() + 1), a, b); }); }, {}, range));
             break;
         }
         case 2:   // Track
@@ -309,8 +335,10 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Devices", [this] { c.zoneTab = ZoneTab::Devices; c.viewChanged(); }, "D", true, c.zoneTab == ZoneTab::Devices));
             m.addItem (item ("Editor", [this] { c.zoneTab = ZoneTab::Editor; c.viewChanged(); }, "E", true, c.zoneTab == ZoneTab::Editor));
             m.addItem (item ("Mixer", [this] { c.zoneTab = ZoneTab::Mixer; c.viewChanged(); }, "X", true, c.zoneTab == ZoneTab::Mixer));
+            m.addItem (item ("Clip Launcher", [this] { c.zoneTab = ZoneTab::Launcher; c.viewChanged(); }, "G", true, c.zoneTab == ZoneTab::Launcher));
             m.addSeparator();
             m.addItem (item ("Browser", [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); }, cmd ("B"), true, browserShown));
+            m.addItem (item ("Section Lane", [this] { c.showSectionLane = ! c.showSectionLane; c.viewChanged(); }, {}, true, c.showSectionLane));
             m.addItem (item ("Chord Lane", [this] { c.showChordLane = ! c.showChordLane; c.viewChanged(); }, {}, true, c.showChordLane));
             m.addItem (item ("Tempo Lane", [this] { c.showTempoLane = ! c.showTempoLane; c.viewChanged(); }, {}, true, c.showTempoLane));
             m.addItem (item ("Shade the Scale in the Piano Roll", [this] { c.apply ("Scale Shading", [] (Project& pr) { pr.scale.highlight = ! pr.scale.highlight; }); }, {}, true, p.scale.highlight));

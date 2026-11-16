@@ -1,6 +1,7 @@
 #include "Playback.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -9,6 +10,13 @@ namespace kal::playback
 
 namespace
 {
+void eraseIfRegion (std::vector<AudioRegion>& regions, double from)
+{
+    regions.erase (std::remove_if (regions.begin(), regions.end(), [from] (const AudioRegion& r) { return r.startSeconds >= from; }), regions.end());
+    for (auto& r : regions)
+        if (r.endSeconds > from) { r.endSeconds = from; r.fadeOut = std::min (0.005, from - r.startSeconds); }
+}
+
 std::uint8_t b7 (int v) { return static_cast<std::uint8_t> (std::clamp (v, 0, 127)); }
 
 const Articulation* articulationOf (const Project& p, const Track& t, const Note& n)
@@ -39,11 +47,76 @@ double noteDelaySeconds (const Project& p, const Track& t, const Note& n)
     return ms / 1000.0;
 }
 
+// The clip launcher (decision 0037): from `launch.from` the arrangement is
+// cut off and the slot's clip plays over and over.
+static void applyLaunch (const Project& p, const Track& t, CompiledTrack& out)
+{
+    const double from = p.tempo.secondsAt (t.launch.from) + t.delayMs / 1000.0;
+    std::vector<MidiMessage> kept;
+    std::array<int, 16 * 128> open {};
+    for (auto& m : out.midi)
+    {
+        const int status = m.bytes[0] & 0xF0, key = (m.bytes[0] & 15) * 128 + (m.bytes[1] & 127);
+        const bool on = status == 0x90 && m.bytes[2] > 0, off = status == 0x80 || (status == 0x90 && m.bytes[2] == 0);
+        if (m.seconds < from)
+        {
+            kept.push_back (m);
+            if (on) ++open[(size_t) key];
+            else if (off && open[(size_t) key] > 0) --open[(size_t) key];
+        }
+        else if (off && open[(size_t) key] > 0)
+        {
+            // A note still sounding when the slot takes over ends there.
+            auto x = m;
+            x.seconds = from;
+            kept.push_back (x);
+            --open[(size_t) key];
+        }
+    }
+    out.midi = std::move (kept);
+    eraseIfRegion (out.audio, from);
+
+    if (t.launch.slot < 0 || t.launch.slot >= (int) t.slots.size()) return;
+    const Clip& slot = t.slots[(size_t) t.launch.slot];
+    const Tick each = slot.loopLength > 0 ? std::max<Tick> (slot.loopLength, slot.length) : slot.length;
+    if (each <= 0) return;
+    // Thirty minutes of repeats ahead is plenty; launching again recompiles.
+    const Tick until = p.tempo.tickAt (p.tempo.secondsAt (t.launch.from) + 1800.0);
+    Track loop = t;
+    loop.launch = {};
+    loop.slots.clear();
+    loop.versions = { TrackVersion {} };
+    loop.activeVersion = 0;
+    for (Tick at = t.launch.from; at < until && loop.clips().size() < 1024; at += each)
+    {
+        Clip c = slot;
+        c.start = at;
+        c.muted = false;
+        loop.clips().push_back (c);
+    }
+    const auto more = compile (p, loop);
+    out.midi.insert (out.midi.end(), more.midi.begin(), more.midi.end());
+    out.audio.insert (out.audio.end(), more.audio.begin(), more.audio.end());
+    std::stable_sort (out.midi.begin(), out.midi.end(), [] (const MidiMessage& a, const MidiMessage& b)
+    {
+        return a.seconds != b.seconds ? a.seconds < b.seconds : a.order < b.order;
+    });
+    std::stable_sort (out.audio.begin(), out.audio.end(), [] (const AudioRegion& a, const AudioRegion& b) { return a.startSeconds < b.startSeconds; });
+}
+
 CompiledTrack compile (const Project& p, const Track& t)
 {
     CompiledTrack out;
     out.track = t.id;
     if (! t.holdsClips()) return out;
+    if (t.launch.slot >= 0 || t.launch.stopped)
+    {
+        Track arrangement = t;
+        arrangement.launch = {};
+        out = compile (p, arrangement);
+        applyLaunch (p, t, out);
+        return out;
+    }
     const double trackDelay = t.delayMs / 1000.0;
     const auto& tempo = p.tempo;
 

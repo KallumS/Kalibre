@@ -7,6 +7,7 @@
 #include "LuaHost.h"
 #include "MorphProcessor.h"
 #include "ProjectFile.h"
+#include "Song.h"
 #include "Theme.h"
 
 namespace kal
@@ -74,6 +75,7 @@ Controller::~Controller()
 //==============================================================================
 void Controller::syncEngine()
 {
+    lastMix = song::mixOf (project);
     engine.setMappings (project.midiMappings);
     engine.sync (project, focusTrack, projectFolder());
     const double ls = project.tempo.secondsAt (project.loop.start), le = project.tempo.secondsAt (project.loop.end);
@@ -86,6 +88,9 @@ void Controller::apply (const String& label, std::function<void (Project&)> chan
     storeDeviceStates();
     Project before = project;
     change (project);
+    // Linked clips and grouped tracks follow (decision 0037).
+    song::propagateLinks (before, project);
+    song::propagateGroups (song::mixOf (before), project);
     if (project == before) return;
     history.push (before, label.toStdString());
     dirty = true;
@@ -101,8 +106,46 @@ void Controller::apply (const String& label, std::function<void (Project&)> chan
     sendChangeMessage();
 }
 
+// What the launcher is playing isn't part of the song's history (decision 0037).
+std::map<Id, Track::Launch> Controller::launchStates() const
+{
+    std::map<Id, Track::Launch> out;
+    for (auto& t : project.tracks) out[t.id] = t.launch;
+    return out;
+}
+
+void Controller::restoreLaunches (const std::map<Id, Track::Launch>& launches)
+{
+    for (auto& t : project.tracks)
+        if (auto it = launches.find (t.id); it != launches.end()) t.launch = it->second;
+}
+
+void Controller::launchSlot (Id track, int slot)
+{
+    // Stopped, it starts at once, from the bar the cursor is in.
+    if (! engine.isPlaying()) cursor = project.tempo.barStart (project.tempo.barAt (cursor));
+    song::launch (project, track, slot, engine.isPlaying() ? playhead() : cursor);
+    refresh();
+    if (! engine.isPlaying()) play();
+}
+
+void Controller::launchScene (int scene)
+{
+    if (! engine.isPlaying()) cursor = project.tempo.barStart (project.tempo.barAt (cursor));
+    song::launchScene (project, scene, engine.isPlaying() ? playhead() : cursor);
+    refresh();
+    if (! engine.isPlaying()) play();
+}
+
+void Controller::backToArrangement()
+{
+    song::backToArrangement (project);
+    refresh();
+}
+
 void Controller::refresh()
 {
+    song::propagateGroups (lastMix, project);
     dirty = true;
     syncEngine();
     sendChangeMessage();
@@ -112,7 +155,9 @@ bool Controller::undo()
 {
     storeDeviceStates();
     const auto label = history.undoLabel();
+    const auto launches = launchStates();
     if (! history.undo (project)) return false;
+    restoreLaunches (launches);
     dirty = true;
     syncEngine();
     say ("Undid " + String (label) + ".");
@@ -122,7 +167,9 @@ bool Controller::undo()
 bool Controller::redo()
 {
     const auto label = history.redoLabel();
+    const auto launches = launchStates();
     if (! history.redo (project)) return false;
+    restoreLaunches (launches);
     dirty = true;
     syncEngine();
     say ("Redid " + String (label) + ".");
@@ -797,7 +844,12 @@ void Controller::deleteSelection()
     if (! selectedClips.empty())
     {
         auto clips = selectedClips;
-        apply ("Delete Clips", [clips] (Project& p) { edit::removeClips (p, clips); });
+        const bool rippling = ripple;
+        apply ("Delete Clips", [clips, rippling] (Project& p)
+        {
+            if (rippling) song::rippleRemove (p, clips);   // later clips close the gap
+            else edit::removeClips (p, clips);
+        });
         selectedClips.clear();
         selectedClip = 0;
         return;

@@ -33,6 +33,10 @@ Clip* Project::clip (Id clipId, Track** owner)
         for (auto& v : t.versions)
             for (auto& c : v.clips)
                 if (c.id == clipId) { if (owner) *owner = &t; return &c; }
+    // The launcher's clips can be edited too (decision 0037).
+    for (auto& t : tracks)
+        for (auto& c : t.slots)
+            if (c.id == clipId && c.length > 0) { if (owner) *owner = &t; return &c; }
     return nullptr;
 }
 

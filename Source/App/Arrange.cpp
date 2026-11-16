@@ -1,5 +1,7 @@
 #include "Arrange.h"
 
+#include "Song.h"
+
 #include "Comp.h"
 #include "PluginManager.h"
 
@@ -223,6 +225,71 @@ void TrackHeader::showMenu()
                 c.apply ("Articulation Map", [this, mid] (Project& p) { if (auto* tr = p.track (id)) tr->articulationMap = mid; });
             });
         m.addSubMenu ("Articulation Map", maps);
+
+        // Where it listens (the window's own choosers, not just the defaults).
+        PopupMenu audioIn, midiIn, midiCh;
+        const int inputs = c.engine.devices().getCurrentAudioDevice()
+                             ? c.engine.devices().getCurrentAudioDevice()->getActiveInputChannels().countNumberOfSetBits() : 2;
+        auto setInput = [this] (int ch, bool stereo)
+        {
+            c.apply ("Input", [this, ch, stereo] (Project& p) { if (auto* tr = p.track (id)) { tr->input.audioChannel = ch; tr->input.stereo = stereo; } });
+        };
+        audioIn.addItem ("None", true, t->input.audioChannel < 0, [setInput] { setInput (-1, true); });
+        for (int ch = 0; ch + 1 < jmax (2, inputs); ch += 2)
+            audioIn.addItem ("Inputs " + String (ch + 1) + "-" + String (ch + 2) + " (Stereo)", true,
+                             t->input.audioChannel == ch && t->input.stereo, [setInput, ch] { setInput (ch, true); });
+        for (int ch = 0; ch < jmax (2, inputs); ++ch)
+            audioIn.addItem ("Input " + String (ch + 1) + " (Mono)", true, t->input.audioChannel == ch && ! t->input.stereo,
+                             [setInput, ch] { setInput (ch, false); });
+        m.addSubMenu ("Audio Input", audioIn);
+        auto setMidi = [this] (std::string dev)
+        {
+            c.apply ("MIDI Input", [this, dev] (Project& p) { if (auto* tr = p.track (id)) tr->input.midiDevice = dev; });
+        };
+        midiIn.addItem ("Every Keyboard", true, t->input.midiDevice == "All", [setMidi] { setMidi ("All"); });
+        midiIn.addItem ("None", true, t->input.midiDevice == "None", [setMidi] { setMidi ("None"); });
+        for (auto& d : MidiInput::getAvailableDevices())
+            midiIn.addItem (d.name, true, t->input.midiDevice == d.identifier.toStdString(), [setMidi, idf = d.identifier.toStdString()] { setMidi (idf); });
+        m.addSubMenu ("MIDI Input", midiIn);
+        for (int ch = 0; ch <= 16; ++ch)
+            midiCh.addItem (ch == 0 ? String ("Every Channel") : "Channel " + String (ch), true, t->input.midiChannel == ch, [this, ch]
+            {
+                c.apply ("MIDI Channel", [this, ch] (Project& p) { if (auto* tr = p.track (id)) tr->input.midiChannel = ch; });
+            });
+        m.addSubMenu ("MIDI Channel", midiCh);
+    }
+    if (t->kind != TrackKind::Master)
+    {
+        PopupMenu out;
+        out.addItem (t->parent ? "Its Folder" : "The Master", true, t->output == 0, [this]
+        {
+            c.apply ("Output", [this] (Project& p) { if (auto* tr = p.track (id)) tr->output = 0; });
+        });
+        for (auto& r : c.project.tracks)
+            if ((r.kind == TrackKind::Return || r.isFolder()) && r.id != id && r.id != t->parent && edit::canRoute (c.project, id, r.id))
+                out.addItem (String (r.name), true, t->output == r.id, [this, rid = r.id]
+                {
+                    c.apply ("Output", [this, rid] (Project& p) { if (auto* tr = p.track (id)) tr->output = rid; });
+                });
+        m.addSubMenu ("Output", out);
+
+        // Track groups (decision 0037): volume, pan, mute, solo and arm move together.
+        PopupMenu groups;
+        groups.addItem ("None", true, t->group == 0, [this] { c.apply ("Group", [this] (Project& p) { for (auto tid : c.selectedTracks) if (auto* tr = p.track (tid)) tr->group = 0; if (auto* tr = p.track (id)) tr->group = 0; }); });
+        for (int g = 1; g <= 8; ++g)
+        {
+            int members = 0;
+            for (auto& o : c.project.tracks) if (o.group == g) ++members;
+            groups.addItem ("Group " + String (g) + (members ? " (" + String (members) + ")" : String()), true, t->group == g, [this, g]
+            {
+                c.apply ("Group", [this, g] (Project& p)
+                {
+                    if (auto* tr = p.track (id)) tr->group = g;
+                    for (auto tid : c.selectedTracks) if (auto* tr = p.track (tid)) tr->group = g;
+                });
+            });
+        }
+        m.addSubMenu ("Group", groups);
     }
     PopupMenu sends;
     for (auto& r : c.project.tracks)
@@ -301,7 +368,7 @@ void Arrange::scrollBarMoved (ScrollBar* bar, double v)
 
 int Arrange::rulerHeight() const
 {
-    return theme::px (36) + (c.showChordLane ? theme::px (24) : 0) + (c.showTempoLane ? theme::px (48) : 0);
+    return theme::px (36) + sectionLaneHeight() + (c.showChordLane ? theme::px (24) : 0) + (c.showTempoLane ? theme::px (48) : 0);
 }
 
 Rectangle<int> Arrange::laneArea() const
@@ -481,6 +548,98 @@ void Arrange::drawRuler (Graphics& g, Rectangle<int> r)
     g.restoreState();
     g.setColour (theme::rule);
     g.fillRect (r.getX(), r.getBottom() - 1, r.getWidth(), 1);
+}
+
+int Arrange::sectionLaneHeight() const { return c.showSectionLane ? theme::px (20) : 0; }
+
+void Arrange::drawSectionLane (Graphics& g, Rectangle<int> r)
+{
+    g.setColour (theme::sunken);
+    g.fillRect (r);
+    g.setColour (theme::textSecondary);
+    g.setFont (theme::font (theme::smallPoints));
+    g.drawText (c.project.sections.empty() ? "Sections (right-click)" : "Sections", r.withWidth (headerWidth()).reduced (8, 0), Justification::centredLeft, false);
+    g.saveState();
+    g.reduceClipRegion (r.withLeft (headerWidth()));
+    for (size_t i = 0; i < c.project.sections.size(); ++i)
+    {
+        const auto& sec = c.project.sections[i];
+        const auto box = Rectangle<float> (xOf (sec.start) + 1, (float) r.getY() + 2, xOf (sec.end) - xOf (sec.start) - 2, (float) r.getHeight() - 4);
+        const auto col = sec.colour ? Colour (sec.colour) : theme::trackColours()[(int) (i % (size_t) theme::trackColours().size())];
+        g.setColour (col.withMultipliedBrightness (0.5f));
+        g.fillRoundedRectangle (box, 3.0f);
+        g.setColour (col);
+        g.fillRect (box.withWidth (3.0f));
+        g.setColour (theme::text);
+        g.drawText (String (sec.name), box.toNearestInt().withTrimmedLeft (8), Justification::centredLeft, true);
+    }
+    g.restoreState();
+    g.setColour (theme::rule);
+    g.fillRect (r.getX(), r.getBottom() - 1, r.getWidth(), 1);
+}
+
+void Arrange::sectionMenu (Id id, Tick at)
+{
+    PopupMenu m;
+    const auto& tempo = c.project.tempo;
+    if (id == 0)
+    {
+        const auto& loop = c.project.loop;
+        m.addItem ("Add a Section from the Loop Range", loop.end > loop.start, false, [this]
+        {
+            const Tick a = c.project.loop.start, b = c.project.loop.end;
+            c.apply ("Add Section", [a, b] (Project& p) { song::addSection (p, "Section " + std::to_string (p.sections.size() + 1), a, b); });
+        });
+        const int bar = tempo.barAt (at);
+        m.addItem ("Add a Four-Bar Section Here", [this, bar]
+        {
+            c.apply ("Add Section", [bar] (Project& p)
+            {
+                song::addSection (p, "Section " + std::to_string (p.sections.size() + 1), p.tempo.barStart (bar), p.tempo.barStart (bar + 4));
+            });
+        });
+        m.showMenuAsync (PopupMenu::Options());
+        return;
+    }
+    const Section* sec = nullptr;
+    size_t index = 0;
+    for (size_t i = 0; i < c.project.sections.size(); ++i) if (c.project.sections[i].id == id) { sec = &c.project.sections[i]; index = i; }
+    if (! sec) return;
+    m.addItem (ui::u8 ("Rename\xe2\x80\xa6"), [this, id]
+    {
+        const Section* s = nullptr;
+        for (auto& x : c.project.sections) if (x.id == id) s = &x;
+        if (! s) return;
+        auto* w = new AlertWindow ("Rename the Section", {}, MessageBoxIconType::NoIcon);
+        w->addTextEditor ("name", String (s->name));
+        w->addButton ("Rename", 1, KeyPress (KeyPress::returnKey));
+        w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+        ui::present (w, ModalCallbackFunction::create ([this, id, w] (int ok)
+        {
+            if (ok != 1) return;
+            const auto name = w->getTextEditorContents ("name").toStdString();
+            c.apply ("Rename Section", [id, name] (Project& p) { for (auto& x : p.sections) if (x.id == id) x.name = name; });
+        }), true);
+    });
+    m.addItem ("Loop It", [this, a = sec->start, b = sec->end]
+    {
+        c.apply ("Loop Section", [a, b] (Project& p) { p.loop.start = a; p.loop.end = b; p.loop.on = true; });
+    });
+    m.addSeparator();
+    m.addItem ("Duplicate", [this, id] { c.apply ("Duplicate Section", [id] (Project& p) { song::duplicateSection (p, id); }); });
+    const Id prev = index > 0 ? c.project.sections[index - 1].id : 0;
+    const Id next2 = index + 2 < c.project.sections.size() ? c.project.sections[index + 2].id : 0;
+    const bool hasNext = index + 1 < c.project.sections.size();
+    m.addItem ("Move Earlier", prev != 0, false, [this, id, prev] { c.apply ("Move Section", [id, prev] (Project& p) { song::moveSection (p, id, prev); }); });
+    m.addItem ("Move Later", hasNext, false, [this, id, next2] { c.apply ("Move Section", [id, next2] (Project& p) { song::moveSection (p, id, next2); }); });
+    m.addSeparator();
+    m.addItem ("Delete the Section and Its Bars", [this, id]
+    {
+        c.apply ("Delete Section", [id] (Project& p) { song::removeSection (p, id, true); });
+        c.say ("The section's bars are gone and the song closed up after it.", false, true);
+    });
+    m.addItem ("Delete the Section Only", [this, id] { c.apply ("Remove Section", [id] (Project& p) { song::removeSection (p, id, false); }); });
+    m.showMenuAsync (PopupMenu::Options());
 }
 
 void Arrange::drawChordLane (Graphics& g, Rectangle<int> r)
@@ -739,6 +898,7 @@ void Arrange::paint (Graphics& g)
     int top = 0;
     drawRuler (g, { 0, top, getWidth(), theme::px (36) });
     top += theme::px (36);
+    if (sectionLaneHeight() > 0) { drawSectionLane (g, { 0, top, getWidth(), sectionLaneHeight() }); top += sectionLaneHeight(); }
     if (c.showChordLane) { drawChordLane (g, { 0, top, getWidth(), theme::px (24) }); top += theme::px (24); }
     if (c.showTempoLane) { drawTempoLane (g, { 0, top, getWidth(), theme::px (48) }); top += theme::px (48); }
 
@@ -911,9 +1071,17 @@ void Arrange::mouseDown (const MouseEvent& e)
         }
         return;
     }
+    if (e.y >= rulerBottom && e.y < rulerBottom + sectionLaneHeight() && e.x >= lanes.getX())
+    {
+        const Tick at = tickAt ((float) e.x);
+        const auto* sec = song::sectionAt (c.project, at);
+        if (e.mods.isPopupMenu()) sectionMenu (sec ? sec->id : 0, at);
+        else if (sec) c.locate (sec->start);
+        return;
+    }
     if (c.showTempoLane)
     {
-        const int tt = theme::px (36) + (c.showChordLane ? theme::px (24) : 0);
+        const int tt = theme::px (36) + sectionLaneHeight() + (c.showChordLane ? theme::px (24) : 0);
         if (e.y >= tt && e.y < tt + theme::px (48) && e.x >= lanes.getX())
         {
             drag = Drag::Tempo;
@@ -1118,7 +1286,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
         }
         case Drag::Tempo:
         {
-            const int tt = theme::px (36) + (c.showChordLane ? theme::px (24) : 0);
+            const int tt = theme::px (36) + sectionLaneHeight() + (c.showChordLane ? theme::px (24) : 0);
             const double v = 1.0 - jlimit (0.0, 1.0, (double) (e.y - tt) / theme::px (48));
             double lo = 1e9, hi = 0;
             for (auto& tp : c.project.tempo.tempos()) { lo = std::min (lo, tp.bpm); hi = std::max (hi, tp.bpm); }
@@ -1303,6 +1471,36 @@ void Arrange::clipMenu (Id id)
     PopupMenu m;
     m.addItem ("Split at Cursor", clip->start < c.cursor && clip->end() > c.cursor, false, [this] { c.splitAtCursor(); });
     m.addItem ("Duplicate", [this] { c.duplicateSelection(); });
+    m.addItem ("Duplicate Linked", [this, id]
+    {
+        Id made = 0;
+        c.apply ("Duplicate Linked", [&] (Project& p) { made = song::duplicateLinked (p, id); });
+        if (made) { c.selectedClips = { made }; c.selectedClip = made; }
+        c.say ("Linked: an edit to the notes or audio of one is made to the other.");
+    });
+    if (clip->link != 0)
+        m.addItem ("Unlink", [this, id] { c.apply ("Unlink", [id] (Project& p) { song::unlink (p, id); }); });
+    m.addItem ("Put in the Launcher", [this, id]
+    {
+        Track* tr = nullptr;
+        const auto* x = c.project.clip (id);
+        if (! x) return;
+        int slot = 0;
+        c.apply ("Clip to Launcher", [&] (Project& p)
+        {
+            const Track* o = nullptr;
+            const auto* cl = p.clip (id, &o);
+            if (! cl || ! o) return;
+            auto* own = p.track (o->id);
+            slot = 0;
+            while (slot < (int) own->slots.size() && own->slots[(size_t) slot].length > 0) ++slot;
+            Clip copy = *cl;
+            copy.link = 0;
+            song::setSlot (p, own->id, slot, copy);
+        });
+        ignoreUnused (tr);
+        c.say ("The clip is in the launcher, scene " + String (slot + 1) + ". (G shows the launcher.)");
+    });
     m.addItem ("Delete", [this] { c.deleteSelection(); });
     m.addSeparator();
     m.addItem ("Loop Its Content", true, clip->loopLength > 0, [this, id]

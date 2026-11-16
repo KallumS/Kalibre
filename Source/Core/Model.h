@@ -44,6 +44,16 @@ using Id = std::uint32_t;
 //==============================================================================
 // MIDI
 
+// One moment of a note's own expression (MPE, decision 0042): ticks from the note's start.
+struct NoteExpression
+{
+    Tick tick = 0;
+    double bend = 0;           // semitones from the note's pitch
+    double pressure = 0;       // 0-1
+    double timbre = 0.5;       // 0-1 (the slide, CC 74)
+    bool operator== (const NoteExpression&) const = default;
+};
+
 struct Note
 {
     Id id = 0;
@@ -53,6 +63,7 @@ struct Note
     int velocity = 100;       // 1-127
     int channel = 0;          // 0-15
     int articulation = -1;    // index into the track's articulation map; -1 none
+    std::vector<NoteExpression> expression;   // MPE: bends, pressure, slide of this note alone
 
     Tick end() const { return start + length; }
     bool operator== (const Note&) const = default;
@@ -147,6 +158,8 @@ struct Device
     Id sidechainFrom = 0;      // a track whose sound feeds the plug-in's sidechain input (decision 0031)
     std::string araState;      // base64; what an ARA plug-in keeps about its edits
     float editorScale = 1.0f;  // last scale the lower zone gave its editor
+    std::string stateB;        // A/B (decision 0039): the other of the two settings being compared
+    bool onB = false;          // B is the one loaded
 
     bool operator== (const Device&) const = default;
 };
@@ -182,6 +195,7 @@ struct Clip
     AudioData audio;
     OfflineFx offlineFx;
     Id fromTake = 0;          // made by the comp from this take (decision 0029); 0 for an ordinary clip
+    Id link = 0;              // linked clips (decision 0037) share this: an edit to one's content is made to all
 
     Tick end() const { return start + length; }
     bool isMidi() const { return kind == Kind::Midi; }
@@ -392,6 +406,21 @@ struct Track
     std::vector<Modulator> modulators;
     Id articulationMap = 0;
 
+    // The clip launcher (decision 0037): one slot a scene; a slot whose length is 0 is empty.
+    std::vector<Clip> slots;
+    struct Launch
+    {
+        int slot = -1;         // the slot playing, or -1: the arrangement plays
+        Tick from = 0;         // where it took over (or stopped), on the next bar after it was asked
+        bool stopped = false;  // silent from `from` until Back to Arrangement
+        bool operator== (const Launch&) const = default;
+    };
+    Launch launch;             // not saved: what's playing now
+
+    bool mpe = false;          // plays each note on its own channel with its own expression (decision 0042)
+    Id sourceDevice = 0;       // an instrument output track (decision 0040): plays this instrument's
+    int sourcePair = 0;        //   outputs 2*pair and 2*pair+1 instead of clips
+
     TrackVersion& version()             { return versions[static_cast<size_t> (std::clamp (activeVersion, 0, static_cast<int> (versions.size()) - 1))]; }
     const TrackVersion& version() const { return versions[static_cast<size_t> (std::clamp (activeVersion, 0, static_cast<int> (versions.size()) - 1))]; }
     std::vector<Clip>& clips()             { return version().clips; }
@@ -453,6 +482,34 @@ struct MidiMapping
     bool operator== (const MidiMapping&) const = default;
 };
 
+// A named stretch of the song (decision 0037): Verse, Chorus. Moving,
+// duplicating or deleting a section does it to everything in it.
+struct Section
+{
+    Id id = 0;
+    std::string name;
+    Tick start = 0, end = PPQ * 16;
+    std::uint32_t colour = 0;
+    bool operator== (const Section&) const = default;
+};
+
+// What an export carries in its file (decision 0041).
+struct Metadata
+{
+    std::string title, artist, album, genre, comment, isrc;
+    int year = 0, trackNumber = 0;
+    bool operator== (const Metadata&) const = default;
+};
+
+struct Video
+{
+    std::string file;          // empty: none
+    Tick start = 0;            // where its first frame is on the timeline
+    bool operator== (const Video&) const = default;
+};
+
+enum class SurroundFormat { Stereo, Quad, Surround51, Surround71 };
+
 struct Project
 {
     std::string name = "Untitled";
@@ -465,6 +522,11 @@ struct Project
     MetronomeSettings metronome;
     std::vector<ArticulationMap> articulationMaps;
     std::vector<MidiMapping> midiMappings;
+    std::vector<Section> sections;      // sorted by start
+    std::vector<std::string> scenes;    // the launcher's rows, named
+    Metadata metadata;
+    Video video;
+    SurroundFormat surround = SurroundFormat::Stereo;   // decision 0040
     double sampleRate = 48000;
     Id nextId = 1;
 

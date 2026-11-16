@@ -31,17 +31,19 @@ NLOHMANN_JSON_SERIALIZE_ENUM (Monitor, { { Monitor::Auto, "auto" }, { Monitor::I
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TempoPoint, tick, bpm, rampToNext)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Meter, bar, numerator, denominator)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Note, id, start, length, pitch, velocity, channel, articulation)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (NoteExpression, tick, bend, pressure, timbre)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Note, id, start, length, pitch, velocity, channel, articulation, expression)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiEvent, tick, type, channel, number, value)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiData, notes, events)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (WarpMarker, sourceSeconds, tick)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AudioData, file, sourceStart, sourceLength, fileSampleRate, fileChannels, gainDb,
                                                  fadeIn, fadeOut, reversed, transpose, warp, sourceBpm, markers, renderedFile)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (PluginRef, format, identifier, name, manufacturer, uid, isInstrument, description)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Device, id, role, plugin, state, bypassed, active, useAra, araState, sidechainFrom, editorScale)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Device, id, role, plugin, state, bypassed, active, useAra, araState, sidechainFrom, editorScale,
+                                                 stateB, onB)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (OfflineFx, chain, includeTail)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Clip, id, kind, name, start, length, offset, loopLength, colour, muted, locked,
-                                                 midi, audio, offlineFx, fromTake)
+                                                 midi, audio, offlineFx, fromTake, link)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Take, id, name, clips)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (CompSegment, start, end, take)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackVersion, id, name, clips, takes, comp, takesShown)
@@ -60,8 +62,12 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackInput, audioChannel, stere
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Track, id, name, colour, kind, parent, collapsed, height, volumeDb, pan, mute, solo,
                                                  armed, monitor, phaseInvert, mono, locked, hidden, enabled, frozen, frozenFile,
                                                  delayMs, group, input, output, versions, activeVersion, devices, sends,
-                                                 automation, autoMode, modulators, articulationMap)
+                                                 automation, autoMode, modulators, articulationMap,
+                                                 slots, mpe, sourceDevice, sourcePair)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Marker, id, tick, name)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Section, id, name, start, end, colour)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Metadata, title, artist, album, genre, comment, isrc, year, trackNumber)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Video, file, start)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiMapping, channel, controller, track, target, name)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Range, start, end, on)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (ScaleChoice, root, scale, highlight)
@@ -100,6 +106,11 @@ std::string save (const Project& p)
     j["metronome"] = p.metronome;
     j["articulationMaps"] = p.articulationMaps;
     j["midiMappings"] = p.midiMappings;
+    j["sections"] = p.sections;
+    j["scenes"] = p.scenes;
+    j["metadata"] = p.metadata;
+    j["video"] = p.video;
+    j["surround"] = p.surround;
     j["sampleRate"] = p.sampleRate;
     j["nextId"] = p.nextId;
     return j.dump (1, '\t');
@@ -133,6 +144,11 @@ std::optional<Project> load (const std::string& text, std::string* error)
         if (j.contains ("metronome")) p.metronome = j.at ("metronome").get<MetronomeSettings>();
         if (j.contains ("articulationMaps")) p.articulationMaps = j.at ("articulationMaps").get<std::vector<ArticulationMap>>();
         if (j.contains ("midiMappings")) p.midiMappings = j.at ("midiMappings").get<std::vector<MidiMapping>>();
+        if (j.contains ("sections")) p.sections = j.at ("sections").get<std::vector<Section>>();
+        if (j.contains ("scenes")) p.scenes = j.at ("scenes").get<std::vector<std::string>>();
+        if (j.contains ("metadata")) p.metadata = j.at ("metadata").get<Metadata>();
+        if (j.contains ("video")) p.video = j.at ("video").get<Video>();
+        if (j.contains ("surround")) p.surround = j.at ("surround").get<SurroundFormat>();
         p.sampleRate = j.value ("sampleRate", p.sampleRate);
         p.nextId = j.value ("nextId", p.nextId);
 
@@ -146,15 +162,17 @@ std::optional<Project> load (const std::string& text, std::string* error)
             for (auto& v : t.versions)
             {
                 see (v.id);
-                for (auto& c : v.clips) { see (c.id); for (auto& n : c.midi.notes) see (n.id); }
+                for (auto& c : v.clips) { see (c.id); see (c.link); for (auto& n : c.midi.notes) see (n.id); }
                 for (auto& tk : v.takes) { see (tk.id); for (auto& c : tk.clips) { see (c.id); for (auto& n : c.midi.notes) see (n.id); } }
             }
+            for (auto& c : t.slots) { see (c.id); for (auto& n : c.midi.notes) see (n.id); }
             for (auto& d : t.devices) see (d.id);
             for (auto& a : t.automation) see (a.id);
             for (auto& m : t.modulators) see (m.id);
         }
         for (auto& d : p.master.devices) see (d.id);
         for (auto& m : p.markers) see (m.id);
+        for (auto& sct : p.sections) see (sct.id);
         for (auto& m : p.articulationMaps) see (m.id);
         p.nextId = std::max (p.nextId, highest + 1);
         return p;
