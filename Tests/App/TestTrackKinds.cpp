@@ -341,6 +341,9 @@ TEST ("choosing: Shift-click a range of tracks, Option-click adds, Command-click
     // Command takes one away.
     c.chooseTrack (t[3], cmd, order);
     CHECK (chosen() == (std::vector<Id> { t[2], t[4] }));
+    // Shift-Option takes one out.
+    c.chooseTrack (t[4], ModifierKeys (ModifierKeys::shiftModifier | ModifierKeys::altModifier), order);
+    CHECK (chosen() == (std::vector<Id> { t[2] }));
     // A plain click chooses only that one.
     c.chooseTrack (t[0], none, order);
     CHECK (chosen() == (std::vector<Id> { t[0] }));
@@ -375,6 +378,8 @@ TEST ("choosing: Shift-click clips takes every clip between the two, across trac
     CHECK (! c.selectedClips.count (a3));
     c.chooseClip (a3, option);
     CHECK_EQ (c.selectedClips.size(), size_t (5));
+    c.chooseClip (a2, ModifierKeys (ModifierKeys::shiftModifier | ModifierKeys::altModifier));
+    CHECK (c.selectedClips == (std::set<Id> { a1, a3, b1, c1 }));
     c.chooseClip (b1, none);
     CHECK (c.selectedClips == (std::set<Id> { b1 }));
 }

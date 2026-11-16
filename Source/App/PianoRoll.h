@@ -49,6 +49,7 @@ public:
 private:
     Controller& c;
     std::unique_ptr<roll::Gesture> gesture;
+    Id noteAnchor = 0;   // the note last clicked without Shift
     roll::Outcome preview;
     std::vector<Note> notesCopy;
     bool velocityDrag = false;

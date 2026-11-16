@@ -415,7 +415,7 @@ void PianoRoll::mouseDown (const MouseEvent& e)
     }
 
     notesCopy = clip->midi.notes;
-    gesture = std::make_unique<roll::Gesture> (notesCopy, c.selectedNotes, settings());
+    gesture = std::make_unique<roll::Gesture> (notesCopy, c.selectedNotes, settings(), noteAnchor);
     preview = gesture->press (pointerFor (e));
     if (preview.audition && preview.auditionPitch >= 0) c.engine.audition (c.focusTrack, preview.auditionPitch, 100, 0.25);
     if (preview.selectionChanged) { c.selectedNotes = preview.selection; c.viewChanged(); }
@@ -453,6 +453,7 @@ void PianoRoll::mouseUp (const MouseEvent& e)
     }
     if (! gesture) return;
     const auto out = gesture->release (pointerFor (e));
+    noteAnchor = gesture->anchor();   // where the next Shift-click range starts (decision 0053)
     gesture.reset();
     preview = {};
     commit (out);

@@ -40,8 +40,8 @@ std::set<Id> notesIn (const std::vector<Note>& notes, Tick from, Tick to, int lo
 }
 
 //==============================================================================
-Gesture::Gesture (const std::vector<Note>& n, std::set<Id> sel, Settings s)
-    : notes (n), chosen (std::move (sel)), settings (std::move (s))
+Gesture::Gesture (const std::vector<Note>& n, std::set<Id> sel, Settings s, Id anchor)
+    : notes (n), chosen (std::move (sel)), settings (std::move (s)), anchorNote (anchor)
 {
 }
 
@@ -69,6 +69,7 @@ Outcome Gesture::press (const Pointer& p)
     down = p;
     dragged = false;
     copying = false;
+    subtracting = false;
     last = {};
     Zone zone = Zone::Empty;
     const Note* hit = noteAt (notes, p.tick, p.pitch, settings.edgeTicks, &zone);
@@ -81,13 +82,11 @@ Outcome Gesture::press (const Pointer& p)
 
     if (p.shift)
     {
-        if (hit)
-        {
-            // Shift-click on a note toggles it; Shift-drag from it still draws an area.
-            current = Mode::Selecting;
-            return {};
-        }
+        // Shift-click on a note: a range from the last clicked (Shift-Option: takes
+        // it out). Shift-drag draws an area, from a note or not.
+        subtracting = p.option;
         current = Mode::Selecting;
+        if (hit) return {};
         return areaOutcome (p, Action::Select);
     }
 
@@ -115,9 +114,12 @@ Outcome Gesture::press (const Pointer& p)
     grabbed = *hit;
     if (! chosen.count (hit->id))
     {
-        chosen = { hit->id };
+        // Option-click adds it to what's chosen (and Option-drag copies them all).
+        if (p.option) chosen.insert (hit->id);
+        else chosen = { hit->id };
         last.selectionChanged = true;
     }
+    anchorNote = hit->id;
     current = zone == Zone::StartEdge ? Mode::ResizingStart
             : zone == Zone::EndEdge   ? Mode::ResizingEnd
                                       : Mode::Moving;
@@ -218,8 +220,16 @@ Outcome Gesture::release (const Pointer& p)
             {
                 if (const Note* hit = noteAt (notes, p.tick, p.pitch, settings.edgeTicks))
                 {
-                    if (chosen.count (hit->id)) chosen.erase (hit->id);
-                    else chosen.insert (hit->id);
+                    const Note* from = nullptr;
+                    for (auto& n : notes) if (n.id == anchorNote) from = &n;
+                    if (subtracting) chosen.erase (hit->id);
+                    else if (from)
+                    {
+                        // Every note from the last clicked to this one: their pitches and the time between them.
+                        chosen = notesIn (notes, std::min (from->start, hit->start), std::max (from->end(), hit->end()),
+                                          std::min (from->pitch, hit->pitch), std::max (from->pitch, hit->pitch));
+                    }
+                    else { chosen = { hit->id }; anchorNote = hit->id; }
                 }
                 o.action = Action::Select;
                 o.selection = chosen;
@@ -227,7 +237,8 @@ Outcome Gesture::release (const Pointer& p)
                 break;
             }
             o = areaOutcome (p, Action::Select);
-            chosen = o.notes;
+            if (subtracting) for (auto id : o.notes) chosen.erase (id);
+            else chosen = o.notes;
             o.selection = chosen;
             o.selectionChanged = true;
             o.showArea = false;

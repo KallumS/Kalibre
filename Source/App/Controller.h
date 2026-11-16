@@ -138,7 +138,8 @@ public:
     // Clicking to choose (decision 0053), the same wherever tracks or clips are
     // shown: a plain click chooses only this one; Shift-click everything from
     // the last one clicked to this one (in `order`, as that view lists the
-    // tracks); Option-click (Alt) adds it; Command-click adds or takes it away.
+    // tracks); Option-click (Alt) adds it; Shift-Option-click takes it out;
+    // Command-click adds or takes it away.
     void chooseTrack (Id, const juce::ModifierKeys&, const std::vector<Id>& order);
     void chooseClip (Id, const juce::ModifierKeys&);
     Id trackAnchor = 0, clipAnchor = 0;   // the last clicked without Shift

@@ -19,17 +19,20 @@ One rule for every place things are chosen, kept in the Controller
   of a range in the mixer. Clips: every clip on the tracks between the two,
   from the earlier start to the later end.
 - **Option-click**: adds this one to what's chosen.
+- **Shift-Option-click**: takes this one out of what's chosen.
 - **Command-click**: adds or takes away, as before.
 - **Option-click on a track's buttons** (mute, solo, arm, fold, its version,
   the mixer's polarity, Mono and 1 to 4) adds the track to the selection and
-  doesn't press the button.
+  doesn't press the button; Shift-Option-click takes it out.
+- **Notes in the piano roll** (asked for, 17 November): the same. Shift-click
+  a range of notes (the pitches and the time between the two), Option-click
+  adds, Shift-Option-click takes out. Shift-drag still chooses an area and
+  Shift-Option-drag takes one out; Option-drag still copies.
 - Option-*drag* on a clip still copies it.
 - The Plug-in Manager's list: Shift and Command as above (the list's own),
-  Option-click adds.
+  Option-click adds, Shift-Option-click takes out.
 
 ## Consequences
 
-- The piano roll is left as it is: its mouse rules are the user's (0009),
-  and there Shift-click toggles a note, Shift-drag chooses an area and
-  Option-drag copies. Asked whether to change it.
+- The piano roll's rules (0009) changed with the user's yes.
 - Sliders (faders, pan) aren't changed by Option.

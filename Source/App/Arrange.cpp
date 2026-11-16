@@ -1223,7 +1223,7 @@ void Arrange::mouseDown (const MouseEvent& e)
         const float edge = (float) theme::px (6);
         if ((float) e.x < xOf (clip->start) + edge) drag = Drag::TrimStart;
         else if ((float) e.x > xOf (clip->end()) - edge) drag = Drag::TrimEnd;
-        else { drag = Drag::MoveClip; copying = e.mods.isAltDown(); }
+        else { drag = Drag::MoveClip; copying = e.mods.isAltDown() && ! e.mods.isShiftDown(); }
         return;
     }
 
@@ -1257,7 +1257,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
             if (! clip) break;
             previewStart = e.mods.isCommandDown() ? std::max<Tick> (0, at - dragOffset) : std::max<Tick> (0, c.snapTick (at - dragOffset));
             previewEnd = previewStart + clip->length;
-            copying = e.mods.isAltDown();
+            copying = e.mods.isAltDown() && ! e.mods.isShiftDown();
             if (const auto* row = rowAt (e.y))
                 if (row->isClips() && c.project.track (row->track)->holdsClips()) previewTrack = row->track;
             repaint();

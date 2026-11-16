@@ -917,6 +917,14 @@ void Controller::chooseTrack (Id id, const ModifierKeys& mods, const std::vector
 {
     auto sel = selectedTracks;
     const auto at = [&order] (Id x) { return std::find (order.begin(), order.end(), x); };
+    // Shift-Option-click takes it out of what's chosen.
+    if (mods.isShiftDown() && mods.isAltDown())
+    {
+        sel.erase (std::remove (sel.begin(), sel.end(), id), sel.end());
+        if (sel.empty()) { selectedTracks.clear(); sendChangeMessage(); return; }
+        selectTracks (sel);
+        return;
+    }
     if (mods.isShiftDown() && trackAnchor != 0 && at (trackAnchor) != order.end() && at (id) != order.end())
     {
         // From the last one clicked to this one; this one last, so it takes the focus.
@@ -946,8 +954,10 @@ void Controller::chooseTrack (Id id, const ModifierKeys& mods, const std::vector
 
 bool Controller::optionAdds (Id track)
 {
-    if (! ModifierKeys::currentModifiers.isAltDown()) return false;
-    chooseTrack (track, ModifierKeys (ModifierKeys::altModifier), {});
+    const auto mods = ModifierKeys::currentModifiers;
+    if (! mods.isAltDown()) return false;
+    // Option adds it; Shift-Option takes it out.
+    chooseTrack (track, ModifierKeys (ModifierKeys::altModifier | (mods.isShiftDown() ? ModifierKeys::shiftModifier : 0)), {});
     return true;
 }
 
@@ -963,6 +973,14 @@ void Controller::chooseClip (Id id, const ModifierKeys& mods)
     const Track* owner = nullptr;
     const auto* clip = project.clip (id, &owner);
     if (! clip || ! owner) return;
+    if (mods.isShiftDown() && mods.isAltDown())
+    {
+        // Shift-Option-click takes it out of what's chosen.
+        selectedClips.erase (id);
+        if (selectedClip == id) selectedClip = selectedClips.empty() ? 0 : *selectedClips.begin();
+        viewChanged();
+        return;
+    }
     const Track* anchorOwner = nullptr;
     const auto* anchor = clipAnchor != 0 ? project.clip (clipAnchor, &anchorOwner) : nullptr;
     if (mods.isShiftDown() && anchor && anchorOwner)

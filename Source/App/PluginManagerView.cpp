@@ -212,7 +212,9 @@ void PluginManagerView::listBoxItemClicked (int row, const MouseEvent& e)
 {
     if (! e.mods.isAltDown() || row < 0) return;
     auto s = selectionBefore;
-    s.addRange ({ row, row + 1 });
+    // Shift-Option-click takes it out.
+    if (e.mods.isShiftDown()) s.removeRange ({ row, row + 1 });
+    else s.addRange ({ row, row + 1 });
     list.setSelectedRows (s);
 }
 
