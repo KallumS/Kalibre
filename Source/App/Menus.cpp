@@ -278,7 +278,8 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Duplicate", [this] { c.duplicateSelectedTracks(); }));
             m.addItem (item ("Delete", [this] { c.deleteSelectedTracks(); }));
             m.addSeparator();
-            m.addItem (item ("Arm for Recording", [this] { c.apply ("Arm", [this] (Project& pr) { if (auto* x = pr.track (c.focusTrack)) x->armed = ! x->armed; }); }, {}, t && t->holdsClips(), t && t->armed));
+            m.addItem (item ("Arm for Recording Audio", [this] { c.arm (c.focusTrack, false); }, {}, t && t->holdsClips(), t && t->armed && ! t->armMidi));
+            m.addItem (item ("Arm for Recording MIDI", [this] { c.arm (c.focusTrack, true); }, {}, t && t->holdsClips() && t->kind != TrackKind::Summing, t && t->armed && t->armMidi));
             PopupMenu maps;
             maps.addItem (item (ui::u8 ("New Articulation Map\xe2\x80\xa6"), [this]
             {

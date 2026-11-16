@@ -431,6 +431,9 @@ struct Track
     double pan = 0.0;            // -1..1
     double frontBack = 1.0;      // in a surround mix: -1 behind .. 1 in front (decision 0040)
     bool mute = false, solo = false, armed = false;
+    // Armed for MIDI (decision 0064): records what its instrument is played,
+    // MIDI effects' notes included, instead of the sound coming in.
+    bool armMidi = false;
     Monitor monitor = Monitor::Auto;
     bool phaseInvert = false, mono = false;
     bool locked = false, hidden = false, enabled = true;

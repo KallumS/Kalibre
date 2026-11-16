@@ -40,6 +40,11 @@ inline const Colour controlHeld  { 0xff8F96A2 };
 inline const Colour accentHover  { 0xffFFF42E };
 inline const Colour accentHeld   { 0xffD1C600 };
 
+// A track armed (decision 0064): for audio, red, as every DAW has it; for
+// MIDI, blue. Light enough that the button's dark ink reads at 7:1 (7.6, 8.2).
+inline const Colour armAudio { 0xffFF8577 };
+inline const Colour armMidi  { 0xff7DB4E6 };
+
 // The ramp.
 inline const Colour roll        { 0xff111419 };   // piano roll and arrangement ground
 inline const Colour sunken      { 0xff1A1D23 };   // frames, lanes, the lower zone's ground

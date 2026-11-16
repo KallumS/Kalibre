@@ -14,7 +14,7 @@ static Colour trackColour (const Track& t) { return Colour (t.colour); }
 //==============================================================================
 TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), arrange (a), c (ctrl)
 {
-    for (auto* b : { &version, &mute, &solo, &arm, &fold }) addAndMakeVisible (b);
+    for (theme::HouseButton* b : std::initializer_list<theme::HouseButton*> { &version, &mute, &solo, &arm, &fold }) addAndMakeVisible (b);
     addAndMakeVisible (name);
     name.setEditable (false, true);
     name.setFont (theme::font());
@@ -33,7 +33,13 @@ TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), 
     // Option-click on any of them adds the track to the selection instead (decision 0053).
     mute.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; }); };
     solo.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
-    arm.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Arm", [this] (Project& p) { if (auto* t = p.track (id)) t->armed = ! t->armed; }); };
+    // Click: armed for audio (red); right-click: for MIDI (blue) (decision 0064).
+    arm.onClick = [this]
+    {
+        if (c.optionAdds (id)) { refreshButtons(); return; }
+        c.arm (id, std::exchange (arm.right, false));
+        refreshButtons();
+    };
     fold.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Fold", [this] (Project& p) { if (auto* t = p.track (id)) t->collapsed = ! t->collapsed; }); };
     version.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } versionMenu(); };
 }
@@ -51,6 +57,11 @@ void TrackHeader::update (const Track& t)
     mute.setToggleState (t.mute, dontSendNotification);
     solo.setToggleState (t.solo, dontSendNotification);
     arm.setToggleState (t.armed, dontSendNotification);
+    arm.getProperties().set ("onColour", (int64) (t.armMidi ? theme::armMidi : theme::armAudio).getARGB());
+    arm.setTip (! t.armed ? "Click to arm for recording audio (red); right-click to arm for recording MIDI (blue)."
+                : t.armMidi ? "Armed for MIDI: records what the instrument is played, arpeggiators and MIDI effects included. Right-click to disarm; click for audio instead."
+                            : "Armed for audio: records the sound coming in. Click to disarm; right-click for MIDI instead.");
+    arm.repaint();
     arm.setVisible (t.holdsClips());
     version.setVisible (t.holdsClips());
     version.setButtonText ("v" + String (t.activeVersion + 1));
@@ -100,7 +111,7 @@ void TrackHeader::resized()
     auto top = r.removeFromTop (theme::px (theme::smallControl));
     if (fold.isVisible()) { fold.setBounds (top.removeFromLeft (theme::px (22))); top.removeFromLeft (2); }
     const int b = theme::px (22);
-    for (auto* btn : { &arm, &solo, &mute })
+    for (theme::HouseButton* btn : std::initializer_list<theme::HouseButton*> { &arm, &solo, &mute })
         if (btn->isVisible()) { btn->setBounds (top.removeFromRight (b)); top.removeFromRight (2); }
     if (version.isVisible()) { version.setBounds (top.removeFromRight (theme::px (30))); top.removeFromRight (4); }
     name.setBounds (top);

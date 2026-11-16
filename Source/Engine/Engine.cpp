@@ -647,7 +647,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             if (auto it = deviceNodes.find (t->sourceDevice); it != deviceNodes.end() && it->second)
                 newShape << "src" << (int64) t->sourceDevice << ":" << t->sourcePair << ":" << (int64) it->second->nodeID.uid << ";";
         newShape << (int64) t->id << ":" << (int) t->kind << ":" << (int64) project.outputOf (t->id) << ":" << (t->id == live ? 1 : 0)
-                 << (t->armed ? "a" : "") << (int) t->monitor << "/" << t->input.audioChannel << "[";
+                 << (t->armed ? (t->armMidi ? "m" : "a") : "") << (int) t->monitor << "/" << t->input.audioChannel << "[";
         // The node's own number too: a device replaced by another under the same id is rewired.
         for (auto& d : t->devices) if (d.active && wantedDevices.count (d.id)) newShape << (int64) d.id << "#" << (int64) deviceNodes[d.id]->nodeID.uid << (int) d.role << (d.bypassed ? "b" : "") << "<" << (int64) d.sidechainFrom << ",";
         newShape << "]{";
@@ -694,8 +694,10 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             auto& nodes = tracks[t->id];
             const auto src = nodes.source->nodeID;
             // Live input.
-            const bool monitorIn = t->monitor == Monitor::In || (t->armed && t->monitor == Monitor::Auto);
-            if ((t->armed || monitorIn) && t->input.audioChannel >= 0 && inputs > 0)
+            // Armed for audio, the sound coming in; armed for MIDI, not (decision 0064).
+            const bool armedAudio = t->armed && ! t->armMidi;
+            const bool monitorIn = t->monitor == Monitor::In || (armedAudio && t->monitor == Monitor::Auto);
+            if ((armedAudio || monitorIn) && t->input.audioChannel >= 0 && inputs > 0)
                 for (int ch = 0; ch < 2; ++ch)
                 {
                     const int inCh = jmin (inputs - 1, t->input.audioChannel + (t->input.stereo ? ch : 0));
@@ -907,8 +909,10 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 data->regionAudio.push_back (clip ? cache.forClip (*clip, project.tempo, folder) : nullptr);
             }
         data->tempo = project.tempo;
-        data->monitor = t->monitor == Monitor::In || (t->armed && t->monitor == Monitor::Auto);
+        const bool armedAudio = t->armed && ! t->armMidi;
+        data->monitor = t->monitor == Monitor::In || (armedAudio && t->monitor == Monitor::Auto);
         data->armed = t->armed;
+        data->armedMidi = t->armed && t->armMidi;   // MIDI played in is recorded only when armed for MIDI (decision 0064)
         data->summing = t->kind == TrackKind::Summing;
         data->readAutomation = t->autoMode != AutoMode::Off;
         data->fader = dynamic_cast<Fader*> (nodes.fader->getProcessor());
@@ -962,7 +966,28 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         }
         if (auto* src = dynamic_cast<TrackSource*> (nodes.source->getProcessor()))
         {
-            src->keepInput (t->armed || t->monitor == Monitor::In);
+            src->keepInput (armedAudio || t->monitor == Monitor::In);
+            // Armed for MIDI (decision 0064): the tap goes on the first instrument (what
+            // it's played, or what it sends), else the last MIDI effect.
+            TimedPlugin* tapAt = nullptr;
+            if (t->armed && t->armMidi)
+            {
+                for (auto& d : t->devices)
+                {
+                    if (! d.active || d.role == DeviceRole::AudioFx) continue;
+                    auto it = deviceNodes.find (d.id);
+                    if (it == deviceNodes.end() || ! it->second) continue;
+                    auto* tp = dynamic_cast<TimedPlugin*> (it->second->getProcessor());
+                    if (! tp) continue;
+                    tapAt = tp;
+                    if (d.role == DeviceRole::Instrument) break;
+                }
+            }
+            for (auto& d : t->devices)
+                if (auto it = deviceNodes.find (d.id); it != deviceNodes.end() && it->second)
+                    if (auto* tp = dynamic_cast<TimedPlugin*> (it->second->getProcessor()))
+                        tp->tap = tp == tapAt ? static_cast<MidiTap*> (src) : nullptr;
+            src->recordOutput = tapAt != nullptr;
             src->data.post (std::move (data));
         }
     }

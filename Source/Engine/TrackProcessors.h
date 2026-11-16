@@ -24,6 +24,7 @@
 #include "Modulation.h"
 #include "Playback.h"
 #include "Swap.h"
+#include "TimedPlugin.h"
 
 #include <array>
 #include "Warp.h"
@@ -180,7 +181,7 @@ private:
 };
 
 //==============================================================================
-class TrackSource : public juce::AudioProcessor
+class TrackSource : public juce::AudioProcessor, public MidiTap
 {
 public:
     TrackSource (Shared&, Id track);
@@ -213,6 +214,7 @@ public:
         bool audible = true;          // false when muted: notes still stop cleanly
         bool monitor = false;         // pass the live input on
         bool armed = false;
+        bool armedMidi = false;       // armed for MIDI (decision 0064)
         bool readAutomation = true;
         bool summing = false;         // a Summing track: silent while it records the master (decision 0052)
         Fader* fader = nullptr;
@@ -238,6 +240,15 @@ public:
     struct Played { double ticks; std::uint8_t bytes[3]; };
     juce::AbstractFifo playedFifo { 8192 };
     std::array<Played, 8192> played {};
+
+    // Armed for MIDI (decision 0064): what the track's instrument is played
+    // (or, if it sends MIDI of its own, what it sends), caught on the device
+    // the engine taps, with its place in the song in seconds; read by the window.
+    struct Tapped { double seconds; std::uint8_t bytes[3]; bool fromOutput; };
+    juce::AbstractFifo tappedFifo { 16384 };
+    std::array<Tapped, 16384> tapped {};
+    std::atomic<bool> recordOutput { false };
+    void caught (const juce::MidiBuffer&, bool fromOutput) override;
 
     // Last-touched: a parameter of this track's plug-ins being written by a hand.
     Id trackId;

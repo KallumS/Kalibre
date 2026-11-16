@@ -908,3 +908,77 @@ TEST ("swing and gate: a drag of the drum grid's or step sequencer's slider move
         if (n.from == NoteFrom::Steps) CHECK_EQ (n.length, PPQ / 16);
     CHECK_EQ (c.project.clip (clip)->stepsFeel.gate, 0.25);
 }
+
+TEST ("arming: left-click arms for audio (red), right-click for MIDI (blue); a click again disarms; groups follow")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    c.refresh();
+    c.arm (t, false);
+    CHECK (c.project.track (t)->armed && ! c.project.track (t)->armMidi);
+    c.arm (t, true);                                         // right-click: now armed for MIDI instead
+    CHECK (c.project.track (t)->armed && c.project.track (t)->armMidi);
+    c.arm (t, true);                                         // again: off
+    CHECK (! c.project.track (t)->armed);
+    c.arm (t, false);
+    c.arm (t, false);
+    CHECK (! c.project.track (t)->armed);
+    // A Summing track records sound only.
+    const Id sum = edit::addTrack (c.project, TrackKind::Summing, "Summing");
+    c.refresh();
+    c.arm (sum, true);
+    CHECK (! c.project.track (sum)->armMidi);
+    // Saved.
+    c.arm (t, true);
+    auto loaded = file::load (file::save (c.project));
+    CHECK (loaded && loaded->track (t)->armed && loaded->track (t)->armMidi);
+}
+
+TEST ("arming for MIDI: what a free-running arpeggiator plays into the instrument is recorded as a MIDI clip; armed for audio, it isn't")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    c.project.tempo.setTempos ({ { 0, 120.0, false } });
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Arp");
+    edit::addDevice (c.project, t, PluginRef { "Kalibre", "test-arp", "Arp" }, DeviceRole::MidiFx);
+    edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+    c.focusTrack = t;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.arm (t, true);
+    c.refresh();
+
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 2.0);
+    c.stop();
+    const auto* track = c.project.track (t);
+    CHECK_EQ (track->clips().size(), size_t (1));
+    if (track->clips().empty()) return;
+    const auto& clip = track->clips().front();
+    CHECK (clip.isMidi());
+    // A note every quarter of a second (the arpeggiator's, not anything played in): about eight in two seconds.
+    CHECK (clip.midi.notes.size() >= 6 && clip.midi.notes.size() <= 9);
+    for (auto& n : clip.midi.notes) CHECK_EQ (n.pitch, 72);
+    if (clip.midi.notes.size() >= 2)
+    {
+        const double gap = c.project.tempo.secondsAt (clip.start + clip.midi.notes[1].start) - c.project.tempo.secondsAt (clip.start + clip.midi.notes[0].start);
+        CHECK (std::abs (gap - 0.25) < 0.01);
+    }
+
+    // Armed for audio instead: its sound coming in is recorded, but no MIDI from it.
+    c.arm (t, false);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 1.0);
+    c.stop();
+    const auto& after = c.project.track (t)->clips();
+    CHECK_EQ (std::count_if (after.begin(), after.end(), [] (const Clip& x) { return x.isMidi(); }), 1);
+}

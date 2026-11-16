@@ -195,6 +195,25 @@ File TrackSource::stopRecording()
     return recordFile;
 }
 
+void TrackSource::caught (const MidiBuffer& midi, bool fromOutput)
+{
+    const auto& clock = shared.clock;
+    if (! recordOutput.load (std::memory_order_relaxed) || ! clock.recording || ! clock.playing) return;
+    for (const auto m : midi)
+    {
+        const auto& msg = m.getMessage();
+        if (msg.getRawDataSize() > 3 || msg.isSysEx()) continue;
+        int s1, n1, s2, n2;
+        tappedFifo.prepareToWrite (1, s1, n1, s2, n2);
+        if (n1 + n2 == 0) return;
+        auto& slot = tapped[(size_t) (n1 > 0 ? s1 : s2)];
+        slot.seconds = clock.secondsAt (m.samplePosition);
+        for (int i = 0; i < 3; ++i) slot.bytes[i] = i < msg.getRawDataSize() ? msg.getRawData()[i] : 0;
+        slot.fromOutput = fromOutput;
+        tappedFifo.finishedWrite (1);
+    }
+}
+
 void TrackSource::stopAll (MidiBuffer& midi, int at)
 {
     waitingCount = 0;      // notes played late that hadn't started yet: not now
@@ -387,7 +406,7 @@ void TrackSource::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
 
     // Live MIDI: kept (it only arrives when this track is the one played),
     // and remembered with its place in the song when recording.
-    if (d && d->armed && clock.recording && clock.playing)
+    if (d && d->armedMidi && clock.recording && clock.playing)
         for (const auto m : midi)
         {
             const auto& msg = m.getMessage();

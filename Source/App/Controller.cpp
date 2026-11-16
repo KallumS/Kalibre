@@ -302,6 +302,22 @@ void Controller::stop()
     sendChangeMessage();
 }
 
+void Controller::arm (Id id, bool midi)
+{
+    const auto* t = project.track (id);
+    if (! t || ! t->holdsClips()) return;
+    if (midi && t->kind == TrackKind::Summing)
+    {
+        say ("A Summing track records the master's sound, so it's armed for audio.");
+        midi = false;
+    }
+    const bool same = t->armed && t->armMidi == midi;
+    apply (midi ? "Arm for MIDI" : "Arm for Audio", [=] (Project& p)
+    {
+        if (auto* x = p.track (id)) { x->armed = ! same; x->armMidi = midi; }
+    });
+}
+
 void Controller::record()
 {
     if (wasRecording) { stop(); return; }
@@ -309,8 +325,12 @@ void Controller::record()
     for (auto& t : project.tracks) if (t.armed) armed.push_back (t.id);
     if (armed.empty() && focus() && focus()->holdsClips())
     {
-        // Recording with nothing armed records onto the track being played.
-        apply ("Arm Track", [id = focusTrack] (Project& p) { if (auto* t = p.track (id)) t->armed = true; });
+        // Recording with nothing armed records onto the track being played: for
+        // MIDI if it has an instrument or MIDI effect or no sound coming in.
+        const auto* f = focus();
+        const bool plays = std::any_of (f->devices.begin(), f->devices.end(), [] (const Device& d) { return d.role != DeviceRole::AudioFx; });
+        const bool midi = f->kind != TrackKind::Summing && (plays || f->input.audioChannel < 0);
+        apply ("Arm Track", [id = focusTrack, midi] (Project& p) { if (auto* t = p.track (id)) { t->armed = true; t->armMidi = midi; } });
         armed.push_back (focusTrack);
     }
     if (armed.empty()) { say ("Choose a track to record onto first.", true); return; }
@@ -320,15 +340,23 @@ void Controller::record()
     recordFromSeconds = project.tempo.secondsAt (from);
     const auto folder = recordingsFolder();
     for (auto id : armed)
+    {
+        // Nothing left over from before.
+        if (auto* s = engine.source (id))
+        {
+            s->tappedFifo.reset();
+            s->playedFifo.reset();
+        }
         if (auto* s = engine.recordSource (id))
         {
             const auto* t = project.track (id);
-            // A Summing track records the master (decision 0052); others their input.
-            if (t && (t->kind == TrackKind::Summing || t->input.audioChannel >= 0))
+            // A Summing track records the master (decision 0052); others armed for audio their input.
+            if (t && (t->kind == TrackKind::Summing || (t->input.audioChannel >= 0 && ! t->armMidi)))
                 s->startRecording (folder.getNonexistentChildFile (String (t->name).replaceCharacters ("/\\:", "---") + " "
                                                                    + Time::getCurrentTime().formatted ("%Y-%m-%d %H%M%S"), ".wav"),
                                    engine.sampleRate());
         }
+    }
     wasRecording = true;
     engine.setRecording (true);
     if (project.punch.on)
@@ -392,21 +420,40 @@ void Controller::finishRecording()
             else f.deleteFile();
         }
         if (t.kind == TrackKind::Summing) continue;   // it records sound only
-        // MIDI played in.
-        std::vector<capture::Event> events;
+        // Armed for MIDI (decision 0064): what the instrument was played, caught on it
+        // (or, if it sent notes of its own, what it sent); with no instrument or MIDI
+        // effect, what was played in.
+        std::vector<capture::Event> events, tappedIn, tappedOut;
+        {
+            int s1, n1, s2, n2;
+            s->tappedFifo.prepareToRead (s->tappedFifo.getNumReady(), s1, n1, s2, n2);
+            for (int i = 0; i < n1 + n2; ++i)
+            {
+                const auto& p = s->tapped[(size_t) (i < n1 ? s1 + i : s2 + i - n1)];
+                capture::Event e;
+                e.wallSeconds = p.seconds;
+                e.songTicks = project.tempo.ticksAt (p.seconds);
+                std::memcpy (e.bytes, p.bytes, 3);
+                (p.fromOutput ? tappedOut : tappedIn).push_back (e);
+            }
+            s->tappedFifo.finishedRead (n1 + n2);
+        }
+        const bool sentNotes = std::any_of (tappedOut.begin(), tappedOut.end(), [] (const capture::Event& e) { return (e.bytes[0] & 0xF0) == 0x90; });
+        events = sentNotes ? tappedOut : tappedIn;
         int s1, n1, s2, n2;
         s->playedFifo.prepareToRead (s->playedFifo.getNumReady(), s1, n1, s2, n2);
-        for (int i = 0; i < n1 + n2; ++i)
-        {
-            const auto& p = s->played[(size_t) (i < n1 ? s1 + i : s2 + i - n1)];
-            capture::Event e;
-            e.songTicks = p.ticks;
-            e.wallSeconds = project.tempo.secondsAt ((Tick) p.ticks);
-            std::memcpy (e.bytes, p.bytes, 3);
-            events.push_back (e);
-        }
+        if (events.empty() && t.armMidi)
+            for (int i = 0; i < n1 + n2; ++i)
+            {
+                const auto& p = s->played[(size_t) (i < n1 ? s1 + i : s2 + i - n1)];
+                capture::Event e;
+                e.songTicks = p.ticks;
+                e.wallSeconds = project.tempo.secondsAt ((Tick) p.ticks);
+                std::memcpy (e.bytes, p.bytes, 3);
+                events.push_back (e);
+            }
         s->playedFifo.finishedRead (n1 + n2);
-        if (events.empty()) continue;
+        if (! t.armMidi || events.empty()) continue;
         Recorded midi { t.id, {} };
         for (auto& pass : looping ? comp::midiPasses (events) : std::vector<std::vector<capture::Event>> { events })
         {

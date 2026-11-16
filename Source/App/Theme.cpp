@@ -149,10 +149,14 @@ int LookAndFeel::getTextButtonWidthToFitText (TextButton& b, int buttonHeight)
 void LookAndFeel::drawButtonBackground (Graphics& g, Button& b, const Colour& base, bool highlighted, bool down)
 {
     const auto on = b.getToggleState();
-    auto fill = on ? accent : (base == findColour (TextButton::buttonColourId) ? control : base);
+    // A button may have an "on" colour of its own (an armed track's, decision 0064).
+    const auto own = b.getProperties()["onColour"];
+    const bool ownOn = on && ! own.isVoid();
+    const auto onFill = ownOn ? Colour ((uint32) (int64) own) : accent;
+    auto fill = on ? onFill : (base == findColour (TextButton::buttonColourId) ? control : base);
     if (! b.isEnabled()) fill = rule;
-    else if (down) fill = on ? accentHeld : controlHeld;
-    else if (highlighted) fill = on ? accentHover : (fill == control ? controlHover : fill.brighter (0.1f));
+    else if (down) fill = on ? (ownOn ? onFill.darker (0.2f) : accentHeld) : controlHeld;
+    else if (highlighted) fill = on ? (ownOn ? onFill.brighter (0.08f) : accentHover) : (fill == control ? controlHover : fill.brighter (0.1f));
 
     const auto area = b.getLocalBounds().toFloat().reduced (1.0f);
     const auto radius = jmin (cornerRadius, area.getHeight() * 0.3f);

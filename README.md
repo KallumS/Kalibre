@@ -38,6 +38,9 @@ grow and shrink with it.
   sequencer, a Euclidean sequencer, notation, **all adding to the same
   clip**, each showing its own notes and lighting the step being played.
   **MusicXML** in and out.
+- **Arm for audio or MIDI**: click a track's arm button for audio (red),
+  right-click for MIDI (blue), which records what its instrument is played,
+  a free-running arpeggiator's notes included.
 - **Swing, gate and repeat** in the drum grid and step sequencer (swing
   and gate in the Euclidean too): a step can play up to eight times in its
   length, for flams, rolls and ratchets.

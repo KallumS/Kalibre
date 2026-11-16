@@ -45,7 +45,7 @@
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
 | `Engine/Editors.h` | Opening and closing plug-ins' windows, telling the plug-in first (0056). |
 | `Engine/LoudnessMatch.h` | Match Loudness: output held to the input's short-term loudness (0056). |
-| `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050). |
+| `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050), and on a track armed for MIDI catches what its instrument is played (`MidiTap`, 0064). |
 | `Engine/BuiltinInstruments.*`, `HardwareInsert.*` | Kalibre Synth and Sampler (0039); the hardware insert and the interface's channels it shares (0040). |
 | `Engine/Mp3Writer.*` | MP3 export through Shine (0041). |
 | `Engine/NetworkMidi*` | The Mac's network MIDI session (0043). |
