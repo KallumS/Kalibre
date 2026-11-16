@@ -98,3 +98,25 @@ TEST ("playback: muted clips are silent; audio clips become regions")
     CHECK (std::abs (out.audio[0].gain - 0.501) < 0.001);
     CHECK_EQ (playback::firstAtOrAfter (out.midi, 0.0), size_t (0));
 }
+
+TEST ("playback: overlapping audio clips crossfade over the overlap, equal power")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Vox");
+    Clip a;
+    a.kind = Clip::Kind::Audio;
+    a.start = 0;
+    a.length = PPQ * 4;   // 0 - 2 s
+    a.audio.file = "/a.wav";
+    Clip b = a;
+    b.start = PPQ * 3;    // 1.5 - 3.5 s
+    b.audio.file = "/b.wav";
+    edit::addClip (p, t, a);
+    edit::addClip (p, t, b);
+    const auto out = playback::compile (p, *p.track (t));
+    CHECK (near (out.audio[0].fadeOut, 0.5));
+    CHECK (near (out.audio[1].fadeIn, 0.5));
+    // Halfway through, each is at -3 dB: the power adds up to one.
+    const double g = playback::fadeGain (0.25, 0.5);
+    CHECK (std::abs (g * g + g * g - 1.0) < 1e-9);
+}

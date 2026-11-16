@@ -1,5 +1,6 @@
 #include "Arrange.h"
 
+#include "Comp.h"
 #include "PluginManager.h"
 
 namespace kal
@@ -149,6 +150,11 @@ void TrackHeader::showMenu()
     if (t->holdsClips())
     {
         m.addItem ("New Version", [this] { c.newVersion (id); });
+        if (! t->version().takes.empty())
+            m.addItem (t->version().takesShown ? "Hide Takes" : "Show Takes (" + String ((int) t->version().takes.size()) + ")", [this]
+            {
+                c.apply ("Takes", [this] (Project& p) { auto& v = p.track (id)->version(); v.takesShown = ! v.takesShown; });
+            });
         m.addSeparator();
     }
     m.addItem ("Add Track", [this] { c.addTrack (TrackKind::Track); });
@@ -322,6 +328,13 @@ void Arrange::layoutRows()
                 rows.push_back ({ t.id, y, theme::px (48), (int) i });
                 y += theme::px (48);
             }
+        // Takes, oldest first, when shown (decision 0029).
+        if (t.holdsClips() && t.version().takesShown)
+            for (size_t i = 0; i < t.version().takes.size(); ++i)
+            {
+                rows.push_back ({ t.id, y, theme::px (32), -1, (int) i });
+                y += theme::px (32);
+            }
     }
     contentHeight = y;
 
@@ -331,7 +344,7 @@ void Arrange::layoutRows()
     const int top = rulerHeight();
     for (auto& r : rows)
     {
-        if (r.automation >= 0) continue;
+        if (! r.isClips()) continue;
         TrackHeader* h = nullptr;
         for (auto* x : headers) if (x->id == r.track) h = x;
         if (! h) { h = headers.add (new TrackHeader (*this, c, r.track)); addAndMakeVisible (h); }
@@ -601,15 +614,35 @@ void Arrange::drawClip (Graphics& g, const Track& t, const Clip& clip, Rectangle
             tri.addTriangle (x - 4.0f, r.getY() - 16.0f, x + 4.0f, r.getY() - 16.0f, x, r.getY() - 10.0f);
             g.fillPath (tri);
         }
-        // Fades.
-        g.setColour (theme::ink.withAlpha (0.5f));
-        if (clip.audio.fadeIn > 0)
+        // Fades: shaded over, with a handle at the top to drag (decision 0030).
+        const auto& tempo = c.project.tempo;
+        const float full = r.getRight() - r.getX();
+        const float inW = jlimit (0.0f, full, xOf (tempo.tickAt (tempo.secondsAt (clip.start) + clip.audio.fadeIn)) - xOf (clip.start));
+        const float outW = jlimit (0.0f, full, xOf (clip.end()) - xOf (tempo.tickAt (tempo.secondsAt (clip.end()) - clip.audio.fadeOut)));
+        g.setColour (theme::ink.withAlpha (0.45f));
+        if (inW > 0.5f)
         {
             Path p;
-            const float w = xOf (c.project.tempo.tickAt (c.project.tempo.secondsAt (clip.start) + clip.audio.fadeIn)) - r.getX();
-            p.addTriangle (r.getX(), r.getY(), r.getX() + w, r.getY(), r.getX(), r.getBottom());
+            p.startNewSubPath (r.getX(), r.getBottom());
+            for (int i = 0; i <= 16; ++i)
+                p.lineTo (r.getX() + inW * (float) i / 16.0f, r.getBottom() - r.getHeight() * std::sin (MathConstants<float>::halfPi * (float) i / 16.0f));
+            p.lineTo (r.getX(), r.getY());
+            p.closeSubPath();
             g.fillPath (p);
         }
+        if (outW > 0.5f)
+        {
+            Path p;
+            p.startNewSubPath (r.getRight(), r.getBottom());
+            for (int i = 0; i <= 16; ++i)
+                p.lineTo (r.getRight() - outW * (float) i / 16.0f, r.getBottom() - r.getHeight() * std::sin (MathConstants<float>::halfPi * (float) i / 16.0f));
+            p.lineTo (r.getRight(), r.getY());
+            p.closeSubPath();
+            g.fillPath (p);
+        }
+        g.setColour (theme::control);
+        g.fillRect (Rectangle<float> (7.0f, 7.0f).withCentre ({ r.getX() + inW, r.getY() + 4.0f }));
+        g.fillRect (Rectangle<float> (7.0f, 7.0f).withCentre ({ r.getRight() - outW, r.getY() + 4.0f }));
     }
     g.restoreState();
 }
@@ -647,6 +680,54 @@ void Arrange::drawAutomation (Graphics& g, const Track& t, const AutomationLane&
     {
         g.setColour (theme::control);
         g.fillEllipse (xOf (pt.tick) - 3.5f, yOf (pt.value) - 3.5f, 7.0f, 7.0f);
+    }
+    g.restoreState();
+}
+
+void Arrange::drawTake (Graphics& g, const Track& t, int index, Rectangle<int> r)
+{
+    const auto& v = t.version();
+    const auto& take = v.takes[(size_t) index];
+    g.setColour (theme::sunken);
+    g.fillRect (r);
+    auto header = Rectangle<int> (0, r.getY(), headerWidth(), r.getHeight());
+    g.setColour (theme::ground);
+    g.fillRect (header);
+    g.setColour (theme::textSecondary);
+    g.setFont (theme::font (theme::smallPoints));
+    g.drawText (String (take.name), header.reduced (theme::px (14) + c.project.depth (t.id) * theme::px (10), 2), Justification::centredLeft, true);
+    g.setColour (theme::rule);
+    g.fillRect (0, r.getBottom() - 1, getWidth(), 1);
+
+    g.saveState();
+    g.reduceClipRegion (r);
+    for (auto& clip : take.clips)
+    {
+        Rectangle<float> box (xOf (clip.start), (float) r.getY() + 3, jmax (3.0f, xOf (clip.end()) - xOf (clip.start)), (float) r.getHeight() - 6);
+        g.setColour (Colour (t.colour).withMultipliedBrightness (0.3f));
+        g.fillRoundedRectangle (box, 3.0f);
+    }
+    // Where the comp uses this take: brighter, with the accent along its top (it's "on" there).
+    for (auto& seg : v.comp)
+    {
+        if (seg.take != take.id) continue;
+        for (auto& clip : take.clips)
+        {
+            const Tick a = std::max (seg.start, clip.start), b = std::min (seg.end, clip.end());
+            if (b <= a) continue;
+            Rectangle<float> box (xOf (a), (float) r.getY() + 3, jmax (2.0f, xOf (b) - xOf (a)), (float) r.getHeight() - 6);
+            g.setColour (Colour (t.colour).withMultipliedBrightness (0.6f));
+            g.fillRect (box);
+            g.setColour (theme::accent);
+            g.fillRect (box.withHeight (3.0f));
+        }
+    }
+    // A swipe in progress.
+    if (drag == Drag::Swipe && swipeTake == index && dragTrack == t.id)
+    {
+        const float a = xOf (std::min (swipeFrom, swipeTo)), b = xOf (std::max (swipeFrom, swipeTo));
+        g.setColour (theme::accent.withAlpha (0.25f));
+        g.fillRect (Rectangle<float> (a, (float) r.getY(), jmax (2.0f, b - a), (float) r.getHeight()));
     }
     g.restoreState();
 }
@@ -695,6 +776,11 @@ void Arrange::paint (Graphics& g)
             drawAutomation (g, *t, t->automation[(size_t) row.automation], rr);
             continue;
         }
+        if (row.take >= 0)
+        {
+            drawTake (g, *t, row.take, rr);
+            continue;
+        }
         const bool chosen = std::find (c.selectedTracks.begin(), c.selectedTracks.end(), t->id) != c.selectedTracks.end();
         if (chosen) { g.setColour (theme::text.withAlpha (0.03f)); g.fillRect (rr); }
         if (t->isFolder())
@@ -724,7 +810,7 @@ void Arrange::paint (Graphics& g)
         const Track* owner = nullptr;
         if (const auto* clip = c.project.clip (dragClip, &owner))
             for (auto& row : rows)
-                if (row.track == previewTrack && row.automation < 0)
+                if (row.track == previewTrack && row.isClips())
                 {
                     Clip ghost = *clip;
                     ghost.start = previewStart;
@@ -775,7 +861,7 @@ const Arrange::Row* Arrange::rowAt (int y) const
 const Clip* Arrange::clipAt (Point<int> p, const Track** owner) const
 {
     const auto* row = rowAt (p.y);
-    if (! row || row->automation >= 0) return nullptr;
+    if (! row || ! row->isClips()) return nullptr;
     const auto* t = c.project.track (row->track);
     if (! t) return nullptr;
     const Tick at = tickAt ((float) p.x);
@@ -839,6 +925,17 @@ void Arrange::mouseDown (const MouseEvent& e)
 
     const auto* row = rowAt (e.y);
     if (! row) { c.locate (c.snapTick (tickAt ((float) e.x))); return; }
+
+    if (row->take >= 0)
+    {
+        if (e.mods.isPopupMenu()) { laneMenu (*row, e.getPosition()); return; }
+        // Swiping across a take's lane uses that take there.
+        drag = Drag::Swipe;
+        dragTrack = row->track;
+        swipeTake = row->take;
+        swipeFrom = swipeTo = tickAt ((float) e.x);
+        return;
+    }
 
     if (row->automation >= 0)
     {
@@ -905,6 +1002,23 @@ void Arrange::mouseDown (const MouseEvent& e)
         c.focusOn (owner->id);
         if (owner->locked || clip->locked) return;
         if (! clip->isMidi())
+        {
+            // The fade handles sit at the top corners of the waveform, under the name.
+            const auto& tempo = c.project.tempo;
+            const float title = jmin (16.0f, (float) laneHeightOf (*owner) * 0.4f);
+            const float top = (float) (laneArea().getY() + rowAt (e.y)->y - scrollY) + 2.0f + title + 4.0f;
+            const float inX = xOf (tempo.tickAt (tempo.secondsAt (clip->start) + clip->audio.fadeIn));
+            const float outX = xOf (tempo.tickAt (tempo.secondsAt (clip->end()) - clip->audio.fadeOut));
+            const float reach = (float) theme::px (6);
+            if (std::abs ((float) e.y - top) <= reach && (std::abs ((float) e.x - inX) <= reach || std::abs ((float) e.x - outX) <= reach))
+            {
+                drag = std::abs ((float) e.x - inX) <= std::abs ((float) e.x - outX) ? Drag::FadeIn : Drag::FadeOut;
+                dragClip = clip->id;
+                dragBefore = c.project;
+                return;
+            }
+        }
+        if (! clip->isMidi())
             for (size_t i = 0; i < clip->audio.markers.size(); ++i)
             {
                 const float mx = xOf (clip->start - clip->offset + clip->audio.markers[i].tick);
@@ -964,7 +1078,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
             previewEnd = previewStart + clip->length;
             copying = e.mods.isAltDown();
             if (const auto* row = rowAt (e.y))
-                if (row->automation < 0 && c.project.track (row->track)->holdsClips()) previewTrack = row->track;
+                if (row->isClips() && c.project.track (row->track)->holdsClips()) previewTrack = row->track;
             repaint();
             break;
         }
@@ -1013,6 +1127,23 @@ void Arrange::mouseDrag (const MouseEvent& e)
             c.refresh();
             break;
         }
+        case Drag::Swipe:
+            swipeTo = tickAt ((float) e.x);
+            repaint();
+            break;
+        case Drag::FadeIn:
+        case Drag::FadeOut:
+        {
+            auto* clip = c.project.clip (dragClip);
+            if (! clip) break;
+            const auto& tempo = c.project.tempo;
+            const double clipStart = tempo.secondsAt (clip->start), clipEnd = tempo.secondsAt (clip->end());
+            const double here = tempo.secondsAt (std::max<Tick> (0, at));
+            if (drag == Drag::FadeIn) clip->audio.fadeIn = jlimit (0.0, clipEnd - clipStart, here - clipStart);
+            else clip->audio.fadeOut = jlimit (0.0, clipEnd - clipStart, clipEnd - here);
+            repaint();
+            break;
+        }
         case Drag::WarpMarker:
         {
             auto* clip = c.project.clip (dragClip);
@@ -1056,6 +1187,29 @@ void Arrange::mouseUp (const MouseEvent&)
         const Tick a = previewStart, b = previewEnd;
         c.apply ("Trim Clip", [=] (Project& p) { edit::resizeClip (p, id, a, b); });
     }
+    else if (drag == Drag::Swipe)
+    {
+        const auto* t = c.project.track (dragTrack);
+        if (t && swipeTake >= 0 && swipeTake < (int) t->version().takes.size())
+        {
+            const auto& take = t->version().takes[(size_t) swipeTake];
+            Tick a = std::min (swipeFrom, swipeTo), b = std::max (swipeFrom, swipeTo);
+            if (b - a < timeline.ticksFor (4.0f))
+            {
+                // A click uses the take's clip under the pointer, all of it.
+                for (auto& cl : take.clips) if (a >= cl.start && a < cl.end()) { a = cl.start; b = cl.end(); }
+            }
+            else { a = c.snapTick (a); b = c.snapTick (b); }
+            const Id tid = dragTrack, takeId = take.id;
+            if (b > a) c.apply ("Comp", [=] (Project& p) { comp::choose (p, tid, takeId, a, b); });
+        }
+        swipeTake = -1;
+    }
+    else if (drag == Drag::FadeIn || drag == Drag::FadeOut)
+    {
+        if (! (dragBefore == c.project)) c.history.push (dragBefore, "Fade");
+        c.refresh();
+    }
     else if (drag == Drag::WarpMarker)
     {
         if (! (dragBefore == c.project)) c.history.push (dragBefore, "Move Warp Marker");
@@ -1086,7 +1240,7 @@ void Arrange::mouseDoubleClick (const MouseEvent& e)
     }
     if (! lanes.contains (e.getPosition())) return;
     const auto* row = rowAt (e.y);
-    if (! row || row->automation >= 0) return;
+    if (! row || ! row->isClips()) return;
     const auto* t = c.project.track (row->track);
     if (! t || ! t->holdsClips() || clipAt (e.getPosition())) return;
     const auto& tempo = c.project.tempo;
@@ -1289,6 +1443,29 @@ void Arrange::laneMenu (const Row& row, Point<int> at)
     if (! t) return;
     PopupMenu m;
     const Tick tick = c.snapTick (tickAt ((float) at.x));
+    if (row.take >= 0)
+    {
+        const Id tid = t->id;
+        const Id takeId = t->version().takes[(size_t) row.take].id;
+        m.addItem ("Use This Take Everywhere", [this, tid, takeId]
+        {
+            c.apply ("Comp", [=] (Project& p)
+            {
+                const auto& takes = p.track (tid)->version().takes;
+                for (auto& tk : takes) if (tk.id == takeId) { const auto [a, b] = comp::extent (tk); comp::choose (p, tid, takeId, a, b); }
+            });
+        });
+        m.addItem ("Delete This Take", [this, tid, takeId] { c.apply ("Delete Take", [=] (Project& p) { comp::removeTake (p, tid, takeId); }); });
+        m.addSeparator();
+        m.addItem ("Flatten the Comp", [this, tid]
+        {
+            c.apply ("Flatten Comp", [=] (Project& p) { comp::flatten (p, tid); });
+            c.say ("The comp is now ordinary clips; the takes are gone.", false, true);
+        });
+        m.addItem ("Hide Takes", [this, tid] { c.apply ("Hide Takes", [=] (Project& p) { p.track (tid)->version().takesShown = false; }); });
+        m.showMenuAsync (PopupMenu::Options());
+        return;
+    }
     if (row.automation >= 0)
     {
         const int laneIndex = row.automation;
@@ -1352,7 +1529,7 @@ bool Arrange::isInterestedInFileDrag (const StringArray& files)
 void Arrange::filesDropped (const StringArray& files, int x, int y)
 {
     const auto* row = rowAt (y);
-    Id track = row && row->automation < 0 ? row->track : 0;
+    Id track = row && row->isClips() ? row->track : 0;
     Tick at = c.snapTick (std::max<Tick> (0, tickAt ((float) x)));
     for (auto& f : files)
     {

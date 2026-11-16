@@ -51,6 +51,7 @@ add_library(KalibreCore STATIC
     Source/Core/Capture.cpp
     Source/Core/ProjectFile.cpp
     Source/Core/Notation.cpp
+    Source/Core/Comp.cpp
     Source/Script/LuaHost.cpp)
 target_include_directories(KalibreCore PUBLIC Source/Core Source/Script ThirdParty)
 target_link_libraries(KalibreCore PUBLIC KalibreLua)
@@ -73,7 +74,8 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestCapture.cpp
         Tests/TestFile.cpp
         Tests/TestNotation.cpp
-        Tests/TestScript.cpp)
+        Tests/TestScript.cpp
+        Tests/TestComp.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)

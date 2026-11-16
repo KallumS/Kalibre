@@ -4,6 +4,7 @@
 //   KalibreRender out-folder [scale]
 
 #include "../Tests/App/Demo.h"
+#include "Comp.h"
 #include "MainComponent.h"
 
 using namespace juce;
@@ -22,6 +23,36 @@ int main (int argc, char** argv)
         Engine engine (plugins);
         Controller c (engine);
         c.project = demo::song();
+        {
+            // A vocal recorded three times round the loop, to show takes and comping.
+            const auto wav = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-vocal.wav");
+            AudioBuffer<float> b (2, 48000 * 16);
+            for (int i = 0; i < b.getNumSamples(); ++i)
+            {
+                const float env = 0.5f + 0.5f * std::sin ((float) i / 48000.0f * 3.1f);
+                const float v = 0.4f * env * std::sin ((float) i * 0.03f) * (std::sin ((float) i * 0.0002f) > -0.3f ? 1.0f : 0.1f);
+                b.setSample (0, i, v);
+                b.setSample (1, i, v);
+            }
+            WavAudioFormat wavFormat;
+            wav.deleteFile();
+            std::unique_ptr<OutputStream> os (wav.createOutputStream().release());
+            if (auto w = wavFormat.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (16)))
+                w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+            const Id vox = edit::addTrack (c.project, TrackKind::Track, "Vocal");
+            c.project.track (vox)->colour = 0xffE07A86;
+            Clip rec;
+            rec.kind = Clip::Kind::Audio;
+            rec.name = "Vocal";
+            rec.start = 0;
+            rec.audio.file = wav.getFullPathName().toStdString();
+            for (auto& pass : comp::audioPasses (rec, 15.0, c.project.tempo, 0, PPQ * 16))
+                comp::addTake (c.project, vox, { pass });
+            auto& v = c.project.track (vox)->version();
+            comp::choose (c.project, vox, v.takes[0].id, PPQ * 4, PPQ * 8);
+            v.takesShown = true;
+            for (auto& cl : v.clips) { cl.audio.fadeIn = 0.15; cl.audio.fadeOut = 0.3; }
+        }
         c.focusTrack = c.project.tracks[1].id;
         c.selectedTracks = { c.focusTrack };
         c.cursor = PPQ * 6;

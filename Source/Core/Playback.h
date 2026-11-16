@@ -16,6 +16,7 @@
         it to another channel, and has its own delay on top of the track's.
       - Looped clips are unrolled, clip offsets and mutes respected, and
         notes are cut at the clip's end.
+      - Audio clips that overlap crossfade over the overlap (decision 0030).
 
     Plug-in latency is not here: the audio graph lines plug-ins up with each
     other (plug-in delay compensation, decision 0016).
@@ -27,6 +28,7 @@
 
 #include "Model.h"
 
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -48,7 +50,7 @@ struct AudioRegion
     double endSeconds = 0;
     double sourceSeconds = 0;    // where in the (warped) source the region starts
     double gain = 1.0;
-    double fadeIn = 0, fadeOut = 0;
+    double fadeIn = 0, fadeOut = 0;   // seconds; equal-power curves (fadeGain)
     std::string file;
 };
 
@@ -66,6 +68,14 @@ CompiledTrack compile (const Project&, const Track&);
 
 // Every tracks' compiled lists, for the engine to swap in.
 std::vector<CompiledTrack> compileAll (const Project&);
+
+// An equal-power fade's gain, `into` seconds into a fade `length` long (0 to 1).
+inline double fadeGain (double into, double length)
+{
+    if (length <= 0 || into >= length) return 1.0;
+    if (into <= 0) return 0.0;
+    return std::sin (1.5707963267948966 * into / length);
+}
 
 // The first message at or after `seconds` (binary search).
 size_t firstAtOrAfter (const std::vector<MidiMessage>&, double seconds);

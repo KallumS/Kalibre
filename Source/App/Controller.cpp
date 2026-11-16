@@ -1,6 +1,7 @@
 #include "Controller.h"
 
 #include "Capture.h"
+#include "Comp.h"
 #include "Harmony.h"
 #include "LuaHost.h"
 #include "MorphProcessor.h"
@@ -193,7 +194,10 @@ void Controller::finishRecording()
 {
     wasRecording = false;
     engine.setRecording (false);
-    std::vector<std::pair<Id, Clip>> made;
+    // What each armed track recorded: one clip, or a take per pass of the loop (decision 0029).
+    struct Recorded { Id track; std::vector<Clip> passes; };
+    std::vector<Recorded> made;
+    const bool looping = project.loop.on && ! project.punch.on && project.loop.end > project.loop.start;
     for (auto& t : project.tracks)
     {
         if (! t.armed) continue;
@@ -210,7 +214,7 @@ void Controller::finishRecording()
             {
                 Clip c;
                 c.kind = Clip::Kind::Audio;
-                c.name = t.name + " Take";
+                c.name = t.name;
                 c.start = project.tempo.tickAt (startSeconds);
                 c.length = std::max<Tick> (1, project.tempo.tickAt (startSeconds + seconds) - c.start);
                 c.audio.file = f.getFullPathName().toStdString();
@@ -222,13 +226,13 @@ void Controller::finishRecording()
                     // Only what fell inside the punch range is kept.
                     const Tick a = std::max (c.start, project.punch.start), b = std::min (c.end(), project.punch.end);
                     if (b <= a) continue;
-                    c.offset = a - c.start;
                     c.audio.sourceStart = project.tempo.secondsAt (a) - startSeconds;
                     c.start = a;
                     c.length = b - a;
                     c.offset = 0;
                 }
-                made.push_back ({ t.id, c });
+                made.push_back ({ t.id, looping ? comp::audioPasses (c, seconds, project.tempo, project.loop.start, project.loop.end)
+                                                : std::vector<Clip> { c } });
             }
             else f.deleteFile();
         }
@@ -246,37 +250,77 @@ void Controller::finishRecording()
             events.push_back (e);
         }
         s->playedFifo.finishedRead (n1 + n2);
-        if (! events.empty())
+        if (events.empty()) continue;
+        Recorded midi { t.id, {} };
+        for (auto& pass : looping ? comp::midiPasses (events) : std::vector<std::vector<capture::Event>> { events })
         {
-            const auto r = capture::lastPerformance (events, project.tempo, cursor, 1.0e9);
-            if (! r.notes.empty())
+            const auto r = capture::lastPerformance (pass, project.tempo, cursor, 1.0e9);
+            if (r.notes.empty()) continue;
+            Clip c;
+            c.kind = Clip::Kind::Midi;
+            c.name = t.name;
+            c.start = looping ? project.loop.start : r.start;
+            c.length = looping ? project.loop.end - project.loop.start : r.length;
+            c.midi.notes = r.notes;
+            c.midi.events = r.events;
+            if (looping)
             {
-                Clip c;
-                c.kind = Clip::Kind::Midi;
-                c.name = t.name;
-                c.start = r.start;
-                c.length = r.length;
-                c.midi.notes = r.notes;
-                c.midi.events = r.events;
-                if (project.punch.on)
-                {
-                    auto& n = c.midi.notes;
-                    n.erase (std::remove_if (n.begin(), n.end(), [&] (const Note& x)
-                    {
-                        const Tick at = c.start + x.start;
-                        return at < project.punch.start || at >= project.punch.end;
-                    }), n.end());
-                }
-                if (! c.midi.notes.empty()) made.push_back ({ t.id, c });
+                // Each pass is placed on the loop.
+                for (auto& n : c.midi.notes) n.start += r.start - project.loop.start;
+                for (auto& e : c.midi.events) e.tick += r.start - project.loop.start;
             }
+            if (project.punch.on)
+            {
+                auto& n = c.midi.notes;
+                n.erase (std::remove_if (n.begin(), n.end(), [&] (const Note& x)
+                {
+                    const Tick at = c.start + x.start;
+                    return at < project.punch.start || at >= project.punch.end;
+                }), n.end());
+            }
+            if (! c.midi.notes.empty()) midi.passes.push_back (c);
         }
+        if (! midi.passes.empty()) made.push_back (midi);
     }
     if (made.empty()) return;
-    apply ("Record", [made] (Project& p)
+    int takes = 0;
+    apply ("Record", [&made, &takes] (Project& p)
     {
-        for (auto& [track, clip] : made) edit::addClip (p, track, clip);
+        for (auto& rec : made)
+        {
+            auto* t = p.track (rec.track);
+            if (! t) continue;
+            auto& v = t->version();
+            const bool audio = ! rec.passes.front().isMidi();
+            const Tick a = rec.passes.front().start, b = rec.passes.back().end();
+            // Recording audio over audio, or going round a loop, makes takes to comp from.
+            bool overlaps = false;
+            for (auto& c : v.clips)
+                if (c.fromTake == 0 && ! c.isMidi() && audio && c.end() > a && c.start < std::max (b, rec.passes.front().end())) overlaps = true;
+            const bool asTakes = rec.passes.size() > 1 || ! v.takes.empty() || overlaps;
+            if (! asTakes)
+            {
+                edit::addClip (p, rec.track, rec.passes.front());
+                continue;
+            }
+            if (v.takes.empty() && overlaps)
+            {
+                // What was there becomes the first take.
+                std::vector<Clip> before;
+                for (auto& c : v.clips) if (c.fromTake == 0 && ! c.isMidi() && c.end() > a && c.start < b) before.push_back (c);
+                v.clips.erase (std::remove_if (v.clips.begin(), v.clips.end(), [&] (const Clip& c)
+                {
+                    return c.fromTake == 0 && ! c.isMidi() && c.end() > a && c.start < b;
+                }), v.clips.end());
+                comp::addTake (p, rec.track, before);
+                ++takes;
+            }
+            for (auto& pass : rec.passes) { comp::addTake (p, rec.track, { pass }); ++takes; }
+            v.takesShown = true;
+        }
     });
-    say ("Recorded " + String ((int) made.size()) + (made.size() == 1 ? " take." : " takes."), false, true);
+    if (takes > 0) say ("Recorded " + String (takes) + " takes. The newest plays; drag across another take's lane to use it there instead.", false, true);
+    else say ("Recorded " + String ((int) made.size()) + (made.size() == 1 ? " take." : " takes."), false, true);
 }
 
 void Controller::locate (Tick t)

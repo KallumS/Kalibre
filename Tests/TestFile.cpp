@@ -41,3 +41,9 @@ TEST ("file: not a project, a newer project, missing fields")
     CHECK_EQ (q->tracks.front().versions.size(), size_t (1));
     CHECK (q->nextId > 5);
 }
+
+bool roundTrips (const Project& p)
+{
+    const auto q = file::load (file::save (p));
+    return q && *q == p;
+}

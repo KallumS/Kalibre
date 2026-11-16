@@ -131,6 +131,15 @@ CompiledTrack compile (const Project& p, const Track& t)
     {
         return a.startSeconds < b.startSeconds;
     });
+    // Where audio clips overlap, they crossfade over the overlap (decision 0030).
+    for (size_t i = 0; i + 1 < out.audio.size(); ++i)
+        for (size_t j = i + 1; j < out.audio.size() && out.audio[j].startSeconds < out.audio[i].endSeconds; ++j)
+        {
+            const double overlap = std::min (out.audio[i].endSeconds, out.audio[j].endSeconds) - out.audio[j].startSeconds;
+            if (overlap <= 0) continue;
+            out.audio[i].fadeOut = std::max (out.audio[i].fadeOut, out.audio[i].endSeconds - out.audio[j].startSeconds);
+            out.audio[j].fadeIn = std::max (out.audio[j].fadeIn, overlap);
+        }
     return out;
 }
 

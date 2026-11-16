@@ -97,7 +97,12 @@ private:
     juce::ScrollBar vbar { true }, hbar { false };
     int scrollY = 0;
 
-    struct Row { Id track; int y, h; int automation = -1; };   // automation: lane index, or -1 for the clips
+    // A row is a track's clips, one of its automation lanes, or one of its takes.
+    struct Row
+    {
+        Id track; int y, h; int automation = -1; int take = -1;
+        bool isClips() const { return automation < 0 && take < 0; }
+    };
     std::vector<Row> rows;
     int contentHeight = 0;
 
@@ -105,7 +110,7 @@ private:
     juce::uint32 chordsFor = 0;
 
     // Dragging.
-    enum class Drag { None, Cursor, Loop, MoveClip, TrimStart, TrimEnd, Point, Tempo, Marker, WarpMarker };
+    enum class Drag { None, Cursor, Loop, MoveClip, TrimStart, TrimEnd, Point, Tempo, Marker, WarpMarker, Swipe, FadeIn, FadeOut };
     Drag drag = Drag::None;
     Id dragClip = 0;
     Tick dragOrigin = 0, dragOffset = 0;
@@ -131,6 +136,9 @@ private:
     void drawTempoLane (juce::Graphics&, juce::Rectangle<int>);
     void drawClip (juce::Graphics&, const Track&, const Clip&, juce::Rectangle<float>, bool chosen);
     void drawAutomation (juce::Graphics&, const Track&, const AutomationLane&, juce::Rectangle<int>);
+    void drawTake (juce::Graphics&, const Track&, int take, juce::Rectangle<int>);
+    int swipeTake = -1;
+    Tick swipeFrom = 0, swipeTo = 0;
     const std::vector<float>& peaksFor (const juce::String& file);
     void clipMenu (Id clip);
     void laneMenu (const Row&, juce::Point<int>);

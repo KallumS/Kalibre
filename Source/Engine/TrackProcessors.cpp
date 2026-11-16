@@ -191,8 +191,8 @@ void TrackSource::playSegment (const Data& d, double from, double to, int offset
             if (p < 0 || p >= buf.getNumSamples()) continue;
             const double into = t - r.startSeconds;
             float g = (float) r.gain;
-            if (r.fadeIn > 0 && into < r.fadeIn) g *= (float) jmax (0.0, into / r.fadeIn);
-            if (r.fadeOut > 0 && regionLength - into < r.fadeOut) g *= (float) ((regionLength - into) / r.fadeOut);
+            g *= (float) playback::fadeGain (into, r.fadeIn);
+            g *= (float) playback::fadeGain (regionLength - into, r.fadeOut);
             audio.addSample (0, offset + s, g * buf.getSample (0, p));
             audio.addSample (1, offset + s, g * buf.getSample (lastChannel, p));
         }

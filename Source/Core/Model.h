@@ -144,6 +144,7 @@ struct Device
     bool bypassed = false;
     bool active = true;        // false: unloaded, state kept (decision 0010)
     bool useAra = true;        // ARA plug-ins (Melodyne) read the clips directly
+    Id sidechainFrom = 0;      // a track whose sound feeds the plug-in's sidechain input (decision 0031)
     std::string araState;      // base64; what an ARA plug-in keeps about its edits
     float editorScale = 1.0f;  // last scale the lower zone gave its editor
 
@@ -180,10 +181,30 @@ struct Clip
     MidiData midi;
     AudioData audio;
     OfflineFx offlineFx;
+    Id fromTake = 0;          // made by the comp from this take (decision 0029); 0 for an ordinary clip
 
     Tick end() const { return start + length; }
     bool isMidi() const { return kind == Kind::Midi; }
     bool operator== (const Clip&) const = default;
+};
+
+// One pass of recording (decision 0029): every pass of a loop is a take.
+struct Take
+{
+    Id id = 0;
+    std::string name;          // "Take 3"
+    std::vector<Clip> clips;
+
+    bool operator== (const Take&) const = default;
+};
+
+// Which take plays over a stretch of time: the comp.
+struct CompSegment
+{
+    Tick start = 0, end = 0;
+    Id take = 0;
+
+    bool operator== (const CompSegment&) const = default;
 };
 
 struct TrackVersion
@@ -191,6 +212,9 @@ struct TrackVersion
     Id id = 0;
     std::string name;          // "Version 2"
     std::vector<Clip> clips;   // sorted by start
+    std::vector<Take> takes;   // oldest first
+    std::vector<CompSegment> comp;
+    bool takesShown = false;   // the take lanes open under the track
 
     bool operator== (const TrackVersion&) const = default;
 };
@@ -418,6 +442,17 @@ struct MetronomeSettings
     bool operator== (const MetronomeSettings&) const = default;
 };
 
+// A knob, fader or button on a MIDI controller, learned onto a control (decision 0032).
+struct MidiMapping
+{
+    int channel = 0;           // 1-16, 0 any
+    int controller = 1;        // CC number; 128 for pitch bend
+    Id track = 0;              // whose control
+    AutoTarget target;         // Volume, Pan, Mute or DeviceParam
+    std::string name;          // shown in the list
+    bool operator== (const MidiMapping&) const = default;
+};
+
 struct Project
 {
     std::string name = "Untitled";
@@ -429,6 +464,7 @@ struct Project
     ScaleChoice scale;
     MetronomeSettings metronome;
     std::vector<ArticulationMap> articulationMaps;
+    std::vector<MidiMapping> midiMappings;
     double sampleRate = 48000;
     Id nextId = 1;
 

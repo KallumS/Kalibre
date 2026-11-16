@@ -38,11 +38,13 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (WarpMarker, sourceSeconds, tick
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AudioData, file, sourceStart, sourceLength, fileSampleRate, fileChannels, gainDb,
                                                  fadeIn, fadeOut, reversed, transpose, warp, sourceBpm, markers, renderedFile)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (PluginRef, format, identifier, name, manufacturer, uid, isInstrument, description)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Device, id, role, plugin, state, bypassed, active, useAra, araState, editorScale)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Device, id, role, plugin, state, bypassed, active, useAra, araState, sidechainFrom, editorScale)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (OfflineFx, chain, includeTail)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Clip, id, kind, name, start, length, offset, loopLength, colour, muted, locked,
-                                                 midi, audio, offlineFx)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackVersion, id, name, clips)
+                                                 midi, audio, offlineFx, fromTake)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Take, id, name, clips)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (CompSegment, start, end, take)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackVersion, id, name, clips, takes, comp, takesShown)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AutoTarget, kind, device, param, send, paramName)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AutoPoint, tick, value, curve, step)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (AutomationLane, id, target, points, shown)
@@ -60,6 +62,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Track, id, name, colour, kind, 
                                                  delayMs, group, input, output, versions, activeVersion, devices, sends,
                                                  automation, autoMode, modulators, articulationMap)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Marker, id, tick, name)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiMapping, channel, controller, track, target, name)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Range, start, end, on)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (ScaleChoice, root, scale, highlight)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MetronomeSettings, on, countIn, countInBars, preRollBars, volumeDb, subdivision,
@@ -96,6 +99,7 @@ std::string save (const Project& p)
     j["scale"] = p.scale;
     j["metronome"] = p.metronome;
     j["articulationMaps"] = p.articulationMaps;
+    j["midiMappings"] = p.midiMappings;
     j["sampleRate"] = p.sampleRate;
     j["nextId"] = p.nextId;
     return j.dump (1, '\t');
@@ -128,6 +132,7 @@ std::optional<Project> load (const std::string& text, std::string* error)
         if (j.contains ("scale")) p.scale = j.at ("scale").get<ScaleChoice>();
         if (j.contains ("metronome")) p.metronome = j.at ("metronome").get<MetronomeSettings>();
         if (j.contains ("articulationMaps")) p.articulationMaps = j.at ("articulationMaps").get<std::vector<ArticulationMap>>();
+        if (j.contains ("midiMappings")) p.midiMappings = j.at ("midiMappings").get<std::vector<MidiMapping>>();
         p.sampleRate = j.value ("sampleRate", p.sampleRate);
         p.nextId = j.value ("nextId", p.nextId);
 
@@ -142,6 +147,7 @@ std::optional<Project> load (const std::string& text, std::string* error)
             {
                 see (v.id);
                 for (auto& c : v.clips) { see (c.id); for (auto& n : c.midi.notes) see (n.id); }
+                for (auto& tk : v.takes) { see (tk.id); for (auto& c : tk.clips) { see (c.id); for (auto& n : c.midi.notes) see (n.id); } }
             }
             for (auto& d : t.devices) see (d.id);
             for (auto& a : t.automation) see (a.id);
