@@ -14,6 +14,11 @@ this one (the pitches and the time between them); Option-click adds a note;
 Shift-Option-click takes one out; Shift-Option-drag takes an area out.
 Shift-drag still chooses an area, and Option-drag still copies.
 
+Changed by the user, 17 November 2026: a new note is as long as the last
+note added, clicked or stretched (the grid's length until there's one), so
+after drawing a 1/8 note the next click makes a 1/8; click a 1/16 note and
+the next is a 1/16.
+
 ## Consequences
 
 There's no pencil or eraser tool: the buttons are the tools.

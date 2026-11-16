@@ -200,3 +200,40 @@ TEST ("roll: Command drags off the grid")
     const auto o = g.drag ({ PPQ / 2 + 37, 60, false, false, false, true });
     CHECK_EQ (o.dt, Tick (37));
 }
+
+TEST ("roll: a new note takes the length of the last note added, clicked or stretched")
+{
+    // A 1/8 note and a 1/16 note.
+    std::vector<Note> notes { { 1, 0, PPQ / 2, 60, 100 }, { 2, PPQ * 2, PPQ / 4, 64, 100 } };
+
+    // Drawn out to an 1/8: that's what the next one gets.
+    Gesture g (notes, {}, settings());
+    g.press ({ PPQ * 4, 67 });
+    g.drag ({ PPQ * 4 + PPQ / 2, 67 });
+    auto o = g.release ({ PPQ * 4 + PPQ / 2, 67 });
+    CHECK (o.action == Action::AddNote);
+    CHECK_EQ (o.noteLength, Tick (PPQ / 2));
+
+    // Clicking the 1/16 note: the next is a 1/16.
+    Gesture h (notes, {}, settings());
+    h.press ({ PPQ * 2 + PPQ / 8, 64 });
+    o = h.release ({ PPQ * 2 + PPQ / 8, 64 });
+    CHECK_EQ (o.noteLength, Tick (PPQ / 4));
+
+    // Stretching the 1/8 to a 1/4: the next is a 1/4.
+    Gesture k (notes, {}, settings());
+    k.press ({ PPQ / 2 - 5, 60 });
+    k.drag ({ PPQ - 5, 60 });
+    o = k.release ({ PPQ - 5, 60 });
+    CHECK (o.action == Action::ResizeNotes);
+    CHECK_EQ (o.noteLength, Tick (PPQ));
+
+    // A plain click in empty space adds a note of that length (the window passes it as the default).
+    auto s = settings();
+    s.defaultLength = PPQ;
+    Gesture m (notes, {}, s);
+    o = m.press ({ PPQ * 8, 70 });
+    CHECK_EQ (o.added.length, Tick (PPQ));
+    o = m.release ({ PPQ * 8, 70 });
+    CHECK_EQ (o.noteLength, Tick (PPQ));
+}

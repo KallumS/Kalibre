@@ -43,7 +43,7 @@ Every feature asked for, then the list of basic DAW features
 | Retrospective recording, MIDI and audio | Yes | Transport > Capture MIDI / Capture Audio; tested (0017) |
 | Warping: granular, spectral, repitch | Yes | All three, from the file's tempo or warp markers, tested (0022). Markers are added at the cursor (right-click > Warp) and dragged along the clip |
 | Offline effects on clips | Yes | Right-click a clip > Offline Effects (0026): add plug-ins, Edit Their Settings (their windows in the Devices tab, 0039), Render |
-| Piano roll mouse rules | Yes | Exactly as asked, tested (0009); choosing notes as everywhere else since 17 November (0053) |
+| Piano roll mouse rules | Yes | Exactly as asked, tested (0009); choosing notes as everywhere else since 17 November (0053); a new note is as long as the last one added, clicked or stretched |
 | Menus in the title bar | Yes | The Mac's menu bar (0027) |
 | Apple's guidelines and the house colours | Yes | docs/apple-hig-review.md, docs/COLOUR.md; contrast tested |
 

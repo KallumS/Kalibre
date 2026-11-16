@@ -18,6 +18,9 @@
         it (the pitches and the time between them); Option-click adds it;
         Shift-Option-click takes it out.
       - Hold Command while dragging to move off the grid.
+      - A new note is as long as the last note added, clicked or stretched
+        (asked for, 17 November): the window keeps that length and passes it
+        as Settings::defaultLength.
 
     The window turns the mouse into ticks and pitches and asks the gesture
     what to show while dragging (preview) and what to do once let go
@@ -84,6 +87,9 @@ struct Outcome
     bool selectionChanged = false;
     bool audition = false;             // play the note that was clicked or added
     int auditionPitch = -1;
+    // On release: the length the next new note takes, from the note just
+    // added, clicked or stretched (asked for, 17 November); 0 leaves it.
+    Tick noteLength = 0;
 
     // An area being dragged out, to draw (Select or RemoveNotes).
     bool showArea = false;

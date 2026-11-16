@@ -372,7 +372,8 @@ roll::Settings PianoRoll::settings() const
 {
     roll::Settings s;
     s.edgeTicks = timeline.ticksFor ((float) theme::px (6));
-    s.defaultLength = c.grid;
+    // As long as the last note added, clicked or stretched; the grid until there's one.
+    s.defaultLength = lastLength > 0 ? lastLength : c.grid;
     s.minLength = c.snap ? c.grid : 1;
     const Tick b = base();
     if (c.snap)
@@ -454,6 +455,7 @@ void PianoRoll::mouseUp (const MouseEvent& e)
     if (! gesture) return;
     const auto out = gesture->release (pointerFor (e));
     noteAnchor = gesture->anchor();   // where the next Shift-click range starts (decision 0053)
+    if (out.noteLength > 0) lastLength = out.noteLength;
     gesture.reset();
     preview = {};
     commit (out);

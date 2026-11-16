@@ -222,6 +222,7 @@ Outcome Gesture::release (const Pointer& p)
                 {
                     const Note* from = nullptr;
                     for (auto& n : notes) if (n.id == anchorNote) from = &n;
+                    o.noteLength = hit->length;
                     if (subtracting) chosen.erase (hit->id);
                     else if (from)
                     {
@@ -231,9 +232,11 @@ Outcome Gesture::release (const Pointer& p)
                     }
                     else { chosen = { hit->id }; anchorNote = hit->id; }
                 }
+                const Tick clickedLength = o.noteLength;
                 o.action = Action::Select;
                 o.selection = chosen;
                 o.selectionChanged = true;
+                o.noteLength = clickedLength;
                 break;
             }
             o = areaOutcome (p, Action::Select);
@@ -248,6 +251,7 @@ Outcome Gesture::release (const Pointer& p)
             o = dragged ? drag (p) : last;
             o.action = Action::AddNote;
             o.audition = false;
+            o.noteLength = o.added.length;
             break;
         case Mode::Moving:
         case Mode::ResizingStart:
@@ -268,6 +272,8 @@ Outcome Gesture::release (const Pointer& p)
                 if (o.action == Action::ResizeNotes && o.dStart == 0 && o.dEnd == 0)
                     o.action = Action::Select;
             }
+            // The note clicked, as it is now (stretched or not), sets the next one's length.
+            o.noteLength = grabbed.length + (o.action == Action::ResizeNotes ? o.dEnd - o.dStart : 0);
             break;
         case Mode::Idle:
             break;
