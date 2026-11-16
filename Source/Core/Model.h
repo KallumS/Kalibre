@@ -417,6 +417,12 @@ struct TrackInput
     bool operator== (const TrackInput&) const = default;
 };
 
+// What an armed track records (decisions 0064, 0065): the sound coming in
+// (click, red); the MIDI its instrument is played, arpeggiators and MIDI
+// effects included (right-click, blue); both (Shift-click); or the MIDI
+// played in, before any plug-in (Shift-right-click).
+enum class ArmFor { Audio, Midi, Both, MidiInput };
+
 struct Track
 {
     Id id = 0;
@@ -431,9 +437,10 @@ struct Track
     double pan = 0.0;            // -1..1
     double frontBack = 1.0;      // in a surround mix: -1 behind .. 1 in front (decision 0040)
     bool mute = false, solo = false, armed = false;
-    // Armed for MIDI (decision 0064): records what its instrument is played,
-    // MIDI effects' notes included, instead of the sound coming in.
-    bool armMidi = false;
+    ArmFor armFor = ArmFor::Audio;   // what it records when armed (decisions 0064, 0065)
+    bool armedAudio() const   { return armed && (armFor == ArmFor::Audio || armFor == ArmFor::Both); }
+    bool armedPlugins() const { return armed && (armFor == ArmFor::Midi || armFor == ArmFor::Both); }
+    bool armedMidiIn() const  { return armed && armFor == ArmFor::MidiInput; }
     Monitor monitor = Monitor::Auto;
     bool phaseInvert = false, mono = false;
     bool locked = false, hidden = false, enabled = true;

@@ -436,7 +436,7 @@ void propagateLinks (const Project& before, Project& after)
 std::vector<TrackMix> mixOf (const Project& p)
 {
     std::vector<TrackMix> out;
-    for (auto& t : p.tracks) out.push_back ({ t.id, t.group, t.volumeDb, t.pan, t.mute, t.solo, t.armed, t.armMidi });
+    for (auto& t : p.tracks) out.push_back ({ t.id, t.group, t.volumeDb, t.pan, t.mute, t.solo, t.armed, t.armFor });
     return out;
 }
 
@@ -451,7 +451,7 @@ void propagateGroups (const std::vector<TrackMix>& before, Project& after)
         auto it = old.find (t.id);
         if (it == old.end() || it->second.group != t.group) continue;
         const auto& o = it->second;
-        if (o.volumeDb != t.volumeDb || o.pan != t.pan || o.mute != t.mute || o.solo != t.solo || o.armed != t.armed || o.armMidi != t.armMidi)
+        if (o.volumeDb != t.volumeDb || o.pan != t.pan || o.mute != t.mute || o.solo != t.solo || o.armed != t.armed || o.armFor != t.armFor)
             leader[t.group] = &t;
     }
     for (auto& [group, lead] : leader)
@@ -469,10 +469,10 @@ void propagateGroups (const std::vector<TrackMix>& before, Project& after)
             if (o.pan != lead->pan && mine.pan == t.pan) t.pan = std::clamp (t.pan + (lead->pan - o.pan), -1.0, 1.0);
             if (o.mute != lead->mute) t.mute = lead->mute;
             if (o.solo != lead->solo) t.solo = lead->solo;
-            if ((o.armed != lead->armed || o.armMidi != lead->armMidi) && t.holdsClips())
+            if ((o.armed != lead->armed || o.armFor != lead->armFor) && t.holdsClips())
             {
                 t.armed = lead->armed;
-                t.armMidi = lead->armMidi && t.kind != TrackKind::Summing;
+                t.armFor = t.kind == TrackKind::Summing ? ArmFor::Audio : lead->armFor;
             }
         }
     }

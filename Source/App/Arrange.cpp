@@ -37,7 +37,8 @@ TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), 
     arm.onClick = [this]
     {
         if (c.optionAdds (id)) { refreshButtons(); return; }
-        c.arm (id, std::exchange (arm.right, false));
+        const bool right = std::exchange (arm.right, false), shift = std::exchange (arm.shift, false);
+        c.arm (id, right ? (shift ? ArmFor::MidiInput : ArmFor::Midi) : (shift ? ArmFor::Both : ArmFor::Audio));
         refreshButtons();
     };
     fold.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Fold", [this] (Project& p) { if (auto* t = p.track (id)) t->collapsed = ! t->collapsed; }); };
@@ -57,10 +58,18 @@ void TrackHeader::update (const Track& t)
     mute.setToggleState (t.mute, dontSendNotification);
     solo.setToggleState (t.solo, dontSendNotification);
     arm.setToggleState (t.armed, dontSendNotification);
-    arm.getProperties().set ("onColour", (int64) (t.armMidi ? theme::armMidi : theme::armAudio).getARGB());
-    arm.setTip (! t.armed ? "Click to arm for recording audio (red); right-click to arm for recording MIDI (blue)."
-                : t.armMidi ? "Armed for MIDI: records what the instrument is played, arpeggiators and MIDI effects included. Right-click to disarm; click for audio instead."
-                            : "Armed for audio: records the sound coming in. Click to disarm; right-click for MIDI instead.");
+    // Red for audio, blue for MIDI, half each for both; "In" for MIDI input (decisions 0064, 0065).
+    const auto how = t.armFor;
+    arm.getProperties().set ("onColour", (int64) (how == ArmFor::Audio || how == ArmFor::Both ? theme::armAudio : theme::armMidi).getARGB());
+    if (how == ArmFor::Both) arm.getProperties().set ("onColour2", (int64) theme::armMidi.getARGB());
+    else arm.getProperties().remove ("onColour2");
+    arm.setButtonText (t.armed && how == ArmFor::MidiInput ? "In" : "R");
+    const String ways = "Click: audio (red). Right-click: MIDI, as the instrument plays it (blue). Shift-click: both. Shift-right-click: MIDI as it comes in.";
+    arm.setTip (! t.armed ? "Arm for recording. " + ways
+                : how == ArmFor::Audio ? "Armed for audio: records the sound coming in. Click again to disarm. " + ways
+                : how == ArmFor::Midi ? "Armed for MIDI: records what the instrument is played, arpeggiators and MIDI effects included. Right-click again to disarm. " + ways
+                : how == ArmFor::Both ? "Armed for audio and MIDI: the sound coming in, and what the instrument is played. Shift-click again to disarm. " + ways
+                                      : "Armed for MIDI input: records the notes as they come in, before any plug-in. Shift-right-click again to disarm. " + ways);
     arm.repaint();
     arm.setVisible (t.holdsClips());
     version.setVisible (t.holdsClips());

@@ -909,7 +909,7 @@ TEST ("swing and gate: a drag of the drum grid's or step sequencer's slider move
     CHECK_EQ (c.project.clip (clip)->stepsFeel.gate, 0.25);
 }
 
-TEST ("arming: left-click arms for audio (red), right-click for MIDI (blue); a click again disarms; groups follow")
+TEST ("arming: click for audio (red), right-click for MIDI (blue), Shift-click for both, Shift-right-click for MIDI input; the same again disarms")
 {
     PluginManager plugins;
     Engine engine (plugins);
@@ -917,24 +917,32 @@ TEST ("arming: left-click arms for audio (red), right-click for MIDI (blue); a c
     c.project = Project();
     const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
     c.refresh();
-    c.arm (t, false);
-    CHECK (c.project.track (t)->armed && ! c.project.track (t)->armMidi);
-    c.arm (t, true);                                         // right-click: now armed for MIDI instead
-    CHECK (c.project.track (t)->armed && c.project.track (t)->armMidi);
-    c.arm (t, true);                                         // again: off
-    CHECK (! c.project.track (t)->armed);
-    c.arm (t, false);
-    c.arm (t, false);
-    CHECK (! c.project.track (t)->armed);
+    auto track = [&] { return c.project.track (t); };
+    c.arm (t, ArmFor::Audio);
+    CHECK (track()->armedAudio() && ! track()->armedPlugins() && ! track()->armedMidiIn());
+    c.arm (t, ArmFor::Midi);                                 // another kind: switched to it
+    CHECK (! track()->armedAudio() && track()->armedPlugins());
+    c.arm (t, ArmFor::Midi);                                 // the same again: off
+    CHECK (! track()->armed);
+    c.arm (t, ArmFor::Both);
+    CHECK (track()->armedAudio() && track()->armedPlugins() && ! track()->armedMidiIn());
+    c.arm (t, ArmFor::MidiInput);
+    CHECK (! track()->armedAudio() && ! track()->armedPlugins() && track()->armedMidiIn());
+    c.arm (t, ArmFor::MidiInput);
+    CHECK (! track()->armed);
     // A Summing track records sound only.
     const Id sum = edit::addTrack (c.project, TrackKind::Summing, "Summing");
     c.refresh();
-    c.arm (sum, true);
-    CHECK (! c.project.track (sum)->armMidi);
+    for (auto how : { ArmFor::Midi, ArmFor::Both, ArmFor::MidiInput })
+    {
+        c.arm (sum, how);
+        CHECK (c.project.track (sum)->armed && c.project.track (sum)->armFor == ArmFor::Audio);
+        c.arm (sum, ArmFor::Audio);
+    }
     // Saved.
-    c.arm (t, true);
+    c.arm (t, ArmFor::Both);
     auto loaded = file::load (file::save (c.project));
-    CHECK (loaded && loaded->track (t)->armed && loaded->track (t)->armMidi);
+    CHECK (loaded && loaded->track (t)->armed && loaded->track (t)->armFor == ArmFor::Both);
 }
 
 TEST ("arming for MIDI: what a free-running arpeggiator plays into the instrument is recorded as a MIDI clip; armed for audio, it isn't")
@@ -951,7 +959,7 @@ TEST ("arming for MIDI: what a free-running arpeggiator plays into the instrumen
     c.focusTrack = t;
     c.refresh();
     startLive (engine, device, c.project);
-    c.arm (t, true);
+    c.arm (t, ArmFor::Midi);
     c.refresh();
 
     c.cursor = 0;
@@ -973,7 +981,7 @@ TEST ("arming for MIDI: what a free-running arpeggiator plays into the instrumen
     }
 
     // Armed for audio instead: its sound coming in is recorded, but no MIDI from it.
-    c.arm (t, false);
+    c.arm (t, ArmFor::Audio);
     c.refresh();
     c.cursor = 0;
     c.record();
@@ -981,4 +989,56 @@ TEST ("arming for MIDI: what a free-running arpeggiator plays into the instrumen
     c.stop();
     const auto& after = c.project.track (t)->clips();
     CHECK_EQ (std::count_if (after.begin(), after.end(), [] (const Clip& x) { return x.isMidi(); }), 1);
+}
+
+TEST ("arming for both records the sound coming in and the instrument's MIDI; for MIDI input, the keys played, not the arpeggiator's notes")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    c.project.tempo.setTempos ({ { 0, 120.0, false } });
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Arp");
+    c.project.track (t)->input.audioChannel = 0;
+    edit::addDevice (c.project, t, PluginRef { "Kalibre", "test-arp", "Arp" }, DeviceRole::MidiFx);
+    edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+    c.focusTrack = t;
+    c.refresh();
+    startLive (engine, device, c.project);
+    auto count = [&] (bool midi)
+    {
+        const auto& clips = c.project.track (t)->clips();
+        return (int) std::count_if (clips.begin(), clips.end(), [midi] (const Clip& x) { return x.isMidi() == midi; });
+    };
+
+    // Both: an audio clip and a MIDI clip of the arpeggiator's notes.
+    c.arm (t, ArmFor::Both);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 1.0);
+    c.stop();
+    CHECK_EQ (count (false), 1);
+    CHECK_EQ (count (true), 1);
+
+    // MIDI input: a key played (E4), not the arpeggiator's C5s; no sound recorded.
+    c.arm (t, ArmFor::MidiInput);
+    c.refresh();
+    c.cursor = c.project.tempo.tickAt (4.0);
+    c.record();
+    playLive (engine, 0.25);
+    engine.playIn (MidiMessage::noteOn (1, 64, (uint8) 90));
+    playLive (engine, 0.5);
+    engine.playIn (MidiMessage::noteOff (1, 64));
+    playLive (engine, 0.25);
+    c.stop();
+    CHECK_EQ (count (false), 1);
+    CHECK_EQ (count (true), 2);
+    for (auto& clip : c.project.track (t)->clips())
+        if (clip.isMidi() && clip.start >= c.project.tempo.tickAt (3.9))
+        {
+            CHECK_EQ (clip.midi.notes.size(), size_t (1));
+            if (! clip.midi.notes.empty()) CHECK_EQ (clip.midi.notes.front().pitch, 64);
+        }
 }

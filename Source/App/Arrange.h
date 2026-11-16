@@ -48,14 +48,14 @@ private:
     theme::HouseButton version { "1", "This track's versions: choose one, or make a new one." };
     theme::HouseButton mute { "M", "Mute.", true };
     theme::HouseButton solo { "S", "Solo.", true };
-    // Which button pressed it: a click arms for audio, a right-click for MIDI
-    // (decision 0064). A click is acted on as the button comes up, when the
+    // Which button pressed it: a click arms for audio, a right-click for MIDI,
+    // with Shift for both or for MIDI input (decisions 0064, 0065). A click is acted on as the button comes up, when the
     // mouse no longer says which it was, so it's kept from the press.
     struct ArmButton : theme::HouseButton
     {
         using HouseButton::HouseButton;
-        bool right = false;
-        void mouseDown (const juce::MouseEvent& e) override { right = e.mods.isPopupMenu(); HouseButton::mouseDown (e); }
+        bool right = false, shift = false;
+        void mouseDown (const juce::MouseEvent& e) override { right = e.mods.isPopupMenu(); shift = e.mods.isShiftDown(); HouseButton::mouseDown (e); }
     };
     ArmButton arm { "R", "Arm for recording.", true };
     theme::HouseButton fold { juce::String::fromUTF8 ("\xe2\x96\xbe"), "Fold the folder shut, or open it." };

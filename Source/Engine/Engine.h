@@ -96,6 +96,8 @@ public:
 
     //==========================================================================
     // Playing a note to hear it (clicking in the piano roll).
+    // A message as if played on a keyboard (the tests play notes in with it).
+    void playIn (const juce::MidiMessage& m) { handleIncomingMidiMessage (nullptr, m); }
     void audition (Id track, int pitch, int velocity = 100, double seconds = 0.3);
 
     //==========================================================================

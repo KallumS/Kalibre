@@ -40,7 +40,8 @@ grow and shrink with it.
   **MusicXML** in and out.
 - **Arm for audio or MIDI**: click a track's arm button for audio (red),
   right-click for MIDI (blue), which records what its instrument is played,
-  a free-running arpeggiator's notes included.
+  a free-running arpeggiator's notes included; Shift-click for both,
+  Shift-right-click for the MIDI as it comes in.
 - **Swing, gate and repeat** in the drum grid and step sequencer (swing
   and gate in the Euclidean too): a step can play up to eight times in its
   length, for flams, rolls and ratchets.

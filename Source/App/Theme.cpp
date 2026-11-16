@@ -162,6 +162,17 @@ void LookAndFeel::drawButtonBackground (Graphics& g, Button& b, const Colour& ba
     const auto radius = jmin (cornerRadius, area.getHeight() * 0.3f);
     g.setColour (fill);
     g.fillRoundedRectangle (area, radius);
+    // A second "on" colour fills the right half (armed for audio and MIDI, decision 0065).
+    if (const auto second = b.getProperties()["onColour2"]; ownOn && ! second.isVoid() && b.isEnabled())
+    {
+        Colour two ((uint32) (int64) second);
+        if (down) two = two.darker (0.2f); else if (highlighted) two = two.brighter (0.08f);
+        g.saveState();
+        g.reduceClipRegion (area.withLeft (area.getCentreX()).toNearestInt());
+        g.setColour (two);
+        g.fillRoundedRectangle (area, radius);
+        g.restoreState();
+    }
     if (b.hasKeyboardFocus (false)) drawFocusRing (g, area, radius);
 }
 

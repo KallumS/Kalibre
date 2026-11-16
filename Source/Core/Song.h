@@ -68,7 +68,8 @@ struct TrackMix
     Id id = 0;
     int group = 0;
     double volumeDb = 0, pan = 0;
-    bool mute = false, solo = false, armed = false, armMidi = false;
+    bool mute = false, solo = false, armed = false;
+    ArmFor armFor = ArmFor::Audio;
 };
 std::vector<TrackMix> mixOf (const Project&);
 void propagateGroups (const std::vector<TrackMix>& before, Project& after);

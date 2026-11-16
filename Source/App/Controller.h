@@ -98,10 +98,11 @@ public:
     void play();
     void stop();
     void record();
-    // Arms a track (decision 0064): for audio (left-click, red) or for MIDI
+    // Arms a track (decisions 0064, 0065): for audio (click, red), MIDI
     // (right-click, blue: what its instrument is played, arpeggiators and MIDI
-    // effects included). The same again disarms it.
-    void arm (Id track, bool midi);
+    // effects included), both (Shift-click) or MIDI input (Shift-right-click).
+    // The same again disarms it; another kind switches to it.
+    void arm (Id track, ArmFor);
     void locate (Tick);
     void goToStart();
     void toggleLoop();

@@ -66,3 +66,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0062. Random, from Good Idea](0062-random-from-good-idea.md)
 - [0063. Swing, gate and repeat](0063-swing-gate-and-repeat.md)
 - [0064. Arm for audio (click, red) or MIDI (right-click, blue)](0064-arm-for-audio-or-midi.md)
+- [0065. Shift to arm for both, or for MIDI input](0065-arm-for-both-or-midi-input.md)

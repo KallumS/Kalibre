@@ -1,5 +1,7 @@
 # 0064. Arm for audio (click, red) or MIDI (right-click, blue)
 
+(Extended by 0065: Shift-click for both, Shift-right-click for MIDI input; `armMidi` became `armFor`.)
+
 ## Context
 
 Asked on 16 November (night): the arm button, left-clicked, turns red and

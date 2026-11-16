@@ -33,7 +33,7 @@ Every feature asked for, then the list of basic DAW features
 | MIDI effects before instruments | Yes | Tested (0007) |
 | ARA (Melodyne) | Built, untried | 0028. The track's audio clips become the plug-in's playback regions; its edits are saved with the project. One document per plug-in, so Melodyne's multi-track view shows one track |
 | Scale chosen, chord shown at the top, scale shaded in the piano roll | Yes | Top bar (Scale, Chord), chord lane, View > Shade the Scale; ScaleView's reader, tested (0015) |
-| Arm for audio or MIDI | Yes | Click the arm button: red, records audio; right-click: blue, records MIDI, what the instrument is played, arpeggiators and MIDI effects included (or what it sends of its own); tested (0064) |
+| Arm for audio or MIDI | Yes | Click the arm button: red, records audio; right-click: blue, records MIDI, what the instrument is played, arpeggiators and MIDI effects included (or what it sends of its own); Shift-click: both; Shift-right-click: MIDI as it comes in, before any plug-in; tested (0064, 0065) |
 | Swing, gate and repeat | Yes | Swing and gate sliders in the drum grid, step sequencer and Euclidean, saved with each clip; Repeat (1-8 per step) in the drum grid and step sequencer's Velocity ▾ menu; tested (0063) |
 | Random patterns | Yes | Random in the drum grid (a Good Idea groove), the step sequencer (a Good Idea motif in the song's key) and the Euclidean (new rhythms for every drum): a new one each click, one undo step; tested (0062) |
 | Note chance, random velocity, random timing | Yes | Click Velocity ▾ in the piano roll (or the button in Steps and Drums): each note's chance of playing, a velocity range and a timing range (± ms), chosen afresh each time it plays, in exports too; tested (0061) |

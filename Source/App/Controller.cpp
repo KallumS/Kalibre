@@ -302,19 +302,20 @@ void Controller::stop()
     sendChangeMessage();
 }
 
-void Controller::arm (Id id, bool midi)
+void Controller::arm (Id id, ArmFor how)
 {
     const auto* t = project.track (id);
     if (! t || ! t->holdsClips()) return;
-    if (midi && t->kind == TrackKind::Summing)
+    if (how != ArmFor::Audio && t->kind == TrackKind::Summing)
     {
         say ("A Summing track records the master's sound, so it's armed for audio.");
-        midi = false;
+        how = ArmFor::Audio;
     }
-    const bool same = t->armed && t->armMidi == midi;
-    apply (midi ? "Arm for MIDI" : "Arm for Audio", [=] (Project& p)
+    const bool same = t->armed && t->armFor == how;
+    const char* names[] { "Arm for Audio", "Arm for MIDI", "Arm for Audio and MIDI", "Arm for MIDI Input" };
+    apply (names[(int) how], [=] (Project& p)
     {
-        if (auto* x = p.track (id)) { x->armed = ! same; x->armMidi = midi; }
+        if (auto* x = p.track (id)) { x->armed = ! same; x->armFor = how; }
     });
 }
 
@@ -330,7 +331,7 @@ void Controller::record()
         const auto* f = focus();
         const bool plays = std::any_of (f->devices.begin(), f->devices.end(), [] (const Device& d) { return d.role != DeviceRole::AudioFx; });
         const bool midi = f->kind != TrackKind::Summing && (plays || f->input.audioChannel < 0);
-        apply ("Arm Track", [id = focusTrack, midi] (Project& p) { if (auto* t = p.track (id)) { t->armed = true; t->armMidi = midi; } });
+        apply ("Arm Track", [id = focusTrack, midi] (Project& p) { if (auto* t = p.track (id)) { t->armed = true; t->armFor = midi ? ArmFor::Midi : ArmFor::Audio; } });
         armed.push_back (focusTrack);
     }
     if (armed.empty()) { say ("Choose a track to record onto first.", true); return; }
@@ -351,7 +352,7 @@ void Controller::record()
         {
             const auto* t = project.track (id);
             // A Summing track records the master (decision 0052); others armed for audio their input.
-            if (t && (t->kind == TrackKind::Summing || (t->input.audioChannel >= 0 && ! t->armMidi)))
+            if (t && (t->kind == TrackKind::Summing || (t->input.audioChannel >= 0 && t->armedAudio())))
                 s->startRecording (folder.getNonexistentChildFile (String (t->name).replaceCharacters ("/\\:", "---") + " "
                                                                    + Time::getCurrentTime().formatted ("%Y-%m-%d %H%M%S"), ".wav"),
                                    engine.sampleRate());
@@ -439,10 +440,11 @@ void Controller::finishRecording()
             s->tappedFifo.finishedRead (n1 + n2);
         }
         const bool sentNotes = std::any_of (tappedOut.begin(), tappedOut.end(), [] (const capture::Event& e) { return (e.bytes[0] & 0xF0) == 0x90; });
-        events = sentNotes ? tappedOut : tappedIn;
+        if (t.armedPlugins()) events = sentNotes ? tappedOut : tappedIn;
+        // Armed for MIDI input (decision 0065): what was played in, before any plug-in.
         int s1, n1, s2, n2;
         s->playedFifo.prepareToRead (s->playedFifo.getNumReady(), s1, n1, s2, n2);
-        if (events.empty() && t.armMidi)
+        if (events.empty() && (t.armedPlugins() || t.armedMidiIn()))
             for (int i = 0; i < n1 + n2; ++i)
             {
                 const auto& p = s->played[(size_t) (i < n1 ? s1 + i : s2 + i - n1)];
@@ -453,7 +455,7 @@ void Controller::finishRecording()
                 events.push_back (e);
             }
         s->playedFifo.finishedRead (n1 + n2);
-        if (! t.armMidi || events.empty()) continue;
+        if (! (t.armedPlugins() || t.armedMidiIn()) || events.empty()) continue;
         Recorded midi { t.id, {} };
         for (auto& pass : looping ? comp::midiPasses (events) : std::vector<std::vector<capture::Event>> { events })
         {

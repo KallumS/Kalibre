@@ -647,7 +647,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             if (auto it = deviceNodes.find (t->sourceDevice); it != deviceNodes.end() && it->second)
                 newShape << "src" << (int64) t->sourceDevice << ":" << t->sourcePair << ":" << (int64) it->second->nodeID.uid << ";";
         newShape << (int64) t->id << ":" << (int) t->kind << ":" << (int64) project.outputOf (t->id) << ":" << (t->id == live ? 1 : 0)
-                 << (t->armed ? (t->armMidi ? "m" : "a") : "") << (int) t->monitor << "/" << t->input.audioChannel << "[";
+                 << (t->armed ? "a" + String ((int) t->armFor) : String()) << (int) t->monitor << "/" << t->input.audioChannel << "[";
         // The node's own number too: a device replaced by another under the same id is rewired.
         for (auto& d : t->devices) if (d.active && wantedDevices.count (d.id)) newShape << (int64) d.id << "#" << (int64) deviceNodes[d.id]->nodeID.uid << (int) d.role << (d.bypassed ? "b" : "") << "<" << (int64) d.sidechainFrom << ",";
         newShape << "]{";
@@ -695,7 +695,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             const auto src = nodes.source->nodeID;
             // Live input.
             // Armed for audio, the sound coming in; armed for MIDI, not (decision 0064).
-            const bool armedAudio = t->armed && ! t->armMidi;
+            const bool armedAudio = t->armedAudio();
             const bool monitorIn = t->monitor == Monitor::In || (armedAudio && t->monitor == Monitor::Auto);
             if ((armedAudio || monitorIn) && t->input.audioChannel >= 0 && inputs > 0)
                 for (int ch = 0; ch < 2; ++ch)
@@ -909,10 +909,11 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 data->regionAudio.push_back (clip ? cache.forClip (*clip, project.tempo, folder) : nullptr);
             }
         data->tempo = project.tempo;
-        const bool armedAudio = t->armed && ! t->armMidi;
+        const bool armedAudio = t->armedAudio();
         data->monitor = t->monitor == Monitor::In || (armedAudio && t->monitor == Monitor::Auto);
         data->armed = t->armed;
-        data->armedMidi = t->armed && t->armMidi;   // MIDI played in is recorded only when armed for MIDI (decision 0064)
+        // MIDI played in is kept when armed for MIDI of either kind (decisions 0064, 0065).
+        data->armedMidi = t->armedPlugins() || t->armedMidiIn();
         data->summing = t->kind == TrackKind::Summing;
         data->readAutomation = t->autoMode != AutoMode::Off;
         data->fader = dynamic_cast<Fader*> (nodes.fader->getProcessor());
@@ -970,7 +971,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             // Armed for MIDI (decision 0064): the tap goes on the first instrument (what
             // it's played, or what it sends), else the last MIDI effect.
             TimedPlugin* tapAt = nullptr;
-            if (t->armed && t->armMidi)
+            if (t->armedPlugins())
             {
                 for (auto& d : t->devices)
                 {

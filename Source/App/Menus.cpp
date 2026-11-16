@@ -278,8 +278,14 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Duplicate", [this] { c.duplicateSelectedTracks(); }));
             m.addItem (item ("Delete", [this] { c.deleteSelectedTracks(); }));
             m.addSeparator();
-            m.addItem (item ("Arm for Recording Audio", [this] { c.arm (c.focusTrack, false); }, {}, t && t->holdsClips(), t && t->armed && ! t->armMidi));
-            m.addItem (item ("Arm for Recording MIDI", [this] { c.arm (c.focusTrack, true); }, {}, t && t->holdsClips() && t->kind != TrackKind::Summing, t && t->armed && t->armMidi));
+            {
+                // The four ways to arm (decisions 0064, 0065).
+                const std::pair<const char*, ArmFor> ways[] { { "Arm for Recording Audio", ArmFor::Audio }, { "Arm for Recording MIDI", ArmFor::Midi },
+                                                              { "Arm for Recording Audio and MIDI", ArmFor::Both }, { "Arm for Recording MIDI Input", ArmFor::MidiInput } };
+                for (auto [name, how] : ways)
+                    m.addItem (item (name, [this, how = how] { c.arm (c.focusTrack, how); }, {},
+                                     t && t->holdsClips() && (how == ArmFor::Audio || t->kind != TrackKind::Summing), t && t->armed && t->armFor == how));
+            }
             PopupMenu maps;
             maps.addItem (item (ui::u8 ("New Articulation Map\xe2\x80\xa6"), [this]
             {
