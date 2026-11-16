@@ -7,7 +7,7 @@ namespace kal
 {
 using namespace juce;
 
-// The menu of what to set, on the button that shows it (decision 0061).
+// The menu of what to set, on the button that shows it (decisions 0061, 0063).
 static void optionMenu (theme::HouseButton& b, noteopt::Kind now, std::function<void (noteopt::Kind)> pick)
 {
     PopupMenu m;
@@ -16,15 +16,67 @@ static void optionMenu (theme::HouseButton& b, noteopt::Kind now, std::function<
         b.setButtonText (noteopt::name (k) + String::fromUTF8 (" \xe2\x96\xbe"));
         b.setTip (noteopt::tip (k));
         b.setSize (b.idealWidth (theme::smallControl), b.getHeight());   // the new name, whole
+        if (auto* parent = b.getParentComponent()) parent->resized();     // what's beside it moves along
         pick (k);
-    });
+    }, true);
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (&b));
+}
+
+//==============================================================================
+FeelControls::FeelControls()
+{
+    auto setUp = [this] (Slider& s, double lo, double hi, const String& name, const String& tip)
+    {
+        s.setSliderStyle (Slider::LinearHorizontal);
+        s.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
+        s.setRange (lo, hi, 1.0);
+        s.setTitle (name);
+        s.setTooltip (tip);
+        s.onDragStart = [this] { if (began) began(); };
+        s.onValueChange = [this] { repaint(); if (changed) changed (swing.getValue() / 100.0, gate.getValue() / 100.0); };
+        s.onDragEnd = [this] { if (ended) ended(); };
+        addAndMakeVisible (s);
+    };
+    setUp (swing, 0, 75, "Swing", "Swing: every second step played late, by up to three quarters of a step.");
+    setUp (gate, 5, 100, "Gate", "Gate: how long each note sounds, as a share of its step.");
+}
+
+void FeelControls::set (const PatternFeel& f)
+{
+    swing.setValue (std::round (f.swing * 100.0), dontSendNotification);
+    gate.setValue (std::round (f.gate * 100.0), dontSendNotification);
+    repaint();
+}
+
+int FeelControls::idealWidth() const { return 2 * (labelWidth() + sliderWidth() + valueWidth()) + theme::px (12); }
+
+void FeelControls::resized()
+{
+    auto r = getLocalBounds();
+    for (auto* s : { &swing, &gate })
+    {
+        r.removeFromLeft (labelWidth());
+        s->setBounds (r.removeFromLeft (sliderWidth()));
+        r.removeFromLeft (valueWidth() + theme::px (12));
+    }
+}
+
+void FeelControls::paint (Graphics& g)
+{
+    g.setFont (theme::font (theme::smallPoints));
+    for (auto* s : { &swing, &gate })
+    {
+        g.setColour (theme::textSecondary);
+        g.drawText (s->getTitle(), Rectangle<int> (s->getX() - labelWidth(), 0, labelWidth() - theme::px (4), getHeight()), Justification::centredRight, false);
+        g.setColour (theme::text);
+        g.drawText (String (roundToInt (s->getValue())) + "%", Rectangle<int> (s->getRight() + theme::px (4), 0, valueWidth(), getHeight()), Justification::centredLeft, false);
+    }
 }
 
 static double stepValue (const patterns::Step& s, noteopt::Kind k)
 {
     return k == noteopt::Kind::Chance ? s.chance : k == noteopt::Kind::VelocityRange ? s.velocityRange
-         : k == noteopt::Kind::Timing ? s.timingMs : s.velocity;
+         : k == noteopt::Kind::Timing ? s.timingMs : k == noteopt::Kind::Repeat ? s.repeat : s.velocity;
 }
 
 static void setStepValue (patterns::Step& s, noteopt::Kind k, double v)
@@ -33,6 +85,7 @@ static void setStepValue (patterns::Step& s, noteopt::Kind k, double v)
     if (k == noteopt::Kind::Chance) s.chance = i;
     else if (k == noteopt::Kind::VelocityRange) s.velocityRange = i;
     else if (k == noteopt::Kind::Timing) s.timingMs = i;
+    else if (k == noteopt::Kind::Repeat) s.repeat = i;
     else s.velocity = i;
 }
 
@@ -71,10 +124,15 @@ static void lightColumn (Graphics& g, Rectangle<float> column)
 DrumGrid::DrumGrid (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Drum grid");
+    // Swing and gate: a drag is one undo step (decision 0063).
+    feel.began = [this] { before = c.project; };
+    feel.changed = [this] (double sw, double gt) { grid.swing = sw; grid.gate = gt; if (c.project.clip (c.selectedClip)) write ({}); };
+    feel.ended = [this] { if (! (before == c.project)) c.history.push (before, "Swing and Gate"); c.refresh(); };
     addAndMakeVisible (option);
     option.onClick = [this] { optionMenu (option, kind, [this] (noteopt::Kind k) { kind = k; repaint(); }); };
     addAndMakeVisible (randomise);
     randomise.onClick = [this] { random(); };
+    addAndMakeVisible (feel);
     c.addChangeListener (this);
     read();
     startTimerHz (30);
@@ -100,8 +158,11 @@ void DrumGrid::read()
     if (! clip || ! clip->isMidi()) return;
     grid.stepTicks = c.grid;
     grid.steps = stepsFor (*clip);
+    grid.swing = clip->drumsFeel.swing;
+    grid.gate = clip->drumsFeel.gate;
     grid.lanes = patterns::standardKit (grid.steps);
     grid = patterns::readGrid (clip->midi, grid, clip->offset, NoteFrom::Drums);
+    feel.set (clip->drumsFeel);
 }
 
 void DrumGrid::write (const String& label)
@@ -113,6 +174,7 @@ void DrumGrid::write (const String& label)
         auto* clip = p.clip (id);
         if (! clip) return;
         unsigned next = p.nextId;
+        clip->drumsFeel = { g.swing, g.gate };
         patterns::writeGrid (clip->midi, g, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Drums);
         p.nextId = std::max (p.nextId, (Id) next);
     };
@@ -126,6 +188,7 @@ void DrumGrid::resized()
 {
     option.setBounds (theme::px (6), theme::px (4), option.idealWidth (theme::smallControl), theme::px (26));
     randomise.setBounds (option.getRight() + theme::px (6), theme::px (4), randomise.idealWidth (theme::smallControl), theme::px (26));
+    feel.setBounds (randomise.getRight() + theme::px (18), theme::px (4), feel.idealWidth(), theme::px (26));
 }
 
 // A new idea number each click (decision 0062): Good Idea's numbers run 1 to 99,999.
@@ -167,6 +230,7 @@ double DrumGrid::valueAt (int l, int s) const
         case noteopt::Kind::Chance:        return i < lane.chance.size() ? lane.chance[i] : 100;
         case noteopt::Kind::VelocityRange: return i < lane.velocityRange.size() ? lane.velocityRange[i] : 0;
         case noteopt::Kind::Timing:        return i < lane.timingMs.size() ? lane.timingMs[i] : 0;
+        case noteopt::Kind::Repeat:        return i < lane.repeat.size() ? lane.repeat[i] : 1;
         default:                           return lane.velocity[i];
     }
 }
@@ -180,11 +244,13 @@ void DrumGrid::setValueAt (int l, int s, double v)
     if (lane.chance.size() < steps) lane.chance.resize (steps, 100);
     if (lane.velocityRange.size() < steps) lane.velocityRange.resize (steps, 0);
     if (lane.timingMs.size() < steps) lane.timingMs.resize (steps, 0.0);
+    if (lane.repeat.size() < steps) lane.repeat.resize (steps, 1);
     switch (kind)
     {
         case noteopt::Kind::Chance:        lane.chance[i] = n; break;
         case noteopt::Kind::VelocityRange: lane.velocityRange[i] = n; break;
         case noteopt::Kind::Timing:        lane.timingMs[i] = n; break;
+        case noteopt::Kind::Repeat:        lane.repeat[i] = n; break;
         default:                           lane.velocity[i] = n; break;
     }
 }
@@ -226,7 +292,11 @@ void DrumGrid::paint (Graphics& g)
                 g.setColour (theme::ink);
                 const float h = (cell.getHeight() - 4) * (float) (value / noteopt::highest (kind));
                 g.fillRect (cell.getX() + 2, cell.getBottom() - 2 - h, 2.0f, h);
-                if (kind != noteopt::Kind::Velocity && colW >= (float) theme::px (34))
+                // Repeats: the cell cut into as many (decision 0063).
+                const int times = (size_t) s < lane.repeat.size() ? lane.repeat[(size_t) s] : 1;
+                for (int k = 1; k < times; ++k)
+                    g.fillRect (cell.getX() + cell.getWidth() * (float) k / (float) times - 0.5f, cell.getY() + 4.0f, 1.0f, cell.getHeight() - 8.0f);
+                if (kind != noteopt::Kind::Velocity && noteopt::notPlain (kind, value) && colW >= (float) theme::px (34))
                 {
                     g.setFont (theme::font (theme::smallPoints));
                     g.drawText (noteopt::format (kind, value), cell.withTrimmedLeft (5).toNearestInt(), Justification::centred, false);
@@ -297,10 +367,21 @@ void DrumGrid::changeListenerCallback (ChangeBroadcaster*)
 StepSequencer::StepSequencer (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Step sequencer");
+    // Swing, and a gate every step takes: a drag is one undo step (decision 0063).
+    feel.began = [this] { before = c.project; };
+    feel.changed = [this] (double sw, double gt)
+    {
+        seq.swing = sw;
+        gateSetting = gt;
+        for (auto& st : seq.steps) st.gate = gt;
+        if (c.project.clip (c.selectedClip)) write ({});
+    };
+    feel.ended = [this] { if (! (before == c.project)) c.history.push (before, "Swing and Gate"); c.refresh(); };
     addAndMakeVisible (option);
     option.onClick = [this] { optionMenu (option, kind, [this] (noteopt::Kind k) { kind = k; repaint(); }); };
     addAndMakeVisible (randomise);
     randomise.onClick = [this] { random(); };
+    addAndMakeVisible (feel);
     c.addChangeListener (this);
     read();
     startTimerHz (30);
@@ -320,18 +401,23 @@ void StepSequencer::read()
     if (! clip || ! clip->isMidi()) { seq = {}; return; }
     const int count = jlimit (1, 64, (int) ((clip->loopLength > 0 ? clip->loopLength : clip->length) / jmax<Tick> (1, c.grid)));
     seq = patterns::readSteps (clip->midi, c.grid, count, clip->offset, NoteFrom::Steps);
-    for (auto& s : seq.steps) if (! s.on && s.pitch == 60) s.pitch = 60;
+    seq.swing = clip->stepsFeel.swing;
+    gateSetting = clip->stepsFeel.gate;
+    for (auto& s : seq.steps) if (! s.on) s.gate = gateSetting;
+    feel.set (clip->stepsFeel);
 }
 
 void StepSequencer::write (const String& label)
 {
     const Id id = c.selectedClip;
     auto s = seq;
-    auto doWrite = [id, s] (Project& p)
+    const double gt = gateSetting;
+    auto doWrite = [id, s, gt] (Project& p)
     {
         auto* clip = p.clip (id);
         if (! clip) return;
         unsigned next = p.nextId;
+        clip->stepsFeel = { s.swing, gt };
         patterns::writeSteps (clip->midi, s, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Steps);
         p.nextId = std::max (p.nextId, (Id) next);
     };
@@ -348,6 +434,7 @@ void StepSequencer::resized()
 {
     option.setBounds (theme::px (12), theme::px (8), option.idealWidth (theme::smallControl), theme::px (26));
     randomise.setBounds (option.getRight() + theme::px (6), theme::px (8), randomise.idealWidth (theme::smallControl), theme::px (26));
+    feel.setBounds (randomise.getRight() + theme::px (18), theme::px (8), feel.idealWidth(), theme::px (26));
 }
 
 // Good Idea's motif in the song's key, one note a step (the top one where it plays two).
@@ -410,6 +497,9 @@ void StepSequencer::paint (Graphics& g)
             const float share = (float) (stepValue (s, kind) / noteopt::highest (kind));
             g.setColour (theme::ink);
             g.fillRect (bar.getX() + 3, bar.getBottom() - 4 - (bar.getHeight() - 8) * share, 3.0f, (bar.getHeight() - 8) * share);
+            // Repeats: the bar cut into as many (decision 0063).
+            for (int k = 1; k < s.repeat; ++k)
+                g.fillRect (bar.getX() + bar.getWidth() * (float) k / (float) s.repeat - 0.5f, bar.getY() + 18.0f, 1.0f, jmax (0.0f, bar.getHeight() - 22.0f));
             if (kind != noteopt::Kind::Velocity)
             {
                 g.setFont (theme::font (theme::smallPoints));
@@ -441,6 +531,7 @@ void StepSequencer::mouseDown (const MouseEvent& e)
     if (! step.on)
     {
         step.on = true;
+        step.gate = gateSetting;
         // A new step starts on the note before it, so a line can be drawn quickly.
         for (int k = s - 1; k >= 0; --k) if (seq.steps[(size_t) k].on) { step.pitch = seq.steps[(size_t) k].pitch; break; }
         changed = true;
@@ -511,10 +602,19 @@ void StepSequencer::changeListenerCallback (ChangeBroadcaster*)
 //==============================================================================
 EuclidEditor::EuclidEditor (Controller& ctrl) : c (ctrl)
 {
+    c.addChangeListener (this);
+    // Swing and gate for every drum's rhythm: a drag is one undo step (decision 0063).
+    feel.began = [this] { before = c.project; };
+    feel.changed = [this] (double sw, double gt)
+    {
+        if (auto* clip = c.project.clip (c.selectedClip)) { clip->euclidFeel = { sw, gt }; applyAll ({}); }
+    };
+    feel.ended = [this] { if (! (before == c.project)) c.history.push (before, "Swing and Gate"); c.refresh(); };
     setTitle ("Euclidean sequencer");
     addAndMakeVisible (addRow);
     addAndMakeVisible (randomise);
     randomise.onClick = [this] { random(); };
+    addAndMakeVisible (feel);
     addRow.onClick = [this]
     {
         auto r = std::make_unique<Row>();
@@ -535,7 +635,12 @@ EuclidEditor::EuclidEditor (Controller& ctrl) : c (ctrl)
     startTimerHz (30);
 }
 
-EuclidEditor::~EuclidEditor() = default;
+EuclidEditor::~EuclidEditor() { c.removeChangeListener (this); }
+
+void EuclidEditor::changeListenerCallback (ChangeBroadcaster*)
+{
+    if (const auto* clip = c.project.clip (c.selectedClip)) feel.set (clip->euclidFeel);
+}
 
 std::vector<int> EuclidEditor::litSteps() const
 {
@@ -611,42 +716,47 @@ void EuclidEditor::random()
     repaint();
 }
 
+// A row's rhythm as a one-row grid, with the clip's swing and gate (decision 0063).
+patterns::Grid EuclidEditor::gridFor (const Row& r, const PatternFeel& f) const
+{
+    patterns::Grid one;
+    one.stepTicks = c.grid;
+    one.steps = r.steps;
+    one.swing = f.swing;
+    one.gate = f.gate;
+    patterns::Lane lane { r.name.toStdString(), r.pitch, {}, {}, {}, {}, {} };
+    patterns::euclidLane (lane, r.steps, r.pulses, r.rotation, r.velocity, r.pulses > 3 ? r.pulses : 0);
+    one.lanes = { lane };
+    return one;
+}
+
 void EuclidEditor::applyAll (const String& label)
 {
     const Id id = c.selectedClip;
+    const auto* clip = c.project.clip (id);
+    if (! clip) return;
+    const auto f = clip->euclidFeel;
     std::vector<patterns::Grid> grids;
-    for (auto& rp : rows)
+    for (auto& rp : rows) grids.push_back (gridFor (*rp, f));
+    auto doWrite = [id, grids, f] (Project& p)
     {
-        patterns::Grid one;
-        one.stepTicks = c.grid;
-        one.steps = rp->steps;
-        patterns::Lane lane { rp->name.toStdString(), rp->pitch, {}, {}, {}, {} };
-        patterns::euclidLane (lane, rp->steps, rp->pulses, rp->rotation, rp->velocity, rp->pulses > 3 ? rp->pulses : 0);
-        one.lanes = { lane };
-        grids.push_back (one);
-    }
-    c.apply (label.toStdString(), [id, grids] (Project& p)
-    {
-        auto* clip = p.clip (id);
-        if (! clip) return;
+        auto* cl = p.clip (id);
+        if (! cl) return;
+        cl->euclidFeel = f;
         unsigned next = p.nextId;
         for (auto& one : grids)
-            patterns::writeGrid (clip->midi, one, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Euclid);
+            patterns::writeGrid (cl->midi, one, cl->offset, cl->loopLength > 0 ? cl->loopLength : cl->length, next, NoteFrom::Euclid);
         p.nextId = std::max (p.nextId, (Id) next);
-    });
+    };
+    if (label.isEmpty()) { doWrite (c.project); c.refresh(); }
+    else c.apply (label.toStdString(), doWrite);
 }
 
 void EuclidEditor::apply (Row& r)
 {
     const Id id = c.selectedClip;
     if (! c.project.clip (id)) { c.say ("Choose a MIDI clip for the rhythm to go into."); return; }
-    const Tick step = c.grid;
-    patterns::Grid g;
-    g.stepTicks = step;
-    g.steps = r.steps;
-    patterns::Lane lane { r.name.toStdString(), r.pitch, {} };
-    patterns::euclidLane (lane, r.steps, r.pulses, r.rotation, r.velocity, r.pulses > 3 ? r.pulses : 0);
-    g.lanes = { lane };
+    const auto g = gridFor (r, c.project.clip (id)->euclidFeel);
     c.apply ("Euclidean Rhythm", [id, g] (Project& p)
     {
         auto* clip = p.clip (id);
@@ -664,6 +774,8 @@ void EuclidEditor::resized()
     addRow.setBounds (top.removeFromRight (addRow.idealWidth()));
     top.removeFromRight (theme::px (6));
     randomise.setBounds (top.removeFromRight (randomise.idealWidth()));
+    top.removeFromRight (theme::px (18));
+    feel.setBounds (top.removeFromRight (feel.idealWidth()));
     area.removeFromTop (theme::px (8));
     const int rowH = theme::px (90);
     for (auto& rp : rows)
@@ -685,7 +797,7 @@ void EuclidEditor::paint (Graphics& g)
     g.setFont (theme::font (theme::smallPoints));
     g.drawText (c.project.clip (c.selectedClip) ? "Turn a dial and let go: the rhythm is written into the chosen clip, one step per grid line."
                                                 : "Choose a MIDI clip for the rhythms to go into.",
-                area.removeFromTop (theme::px (28)), Justification::centredLeft, true);
+                area.removeFromTop (theme::px (28)).withRight (feel.getX() - theme::px (8)), Justification::centredLeft, true);
     area.removeFromTop (theme::px (8));
     const int rowH = theme::px (90);
     const auto playing = litSteps();

@@ -34,7 +34,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TempoPoint, tick, bpm, rampToNe
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Meter, bar, numerator, denominator)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (NoteExpression, tick, bend, pressure, timbre)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Note, id, start, length, pitch, velocity, channel, articulation, expression, from,
-                                                 chance, velocityRange, timingMs)
+                                                 chance, velocityRange, timingMs, repeat)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiEvent, tick, type, channel, number, value)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiData, notes, events)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (WarpMarker, sourceSeconds, tick)
@@ -45,8 +45,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (PluginRef, format, identifier, 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Device, id, role, plugin, state, bypassed, active, useAra, araState, sidechainFrom, editorScale,
                                                  stateB, onB, matchLoudness)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (OfflineFx, chain, includeTail)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (PatternFeel, swing, gate)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Clip, id, kind, name, start, length, offset, loopLength, colour, muted, locked,
-                                                 midi, audio, offlineFx, fromTake, link)
+                                                 midi, audio, offlineFx, fromTake, link, drumsFeel, stepsFeel, euclidFeel)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Take, id, name, clips)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (CompSegment, start, end, take)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackVersion, id, name, clips, takes, comp, takesShown, devices, ownDevices)

@@ -84,6 +84,9 @@ struct Note
     int chance = 100;          // %
     int velocityRange = 0;     // either side of its velocity
     double timingMs = 0;       // either side of its start
+    // A pattern step played several times in its length (decision 0063): the
+    // first of them says how many; the rest are 0, "a repeat of the one before".
+    int repeat = 1;
 
     Tick end() const { return start + length; }
     bool operator== (const Note&) const = default;
@@ -202,6 +205,15 @@ struct OfflineFx
 //==============================================================================
 // Clips, versions
 
+// A pattern editor's feel for a clip (decision 0063): every second step
+// pushed late by `swing` of a step (0-0.75), each note `gate` of its step long.
+struct PatternFeel
+{
+    double swing = 0;
+    double gate = 0.9;
+    bool operator== (const PatternFeel&) const = default;
+};
+
 struct Clip
 {
     enum class Kind { Midi, Audio };
@@ -221,6 +233,7 @@ struct Clip
     OfflineFx offlineFx;
     Id fromTake = 0;          // made by the comp from this take (decision 0029); 0 for an ordinary clip
     Id link = 0;              // linked clips (decision 0037) share this: an edit to one's content is made to all
+    PatternFeel drumsFeel { 0, 0.9 }, stepsFeel { 0, 0.5 }, euclidFeel { 0, 0.9 };   // decision 0063
 
     Tick end() const { return start + length; }
     bool isMidi() const { return kind == Kind::Midi; }

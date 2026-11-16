@@ -37,6 +37,7 @@ struct Lane
     // Per step, as a note's (decision 0061); empty means 100%, 0 and 0.
     std::vector<int> chance, velocityRange;
     std::vector<double> timingMs;
+    std::vector<int> repeat;     // per step, times it plays in its length (decision 0063); empty means once
 };
 
 struct Grid
@@ -86,6 +87,7 @@ struct Step
     int chance = 100;            // decision 0061
     int velocityRange = 0;
     double timingMs = 0;
+    int repeat = 1;              // times it plays in its step (decision 0063)
 };
 
 struct StepSequence

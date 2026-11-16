@@ -837,3 +837,74 @@ TEST ("random: each pattern editor's Random writes a new pattern of its own each
     CHECK (! rhythm.empty());
     CHECK (rollKept() && ! mine (NoteFrom::Steps).empty());
 }
+
+TEST ("swing and gate: a drag of the drum grid's or step sequencer's slider moves their notes, is saved with the clip, and is one undo step")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Beat");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    c.grid = PPQ / 4;
+    {
+        patterns::Grid g;
+        g.stepTicks = PPQ / 4;
+        g.steps = 16;
+        g.lanes = { { "Closed Hat", 42, std::vector<int> (16, 100) } };
+        unsigned next = 1000;
+        patterns::writeGrid (c.project.clip (clip)->midi, g, 0, PPQ * 4, next, NoteFrom::Drums);
+    }
+    c.refresh();
+    c.selectClip (clip);
+
+    auto drag = [] (Component& editor, int which, double to)
+    {
+        for (auto* child : editor.getChildren())
+            if (auto* f = dynamic_cast<FeelControls*> (child))
+            {
+                f->began();
+                int k = 0;
+                for (auto* s : f->getChildren())
+                    if (auto* slider = dynamic_cast<Slider*> (s); slider && k++ == which) slider->setValue (to, sendNotificationSync);   // as a mouse drag does
+                f->ended();
+            }
+        MessageManager::getInstance()->runDispatchLoopUntil (20);
+    };
+    auto hatAt = [&] (int step)
+    {
+        for (auto& n : c.project.clip (clip)->midi.notes) if (n.start / (PPQ / 4) == step && n.from == NoteFrom::Drums) return n;
+        return Note {};
+    };
+
+    DrumGrid drums (c);
+    drums.setSize (1000, 400);
+    drag (drums, 0, 50);                                   // swing 50%
+    CHECK_EQ (hatAt (1).start, PPQ / 4 + PPQ / 8);           // the off-step half a step late
+    CHECK_EQ (hatAt (2).start, PPQ / 2);                     // the on-step where it was
+    CHECK_EQ (c.project.clip (clip)->drumsFeel.swing, 0.5);
+    drag (drums, 1, 25);                                   // gate 25%
+    CHECK_EQ (hatAt (2).length, PPQ / 16);
+    c.undo();                                              // the gate's drag, alone
+    CHECK_EQ (c.project.clip (clip)->drumsFeel.gate, 0.9);
+    CHECK_EQ (hatAt (1).start, PPQ / 4 + PPQ / 8);
+    c.undo();
+    CHECK_EQ (hatAt (1).start, PPQ / 4);
+
+    StepSequencer steps (c);
+    steps.setSize (1000, 400);
+    {
+        // Two steps on.
+        auto* cl = c.project.clip (clip);
+        patterns::StepSequence s;
+        s.steps.assign (16, {});
+        s.steps[0].on = s.steps[3].on = true;
+        unsigned next = 2000;
+        patterns::writeSteps (cl->midi, s, 0, PPQ * 4, next, NoteFrom::Steps);
+        c.refresh();
+    }
+    drag (steps, 1, 25);                                   // gate 25% for every step
+    for (auto& n : c.project.clip (clip)->midi.notes)
+        if (n.from == NoteFrom::Steps) CHECK_EQ (n.length, PPQ / 16);
+    CHECK_EQ (c.project.clip (clip)->stepsFeel.gate, 0.25);
+}

@@ -17,7 +17,29 @@
 namespace kal
 {
 
-// Drums: a row for each drum, a column for each step. Click a cell to hit it,
+// Swing and gate for a pattern (decision 0063): two small sliders, each
+// named and showing its value. A drag is one undo step: `began`, `changed`
+// as it moves, `ended`.
+class FeelControls : public juce::Component
+{
+public:
+    FeelControls();
+    std::function<void()> began, ended;
+    std::function<void (double swing, double gate)> changed;
+    void set (const PatternFeel&);
+    int idealWidth() const;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    juce::Slider swing, gate;
+    int labelWidth() const { return theme::px (44); }
+    int valueWidth() const { return theme::px (40); }
+    int sliderWidth() const { return theme::px (90); }
+};
+
+// Drums: a row for each drum, a column for each step (swing, gate and each
+// step's repeat, decision 0063). Click a cell to hit it,
 // Shift-click for an accent, right-click to clear it, drag up or down on a
 // hit to change how hard - or, chosen from the menu at the top left, its
 // chance of playing, random velocity range or random timing (decision 0061).
@@ -42,6 +64,7 @@ protected:
     theme::HouseButton option { juce::String::fromUTF8 ("Velocity \xe2\x96\xbe"), "What dragging a hit sets: its velocity, its chance of playing, or how far its velocity or timing may wander." };
     theme::HouseButton randomise { "Random", "A new drum groove from Good Idea, every click: replaces this grid's hits (Undo puts them back)." };
     void random();
+    FeelControls feel;
     int topHeight() const { return theme::px (34); }
     double valueAt (int lane, int step) const;
     void setValueAt (int lane, int step, double);
@@ -85,6 +108,8 @@ private:
     void resized() override;
     theme::HouseButton randomise { "Random", "A new tune from Good Idea in the song's key, every click: replaces these steps (Undo puts them back)." };
     void random();
+    FeelControls feel;
+    double gateSetting = 0.5;     // the gate every step takes (decision 0063)
     bool changed = false;
     Project before;
     void read();
@@ -121,12 +146,15 @@ private:
     theme::HouseButton addRow { "Add Drum", "Add another Euclidean rhythm on another drum." };
     theme::HouseButton randomise { "Random", "New steps, hits and rotation for every drum, every click: written into the clip (Undo puts back what was there)." };
     void random();
-    void applyAll (const juce::String& label);
+    void applyAll (const juce::String& label);   // empty: no undo step (a drag in progress)
+    FeelControls feel;
+    Project before;
+    patterns::Grid gridFor (const Row&, const PatternFeel&) const;
     void build();
     void apply (Row&);
     std::vector<int> lit;   // each row's step being played
     std::vector<int> litSteps() const;
-    void changeListenerCallback (juce::ChangeBroadcaster*) override {}
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
 };
 

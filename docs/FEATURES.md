@@ -33,6 +33,7 @@ Every feature asked for, then the list of basic DAW features
 | MIDI effects before instruments | Yes | Tested (0007) |
 | ARA (Melodyne) | Built, untried | 0028. The track's audio clips become the plug-in's playback regions; its edits are saved with the project. One document per plug-in, so Melodyne's multi-track view shows one track |
 | Scale chosen, chord shown at the top, scale shaded in the piano roll | Yes | Top bar (Scale, Chord), chord lane, View > Shade the Scale; ScaleView's reader, tested (0015) |
+| Swing, gate and repeat | Yes | Swing and gate sliders in the drum grid, step sequencer and Euclidean, saved with each clip; Repeat (1-8 per step) in the drum grid and step sequencer's Velocity ▾ menu; tested (0063) |
 | Random patterns | Yes | Random in the drum grid (a Good Idea groove), the step sequencer (a Good Idea motif in the song's key) and the Euclidean (new rhythms for every drum): a new one each click, one undo step; tested (0062) |
 | Note chance, random velocity, random timing | Yes | Click Velocity ▾ in the piano roll (or the button in Steps and Drums): each note's chance of playing, a velocity range and a timing range (± ms), chosen afresh each time it plays, in exports too; tested (0061) |
 | CC lanes and AutoCC | Yes | Under the piano roll and notation, any of the 128 controllers by their standard names (CC Lanes…); Auto draws CC1, CC11, CC7 and CC21 as AutoCC plays the notes, on a track named for its instrument; tested against AutoCC's own numbers (0060). AutoCC's Mode, Trigger, Depth, Time and Dynamic not yet shown |
