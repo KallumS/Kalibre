@@ -319,10 +319,11 @@ void Controller::record()
     recordFromSeconds = project.tempo.secondsAt (from);
     const auto folder = recordingsFolder();
     for (auto id : armed)
-        if (auto* s = engine.source (id))
+        if (auto* s = engine.recordSource (id))
         {
             const auto* t = project.track (id);
-            if (t && t->input.audioChannel >= 0)
+            // A Summing track records the master (decision 0049); others their input.
+            if (t && (t->kind == TrackKind::Summing || t->input.audioChannel >= 0))
                 s->startRecording (folder.getNonexistentChildFile (String (t->name).replaceCharacters ("/\\:", "---") + " "
                                                                    + Time::getCurrentTime().formatted ("%Y-%m-%d %H%M%S"), ".wav"),
                                    engine.sampleRate());
@@ -347,9 +348,10 @@ void Controller::finishRecording()
         if (! t.armed) continue;
         auto* s = engine.source (t.id);
         if (! s) continue;
-        // Audio.
-        if (s->isRecording())
+        // Audio: a Summing track's is the master's (decision 0049).
+        if (auto* rs = engine.recordSource (t.id); rs && rs->isRecording())
         {
+            auto* s = rs;
             const double startSeconds = s->recordStartSeconds();
             const auto f = s->stopRecording();
             double seconds = 0, sr = 0;
@@ -365,6 +367,14 @@ void Controller::finishRecording()
                 c.audio.sourceLength = seconds;
                 c.audio.fileSampleRate = sr;
                 c.audio.fileChannels = channels;
+                // A Summing track's first moments belong before where recording began
+                // (the master arrives after the graph's delay): they're left out (decision 0049).
+                if (const double lead = s->recordLatencySeconds.load(); lead > 0 && lead < seconds)
+                {
+                    c.audio.sourceStart = lead;
+                    c.start = project.tempo.tickAt (startSeconds + lead);
+                    c.length = std::max<Tick> (1, project.tempo.tickAt (startSeconds + seconds) - c.start);
+                }
                 if (project.punch.on)
                 {
                     // Only what fell inside the punch range is kept.
@@ -380,6 +390,7 @@ void Controller::finishRecording()
             }
             else f.deleteFile();
         }
+        if (t.kind == TrackKind::Summing) continue;   // it records sound only
         // MIDI played in.
         std::vector<capture::Event> events;
         int s1, n1, s2, n2;
@@ -596,9 +607,19 @@ void Controller::storeDeviceStates()
                 auto a = engine.araStateOf (d.id);
                 if (! a.empty()) d.araState = a;
             }
+        // The other versions' plug-ins, waiting with their own settings (decision 0050).
+        for (size_t v = 0; v < t.versions.size(); ++v)
+            if ((int) v != t.activeVersion)
+                for (auto& d : t.versions[v].devices)
+                    if (d.active)
+                    {
+                        auto s = engine.stateOf (d.id, t.versions[v].id);
+                        if (! s.empty()) d.state = s;
+                    }
     };
     for (auto& t : project.tracks) store (t);
     store (project.master);
+    for (auto& t : project.cue) store (t);
 }
 
 bool Controller::save()
@@ -799,6 +820,8 @@ Id Controller::addTrack (TrackKind kind, const String& name)
     if (auto* f = focus()) parent = f->isFolder() ? f->id : f->parent;
     auto label = name.isNotEmpty() ? name
                : kind == TrackKind::Folder ? String ("Folder")
+               : kind == TrackKind::Summing ? String ("Summing")
+               : kind == TrackKind::Cue ? String ("Cue")
                : kind == TrackKind::Return ? String ("Return " + String::charToString ((juce_wchar) ('A' + (int) std::count_if (project.tracks.begin(), project.tracks.end(), [] (const Track& t) { return t.kind == TrackKind::Return; }))))
                                            : String ("Track " + String ((int) project.tracks.size() + 1));
     apply ("Add Track", [&] (Project& p)
@@ -806,9 +829,18 @@ Id Controller::addTrack (TrackKind kind, const String& name)
         made = edit::addTrack (p, kind, label.toStdString(), kind == TrackKind::Return ? 0 : after,
                                kind == TrackKind::Return ? 0 : parent);
         auto& colours = theme::trackColours();
-        if (auto* t = p.track (made)) t->colour = colours[(int) p.tracks.size() % colours.size()].getARGB();
+        if (auto* t = p.track (made); t && ! t->isCue()) t->colour = colours[(int) p.tracks.size() % colours.size()].getARGB();
     });
     if (made) { selectedTracks = { made }; focusOn (made); }
+    if (kind == TrackKind::Summing)
+        say ("A Summing track records what the master plays. Arm it and record: the mix goes onto it from where recording starts.");
+    if (kind == TrackKind::Cue)
+    {
+        // It's in the mixer, after the master (decision 0051).
+        zoneTab = ZoneTab::Mixer;
+        say ("The Cue track is after the master in the mixer. Its plug-ins, pan and mono are heard but never exported.");
+        viewChanged();
+    }
     return made;
 }
 
@@ -883,9 +915,38 @@ void Controller::freeze (Id id, bool on)
 
 void Controller::newVersion (Id track)
 {
+    const auto* t = project.track (track);
+    if (t && (int) t->versions.size() >= maxVersions)
+    {
+        say ("A track has four versions at most. Delete one to make another.", true);
+        return;
+    }
+    // The copy starts with the plug-ins' settings as they are now.
+    storeDeviceStates();
     int index = -1;
     apply ("New Version", [&] (Project& p) { index = edit::newVersion (p, track); });
-    if (index >= 0) say ("Version " + String (index + 1) + " made. The others are kept: choose one from the track's version number.");
+    if (index >= 0) say ("Version " + String (index + 1) + " made, with its own copy of the plug-ins. The others are kept: "
+                         "choose one with the 1 to 4 buttons in the mixer, or the track's version number.");
+}
+
+void Controller::chooseVersion (const std::vector<Id>& ids, int index)
+{
+    std::vector<Id> changing, missing;
+    for (auto id : ids)
+        if (const auto* t = project.track (id); t && t->holdsClips())
+        {
+            if (index >= (int) t->versions.size()) missing.push_back (id);
+            else if (t->activeVersion != index) changing.push_back (id);
+        }
+    if (! changing.empty())
+    {
+        // A version from before versions had their own plug-ins takes copies with today's settings.
+        storeDeviceStates();
+        apply ("Version " + String (index + 1), [&] (Project& p) { for (auto id : changing) edit::selectVersion (p, id, index); });
+    }
+    if (! missing.empty())
+        say (String ((int) missing.size()) + (missing.size() == 1 ? " track has" : " tracks have") + " no version " + String (index + 1)
+             + ", so " + (missing.size() == 1 ? "it stays" : "they stay") + " as " + (missing.size() == 1 ? "it is." : "they are."));
 }
 
 Id Controller::newMidiClip (Id track, Tick start, Tick length)
@@ -980,6 +1041,11 @@ void Controller::addPlugin (Id track, const PluginDescription& d)
 {
     const auto ref = PluginManager::refFor (d);
     const auto role = PluginManager::roleFor (d);
+    if (const auto* t = project.track (track); t && t->isCue() && role != DeviceRole::AudioFx)
+    {
+        say ("The Cue track takes audio effects only: nothing plays into it but the master.", true);
+        return;
+    }
     Id made = 0;
     apply ("Add " + d.name, [&] (Project& p) { made = edit::addDevice (p, track, ref, role); });
     if (made && ! engine.instance (made))
@@ -990,6 +1056,11 @@ void Controller::addPlugin (Id track, const PluginDescription& d)
 
 void Controller::addBuiltIn (Id track, const PluginRef& ref, DeviceRole role)
 {
+    if (const auto* t = project.track (track); t && t->isCue() && role != DeviceRole::AudioFx)
+    {
+        say ("The Cue track takes audio effects only: nothing plays into it but the master.", true);
+        return;
+    }
     apply ("Add " + String (ref.name), [&] (Project& p) { edit::addDevice (p, track, ref, role); });
     zoneTab = ZoneTab::Devices;
     sendChangeMessage();

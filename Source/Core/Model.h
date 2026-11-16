@@ -8,10 +8,18 @@
     0003): a clip is one or the other, and both kinds sit side by side on the
     same lane.
 
-    A track has versions (decision 0006). Each version is a complete set of
-    clips; one is active. New Version copies the active one, so nothing is
-    lost, and a version's clips stay until that version is deleted. The
-    track's devices, mix and automation are shared by all its versions.
+    A track has versions (decision 0006), four at most. Each version is a
+    complete set of clips and its own devices (decision 0050); one is active.
+    The active version's devices are the track's `devices`; the others wait
+    in their versions. A device keeps its id in every version it's copied
+    to, so the track's automation and modulators follow whichever version
+    plays. New Version copies the active one, so nothing is lost. The mix
+    and automation are shared by all versions.
+
+    Two kinds of track besides: a Summing track records the master's output
+    when it's armed (decision 0049), and the Cue track (one at most, kept in
+    `Project::cue`) comes after the master: heard, never exported (decision
+    0051).
 
     Devices are plug-ins (AU, VST3, CLAP) or Kalibre's own (the X/Y morph).
     They run MIDI effects, then instruments, then audio effects, in that
@@ -222,6 +230,8 @@ struct CompSegment
     bool operator== (const CompSegment&) const = default;
 };
 
+inline constexpr int maxVersions = 4;
+
 struct TrackVersion
 {
     Id id = 0;
@@ -230,6 +240,11 @@ struct TrackVersion
     std::vector<Take> takes;   // oldest first
     std::vector<CompSegment> comp;
     bool takesShown = false;   // the take lanes open under the track
+    // Its devices while another version is active (decision 0050); empty for
+    // the active one, whose devices are the track's. A version made before
+    // versions had devices of their own takes the track's when chosen.
+    std::vector<Device> devices;
+    bool ownDevices = false;
 
     bool operator== (const TrackVersion&) const = default;
 };
@@ -350,7 +365,7 @@ struct ArticulationMap
 //==============================================================================
 // Tracks
 
-enum class TrackKind { Track, Folder, Return, Master };
+enum class TrackKind { Track, Folder, Return, Master, Summing, Cue };
 enum class Monitor { Auto, In, Off };
 
 struct Send
@@ -429,7 +444,8 @@ struct Track
     const std::vector<Clip>& clips() const { return version().clips; }
 
     bool isFolder() const { return kind == TrackKind::Folder; }
-    bool holdsClips() const { return kind == TrackKind::Track; }
+    bool holdsClips() const { return kind == TrackKind::Track || kind == TrackKind::Summing; }
+    bool isCue() const { return kind == TrackKind::Cue; }
 
     bool operator== (const Track&) const = default;
 };
@@ -518,6 +534,7 @@ struct Project
     TempoMap tempo;
     std::vector<Track> tracks;          // display order; folders before their children
     Track master;
+    std::vector<Track> cue;             // the Cue track, if there is one: after the master, never exported (decision 0051)
     std::vector<Marker> markers;
     Range loop, punch;
     ScaleChoice scale;

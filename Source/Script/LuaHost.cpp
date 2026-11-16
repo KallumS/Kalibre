@@ -52,6 +52,8 @@ const char* kindName (TrackKind k)
         case TrackKind::Folder: return "folder";
         case TrackKind::Return: return "return";
         case TrackKind::Master: return "master";
+        case TrackKind::Summing: return "summing";
+        case TrackKind::Cue:    return "cue";
     }
     return "track";
 }

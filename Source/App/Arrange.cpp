@@ -109,16 +109,17 @@ void TrackHeader::versionMenu()
                                      + "  (" + String ((int) t->versions[i].clips.size()) + " clips)",
                    true, (int) i == t->activeVersion);
     m.addSeparator();
-    m.addItem (1000, "New Version");
-    m.addItem (1001, "New Empty Version");
+    const bool room = (int) t->versions.size() < maxVersions;   // four at most (decision 0050)
+    m.addItem (1000, "New Version", room);
+    m.addItem (1001, "New Empty Version", room);
     m.addItem (1002, ui::u8 ("Rename Version\xe2\x80\xa6"));
     m.addItem (1003, "Delete This Version", t->versions.size() > 1);
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (&version), [this] (int r)
     {
         if (r <= 0) return;
-        if (r < 1000) { c.apply ("Choose Version", [this, r] (Project& p) { edit::selectVersion (p, id, r - 1); }); return; }
+        if (r < 1000) { c.chooseVersion ({ id }, r - 1); return; }
         if (r == 1000) c.newVersion (id);
-        if (r == 1001) c.apply ("New Version", [this] (Project& p) { edit::newEmptyVersion (p, id); });
+        if (r == 1001) { c.storeDeviceStates(); c.apply ("New Version", [this] (Project& p) { edit::newEmptyVersion (p, id); }); }
         if (r == 1002)
         {
             auto* w = new AlertWindow ("Rename Version", {}, MessageBoxIconType::NoIcon);
@@ -151,7 +152,7 @@ void TrackHeader::showMenu()
     PopupMenu m, colours, autoModes, monitor;
     if (t->holdsClips())
     {
-        m.addItem ("New Version", [this] { c.newVersion (id); });
+        m.addItem ("New Version", (int) t->versions.size() < maxVersions, false, [this] { c.newVersion (id); });
         if (! t->version().takes.empty())
             m.addItem (t->version().takesShown ? "Hide Takes" : "Show Takes (" + String ((int) t->version().takes.size()) + ")", [this]
             {
@@ -162,6 +163,8 @@ void TrackHeader::showMenu()
     m.addItem ("Add Track", [this] { c.addTrack (TrackKind::Track); });
     m.addItem ("Add Folder", [this] { c.addTrack (TrackKind::Folder); });
     m.addItem ("Add Return", [this] { c.addTrack (TrackKind::Return); });
+    m.addItem ("Add Summing Track", [this] { c.addTrack (TrackKind::Summing); });
+    m.addItem ("Add Cue Track", c.project.cue.empty(), false, [this] { c.addTrack (TrackKind::Cue); });
     m.addItem ("Put in a Folder", [this] { c.folderFromSelection(); });
     if (t->parent != 0)
         m.addItem ("Take Out of Its Folder", [this]

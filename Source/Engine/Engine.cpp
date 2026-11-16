@@ -24,6 +24,7 @@ Engine::Engine (PluginManager& pm) : pluginManager (pm)
     audioOut = graph.addNode (std::make_unique<IOProc> (IOProc::audioOutputNode));
     midiIn = graph.addNode (std::make_unique<IOProc> (IOProc::midiInputNode));
     metronomeNode = graph.addNode (std::make_unique<Metronome> (shared));
+    player.setProcessor (&graph);   // ready for whatever sound card calls it
     startTimerHz (20);
 }
 
@@ -34,7 +35,7 @@ Engine::~Engine()
     deviceManager.removeMidiInputDeviceCallback ({}, this);
     player.setProcessor (nullptr);
     araSessions.clear();
-    for (auto& [id, node] : deviceNodes)
+    for (auto& [id, node] : allDevices)
         if (auto* p = pluginOf (node)) p->removeListener (this);
     graph.clear();
 }
@@ -92,7 +93,9 @@ void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numI
     const auto* map = tempo.take();
     double p = pos.load();
     c.jumped = false;
-    if (const double s = seekTo.exchange (-1.0); s > -1.0e8)
+    // seekTo holds noJump unless a jump is asked for. Positions can be below
+    // zero (a count-in starts before the song), so "none" is far below any.
+    if (const double s = seekTo.exchange (noJump); s > noJump / 2)
     {
         p = s;
         c.jumped = true;
@@ -423,6 +426,13 @@ Fader* Engine::fader (Id track) const
     return it == tracks.end() || ! it->second.fader ? nullptr : dynamic_cast<Fader*> (it->second.fader->getProcessor());
 }
 
+TrackSource* Engine::recordSource (Id track) const
+{
+    auto it = tracks.find (track);
+    if (it != tracks.end() && it->second.recorder) return dynamic_cast<TrackSource*> (it->second.recorder->getProcessor());
+    return source (track);
+}
+
 TrackSource* Engine::source (Id track) const
 {
     auto it = tracks.find (track);
@@ -436,6 +446,16 @@ std::string Engine::araStateOf (Id device) const
 }
 
 bool Engine::playedByAra (Id track) const { return araTracks.count (track) > 0; }
+
+std::string Engine::stateOf (Id device, Id version) const
+{
+    auto it = allDevices.find ({ version, device });
+    auto* inst = it == allDevices.end() ? nullptr : pluginOf (it->second);
+    if (! inst) return {};
+    MemoryBlock m;
+    inst->getStateInformation (m);
+    return m.toBase64Encoding().toStdString();
+}
 
 std::string Engine::stateOf (Id device) const
 {
@@ -468,10 +488,11 @@ int Engine::sidechainChannels (Id device) const
     return 0;
 }
 
-Engine::Node::Ptr Engine::nodeForDevice (const Device& d, String& error)
+Engine::Node::Ptr Engine::nodeForDevice (const Device& d, Id version, String& error)
 {
     const auto key = d.plugin.format + "|" + d.plugin.identifier + "|" + std::to_string (d.plugin.uid);
-    if (auto it = deviceNodes.find (d.id); it != deviceNodes.end() && deviceKeys[d.id] == key)
+    const VersionedId vid { version, d.id };
+    if (auto it = allDevices.find (vid); it != allDevices.end() && allKeys[vid] == key)
         return it->second;
     auto instance = pluginManager.create (d.plugin, rate, blockSize, error);
     if (! instance) return nullptr;
@@ -487,9 +508,9 @@ Engine::Node::Ptr Engine::nodeForDevice (const Device& d, String& error)
             if (auto* bus = instance->getBus (false, i)) bus->enable (true);
     instance->addListener (this);
     auto node = graph.addNode (std::make_unique<TimedPlugin> (std::move (instance)));
-    if (auto old = deviceNodes[d.id]) { if (auto* op = pluginOf (old)) op->removeListener (this); bury (old); }
-    deviceNodes[d.id] = node;
-    deviceKeys[d.id] = key;
+    if (auto old = allDevices[vid]) { if (auto* op = pluginOf (old)) op->removeListener (this); bury (old); }
+    allDevices[vid] = node;
+    allKeys[vid] = key;
     return node;
 }
 
@@ -511,9 +532,18 @@ void Engine::sync (const Project& project, Id live, const File& folder)
     std::vector<const Track*> all;
     for (auto& t : project.tracks) all.push_back (&t);
     all.push_back (&project.master);
+    for (auto& c : project.cue) all.push_back (&c);   // after the master, heard but not exported (decision 0051)
+    const Track* cue = project.cue.empty() || rendering ? nullptr : &project.cue.front();
 
-    // Nodes for every track, and for every active device.
+    // Nodes for every track, and for every active device: the playing
+    // version's wired in, the others' parked, loaded and silent (decision 0050).
     std::set<Id> wantedTracks, wantedDevices;
+    std::set<VersionedId> wantedNodes;
+    std::map<Id, Node::Ptr> playing;
+    auto park = [] (const Node::Ptr& node, bool parked)
+    {
+        if (auto* tp = dynamic_cast<TimedPlugin*> (node->getProcessor())) tp->parked = parked;
+    };
     trackDevices.clear();
     for (auto* t : all)
     {
@@ -522,12 +552,37 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         auto& nodes = tracks[t->id];
         if (! nodes.source) nodes.source = graph.addNode (std::make_unique<TrackSource> (shared, t->id), {}, Kind::none);
         if (! nodes.fader) nodes.fader = graph.addNode (std::make_unique<Fader>(), {}, Kind::none);
+        if (t->kind == TrackKind::Summing && ! nodes.recorder)
+            nodes.recorder = graph.addNode (std::make_unique<TrackSource> (shared, t->id), {}, Kind::none);
+        if (t->frozen) continue;   // a frozen track's plug-ins are unloaded
+        const Id active = t->version().id;
         for (auto& d : t->devices)
         {
-            if (! d.active || t->frozen) continue;   // a frozen track's plug-ins are unloaded
+            if (! d.active) continue;
             String error;
-            if (nodeForDevice (d, error)) wantedDevices.insert (d.id);
+            if (auto node = nodeForDevice (d, active, error))
+            {
+                wantedDevices.insert (d.id);
+                wantedNodes.insert ({ active, d.id });
+                playing[d.id] = node;
+                park (node, false);
+            }
             else if (onMessage) onMessage (String (d.plugin.name) + " couldn't be loaded. " + error);
+        }
+        for (size_t v = 0; v < t->versions.size(); ++v)
+        {
+            const auto& version = t->versions[v];
+            if ((int) v == t->activeVersion) continue;
+            for (auto& d : version.devices)
+            {
+                if (! d.active) continue;
+                String error;
+                if (auto node = nodeForDevice (d, version.id, error))
+                {
+                    wantedNodes.insert ({ version.id, d.id });
+                    park (node, true);
+                }
+            }
         }
     }
     for (auto it = tracks.begin(); it != tracks.end();)
@@ -535,18 +590,27 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         if (wantedTracks.count (it->first)) { ++it; continue; }
         bury (it->second.source);
         bury (it->second.fader);
+        bury (it->second.recorder);
         for (auto& s : it->second.sends) bury (s.second);
         it = tracks.erase (it);
     }
-    for (auto it = deviceNodes.begin(); it != deviceNodes.end();)
+    // An ARA document goes before its plug-in, and with it when another version's takes over.
+    for (auto it = araSessions.begin(); it != araSessions.end();)
     {
-        if (wantedDevices.count (it->first)) { ++it; continue; }
-        araSessions.erase (it->first);   // the ARA document goes before its plug-in
+        const auto p = playing.find (it->first);
+        if (p != playing.end() && pluginOf (p->second) == araOwner[it->first]) { ++it; continue; }
+        araOwner.erase (it->first);
+        it = araSessions.erase (it);
+    }
+    for (auto it = allDevices.begin(); it != allDevices.end();)
+    {
+        if (wantedNodes.count (it->first)) { ++it; continue; }
         if (auto* op = pluginOf (it->second)) op->removeListener (this);
         bury (it->second);
-        deviceKeys.erase (it->first);
-        it = deviceNodes.erase (it);
+        allKeys.erase (it->first);
+        it = allDevices.erase (it);
     }
+    deviceNodes = playing;
 
     // Solo: a track is heard when nothing is soloed, or it is, or a folder
     // around it is, or something inside it is. Returns are always heard.
@@ -556,7 +620,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
     auto heard = [&] (const Track& t)
     {
         if (t.mute) return false;
-        if (! anySolo || t.kind == TrackKind::Master || t.kind == TrackKind::Return) return true;
+        if (! anySolo || t.kind == TrackKind::Master || t.kind == TrackKind::Return || t.isCue()) return true;
         if (soloed.count (t.id)) return true;
         for (auto id : soloed) if (project.isInside (t.id, id) || project.isInside (id, t.id)) return true;
         // Something soloed sends to... no: only routing up the tree counts.
@@ -567,7 +631,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
     String newShape;
     const int busChannels = surround::channels (project.surround);
     const bool surroundMix = busChannels > 2;
-    newShape << "fmt" << busChannels << "/" << graph.getTotalNumOutputChannels() << ";";
+    newShape << "fmt" << busChannels << "/" << graph.getTotalNumOutputChannels() << (cue ? "cue" : "") << ";";
     for (auto* t : all)
     {
         if (t->sourceDevice != 0)
@@ -628,7 +692,11 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                     const int inCh = jmin (inputs - 1, t->input.audioChannel + (t->input.stereo ? ch : 0));
                     graph.addConnection ({ { audioIn->nodeID, inCh }, { src, ch } }, Kind::none);
                 }
-            if (t->id == live || t->armed) connectMidi (midiIn->nodeID, src);
+            if ((t->id == live || t->armed) && ! t->isCue() && t->kind != TrackKind::Summing) connectMidi (midiIn->nodeID, src);
+            // A Summing track's recorder hears the master's first two channels (decision 0049).
+            if (nodes.recorder)
+                for (int ch = 0; ch < 2; ++ch)
+                    graph.addConnection ({ { tracks[project.master.id].fader->nodeID, ch }, { nodes.recorder->nodeID, ch } }, Kind::none);
 
             // MIDI effects in a line, then every instrument fed from the last.
             NodeID midiFrom = src;
@@ -673,12 +741,18 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             // Out: to its folder, the track it is routed to, or the master. In a
             // surround mix every channel goes; a bus's plug-ins take the front two
             // and the rest go straight to its fader (decision 0040).
-            if (t->kind == TrackKind::Master)
-                connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
+            // The master goes out through the Cue track when there is one, except
+            // when exporting (decision 0051); the Cue track goes out.
+            const bool toOut = t->isCue() || (t->kind == TrackKind::Master && cue == nullptr);
+            if (toOut)
+            {
+                if (! (t->isCue() && cue == nullptr))
+                    connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
+            }
             else
             {
                 const Id out = project.outputOf (t->id);
-                const Id target = out == 0 ? project.master.id : out;
+                const Id target = t->kind == TrackKind::Master ? cue->id : out == 0 ? project.master.id : out;
                 const auto targetEntry = entry[target];
                 const auto targetFader = tracks[target].fader->nodeID;
                 if (targetEntry == targetFader) connectChannels (nodes.fader->nodeID, targetFader, busChannels);
@@ -723,6 +797,21 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         graph.rebuild();
     }
 
+    // The master reaches a Summing track's recorder this long after the song
+    // position it belongs to: the graph's delay, less the Cue track's after it.
+    {
+        int afterMaster = 0;
+        if (cue)
+            for (auto& d : cue->devices)
+                if (d.active && ! d.bypassed)
+                    if (auto it = deviceNodes.find (d.id); it != deviceNodes.end())
+                        afterMaster += it->second->getProcessor()->getLatencySamples();
+        const double seconds = jmax (0, graph.getLatencySamples() - afterMaster) / rate;
+        for (auto& [id, nodes] : tracks)
+            if (nodes.recorder)
+                if (auto* r = dynamic_cast<TrackSource*> (nodes.recorder->getProcessor())) r->recordLatencySeconds = seconds;
+    }
+
     // ARA plug-ins (decision 0028): started once, then kept matching their track's audio clips.
     araTracks.clear();
     for (auto* t : all)
@@ -732,7 +821,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             auto* inst = instance (d.id);
             if (! inst) continue;
             auto& session = araSessions[d.id];
-            if (! session) session = startAra (*inst, d.araState, [this] { if (onAudioReady) onAudioReady(); });
+            if (! session) { session = startAra (*inst, d.araState, [this] { if (onAudioReady) onAudioReady(); }); araOwner[d.id] = inst; }
             if (! session || ! session->ready()) continue;
             session->update (project, *t, folder, [this, inst] (std::function<void()> change)
             {
@@ -762,7 +851,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             f->mono = t->mono;
             f->format = (int) project.surround;
             f->tap = t->kind == TrackKind::Master || t->id == live;   // the analysers and the tuner (decision 0044)
-            f->bus = t->kind == TrackKind::Master || t->isFolder();
+            f->bus = t->kind == TrackKind::Master || t->isFolder() || t->isCue();
             f->frontBack = (float) t->frontBack;
         }
         for (auto& s : t->sends)
@@ -811,6 +900,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         data->tempo = project.tempo;
         data->monitor = t->monitor == Monitor::In || (t->armed && t->monitor == Monitor::Auto);
         data->armed = t->armed;
+        data->summing = t->kind == TrackKind::Summing;
         data->readAutomation = t->autoMode != AutoMode::Off;
         data->fader = dynamic_cast<Fader*> (nodes.fader->getProcessor());
         for (auto& lane : t->automation)
@@ -888,6 +978,7 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     const int outChannels = surround::channels (project.surround);
     graph.setPlayConfigDetails (0, outChannels, rate, 512);
     graph.prepareToPlay (rate, 512);   // the graph's ends take on the channels before wiring
+    rendering = true;   // the Cue track isn't in what's exported (decision 0051)
     sync (project, 0, folder);
 
     // Clips still loading are waited for (a render must not miss them).
@@ -940,6 +1031,9 @@ bool Engine::render (const Project& project, const File& folder, const File& out
         error = "The file couldn't be written.";
         graph.setNonRealtime (false);
         deviceManager.addAudioCallback (this);
+        rendering = false;
+        shape.clear();
+        sync (project, wasLive, folder);
         return false;
     }
 
@@ -1028,6 +1122,7 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     playing = wasPlaying;
     deviceManager.addAudioCallback (this);
     // Wired again for the interface's channels.
+    rendering = false;
     shape.clear();
     sync (project, wasLive, folder);
     return ! cancelled;

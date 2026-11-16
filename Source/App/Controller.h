@@ -136,6 +136,8 @@ public:
     void duplicateSelectedTracks();
     void folderFromSelection();
     void newVersion (Id track);
+    // Chooses version `index` (0-3) on each of these tracks that has it (decision 0050).
+    void chooseVersion (const std::vector<Id>& tracks, int index);
     void freeze (Id track, bool);   // render the track with its plug-ins into audio, and unload them
     Id newMidiClip (Id track, Tick start, Tick length);
     void deleteSelection();

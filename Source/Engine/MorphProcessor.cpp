@@ -107,6 +107,18 @@ private:
     AudioBuffer<float> line;
     int pos = 0;
 };
+
+// For the tests: a plug-in that turns the sound down or up by so many dB.
+class GainTest : public LatencyTest
+{
+public:
+    explicit GainTest (float db) : LatencyTest (0), gain (Decibels::decibelsToGain (db)) {}
+    const String getName() const override { return "Gain Test"; }
+    void processBlock (AudioBuffer<float>& b, MidiBuffer& m) override { LatencyTest::processBlock (b, m); b.applyGain (gain); }
+
+private:
+    float gain;
+};
 } // namespace
 
 namespace
@@ -156,6 +168,8 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
     if (auto inst = makeInstrument (ref)) return inst;
     if (ref.identifier == "hardware-insert") return std::make_unique<HardwareInsert>();
+    if (String (ref.identifier).startsWith ("test-gain:"))
+        return std::make_unique<GainTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getFloatValue());
     if (String (ref.identifier).startsWith ("test-latency:"))
         return std::make_unique<LatencyTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getIntValue());
     return nullptr;

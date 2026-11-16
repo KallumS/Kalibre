@@ -33,6 +33,10 @@ public:
     // Audio-thread time spent in the plug-in, in high-resolution ticks.
     std::atomic<juce::int64> busyTicks { 0 };
 
+    // A plug-in of a version not playing (decision 0050): loaded, kept, silent,
+    // and costing nothing, so choosing its version is instant.
+    std::atomic<bool> parked { false };
+
     // Kept in step when the plug-in's latency changes (the engine is told).
     void latencyChanged() { setLatencySamples (inner->getLatencySamples()); }
 
@@ -58,6 +62,7 @@ public:
 
     void processBlock (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
     {
+        if (parked.load (std::memory_order_relaxed)) { audio.clear(); midi.clear(); return; }
         const auto start = juce::Time::getHighResolutionTicks();
         {
             const juce::ScopedLock lock (inner->getCallbackLock());
@@ -69,6 +74,7 @@ public:
 
     void processBlockBypassed (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
     {
+        if (parked.load (std::memory_order_relaxed)) { audio.clear(); midi.clear(); return; }
         const juce::ScopedLock lock (inner->getCallbackLock());
         inner->processBlockBypassed (audio, midi);
     }

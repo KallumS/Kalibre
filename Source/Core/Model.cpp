@@ -15,6 +15,7 @@ Track* Project::track (Id id)
 {
     if (id == 0) return nullptr;
     if (master.id == id) return &master;
+    for (auto& t : cue) if (t.id == id) return &t;
     for (auto& t : tracks) if (t.id == id) return &t;
     return nullptr;
 }
@@ -56,6 +57,7 @@ Device* Project::device (Id deviceId, Track** owner)
         return nullptr;
     };
     if (auto* d = find (master)) return d;
+    for (auto& t : cue) if (auto* d = find (t)) return d;
     for (auto& t : tracks) if (auto* d = find (t)) return d;
     return nullptr;
 }
@@ -108,7 +110,7 @@ bool Project::hiddenByFolder (Id id) const
 Id Project::outputOf (Id id) const
 {
     const auto* t = track (id);
-    if (! t || t->kind == TrackKind::Master) return 0;
+    if (! t || t->kind == TrackKind::Master || t->isCue()) return 0;
     if (t->output != 0 && t->output != id && track (t->output) && ! isInside (t->output, id))
         return t->output;
     return t->parent;

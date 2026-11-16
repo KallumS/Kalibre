@@ -250,6 +250,8 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 }, {}, true, p.surround == f));
             m.addSubMenu ("Mix Format", formats);
             m.addItem (item ("Add Return", [this] { c.addTrack (TrackKind::Return); }));
+            m.addItem (item ("Add Summing Track", [this] { c.addTrack (TrackKind::Summing); }));
+            m.addItem (item ("Add Cue Track", [this] { c.addTrack (TrackKind::Cue); }, {}, p.cue.empty()));
             m.addItem (item ("Put the Chosen Tracks in a Folder", [this] { c.folderFromSelection(); }));
             m.addSeparator();
             const auto* t = c.focus();
