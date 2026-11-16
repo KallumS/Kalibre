@@ -1,6 +1,7 @@
 #include "MorphProcessor.h"
 
 #include "BuiltinInstruments.h"
+#include "ContainerProcessor.h"
 #include "HardwareInsert.h"
 #include "Morph.h"
 #include "PluginManager.h"
@@ -166,6 +167,7 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "test-sidechain") return std::make_unique<SidechainTest>();
     if (ref.identifier == "test-multiout") return std::make_unique<MultiOutTest>();
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
+    if (ref.identifier == "container") return std::make_unique<ContainerProcessor> (pm);
     if (auto inst = makeInstrument (ref)) return inst;
     if (ref.identifier == "hardware-insert") return std::make_unique<HardwareInsert>();
     if (String (ref.identifier).startsWith ("test-gain:"))

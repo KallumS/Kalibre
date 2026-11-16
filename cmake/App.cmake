@@ -79,6 +79,7 @@ add_library(KalibreApp STATIC
     Source/Engine/PluginManager.cpp
     Source/Engine/TrackProcessors.cpp
     Source/Engine/MorphProcessor.cpp
+    Source/Engine/ContainerProcessor.cpp
     Source/Engine/BuiltinInstruments.cpp
     Source/Engine/HardwareInsert.cpp
     Source/Engine/Mp3Writer.cpp
@@ -183,7 +184,7 @@ target_link_libraries(Kalibre PRIVATE
 if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp
-    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp)
+    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1)
     target_link_libraries(KalibreAppTests PRIVATE KalibreApp juce::juce_recommended_config_flags)

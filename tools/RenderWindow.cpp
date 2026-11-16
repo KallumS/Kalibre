@@ -5,6 +5,7 @@
 
 #include "../Tests/App/Demo.h"
 #include "BuiltinInstruments.h"
+#include "ContainerProcessor.h"
 #include "Comp.h"
 #include "Song.h"
 #include "MainComponent.h"
@@ -223,6 +224,41 @@ int main (int argc, char** argv)
             std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
         }
         song::backToArrangement (c.project);
+        // The Container (decision 0055): three plug-ins, one on a band, one on the sides.
+        {
+            const Id t = edit::addTrack (c.project, TrackKind::Track, "Drums Bus");
+            const Id dev = edit::addDevice (c.project, t, containerRef(), DeviceRole::AudioFx);
+            c.focusTrack = t;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            if (auto* box = dynamic_cast<ContainerProcessor*> (engine.instance (dev)))
+            {
+                auto put = [&] (int i, const char* id, const char* name)
+                {
+                    PluginRef r { "Kalibre", id, name };
+                    String error;
+                    box->loadPlugin (i, r, error);
+                    box->slot (i).ref.name = name;   // shown as a plug-in would be
+                };
+                put (0, "test-gain:0", "Pro-Q 3");
+                put (1, "test-gain:-3", "Saturn 2");
+                put (2, "test-latency:64", "Valhalla Room");
+                auto set = [] (RangedAudioParameter* p, float v) { p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+                set (box->slot (1).low, 2000.0f);
+                set (box->slot (1).high, 9000.0f);
+                set (box->slot (1).gainDb, -2.5f);
+                set (box->slot (2).width, 2.0f);
+                set (box->slot (2).pan, -0.2f);
+                box->slot (0).solo->setValueNotifyingHost (0.0f);
+                box->matchLoudness->setValueNotifyingHost (1.0f);
+                if (box->onSlotsChanged) box->onSlotsChanged();
+            }
+            window.lowerHeight = 360;
+            shoot ("17-container");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, t);
+            c.refresh();
+        }
         // Kalibre's own synth and sampler, side by side (decision 0039).
         {
             const Id synthTrack = edit::addTrack (c.project, TrackKind::Track, "Synth");

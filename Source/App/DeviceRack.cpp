@@ -4,6 +4,7 @@
 #include "BuiltinInstruments.h"
 #include "HardwareInsert.h"
 #include "MorphProcessor.h"
+#include "ContainerProcessor.h"
 
 namespace kal
 {
@@ -475,6 +476,19 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
         if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre menu)", false, false, [] {});
         m.showMenuAsync (PopupMenu::Options());
     };
+    // The Container takes audio effects (decision 0055).
+    ContainerProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
+    {
+        PopupMenu m;
+        std::map<String, PopupMenu> byMaker;
+        for (auto& d : c.engine.plugins().known().getTypes())
+            if (PluginManager::roleFor (d) == DeviceRole::AudioFx)
+                byMaker[d.manufacturerName.isEmpty() ? String ("Other") : d.manufacturerName]
+                    .addItem (d.name + "  (" + d.pluginFormatName + ")", [chosen, d] { chosen (PluginManager::refFor (d)); });
+        for (auto& [maker, sub] : byMaker) m.addSubMenu (maker, sub);
+        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre menu)", false, false, [] {});
+        m.showMenuAsync (PopupMenu::Options());
+    };
     c.addChangeListener (this);
     rebuild();
 }
@@ -482,6 +496,7 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
 DeviceRack::~DeviceRack()
 {
     MorphProcessor::choosePlugin = nullptr;
+    ContainerProcessor::choosePlugin = nullptr;
     c.removeChangeListener (this);
     panels.clear();
 }
@@ -506,6 +521,8 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     kalibre.addSeparator();
     kalibre.addItem ("X/Y Morph as an Instrument (Samples or Instruments)", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::Instrument); });
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
+    kalibre.addSeparator();
+    kalibre.addItem ("Container (Plug-ins on a Band, the Mid or the Sides)", [&c, track] { c.addBuiltIn (track, containerRef(), DeviceRole::AudioFx); });
     PopupMenu m;
     m.addSubMenu ("MIDI Effects", midi, midi.getNumItems() > 0);
     m.addSubMenu ("Instruments", instruments, instruments.getNumItems() > 0);

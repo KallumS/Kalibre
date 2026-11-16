@@ -33,7 +33,8 @@
 | `Engine/TrackProcessors.*` | Each track's Source (clips, live input, recording, automation, modulators), Fader and Sends; the metronome. |
 | `Engine/ClapFormat.*`, `ClapGuiMac.mm` | Hosting CLAP (0021). |
 | `Engine/PluginManager.*` | Scanning (each plug-in in a helper: Kalibre run with `--kalibre-scan`), turning plug-ins off and on, and making them (0047). |
-| `Engine/MorphProcessor.*` | The X/Y morph (0018), and a latency device the tests use. |
+| `Engine/MorphProcessor.*` | The X/Y morph (0018), and the latency and gain devices the tests use. |
+| `Engine/ContainerProcessor.*` | The Container: plug-ins in a row, each on a band, the mid or the sides (0055). |
 | `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |
 | `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |
 | `Engine/Warp.*` | Audio in memory, and warping (0022). |
