@@ -54,3 +54,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0050. Versions have their own plug-ins, four at most, chosen from the mixer](0050-versions-have-their-own-plug-ins.md)
 - [0051. The Cue track](0051-the-cue-track.md)
 - [0052. The Summing track](0052-the-summing-track.md)
+- [0053. Shift-click chooses a range, Option-click adds](0053-shift-and-option-to-choose.md)

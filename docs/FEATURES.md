@@ -25,6 +25,7 @@ Every feature asked for, then the list of basic DAW features
 | Plug-in windows in the lower zone, side by side, resized with the zone | Built, untried | 0002. Resizable plug-ins are resized keeping their shape; others are scaled (VST3 and CLAP honour this; some AUs can't be scaled and show at their own size) |
 | Track versions (right-click > New Version) | Yes | Version number on the header; four at most, each with its own plug-ins, chosen with the mixer's 1 to 4 buttons, several tracks at once with Shift-click; tested (0006, 0050) |
 | Summing track | Yes | Track > Add Summing Track: armed, it records the master from where recording starts; tested (0052) |
+| Shift and Option to choose | Yes | Shift-click a range, Option-click adds, on tracks (arrangement and mixer), their buttons, clips and the Plug-in Manager; not the piano roll (0009); tested (0053) |
 | Cue track | Yes | Track > Add Cue Track: after the master, its plug-ins, pan and mono heard but never exported; tested (0051) |
 | MIDI effects before instruments | Yes | Tested (0007) |
 | ARA (Melodyne) | Built, untried | 0028. The track's audio clips become the plug-in's playback regions; its edits are saved with the project. One document per plug-in, so Melodyne's multi-track view shows one track |

@@ -58,6 +58,8 @@ private:
     int getNumRows() override { return (int) rows.size(); }
     void paintListBoxItem (int row, juce::Graphics&, int w, int h, bool selected) override;
     void selectedRowsChanged (int) override;
+    void listBoxItemClicked (int row, const juce::MouseEvent&) override;
+    juce::SparseSet<int> selectionNow, selectionBefore;   // Option-click adds to the one before (decision 0053)
     juce::String getNameForRow (int row) override;
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
 };

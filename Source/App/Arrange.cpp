@@ -30,11 +30,18 @@ TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), 
     arm.setTitle ("Arm for Recording");
     fold.setTitle ("Fold");
     version.setTitle ("Versions");
-    mute.onClick = [this] { c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; }); };
-    solo.onClick = [this] { c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
-    arm.onClick = [this] { c.apply ("Arm", [this] (Project& p) { if (auto* t = p.track (id)) t->armed = ! t->armed; }); };
-    fold.onClick = [this] { c.apply ("Fold", [this] (Project& p) { if (auto* t = p.track (id)) t->collapsed = ! t->collapsed; }); };
-    version.onClick = [this] { versionMenu(); };
+    // Option-click on any of them adds the track to the selection instead (decision 0053).
+    mute.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; }); };
+    solo.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
+    arm.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Arm", [this] (Project& p) { if (auto* t = p.track (id)) t->armed = ! t->armed; }); };
+    fold.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Fold", [this] (Project& p) { if (auto* t = p.track (id)) t->collapsed = ! t->collapsed; }); };
+    version.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } versionMenu(); };
+}
+
+// A toggle pressed with Option chose the track instead: its state goes back.
+void TrackHeader::refreshButtons()
+{
+    if (const auto* t = c.project.track (id)) update (*t);
 }
 
 void TrackHeader::update (const Track& t)
@@ -327,14 +334,8 @@ void TrackHeader::mouseDown (const MouseEvent& e)
         showMenu();
         return;
     }
-    if (e.mods.isCommandDown() || e.mods.isShiftDown())
-    {
-        auto sel = c.selectedTracks;
-        auto it = std::find (sel.begin(), sel.end(), id);
-        if (it != sel.end()) sel.erase (it); else sel.push_back (id);
-        c.selectTracks (sel);
-    }
-    else c.selectTracks ({ id });
+    // Shift-click a range, Option-click adds, Command-click adds or takes away (decision 0053).
+    c.chooseTrack (id, e.mods, c.arrangeOrder());
 }
 
 void TrackHeader::mouseDrag (const MouseEvent& e)
@@ -1177,14 +1178,9 @@ void Arrange::mouseDown (const MouseEvent& e)
             clipMenu (clip->id);
             return;
         }
-        if (e.mods.isShiftDown() || e.mods.isCommandDown())
-        {
-            if (c.selectedClips.count (clip->id)) c.selectedClips.erase (clip->id);
-            else c.selectedClips.insert (clip->id);
-            c.viewChanged();
-        }
-        else if (! c.selectedClips.count (clip->id) || c.selectedClip != clip->id)
-            c.selectClip (clip->id, clip->isMidi());
+        // Shift-click a range, Option-click adds (Option-drag still copies),
+        // Command-click adds or takes away (decision 0053).
+        c.chooseClip (clip->id, e.mods);
         c.focusOn (owner->id);
         if (owner->locked || clip->locked) return;
         if (! clip->isMidi())
@@ -1231,10 +1227,9 @@ void Arrange::mouseDown (const MouseEvent& e)
         return;
     }
 
-    // Empty lane: choose the track, put the cursor here.
-    c.focusOn (row->track);
-    c.selectTracks ({ row->track });
-    c.selectedClips.clear();
+    // Empty lane: choose the track (Shift, Option and Command as on its header), put the cursor here.
+    c.chooseTrack (row->track, e.mods, c.arrangeOrder());
+    if (! (e.mods.isShiftDown() || e.mods.isAltDown() || e.mods.isCommandDown())) c.selectedClips.clear();
     if (e.mods.isPopupMenu()) { laneMenu (*row, e.getPosition()); return; }
     drag = Drag::Cursor;
     c.locate (c.snapTick (tickAt ((float) e.x)));

@@ -49,7 +49,6 @@ private:
     juce::OwnedArray<ChannelStrip> strips;
     LoudnessPanel loudness;
     juce::String shape;
-    Id anchor = 0;   // the strip last clicked: Shift-click chooses from it
     void rebuild();
     void choose (Id, const juce::ModifierKeys&);
     void changeListenerCallback (juce::ChangeBroadcaster*) override;

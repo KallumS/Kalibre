@@ -65,7 +65,7 @@ public:
         depth.onDragEnd = [this] { if (! (before == c.project)) c.history.push (before, "Surround Position"); c.refresh(); };
         addChildComponent (depth);
         for (auto* b : { &mute, &solo, &phase, &mono }) addAndMakeVisible (b);
-        mono.onClick = [this] { c.apply ("Mono", [this] (Project& p) { if (auto* t = p.track (id)) t->mono = ! t->mono; }); };
+        mono.onClick = [this] { if (c.optionAdds (id)) { update(); return; } c.apply ("Mono", [this] (Project& p) { if (auto* t = p.track (id)) t->mono = ! t->mono; }); };
         mono.setTitle ("Mono");
         // Versions 1 to 4 (decision 0050): click one to hear it; with several
         // tracks chosen, each of them that has it switches.
@@ -77,14 +77,17 @@ public:
             b->setClickingTogglesState (false);
             b->onClick = [this, i]
             {
+                if (c.optionAdds (id)) { update(); return; }
                 const auto& sel = c.selectedTracks;
                 const bool many = sel.size() > 1 && std::find (sel.begin(), sel.end(), id) != sel.end();
                 c.chooseVersion (many ? sel : std::vector<Id> { id }, i);
             };
             addChildComponent (b);
         }
+        // Option-click on any button adds the track to the selection instead (decision 0053).
         mute.onClick = [this]
         {
+            if (c.optionAdds (id)) { update(); return; }
             c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; });
             c.touchedMix (id, AutoTarget::Kind::Mute, "Mute");
             AutoTarget a;
@@ -93,8 +96,8 @@ public:
             c.writeAutomation (id, a, on ? 1.0 : 0.0, 1);
             c.writeAutomation (id, a, on ? 1.0 : 0.0, 2);
         };
-        solo.onClick = [this] { c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
-        phase.onClick = [this] { c.apply ("Polarity", [this] (Project& p) { if (auto* t = p.track (id)) t->phaseInvert = ! t->phaseInvert; }); };
+        solo.onClick = [this] { if (c.optionAdds (id)) { update(); return; } c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
+        phase.onClick = [this] { if (c.optionAdds (id)) { update(); return; } c.apply ("Polarity", [this] (Project& p) { if (auto* t = p.track (id)) t->phaseInvert = ! t->phaseInvert; }); };
         mute.setTitle ("Mute");
         solo.setTitle ("Solo");
         phase.setTitle ("Invert Polarity");
@@ -447,29 +450,10 @@ void Mixer::changeListenerCallback (ChangeBroadcaster*)
 
 void Mixer::choose (Id id, const ModifierKeys& mods)
 {
+    // As in the arrangement (decision 0053), in the mixer's own order.
     std::vector<Id> order;
     for (auto* s : strips) order.push_back (s->id);
-    auto at = [&order] (Id x) { return (int) (std::find (order.begin(), order.end(), x) - order.begin()); };
-    if (mods.isShiftDown() && anchor != 0 && at (anchor) < (int) order.size())
-    {
-        // From the last one clicked to this one, this one last (it takes the focus).
-        const int a = at (anchor), b = at (id);
-        std::vector<Id> range;
-        for (int i = a; i != b; i += (b > a ? 1 : -1)) range.push_back (order[(size_t) i]);
-        range.push_back (id);
-        c.selectTracks (range);
-        return;
-    }
-    anchor = id;
-    if (mods.isCommandDown())
-    {
-        auto sel = c.selectedTracks;
-        auto it = std::find (sel.begin(), sel.end(), id);
-        if (it != sel.end()) sel.erase (it); else sel.push_back (id);
-        c.selectTracks (sel);
-        return;
-    }
-    c.selectTracks ({ id });
+    c.chooseTrack (id, mods, order);
 }
 
 void Mixer::timerCallback()

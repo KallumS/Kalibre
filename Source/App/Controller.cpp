@@ -913,6 +913,90 @@ void Controller::freeze (Id id, bool on)
     say ("Frozen: it plays as audio and its plug-ins are unloaded. Unfreeze to change it.", false, true);
 }
 
+void Controller::chooseTrack (Id id, const ModifierKeys& mods, const std::vector<Id>& order)
+{
+    auto sel = selectedTracks;
+    const auto at = [&order] (Id x) { return std::find (order.begin(), order.end(), x); };
+    if (mods.isShiftDown() && trackAnchor != 0 && at (trackAnchor) != order.end() && at (id) != order.end())
+    {
+        // From the last one clicked to this one; this one last, so it takes the focus.
+        const auto a = at (trackAnchor) - order.begin(), b = at (id) - order.begin();
+        std::vector<Id> range;
+        for (auto i = a; i != b; i += (b > a ? 1 : -1)) range.push_back (order[(size_t) i]);
+        range.push_back (id);
+        selectTracks (range);
+        return;
+    }
+    trackAnchor = id;
+    const auto it = std::find (sel.begin(), sel.end(), id);
+    if (mods.isAltDown())
+    {
+        if (it != sel.end()) sel.erase (it);
+        sel.push_back (id);
+    }
+    else if (mods.isCommandDown())
+    {
+        if (it != sel.end()) sel.erase (it);
+        else sel.push_back (id);
+        if (sel.empty()) { selectedTracks.clear(); sendChangeMessage(); return; }
+    }
+    else sel = { id };
+    selectTracks (sel);
+}
+
+bool Controller::optionAdds (Id track)
+{
+    if (! ModifierKeys::currentModifiers.isAltDown()) return false;
+    chooseTrack (track, ModifierKeys (ModifierKeys::altModifier), {});
+    return true;
+}
+
+std::vector<Id> Controller::arrangeOrder() const
+{
+    std::vector<Id> order;
+    for (auto& t : project.tracks) if (! t.hidden && ! project.hiddenByFolder (t.id)) order.push_back (t.id);
+    return order;
+}
+
+void Controller::chooseClip (Id id, const ModifierKeys& mods)
+{
+    const Track* owner = nullptr;
+    const auto* clip = project.clip (id, &owner);
+    if (! clip || ! owner) return;
+    const Track* anchorOwner = nullptr;
+    const auto* anchor = clipAnchor != 0 ? project.clip (clipAnchor, &anchorOwner) : nullptr;
+    if (mods.isShiftDown() && anchor && anchorOwner)
+    {
+        // Every clip on the tracks from the anchor's to this one's, from the
+        // earlier start to the later end: the rectangle the two make.
+        const auto order = arrangeOrder();
+        const auto a = std::find (order.begin(), order.end(), anchorOwner->id), b = std::find (order.begin(), order.end(), owner->id);
+        if (a != order.end() && b != order.end())
+        {
+            const Tick from = std::min (anchor->start, clip->start), to = std::max (anchor->end(), clip->end());
+            std::set<Id> range;
+            for (auto i = std::min (a, b); i <= std::max (a, b); ++i)
+                if (const auto* t = project.track (*i))
+                    for (auto& x : t->clips())
+                        if (x.start < to && x.end() > from) range.insert (x.id);
+            selectedClips = range;
+            selectedClip = id;
+            viewChanged();
+            return;
+        }
+    }
+    clipAnchor = id;
+    if (mods.isAltDown()) { selectedClips.insert (id); selectedClip = id; viewChanged(); return; }
+    if (mods.isCommandDown())
+    {
+        if (selectedClips.count (id)) selectedClips.erase (id);
+        else selectedClips.insert (id);
+        viewChanged();
+        return;
+    }
+    if (! selectedClips.count (id) || selectedClip != id) selectClip (id, clip->isMidi());
+}
+
 void Controller::newVersion (Id track)
 {
     const auto* t = project.track (track);

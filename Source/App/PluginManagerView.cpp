@@ -165,6 +165,7 @@ void PluginManagerView::refresh()
     for (int i = 0; i < (int) rows.size(); ++i)
         if (keep.contains (rows[(size_t) i].format + "|" + rows[(size_t) i].file + "|" + rows[(size_t) i].name)) sel.addRange ({ i, i + 1 });
     list.setSelectedRows (sel, dontSendNotification);
+    selectionNow = selectionBefore = sel;
     updateButtons();
     list.repaint();
     repaint();
@@ -200,7 +201,19 @@ void PluginManagerView::updateButtons()
 
 void PluginManagerView::selectedRowsChanged (int)
 {
+    selectionBefore = selectionNow;
+    selectionNow = list.getSelectedRows();
     updateButtons();
+}
+
+// Shift-click chooses a range and Command-click adds or takes away (the list
+// does both); Option-click adds the row to what was chosen (decision 0053).
+void PluginManagerView::listBoxItemClicked (int row, const MouseEvent& e)
+{
+    if (! e.mods.isAltDown() || row < 0) return;
+    auto s = selectionBefore;
+    s.addRange ({ row, row + 1 });
+    list.setSelectedRows (s);
 }
 
 String PluginManagerView::getNameForRow (int row)

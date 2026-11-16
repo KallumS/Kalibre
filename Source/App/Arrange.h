@@ -37,6 +37,7 @@ public:
     void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void update (const Track&);
+    void refreshButtons();
     void showMenu();
 
     Id id;

@@ -311,3 +311,70 @@ TEST ("versions: choosing a number switches every chosen track that has it, and 
     CHECK_EQ (c.project.track (a)->versions.size(), size_t (4));
     CHECK (c.message.contains ("four versions at most"));
 }
+
+TEST ("choosing: Shift-click a range of tracks, Option-click adds, Command-click takes away, the same in any view's order")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    std::vector<Id> t;
+    for (int i = 0; i < 5; ++i) t.push_back (edit::addTrack (c.project, TrackKind::Track, "T" + std::to_string (i)));
+    c.refresh();
+    const ModifierKeys none, shift (ModifierKeys::shiftModifier), option (ModifierKeys::altModifier), cmd (ModifierKeys::commandModifier);
+    const auto order = c.arrangeOrder();
+    auto chosen = [&c] { auto s = c.selectedTracks; std::sort (s.begin(), s.end()); return s; };
+
+    c.chooseTrack (t[1], none, order);
+    c.chooseTrack (t[3], shift, order);
+    CHECK (chosen() == (std::vector<Id> { t[1], t[2], t[3] }));
+    CHECK_EQ (c.focusTrack, t[3]);
+    // Backwards from the same anchor.
+    c.chooseTrack (t[0], shift, order);
+    CHECK (chosen() == (std::vector<Id> { t[0], t[1] }));
+    // Option adds, without losing what's chosen.
+    c.chooseTrack (t[4], option, order);
+    CHECK (chosen() == (std::vector<Id> { t[0], t[1], t[4] }));
+    // Shift now runs from the last one Option-clicked.
+    c.chooseTrack (t[2], shift, order);
+    CHECK (chosen() == (std::vector<Id> { t[2], t[3], t[4] }));
+    // Command takes one away.
+    c.chooseTrack (t[3], cmd, order);
+    CHECK (chosen() == (std::vector<Id> { t[2], t[4] }));
+    // A plain click chooses only that one.
+    c.chooseTrack (t[0], none, order);
+    CHECK (chosen() == (std::vector<Id> { t[0] }));
+    // The mixer's order ends with the master: a range can reach it.
+    auto mixer = order;
+    mixer.push_back (c.project.master.id);
+    c.chooseTrack (t[4], none, mixer);
+    c.chooseTrack (c.project.master.id, shift, mixer);
+    CHECK_EQ (c.selectedTracks.size(), size_t (2));
+}
+
+TEST ("choosing: Shift-click clips takes every clip between the two, across tracks; Option-click adds one")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id a = edit::addTrack (c.project, TrackKind::Track, "A");
+    const Id b = edit::addTrack (c.project, TrackKind::Track, "B");
+    const Id d = edit::addTrack (c.project, TrackKind::Track, "C");
+    const Id a1 = edit::addMidiClip (c.project, a, 0, PPQ * 4);
+    const Id a2 = edit::addMidiClip (c.project, a, PPQ * 8, PPQ * 4);
+    const Id a3 = edit::addMidiClip (c.project, a, PPQ * 32, PPQ * 4);   // past the range
+    const Id b1 = edit::addMidiClip (c.project, b, PPQ * 4, PPQ * 4);
+    const Id c1 = edit::addMidiClip (c.project, d, PPQ * 12, PPQ * 4);
+    c.refresh();
+    const ModifierKeys none, shift (ModifierKeys::shiftModifier), option (ModifierKeys::altModifier);
+
+    c.chooseClip (a1, none);
+    c.chooseClip (c1, shift);
+    CHECK (c.selectedClips == (std::set<Id> { a1, a2, b1, c1 }));
+    CHECK (! c.selectedClips.count (a3));
+    c.chooseClip (a3, option);
+    CHECK_EQ (c.selectedClips.size(), size_t (5));
+    c.chooseClip (b1, none);
+    CHECK (c.selectedClips == (std::set<Id> { b1 }));
+}
