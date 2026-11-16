@@ -190,3 +190,48 @@ TEST ("song: moving the Chorus from bar 65 to bar 49 takes its piano, guitar and
     CHECK_EQ (p.sections[0].start, bar * 48);
     CHECK_EQ (p.sections[1].start, bar * 56);
 }
+
+TEST ("song: a section dragged to any bar takes its music; what was there moves out of the way, earlier or later")
+{
+    Project p;
+    const Tick bar = p.tempo.barStart (1);
+    const Id piano = edit::addTrack (p, TrackKind::Track, "Piano");
+    const Id verse = song::addSection (p, "Verse", bar * 48, bar * 64);
+    const Id chorus = song::addSection (p, "Chorus", bar * 64, bar * 72);
+    edit::addMidiClip (p, piano, bar * 48, bar * 16);
+    edit::addMidiClip (p, piano, bar * 64, bar * 8);
+
+    // Earlier, to bar 53 (index 52): inside the verse, which is cut there to make room.
+    song::moveSectionTo (p, chorus, bar * 52);
+    song::sortSections (p);
+    const Section* c = nullptr;
+    for (auto& s : p.sections) if (s.id == chorus) c = &s;
+    CHECK (c != nullptr);
+    if (c) { CHECK_EQ (c->start, bar * 52); CHECK_EQ (c->end, bar * 60); }
+    Tick total = 0;
+    for (auto& cl : p.track (piano)->clips()) total += cl.length;
+    CHECK_EQ (total, bar * 24);   // nothing lost
+    bool chorusMusicThere = false;
+    for (auto& cl : p.track (piano)->clips()) if (cl.start == bar * 52 && cl.length == bar * 8) chorusMusicThere = true;
+    CHECK (chorusMusicThere);
+
+    // Later: the verse's first part (bars 49-52) to after the chorus.
+    Project q;
+    const Id keys = edit::addTrack (q, TrackKind::Track, "Keys");
+    const Id v = song::addSection (q, "Verse", bar * 48, bar * 64);
+    song::addSection (q, "Chorus", bar * 64, bar * 72);
+    edit::addMidiClip (q, keys, bar * 48, bar * 16);
+    edit::addMidiClip (q, keys, bar * 64, bar * 8);
+    song::moveSectionTo (q, v, bar * 56);
+    song::sortSections (q);
+    CHECK_EQ (q.sections[0].name, std::string ("Chorus"));
+    CHECK_EQ (q.sections[0].start, bar * 48);
+    CHECK_EQ (q.sections[1].start, bar * 56);
+    const auto& clips = q.track (keys)->clips();
+    CHECK_EQ (clips.size(), size_t (2));
+    if (clips.size() == 2) { CHECK_EQ (clips[0].start, bar * 48); CHECK_EQ (clips[0].length, bar * 8); CHECK_EQ (clips[1].start, bar * 56); CHECK_EQ (clips[1].length, bar * 16); }
+    // Where it already is: nothing changes.
+    const auto before = q;
+    song::moveSectionTo (q, v, bar * 56);
+    CHECK (q == before);
+}

@@ -57,7 +57,7 @@ grow and shrink with it.
 - **Control surfaces**: Mackie Control (X-Touch, FaderPort...), HUI and OSC.
 - **Audio tools**: normalise, strip silence, quantise audio to the grid, a
   sample editor with a spectrogram, **snap to zero crossings**.
-- **Sections** you move and duplicate whole, ripple editing, linked clips,
+- **Sections** you move (Shift-drag one to any bar) and duplicate with all their music, ripple editing, linked clips,
   track groups, and a **clip launcher** for playing ideas in loops.
 - **Kalibre Synth and Sampler**, **presets** and **A/B** for every plug-in,
   hardware inserts, instruments' extra outputs on their own tracks,

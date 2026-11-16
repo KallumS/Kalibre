@@ -583,6 +583,15 @@ void Arrange::drawSectionLane (Graphics& g, Rectangle<int> r)
         g.setColour (theme::text);
         g.drawText (String (sec.name), box.toNearestInt().withTrimmedLeft (8), Justification::centredLeft, true);
     }
+    // A section being Shift-dragged: where it would land.
+    if (drag == Drag::Section)
+        for (auto& sec : c.project.sections)
+            if (sec.id == dragSection)
+            {
+                const auto ghost = Rectangle<float> (xOf (sectionTo) + 1, (float) r.getY() + 1, xOf (sectionTo + (sec.end - sec.start)) - xOf (sectionTo) - 2, (float) r.getHeight() - 2);
+                g.setColour (theme::playhead);
+                g.drawRoundedRectangle (ghost, 3.0f, 2.0f);
+            }
     // Where the video starts (decision 0046).
     if (! c.project.video.file.empty())
     {
@@ -1018,6 +1027,13 @@ void Arrange::paintOverChildren (Graphics& g)
         g.setColour (theme::edge);
         g.fillRect (cx, 0.0f, 1.0f, (float) getHeight() - theme::px (12));
     }
+    if (drag == Drag::Section)
+    {
+        // The bar it would start on, down every track.
+        const float x = xOf (sectionTo);
+        g.setColour (theme::playhead);
+        g.fillRect (x - 1.0f, 0.0f, 2.0f, (float) getHeight() - theme::px (12));
+    }
     if (c.engine.isPlaying())
     {
         const float x = xOf (c.playhead());
@@ -1051,6 +1067,16 @@ const Clip* Arrange::clipAt (Point<int> p, const Track** owner) const
             return &*it;
         }
     return nullptr;
+}
+
+String Arrange::getTooltip()
+{
+    // The Sections lane says how to move a section.
+    const auto pos = getMouseXYRelative();
+    const int lane = theme::px (36);
+    if (sectionLaneHeight() > 0 && pos.y >= lane && pos.y < lane + sectionLaneHeight() && pos.x >= headerWidth())
+        return theme::wrapTip ("Click a section to go to it. Shift-drag it to move it, with all its music, to another bar: what's there moves out of its way. Right-click for more.");
+    return {};
 }
 
 void Arrange::mouseMove (const MouseEvent& e)
@@ -1095,6 +1121,14 @@ void Arrange::mouseDown (const MouseEvent& e)
         const Tick at = tickAt ((float) e.x);
         const auto* sec = song::sectionAt (c.project, at);
         if (e.mods.isPopupMenu()) sectionMenu (sec ? sec->id : 0, at);
+        else if (sec && e.mods.isShiftDown())
+        {
+            // Shift-drag: the section, and everything in it, to another bar.
+            drag = Drag::Section;
+            dragSection = sec->id;
+            dragOrigin = at;
+            sectionTo = sec->start;
+        }
         else if (sec) c.locate (sec->start);
         return;
     }
@@ -1335,6 +1369,19 @@ void Arrange::mouseDrag (const MouseEvent& e)
             repaint();
             break;
         }
+        case Drag::Section:
+        {
+            const Section* sec = nullptr;
+            for (auto& s : c.project.sections) if (s.id == dragSection) sec = &s;
+            if (! sec) break;
+            // To the nearest bar line.
+            const Tick want = std::max<Tick> (0, sec->start + (at - dragOrigin));
+            const auto& tempo = c.project.tempo;
+            const int b = tempo.barAt (want);
+            sectionTo = want - tempo.barStart (b) < tempo.barStart (b + 1) - want ? tempo.barStart (b) : tempo.barStart (b + 1);
+            repaint();
+            break;
+        }
         case Drag::Marker:
         case Drag::None:
             break;
@@ -1343,6 +1390,22 @@ void Arrange::mouseDrag (const MouseEvent& e)
 
 void Arrange::mouseUp (const MouseEvent&)
 {
+    if (drag == Drag::Section)
+    {
+        const Id id = dragSection;
+        const Tick to = sectionTo;
+        drag = Drag::None;
+        dragSection = 0;
+        for (auto& s : c.project.sections)
+            if (s.id == id && s.start != to)
+            {
+                const String name (s.name);
+                c.apply ("Move Section", [id, to] (Project& p) { song::moveSectionTo (p, id, to); });
+                c.say (name + " moved to bar " + String (c.project.tempo.barAt (to) + 1) + ", with everything in it.", false, true);
+            }
+        repaint();
+        return;
+    }
     if (drag == Drag::MoveClip && dragClip)
     {
         const auto* clip = c.project.clip (dragClip);
