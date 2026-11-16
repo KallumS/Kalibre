@@ -40,6 +40,8 @@ protected:
     double dragStartValue = 0;
     noteopt::Kind kind = noteopt::Kind::Velocity;
     theme::HouseButton option { juce::String::fromUTF8 ("Velocity \xe2\x96\xbe"), "What dragging a hit sets: its velocity, its chance of playing, or how far its velocity or timing may wander." };
+    theme::HouseButton randomise { "Random", "A new drum groove from Good Idea, every click: replaces this grid's hits (Undo puts them back)." };
+    void random();
     int topHeight() const { return theme::px (34); }
     double valueAt (int lane, int step) const;
     void setValueAt (int lane, int step, double);
@@ -81,6 +83,8 @@ private:
     theme::HouseButton option { juce::String::fromUTF8 ("Velocity \xe2\x96\xbe"), "What Option-drag sets on a step: its velocity, its chance of playing, or how far its velocity or timing may wander." };
     juce::Rectangle<int> cellsArea() const;
     void resized() override;
+    theme::HouseButton randomise { "Random", "A new tune from Good Idea in the song's key, every click: replaces these steps (Undo puts them back)." };
+    void random();
     bool changed = false;
     Project before;
     void read();
@@ -93,7 +97,7 @@ private:
 
 // Euclidean: for each drum, how many steps, how many hits spread as evenly as
 // they go, and where the pattern starts. Shown as a circle and written to the
-// clip as you turn the dials.
+// clip as you turn the dials. Random rolls them all (decision 0062).
 class EuclidEditor : public juce::Component, private juce::ChangeListener, private juce::Timer
 {
 public:
@@ -115,6 +119,9 @@ private:
     };
     std::vector<std::unique_ptr<Row>> rows;
     theme::HouseButton addRow { "Add Drum", "Add another Euclidean rhythm on another drum." };
+    theme::HouseButton randomise { "Random", "New steps, hits and rotation for every drum, every click: written into the clip (Undo puts back what was there)." };
+    void random();
+    void applyAll (const juce::String& label);
     void build();
     void apply (Row&);
     std::vector<int> lit;   // each row's step being played

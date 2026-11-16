@@ -777,3 +777,63 @@ TEST ("auto cc: only on a track named for an instrument AutoCC knows; then the c
     CHECK (lanes->shown() == std::vector<int> ({ 1, 11, 7, 21 }));
     CHECK (lanes->getHeight() > 0 && lanes->getBottom() == roll.getHeight());
 }
+
+#include "PatternEditors.h"
+
+TEST ("random: each pattern editor's Random writes a new pattern of its own each click, as one undo step, leaving the piano roll's notes")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Beat");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 8);
+    Note played; played.start = 0; played.length = PPQ * 8; played.pitch = 48;
+    edit::addNote (c.project, clip, played);
+    c.refresh();
+    c.selectClip (clip);
+    c.grid = PPQ / 4;
+
+    auto press = [] (Component& editor)
+    {
+        for (auto* child : editor.getChildren())
+            if (auto* b = dynamic_cast<TextButton*> (child); b && b->getButtonText() == "Random") { b->triggerClick(); break; }
+        MessageManager::getInstance()->runDispatchLoopUntil (20);
+    };
+    auto mine = [&] (NoteFrom who)
+    {
+        std::vector<std::pair<Tick, int>> out;
+        for (auto& n : c.project.clip (clip)->midi.notes) if (n.from == who) out.push_back ({ n.start, n.pitch });
+        return out;
+    };
+    auto rollKept = [&] { return std::any_of (c.project.clip (clip)->midi.notes.begin(), c.project.clip (clip)->midi.notes.end(),
+                                              [] (const Note& n) { return n.from == NoteFrom::Roll && n.pitch == 48; }); };
+
+    DrumGrid drums (c);
+    drums.setSize (900, 400);
+    press (drums);
+    const auto first = mine (NoteFrom::Drums);
+    CHECK (! first.empty());
+    CHECK (rollKept());
+    CHECK (c.message.contains ("Good Idea"));
+    press (drums);
+    CHECK (mine (NoteFrom::Drums) != first);               // a new one each click
+    c.undo();
+    CHECK (mine (NoteFrom::Drums) == first);               // one undo step each
+
+    StepSequencer steps (c);
+    steps.setSize (900, 400);
+    press (steps);
+    const auto tune = mine (NoteFrom::Steps);
+    CHECK (! tune.empty());
+    for (auto& [at, pitch] : tune) CHECK (at % (PPQ / 4) == 0);   // one a step, on the steps
+    CHECK (rollKept());
+    CHECK (! mine (NoteFrom::Drums).empty());               // the drums are still there
+
+    EuclidEditor euclid (c);
+    euclid.setSize (900, 400);
+    press (euclid);
+    const auto rhythm = mine (NoteFrom::Euclid);
+    CHECK (! rhythm.empty());
+    CHECK (rollKept() && ! mine (NoteFrom::Steps).empty());
+}

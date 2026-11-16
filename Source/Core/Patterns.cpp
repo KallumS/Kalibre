@@ -3,6 +3,7 @@
 #include "Edit.h"
 
 #include <algorithm>
+#include <random>
 #include <cmath>
 #include <map>
 #include <set>
@@ -45,6 +46,19 @@ std::vector<bool> euclid (int steps, int pulses, int rotation)
     return out;
 }
 
+std::string drumName (int pitch)
+{
+    static const char* names[] {
+        "Acoustic Bass Drum", "Kick", "Rim", "Snare", "Clap", "Electric Snare", "Low Floor Tom", "Closed Hat", "High Floor Tom",
+        "Pedal Hi-Hat", "Low Tom", "Open Hat", "Low-Mid Tom", "Hi-Mid Tom", "Crash", "High Tom", "Ride", "Chinese Cymbal",
+        "Ride Bell", "Tambourine", "Splash", "Cowbell", "Crash 2", "Vibraslap", "Ride 2", "High Bongo", "Low Bongo",
+        "Mute High Conga", "Open High Conga", "Low Conga", "High Timbale", "Low Timbale", "High Agogo", "Low Agogo", "Cabasa",
+        "Maracas", "Short Whistle", "Long Whistle", "Short Guiro", "Long Guiro", "Claves", "High Wood Block", "Low Wood Block",
+        "Mute Cuica", "Open Cuica", "Mute Triangle", "Open Triangle" };
+    if (pitch >= 35 && pitch <= 81) return names[pitch - 35];
+    return "Note " + std::to_string (pitch);
+}
+
 std::vector<Lane> standardKit (int steps)
 {
     const std::vector<std::pair<const char*, int>> kit {
@@ -54,7 +68,7 @@ std::vector<Lane> standardKit (int steps)
     };
     std::vector<Lane> lanes;
     for (auto& [name, pitch] : kit)
-        lanes.push_back ({ name, pitch, std::vector<int> (static_cast<size_t> (steps), 0) });
+        lanes.push_back ({ name, pitch, std::vector<int> (static_cast<size_t> (steps), 0), {}, {}, {} });
     return lanes;
 }
 
@@ -86,7 +100,7 @@ Grid readGrid (const MidiData& m, Grid g, Tick from, NoteFrom who)
         auto it = std::find_if (g.lanes.begin(), g.lanes.end(), [&] (const Lane& l) { return l.pitch == n.pitch; });
         if (it == g.lanes.end())
         {
-            g.lanes.push_back ({ "Note " + std::to_string (n.pitch), n.pitch, {} });
+            g.lanes.push_back ({ drumName (n.pitch), n.pitch, {}, {}, {}, {} });
             blank (g.lanes.back());
             it = g.lanes.end() - 1;
         }
@@ -135,6 +149,26 @@ void writeGrid (MidiData& m, const Grid& g, Tick from, Tick length, unsigned& ne
                 m.notes.push_back (n);
             }
     edit::sortNotes (m);
+}
+
+EuclidSettings randomEuclid (int pitch, unsigned seed)
+{
+    std::mt19937 dice (seed * 2654435761u + (unsigned) pitch);
+    auto pick = [&] (int lo, int hi) { return std::uniform_int_distribution<int> (lo, hi) (dice); };
+    EuclidSettings e;
+    const int lengths[] { 16, 16, 16, 8, 12, 32 };
+    e.steps = lengths[pick (0, 5)];
+    const int per8 = e.steps / 8;   // hits are counted per eight steps
+    switch (pitch)
+    {
+        case 35: case 36:           e.pulses = std::max (1, pick (2, 3) * per8 + pick (0, 1)); e.rotation = pick (0, 1) ? 0 : pick (0, e.steps - 1); break;
+        case 38: case 39: case 40:  e.pulses = std::max (1, pick (1, 2) * per8); e.rotation = pick (0, 2) ? e.steps / (2 * e.pulses) : pick (0, e.steps - 1); break;
+        case 42: case 44: case 46:  e.pulses = std::max (1, pick (3, 7) * per8); e.rotation = pick (0, e.steps - 1); break;
+        default:                    e.pulses = std::max (1, pick (1, 5) * per8); e.rotation = pick (0, e.steps - 1); break;
+    }
+    e.pulses = std::clamp (e.pulses, 1, e.steps - 1);
+    e.rotation = ((e.rotation % e.steps) + e.steps) % e.steps;
+    return e;
 }
 
 void euclidLane (Lane& lane, int steps, int pulses, int rotation, int velocity, int accentEvery)

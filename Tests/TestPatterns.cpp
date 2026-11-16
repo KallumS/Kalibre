@@ -159,3 +159,39 @@ TEST ("chance, velocity and timing: the drum grid and the step sequencer keep ea
     CHECK_EQ (sb.steps[1].velocityRange, 8);
     CHECK_EQ (sb.steps[1].timingMs, 5.0);
 }
+
+TEST ("random: Euclidean settings that make sense, a different set each time")
+{
+    int differ = 0;
+    EuclidSettings last;
+    for (unsigned seed = 1; seed <= 200; ++seed)
+    {
+        for (int pitch : { 36, 38, 42, 39 })
+        {
+            const auto e = randomEuclid (pitch, seed);
+            CHECK (e.steps >= 4 && e.steps <= 32);
+            CHECK (e.pulses >= 1 && e.pulses < e.steps);
+            CHECK (e.rotation >= 0 && e.rotation < e.steps);
+        }
+        const auto e = randomEuclid (42, seed);
+        if (seed > 1 && ! (e.steps == last.steps && e.pulses == last.pulses && e.rotation == last.rotation)) ++differ;
+        last = e;
+    }
+    CHECK (differ > 150);
+    // Hats busier than kicks, on the whole.
+    int hats = 0, kicks = 0;
+    for (unsigned seed = 1; seed <= 200; ++seed) { hats += randomEuclid (42, seed).pulses; kicks += randomEuclid (36, seed).pulses; }
+    CHECK (hats > kicks);
+}
+
+TEST ("drum grid: a drum the usual kit hasn't got gets a row with its General MIDI name")
+{
+    MidiData m;
+    Note n; n.start = 0; n.length = 60; n.pitch = 44; n.from = NoteFrom::Drums;
+    m.notes.push_back (n);
+    Grid g;
+    g.lanes = standardKit (16);
+    const auto r = readGrid (m, g, 0, NoteFrom::Drums);
+    CHECK_EQ (r.lanes.back().name, std::string ("Pedal Hi-Hat"));
+    CHECK_EQ (drumName (56), std::string ("Cowbell"));
+}

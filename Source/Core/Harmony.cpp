@@ -53,7 +53,7 @@ std::vector<TimedPitch> collect (const Project& p, Tick from, Tick to)
             {
                 for (auto& n : c.midi.notes)
                 {
-                    if (n.channel == 9) continue;
+                    if (n.channel == 9 || n.from == NoteFrom::Drums || n.from == NoteFrom::Euclid) continue;   // drums, not harmony
                     if (c.loopLength > 0 && n.start >= c.loopLength) continue;
                     Tick a = base + n.start, b = a + n.length;
                     a = std::max (a, c.start);

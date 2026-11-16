@@ -25,6 +25,7 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/Ideas.*` | Good Idea's engine (Lua, `Engines/good-idea/`, embedded by `cmake/EmbedLua.cmake`): drum grooves and motifs for the Random buttons (0062). |
 | `Core/Controllers.*` | The MIDI controllers' standard names (0060). |
 | `Core/AutoCc.*` | AutoCC's engine, ported from the JSFX: a clip's notes to its CC curves; instrument names to its families (0060). |
 | `Core/Hui.*` | The HUI protocol (0043). |
@@ -62,6 +63,7 @@
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
 | `tools/RenderWindow.cpp` | Draws the window into PNGs on CI (0023). |
 | `tools/export-chat.py` | Writes a session's transcript as the chat backup in `docs/sessions/`; a new part's title and description are its last two arguments. |
+| `Engines/` | The family's Lua engines, copied unchanged from their repositories (`Engines/VENDORED.md`). |
 | `Scripts/` | Example scripts. |
 | `Resources/` | The app icon: `Icon.svg`, and `Icon.png` drawn from it (0048). |
 | `ThirdParty/` | Lua 5.4 (MIT) and nlohmann/json (MIT). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link and Shine (LGPL, MP3) are fetched by CMake. |

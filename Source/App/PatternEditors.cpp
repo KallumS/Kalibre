@@ -1,6 +1,7 @@
 #include "PatternEditors.h"
 
 #include "Harmony.h"
+#include "Ideas.h"
 
 namespace kal
 {
@@ -72,6 +73,8 @@ DrumGrid::DrumGrid (Controller& ctrl) : c (ctrl)
     setTitle ("Drum grid");
     addAndMakeVisible (option);
     option.onClick = [this] { optionMenu (option, kind, [this] (noteopt::Kind k) { kind = k; repaint(); }); };
+    addAndMakeVisible (randomise);
+    randomise.onClick = [this] { random(); };
     c.addChangeListener (this);
     read();
     startTimerHz (30);
@@ -122,6 +125,37 @@ Rectangle<int> DrumGrid::cellArea() const { return getLocalBounds().withTrimmedT
 void DrumGrid::resized()
 {
     option.setBounds (theme::px (6), theme::px (4), option.idealWidth (theme::smallControl), theme::px (26));
+    randomise.setBounds (option.getRight() + theme::px (6), theme::px (4), randomise.idealWidth (theme::smallControl), theme::px (26));
+}
+
+// A new idea number each click (decision 0062): Good Idea's numbers run 1 to 99,999.
+static int newSeed() { return Random::getSystemRandom().nextInt (ideas::maxSeed) + 1; }
+
+static String said (const ideas::Idea& idea)
+{
+    String s = "Random: " + String (idea.name);
+    if (! idea.summary.empty()) s << " (" << String (idea.summary).replace ("  /  ", ", ") << ")";
+    return s + ". Click Random again for another.";
+}
+
+// Good Idea's drums for as many bars as the grid shows, snapped onto its steps.
+void DrumGrid::random()
+{
+    const auto* clip = c.project.clip (c.selectedClip);
+    if (! clip || ! clip->isMidi()) { c.say ("Choose a MIDI clip to draw drums into."); return; }
+    const auto& meter = c.project.tempo.meterAt (clip->start);
+    const int bars = jlimit (1, 16, (int) (grid.stepTicks * grid.steps / jmax<Tick> (1, meter.barTicks())));
+    const auto idea = ideas::drums (bars, meter.numerator, meter.denominator, newSeed());
+    if (! idea.error.empty()) { c.say ("Good Idea's engine failed: " + String (idea.error), true); return; }
+    MidiData made;
+    for (auto n : idea.notes) { n.from = NoteFrom::Drums; made.notes.push_back (n); }
+    auto layout = grid;
+    layout.lanes = patterns::standardKit (grid.steps);
+    grid = patterns::readGrid (made, layout, 0, NoteFrom::Drums);
+    write ("Random Drums");
+    c.say (said (idea), false, true);
+    if (auto* parent = getParentComponent()) setSize (getWidth(), jmax (parent->getHeight(), preferredHeight()));
+    repaint();
 }
 
 double DrumGrid::valueAt (int l, int s) const
@@ -265,6 +299,8 @@ StepSequencer::StepSequencer (Controller& ctrl) : c (ctrl)
     setTitle ("Step sequencer");
     addAndMakeVisible (option);
     option.onClick = [this] { optionMenu (option, kind, [this] (noteopt::Kind k) { kind = k; repaint(); }); };
+    addAndMakeVisible (randomise);
+    randomise.onClick = [this] { random(); };
     c.addChangeListener (this);
     read();
     startTimerHz (30);
@@ -311,6 +347,25 @@ Rectangle<int> StepSequencer::cellsArea() const
 void StepSequencer::resized()
 {
     option.setBounds (theme::px (12), theme::px (8), option.idealWidth (theme::smallControl), theme::px (26));
+    randomise.setBounds (option.getRight() + theme::px (6), theme::px (8), randomise.idealWidth (theme::smallControl), theme::px (26));
+}
+
+// Good Idea's motif in the song's key, one note a step (the top one where it plays two).
+void StepSequencer::random()
+{
+    const auto* clip = c.project.clip (c.selectedClip);
+    if (! clip || ! clip->isMidi() || seq.steps.empty()) { c.say ("Choose a MIDI clip to sequence."); return; }
+    const auto& meter = c.project.tempo.meterAt (clip->start);
+    const int bars = jlimit (1, 4, (int) (seq.stepTicks * (Tick) seq.steps.size() / jmax<Tick> (1, meter.barTicks())));
+    const auto idea = ideas::motif (c.project.scale, bars, meter.numerator, meter.denominator, newSeed());
+    if (! idea.error.empty()) { c.say ("Good Idea's engine failed: " + String (idea.error), true); return; }
+    MidiData made;
+    for (auto n : idea.notes) { n.from = NoteFrom::Steps; made.notes.push_back (n); }
+    const auto stepTicks = seq.stepTicks;
+    seq = patterns::readSteps (made, stepTicks, (int) seq.steps.size(), 0, NoteFrom::Steps);
+    write ("Random Steps");
+    c.say (said (idea), false, true);
+    repaint();
 }
 
 int StepSequencer::stepAt (int x) const
@@ -458,6 +513,8 @@ EuclidEditor::EuclidEditor (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Euclidean sequencer");
     addAndMakeVisible (addRow);
+    addAndMakeVisible (randomise);
+    randomise.onClick = [this] { random(); };
     addRow.onClick = [this]
     {
         auto r = std::make_unique<Row>();
@@ -534,6 +591,51 @@ void EuclidEditor::build()
     repaint();
 }
 
+// Every drum's rhythm rolled afresh (decision 0062), written as one undo step.
+void EuclidEditor::random()
+{
+    if (! c.project.clip (c.selectedClip)) { c.say ("Choose a MIDI clip for the rhythms to go into."); return; }
+    const unsigned seed = (unsigned) newSeed();
+    for (auto& rp : rows)
+    {
+        const auto e = patterns::randomEuclid (rp->pitch, seed);
+        rp->steps = e.steps;
+        rp->pulses = e.pulses;
+        rp->rotation = e.rotation;
+        rp->stepsKnob->setValue (e.steps, dontSendNotification);
+        rp->pulsesKnob->setValue (e.pulses, dontSendNotification);
+        rp->rotationKnob->setValue (e.rotation, dontSendNotification);
+    }
+    applyAll ("Random Rhythms");
+    c.say ("Random: new rhythms for every drum. Click Random again for others.", false, true);
+    repaint();
+}
+
+void EuclidEditor::applyAll (const String& label)
+{
+    const Id id = c.selectedClip;
+    std::vector<patterns::Grid> grids;
+    for (auto& rp : rows)
+    {
+        patterns::Grid one;
+        one.stepTicks = c.grid;
+        one.steps = rp->steps;
+        patterns::Lane lane { rp->name.toStdString(), rp->pitch, {}, {}, {}, {} };
+        patterns::euclidLane (lane, rp->steps, rp->pulses, rp->rotation, rp->velocity, rp->pulses > 3 ? rp->pulses : 0);
+        one.lanes = { lane };
+        grids.push_back (one);
+    }
+    c.apply (label.toStdString(), [id, grids] (Project& p)
+    {
+        auto* clip = p.clip (id);
+        if (! clip) return;
+        unsigned next = p.nextId;
+        for (auto& one : grids)
+            patterns::writeGrid (clip->midi, one, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Euclid);
+        p.nextId = std::max (p.nextId, (Id) next);
+    });
+}
+
 void EuclidEditor::apply (Row& r)
 {
     const Id id = c.selectedClip;
@@ -560,6 +662,8 @@ void EuclidEditor::resized()
     auto area = getLocalBounds().reduced (theme::px (12));
     auto top = area.removeFromTop (theme::px (28));
     addRow.setBounds (top.removeFromRight (addRow.idealWidth()));
+    top.removeFromRight (theme::px (6));
+    randomise.setBounds (top.removeFromRight (randomise.idealWidth()));
     area.removeFromTop (theme::px (8));
     const int rowH = theme::px (90);
     for (auto& rp : rows)

@@ -48,6 +48,9 @@ struct Grid
     std::vector<Lane> lanes;
 };
 
+// General MIDI's name for a drum ("Pedal Hi-Hat" for 44); "Note 90" past its list.
+std::string drumName (int pitch);
+
 // General MIDI's drum names for the usual kit, top row first.
 std::vector<Lane> standardKit (int steps);
 
@@ -59,6 +62,12 @@ Grid readGrid (const MidiData&, Grid layout, Tick from, NoteFrom who);
 // Notes made by `who` on pitches the grid has rows for, and inside
 // [from, from + length), are replaced; every other note is left alone.
 void writeGrid (MidiData&, const Grid&, Tick from, Tick length, unsigned& nextId, NoteFrom who);
+
+// Random Euclidean settings for a drum (decision 0062): steps, hits and
+// rotation in the ranges that drum usually plays (a kick few, a hat many,
+// a snare turned onto the backbeat); a new set for each seed.
+struct EuclidSettings { int steps = 16, pulses = 4, rotation = 0; };
+EuclidSettings randomEuclid (int pitch, unsigned seed);
 
 // Fills one row from a Euclidean rhythm.
 void euclidLane (Lane&, int steps, int pulses, int rotation, int velocity = 100, int accentEvery = 0);

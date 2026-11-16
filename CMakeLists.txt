@@ -39,6 +39,17 @@ endif()
 # modulators, capture and scripting. No JUCE (decision 0002): it builds and
 # tests in seconds.
 #==============================================================================
+# The family's Lua engines (Engines/, decision 0062), embedded so the app needs
+# nothing beside itself: a generated table of { name, bytes }.
+file(GLOB_RECURSE KALIBRE_LUA_ENGINES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Engines/*.lua)
+set(EMBEDDED_LUA_CPP ${CMAKE_CURRENT_BINARY_DIR}/EmbeddedLua.cpp)
+add_custom_command(
+    OUTPUT ${EMBEDDED_LUA_CPP}
+    COMMAND ${CMAKE_COMMAND} -DROOT=${CMAKE_CURRENT_SOURCE_DIR}/Engines -DOUT=${EMBEDDED_LUA_CPP}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedLua.cmake
+    DEPENDS ${KALIBRE_LUA_ENGINES} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedLua.cmake
+    COMMENT "Embedding the Lua engines")
+
 add_library(KalibreCore STATIC
     Source/Core/TempoMap.cpp
     Source/Core/Model.cpp
@@ -67,6 +78,8 @@ add_library(KalibreCore STATIC
     Source/Core/Mpe.cpp
     Source/Core/Controllers.cpp
     Source/Core/AutoCc.cpp
+    Source/Core/Ideas.cpp
+    ${EMBEDDED_LUA_CPP}
     Source/Script/LuaHost.cpp)
 target_include_directories(KalibreCore PUBLIC Source/Core Source/Script ThirdParty)
 target_link_libraries(KalibreCore PUBLIC KalibreLua)
@@ -102,7 +115,8 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestProjectTools.cpp
         Tests/TestHui.cpp
         Tests/TestMpe.cpp
-        Tests/TestAutoCc.cpp)
+        Tests/TestAutoCc.cpp
+        Tests/TestIdeas.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)
