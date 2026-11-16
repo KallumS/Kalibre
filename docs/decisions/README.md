@@ -30,3 +30,5 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0026. Offline effects on clips](0026-offline-effects.md)
 - [0027. Menus in the Mac's menu bar](0027-title-bar-menus.md)
 - [0028. ARA plug-ins read the track's audio clips](0028-ara.md)
+- [0029. Takes and comping](0029-takes-and-comping.md)
+- [0030. Crossfades and fades](0030-crossfades.md)
