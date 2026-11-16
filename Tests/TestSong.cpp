@@ -160,3 +160,33 @@ TEST ("song: a scene is captured from the arrangement")
     CHECK_EQ (p.track (a)->slots[0].loopLength, bar);
     CHECK (p.track (b)->slots.empty());          // nothing in bar 1 on the bass
 }
+
+TEST ("song: moving the Chorus from bar 65 to bar 49 takes its piano, guitar and strings; what was at 49 follows it")
+{
+    Project p;
+    const Tick bar = p.tempo.barStart (1);
+    std::vector<Id> tracks;
+    for (const char* name : { "Piano", "Guitar", "Strings" }) tracks.push_back (edit::addTrack (p, TrackKind::Track, name));
+    // The verse from bar 49 (index 48) for 16 bars, the chorus from bar 65 for 8.
+    const Id verse = song::addSection (p, "Verse", bar * 48, bar * 64);
+    const Id chorus = song::addSection (p, "Chorus", bar * 64, bar * 72);
+    for (auto t : tracks)
+    {
+        edit::addMidiClip (p, t, bar * 48, bar * 16);   // verse music
+        edit::addMidiClip (p, t, bar * 64, bar * 8);    // chorus music
+    }
+    song::moveSection (p, chorus, verse);
+    for (auto t : tracks)
+    {
+        const auto& clips = p.track (t)->clips();
+        CHECK_EQ (clips.size(), size_t (2));
+        if (clips.size() != 2) continue;
+        CHECK_EQ (clips[0].start, bar * 48);    // the chorus music now starts at bar 49
+        CHECK_EQ (clips[0].length, bar * 8);
+        CHECK_EQ (clips[1].start, bar * 56);    // the verse music after it
+        CHECK_EQ (clips[1].length, bar * 16);
+    }
+    CHECK_EQ (p.sections[0].name, std::string ("Chorus"));
+    CHECK_EQ (p.sections[0].start, bar * 48);
+    CHECK_EQ (p.sections[1].start, bar * 56);
+}
