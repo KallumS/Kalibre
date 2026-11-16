@@ -295,15 +295,31 @@ void PianoRoll::paint (Graphics& g)
             }
         }
         else
-        for (auto& n : notes)
         {
-            const float x = xOf (n.start);
-            if (x < (float) va.getX() || x > (float) va.getRight()) continue;
-            const float h = (float) (va.getHeight() - 6) * (float) n.velocity / 127.0f;
-            const bool chosen = c.selectedNotes.count (n.id) > 0;
-            g.setColour (chosen ? theme::accent : trackCol);
-            g.fillRect (x, (float) va.getBottom() - h - 2, 3.0f, h);
-            g.fillEllipse (x - 2.0f, (float) va.getBottom() - h - 5, 7.0f, 7.0f);
+            // Each note's velocity, chance, velocity range or timing range, as a bar.
+            const auto kind = noteKind();
+            const float top = (float) noteopt::highest (kind);
+            g.setFont (theme::font (theme::smallPoints));
+            float lastLabel = -1.0e9f;
+            for (auto& n : notes)
+            {
+                const float x = xOf (n.start);
+                if (x < (float) va.getX() || x > (float) va.getRight()) continue;
+                const double v = noteopt::get (n, kind);
+                const float h = (float) (va.getHeight() - 6) * (float) v / top;
+                const bool chosen = c.selectedNotes.count (n.id) > 0;
+                g.setColour (chosen ? theme::accent : trackCol);
+                g.fillRect (x, (float) va.getBottom() - h - 2, 3.0f, h);
+                g.fillEllipse (x - 2.0f, (float) va.getBottom() - h - 5, 7.0f, 7.0f);
+                // Its value, where there's room and it's not a plain note's.
+                if (kind != noteopt::Kind::Velocity && noteopt::notPlain (kind, v) && x - lastLabel > (float) theme::px (40))
+                {
+                    g.setColour (theme::text);
+                    g.drawText (noteopt::format (kind, v), Rectangle<float> (x + 6.0f, (float) va.getY() + 3.0f, (float) theme::px (40), 14.0f).toNearestInt(),
+                                Justification::topLeft, false);
+                    lastLabel = x;
+                }
+            }
         }
 
         // Articulation lane.
@@ -461,7 +477,7 @@ void PianoRoll::mouseUp (const MouseEvent& e)
     if (velocityDrag)
     {
         velocityDrag = false;
-        if (! (velocityBefore == c.project)) c.history.push (velocityBefore, laneKind >= 0 ? "Draw " + laneName().toStdString() : std::string ("Velocity"));
+        if (! (velocityBefore == c.project)) c.history.push (velocityBefore, laneKind >= 0 ? "Draw " + laneName().toStdString() : laneName().toStdString());
         c.refresh();
         return;
     }
@@ -545,7 +561,9 @@ void PianoRoll::setVelocityAt (const MouseEvent& e)
     auto* clip = c.clip();
     if (! clip) return;
     const auto va = velocityArea();
-    const int v = jlimit (1, 127, (int) std::round (127.0 * (va.getBottom() - 2 - e.y) / (va.getHeight() - 6)));
+    const auto kind = noteKind();
+    const double v = noteopt::lowest (kind) + (noteopt::highest (kind) - noteopt::lowest (kind))
+                   * jlimit (0.0, 1.0, (double) (va.getBottom() - 2 - e.y) / (va.getHeight() - 6));
     // The note under the pointer, or every chosen note when the pointer is over one of them.
     const Tick at = relAt ((float) e.x);
     const Tick reach = timeline.ticksFor (4.0f);
@@ -553,8 +571,8 @@ void PianoRoll::setVelocityAt (const MouseEvent& e)
         if (std::abs (n.start - at) <= reach)
         {
             if (c.selectedNotes.count (n.id))
-                for (auto& m : clip->midi.notes) { if (c.selectedNotes.count (m.id)) m.velocity = v; }
-            else n.velocity = v;
+                for (auto& m : clip->midi.notes) { if (c.selectedNotes.count (m.id)) noteopt::set (m, kind, v); }
+            else noteopt::set (n, kind, v);
             break;
         }
     repaint();
@@ -564,7 +582,7 @@ String PianoRoll::laneName() const
 {
     switch (laneKind)
     {
-        case -1:  return "Velocity";
+        case -1: case -2: case -3: case -4: return noteopt::name (noteKind());
         case 1:   return "Modulation";
         case 2:   return "Breath";
         case 7:   return "Volume";
@@ -582,7 +600,10 @@ String PianoRoll::laneName() const
 void PianoRoll::laneMenu()
 {
     PopupMenu m;
-    for (int k : { -1, 1, 11, 64, 128, 129, 2, 7 })
+    // Each note's own (decision 0061), then the controllers.
+    noteopt::addTo (m, laneKind < 0 ? noteKind() : (noteopt::Kind) -1, [this] (noteopt::Kind k) { laneKind = -1 - (int) k; repaint(); });
+    m.addSeparator();
+    for (int k : { 1, 11, 64, 128, 129, 2, 7 })
     {
         const int saved = laneKind;
         laneKind = k;

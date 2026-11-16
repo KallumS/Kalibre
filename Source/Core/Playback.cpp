@@ -42,6 +42,21 @@ MidiMessage message (double seconds, int order, int status, int d1, int d2, std:
 }
 } // namespace
 
+Rolled roll (const MidiMessage& m, Dice& dice)
+{
+    Rolled r;
+    r.velocity = m.bytes[2];
+    if (m.chance < 100 && dice.next() * 100.0 >= m.chance) { r.plays = false; return r; }
+    if (m.velocityRange > 0)
+    {
+        const int span = m.velocityRange;
+        const int v = (int) m.bytes[2] + (int) std::floor (dice.next() * (2 * span + 1)) - span;
+        r.velocity = (std::uint8_t) std::clamp (v, 1, 127);
+    }
+    if (m.jitter > 0) r.delay = dice.next() * m.jitter;
+    return r;
+}
+
 double noteDelaySeconds (const Project& p, const Track& t, const Note& n)
 {
     double ms = t.delayMs;
@@ -188,7 +203,18 @@ CompiledTrack compile (const Project& p, const Track& t)
                             out.midi.push_back (message (s, 1, 0xB0 | channel, 74, (int) std::lround (e.timbre * 127)));
                         }
                     }
-                    out.midi.push_back (message (on, 2, 0x90 | channel, n.pitch, std::max (1, n.velocity)));
+                    auto noteOn = message (on, 2, 0x90 | channel, n.pitch, std::max (1, n.velocity));
+                    // Played differently each time (decision 0061). A timing range is
+                    // at most a quarter of the note, so it never starts after it ends.
+                    noteOn.chance = (std::uint8_t) std::clamp (n.chance, 0, 100);
+                    noteOn.velocityRange = (std::uint8_t) std::clamp (n.velocityRange, 0, 127);
+                    const double range = std::min (std::max (0.0, n.timingMs) / 1000.0, (off - on) / 4.0);
+                    if (range > 0)
+                    {
+                        noteOn.seconds -= range;
+                        noteOn.jitter = (float) (2.0 * range);
+                    }
+                    out.midi.push_back (noteOn);
                     out.midi.push_back (message (off, 0, 0x80 | channel, n.pitch, 0));
                 }
                 for (const auto& e : c.midi.events)

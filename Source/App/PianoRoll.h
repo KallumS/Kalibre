@@ -8,8 +8,9 @@
     root's darker still) when Shade the Scale is on (decision 0015).
 
     Under the notes, the velocity lane (drag to set how hard each note is
-    played; click its name to draw a controller there instead: modulation,
-    expression, sustain, pitch bend, pressure or any CC) and, on a track with an articulation map, the articulation lane:
+    played; click its name for each note's chance of playing, random velocity
+    range or random timing (decision 0061), or to draw a controller there
+    instead: modulation, expression, sustain, pitch bend, pressure or any CC) and, on a track with an articulation map, the articulation lane:
     each note's articulation, chosen with a click (decision 0013). Under
     those, the track's CC lanes, one under another (CcLanes, decision 0060).
 */
@@ -18,6 +19,7 @@
 
 #include "CcLanes.h"
 #include "Controller.h"
+#include "NoteOptions.h"
 #include "Roll.h"
 #include "Theme.h"
 #include "Timeline.h"
@@ -56,8 +58,11 @@ private:
     roll::Outcome preview;
     std::vector<Note> notesCopy;
     bool velocityDrag = false;
-    // The lane under the notes: -1 velocity, 0-127 a controller, 128 pitch bend, 129 channel pressure.
+    // The lane under the notes: -1 velocity, -2 note chance, -3 random velocity
+    // range, -4 random timing (decision 0061), 0-127 a controller, 128 pitch
+    // bend, 129 channel pressure, 200-202 MPE.
     int laneKind = -1;
+    noteopt::Kind noteKind() const { return (noteopt::Kind) juce::jlimit (0, 3, -laneKind - 1); }
     Tick lastLaneTick = -1;
     void laneMenu();
     void drawLaneValue (const juce::MouseEvent&);

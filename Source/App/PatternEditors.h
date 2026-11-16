@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Controller.h"
+#include "NoteOptions.h"
 #include "Patterns.h"
 #include "Theme.h"
 
@@ -18,13 +19,15 @@ namespace kal
 
 // Drums: a row for each drum, a column for each step. Click a cell to hit it,
 // Shift-click for an accent, right-click to clear it, drag up or down on a
-// hit to change how hard.
+// hit to change how hard - or, chosen from the menu at the top left, its
+// chance of playing, random velocity range or random timing (decision 0061).
 class DrumGrid : public juce::Component, private juce::ChangeListener, private juce::Timer
 {
 public:
     explicit DrumGrid (Controller&);
     ~DrumGrid() override;
-    int preferredHeight() const { return (int) grid.lanes.size() * theme::px (24) + 8; }
+    int preferredHeight() const { return (int) grid.lanes.size() * theme::px (24) + 8 + topHeight(); }
+    void resized() override;
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
@@ -33,7 +36,13 @@ public:
 protected:
     Controller& c;
     patterns::Grid grid;
-    int dragLane = -1, dragStep = -1, dragStartVelocity = 0;
+    int dragLane = -1, dragStep = -1;
+    double dragStartValue = 0;
+    noteopt::Kind kind = noteopt::Kind::Velocity;
+    theme::HouseButton option { juce::String::fromUTF8 ("Velocity \xe2\x96\xbe"), "What dragging a hit sets: its velocity, its chance of playing, or how far its velocity or timing may wander." };
+    int topHeight() const { return theme::px (34); }
+    double valueAt (int lane, int step) const;
+    void setValueAt (int lane, int step, double);
     Project before;
 
     void read();
@@ -48,7 +57,10 @@ protected:
 
 // Steps: one note a step. Click to switch a step on or off, drag up or down
 // to change its note (in the scale when the scale is shaded), Option-drag for
-// its velocity, double-click to tie it into the next.
+// its velocity, double-click to tie it into the next. The menu at the top
+// left chooses what Option-drag sets: velocity, chance of playing, random
+// velocity range or random timing; with any but velocity, a plain drag sets
+// it too (decision 0061).
 class StepSequencer : public juce::Component, private juce::ChangeListener, private juce::Timer
 {
 public:
@@ -64,6 +76,11 @@ private:
     Controller& c;
     patterns::StepSequence seq;
     int dragStep = -1, dragPitch = 60, dragVelocity = 100;
+    double dragValue = 0;
+    noteopt::Kind kind = noteopt::Kind::Velocity;
+    theme::HouseButton option { juce::String::fromUTF8 ("Velocity \xe2\x96\xbe"), "What Option-drag sets on a step: its velocity, its chance of playing, or how far its velocity or timing may wander." };
+    juce::Rectangle<int> cellsArea() const;
+    void resized() override;
     bool changed = false;
     Project before;
     void read();

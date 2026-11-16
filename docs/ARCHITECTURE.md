@@ -53,6 +53,7 @@
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp` | More of the Controller: audio commands, presets and A/B, file commands. |
+| `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |
 | `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
 | `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
 | `App/PluginManagerView.*` | The Plug-in Manager and its window (0047). |
@@ -97,4 +98,5 @@ loop wraps inside the block, and runs the graph.
 - `main` is Kalibre's own (Main.cpp): with `--kalibre-scan` it's the scanner's helper and never starts the app. Test programs that scan do the same.
 - A track's `devices` are its active version's; the others' wait in their versions under the same ids, and the engine keys instances by (version, device) (0050). `Project::device` finds only the playing ones.
 - The engine's "no jump" position is `noJump` (-1e9), not -1: positions below zero are real (a count-in). With -1, live playback jumped back to -1 s every block.
+- A note's chance, velocity range and timing are rolled on the audio thread as each note-on comes up (`playback::roll`); a late one waits in `TrackSource::waiting`, a fixed list, emptied on a jump or stop (0061).
 - What the clip launcher plays (`Track::launch`) isn't saved and survives Undo.

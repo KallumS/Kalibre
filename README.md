@@ -38,6 +38,9 @@ grow and shrink with it.
   sequencer, a Euclidean sequencer, notation, **all adding to the same
   clip**, each showing its own notes and lighting the step being played.
   **MusicXML** in and out.
+- **Note chance, random velocity and random timing** for every note, in the
+  piano roll, the step sequencer and the drum grid: chosen afresh each time
+  it plays.
 - **CC lanes** under the piano roll and notation, any controller by its
   name, and **Auto**: on a track named for its instrument (Violins, Horns,
   Flute), it draws the dynamics, expression, volume and vibrato lanes as

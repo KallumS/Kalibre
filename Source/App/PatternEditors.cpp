@@ -6,6 +6,38 @@ namespace kal
 {
 using namespace juce;
 
+// The menu of what to set, on the button that shows it (decision 0061).
+static void optionMenu (theme::HouseButton& b, noteopt::Kind now, std::function<void (noteopt::Kind)> pick)
+{
+    PopupMenu m;
+    noteopt::addTo (m, now, [&b, pick] (noteopt::Kind k)
+    {
+        b.setButtonText (noteopt::name (k) + String::fromUTF8 (" \xe2\x96\xbe"));
+        b.setTip (noteopt::tip (k));
+        b.setSize (b.idealWidth (theme::smallControl), b.getHeight());   // the new name, whole
+        pick (k);
+    });
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&b));
+}
+
+static double stepValue (const patterns::Step& s, noteopt::Kind k)
+{
+    return k == noteopt::Kind::Chance ? s.chance : k == noteopt::Kind::VelocityRange ? s.velocityRange
+         : k == noteopt::Kind::Timing ? s.timingMs : s.velocity;
+}
+
+static void setStepValue (patterns::Step& s, noteopt::Kind k, double v)
+{
+    const int i = jlimit (noteopt::lowest (k), noteopt::highest (k), roundToInt (v));
+    if (k == noteopt::Kind::Chance) s.chance = i;
+    else if (k == noteopt::Kind::VelocityRange) s.velocityRange = i;
+    else if (k == noteopt::Kind::Timing) s.timingMs = i;
+    else s.velocity = i;
+}
+
+// A drag of `dy` pixels up, in the option's own units: its whole range over 127 pixels.
+static double perPixel (noteopt::Kind k) { return (noteopt::highest (k) - noteopt::lowest (k)) / 127.0; }
+
 static void emptyMessage (Graphics& g, Rectangle<int> r, const String& text)
 {
     g.setColour (theme::textSecondary);
@@ -38,6 +70,8 @@ static void lightColumn (Graphics& g, Rectangle<float> column)
 DrumGrid::DrumGrid (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Drum grid");
+    addAndMakeVisible (option);
+    option.onClick = [this] { optionMenu (option, kind, [this] (noteopt::Kind k) { kind = k; repaint(); }); };
     c.addChangeListener (this);
     read();
     startTimerHz (30);
@@ -83,7 +117,43 @@ void DrumGrid::write (const String& label)
     else c.apply (label, doWrite);
 }
 
-Rectangle<int> DrumGrid::cellArea() const { return getLocalBounds().withTrimmedLeft (nameWidth()).reduced (0, 4); }
+Rectangle<int> DrumGrid::cellArea() const { return getLocalBounds().withTrimmedTop (topHeight()).withTrimmedLeft (nameWidth()).reduced (0, 4); }
+
+void DrumGrid::resized()
+{
+    option.setBounds (theme::px (6), theme::px (4), option.idealWidth (theme::smallControl), theme::px (26));
+}
+
+double DrumGrid::valueAt (int l, int s) const
+{
+    const auto& lane = grid.lanes[(size_t) l];
+    const auto i = (size_t) s;
+    switch (kind)
+    {
+        case noteopt::Kind::Chance:        return i < lane.chance.size() ? lane.chance[i] : 100;
+        case noteopt::Kind::VelocityRange: return i < lane.velocityRange.size() ? lane.velocityRange[i] : 0;
+        case noteopt::Kind::Timing:        return i < lane.timingMs.size() ? lane.timingMs[i] : 0;
+        default:                           return lane.velocity[i];
+    }
+}
+
+void DrumGrid::setValueAt (int l, int s, double v)
+{
+    auto& lane = grid.lanes[(size_t) l];
+    const auto i = (size_t) s;
+    const int n = jlimit (noteopt::lowest (kind), noteopt::highest (kind), roundToInt (v));
+    const auto steps = lane.velocity.size();
+    if (lane.chance.size() < steps) lane.chance.resize (steps, 100);
+    if (lane.velocityRange.size() < steps) lane.velocityRange.resize (steps, 0);
+    if (lane.timingMs.size() < steps) lane.timingMs.resize (steps, 0.0);
+    switch (kind)
+    {
+        case noteopt::Kind::Chance:        lane.chance[i] = n; break;
+        case noteopt::Kind::VelocityRange: lane.velocityRange[i] = n; break;
+        case noteopt::Kind::Timing:        lane.timingMs[i] = n; break;
+        default:                           lane.velocity[i] = n; break;
+    }
+}
 
 void DrumGrid::paint (Graphics& g)
 {
@@ -117,9 +187,16 @@ void DrumGrid::paint (Graphics& g)
             g.fillRoundedRectangle (cell, 3.0f);
             if (v > 0)
             {
+                // The chosen option's value, as a bar (velocity, as a shape too), and in figures where there's room.
+                const double value = valueAt (l, s);
                 g.setColour (theme::ink);
-                const float h = (cell.getHeight() - 4) * (float) v / 127.0f;
-                g.fillRect (cell.getX() + 2, cell.getBottom() - 2 - h, 2.0f, h);   // velocity, as a shape too
+                const float h = (cell.getHeight() - 4) * (float) (value / noteopt::highest (kind));
+                g.fillRect (cell.getX() + 2, cell.getBottom() - 2 - h, 2.0f, h);
+                if (kind != noteopt::Kind::Velocity && colW >= (float) theme::px (34))
+                {
+                    g.setFont (theme::font (theme::smallPoints));
+                    g.drawText (noteopt::format (kind, value), cell.withTrimmedLeft (5).toNearestInt(), Justification::centred, false);
+                }
             }
             if (s == playing)
             {
@@ -142,7 +219,7 @@ void DrumGrid::mouseDown (const MouseEvent& e)
     auto& v = grid.lanes[(size_t) l].velocity[(size_t) s];
     before = c.project;
     if (e.mods.isPopupMenu()) v = 0;
-    else if (v > 0 && ! e.mods.isShiftDown()) { dragLane = l; dragStep = s; dragStartVelocity = v; return; }
+    else if (v > 0 && ! e.mods.isShiftDown()) { dragLane = l; dragStep = s; dragStartValue = valueAt (l, s); return; }
     else
     {
         v = e.mods.isShiftDown() ? 127 : 100;
@@ -155,7 +232,7 @@ void DrumGrid::mouseDown (const MouseEvent& e)
 void DrumGrid::mouseDrag (const MouseEvent& e)
 {
     if (dragLane < 0) return;
-    grid.lanes[(size_t) dragLane].velocity[(size_t) dragStep] = jlimit (1, 127, dragStartVelocity - e.getDistanceFromDragStartY());
+    setValueAt (dragLane, dragStep, dragStartValue - e.getDistanceFromDragStartY() * perPixel (kind));
     write ({});
     repaint();
 }
@@ -186,6 +263,8 @@ void DrumGrid::changeListenerCallback (ChangeBroadcaster*)
 StepSequencer::StepSequencer (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Step sequencer");
+    addAndMakeVisible (option);
+    option.onClick = [this] { optionMenu (option, kind, [this] (noteopt::Kind k) { kind = k; repaint(); }); };
     c.addChangeListener (this);
     read();
     startTimerHz (30);
@@ -224,11 +303,21 @@ void StepSequencer::write (const String& label)
     else c.apply (label, doWrite);
 }
 
+Rectangle<int> StepSequencer::cellsArea() const
+{
+    return getLocalBounds().reduced (theme::px (12), theme::px (12)).withTrimmedTop (theme::px (30));
+}
+
+void StepSequencer::resized()
+{
+    option.setBounds (theme::px (12), theme::px (8), option.idealWidth (theme::smallControl), theme::px (26));
+}
+
 int StepSequencer::stepAt (int x) const
 {
     const int n = (int) seq.steps.size();
     if (n == 0) return -1;
-    const auto area = getLocalBounds().reduced (theme::px (12), theme::px (12));
+    const auto area = cellsArea();
     const int s = (int) ((float) (x - area.getX()) / ((float) area.getWidth() / (float) n));
     return s >= 0 && s < n ? s : -1;
 }
@@ -238,7 +327,7 @@ void StepSequencer::paint (Graphics& g)
     g.fillAll (theme::roll);
     const auto* clip = c.project.clip (c.selectedClip);
     if (! clip || ! clip->isMidi()) { emptyMessage (g, getLocalBounds(), "Choose a MIDI clip to sequence."); return; }
-    const auto area = getLocalBounds().reduced (theme::px (12), theme::px (12));
+    const auto area = cellsArea();
     const int n = (int) seq.steps.size();
     const float w = (float) area.getWidth() / (float) n;
     const auto& scale = c.project.scale;
@@ -262,8 +351,15 @@ void StepSequencer::paint (Graphics& g)
             auto bar = cell.withTop (cell.getBottom() - jlimit (8.0f, cell.getHeight(), h));
             g.setColour (theme::accent);
             g.fillRoundedRectangle (bar, 4.0f);
+            // The chosen option's value, as a bar inside (velocity unless another is chosen), and in figures.
+            const float share = (float) (stepValue (s, kind) / noteopt::highest (kind));
             g.setColour (theme::ink);
-            g.fillRect (bar.getX() + 3, bar.getBottom() - 4 - (bar.getHeight() - 8) * (float) s.velocity / 127.0f, 3.0f, (bar.getHeight() - 8) * (float) s.velocity / 127.0f);
+            g.fillRect (bar.getX() + 3, bar.getBottom() - 4 - (bar.getHeight() - 8) * share, 3.0f, (bar.getHeight() - 8) * share);
+            if (kind != noteopt::Kind::Velocity)
+            {
+                g.setFont (theme::font (theme::smallPoints));
+                g.drawText (noteopt::format (kind, stepValue (s, kind)), bar.withTrimmedBottom (4).toNearestInt().removeFromBottom (16), Justification::centred, false);
+            }
             g.setFont (theme::font (theme::smallPoints));
             g.drawText (String (harmony::noteName (scale, s.pitch)), bar.removeFromTop (16).toNearestInt(), Justification::centred, false);
             if (s.tie)
@@ -298,6 +394,7 @@ void StepSequencer::mouseDown (const MouseEvent& e)
     }
     dragPitch = step.pitch;
     dragVelocity = step.velocity;
+    dragValue = stepValue (step, kind);
 }
 
 void StepSequencer::mouseDrag (const MouseEvent& e)
@@ -305,7 +402,8 @@ void StepSequencer::mouseDrag (const MouseEvent& e)
     if (dragStep < 0) return;
     auto& step = seq.steps[(size_t) dragStep];
     const int d = -e.getDistanceFromDragStartY() / 6;
-    if (e.mods.isAltDown()) step.velocity = jlimit (1, 127, dragVelocity - e.getDistanceFromDragStartY());
+    if (e.mods.isAltDown() || kind != noteopt::Kind::Velocity)
+        setStepValue (step, kind, dragValue - e.getDistanceFromDragStartY() * perPixel (kind));
     else
     {
         int p = jlimit (0, 127, dragPitch + d);

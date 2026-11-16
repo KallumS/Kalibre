@@ -264,6 +264,14 @@ private:
     size_t nextMidi = 0;
     double lastEnd = -1;
     std::array<std::uint16_t, 16 * 128> sounding {};   // notes we started and haven't ended
+    // Note chance, velocity and timing (decision 0061): rolled as each note
+    // comes up; a note played late waits here, in a list that never grows.
+    playback::Dice dice;
+    struct Waiting { double seconds; std::uint8_t bytes[3]; };
+    std::array<Waiting, 256> waiting {};
+    int waitingCount = 0;
+    std::array<std::uint16_t, 16 * 128> skipped {};    // note-ons not played this time, whose note-offs are dropped too
+    void emit (const Data&, const std::uint8_t* bytes, int size, int at, juce::MidiBuffer&);
     std::array<modulation::Runner, 32> runners;
     std::array<Id, 32> runnerIds {};
     juce::AudioBuffer<float> live;

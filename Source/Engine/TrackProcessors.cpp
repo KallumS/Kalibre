@@ -197,6 +197,8 @@ File TrackSource::stopRecording()
 
 void TrackSource::stopAll (MidiBuffer& midi, int at)
 {
+    waitingCount = 0;      // notes played late that hadn't started yet: not now
+    skipped.fill (0);
     for (int ch = 0; ch < 16; ++ch)
     {
         bool any = false;
@@ -214,32 +216,80 @@ void TrackSource::stopAll (MidiBuffer& midi, int at)
     }
 }
 
+// Sends one message, keeping count of the notes sounding so each is ended once.
+void TrackSource::emit (const Data& d, const std::uint8_t* bytes, int size, int at, MidiBuffer& midi)
+{
+    const int status = bytes[0] & 0xF0, ch = bytes[0] & 15;
+    if (status == 0x90 && bytes[2] > 0)
+    {
+        if (! d.audible) return;
+        ++sounding[(size_t) (ch * 128 + bytes[1])];
+    }
+    else if (status == 0x80 || status == 0x90)
+    {
+        auto& c = sounding[(size_t) (ch * 128 + bytes[1])];
+        if (c == 0) return;
+        --c;
+    }
+    midi.addEvent (bytes, size, at);
+}
+
 void TrackSource::playSegment (const Data& d, double from, double to, int offset, int length,
                                AudioBuffer<float>& audio, MidiBuffer& midi)
 {
     const double rate = shared.clock.rate > 0 ? shared.clock.rate : getSampleRate();
     // MIDI from the compiled list.
     const auto& list = d.compiled.midi;
-    if (std::abs (from - lastEnd) > 1e-6) nextMidi = playback::firstAtOrAfter (list, from);
+    if (std::abs (from - lastEnd) > 1e-6)
+    {
+        nextMidi = playback::firstAtOrAfter (list, from);
+        waitingCount = 0;       // a jump: what was waiting belonged to where it was
+        skipped.fill (0);
+    }
+    auto sampleOf = [&] (double s) { return offset + jlimit (0, length - 1, (int) ((s - from) * rate)); };
+    // Notes played late, whose moment has come.
+    auto flushWaiting = [&] (double until)
+    {
+        for (int i = 0; i < waitingCount;)
+        {
+            if (waiting[(size_t) i].seconds < until)
+            {
+                const auto w = waiting[(size_t) i];
+                waiting[(size_t) i] = waiting[(size_t) --waitingCount];
+                emit (d, w.bytes, 3, sampleOf (std::max (from, w.seconds)), midi);
+            }
+            else ++i;
+        }
+    };
     while (nextMidi < list.size() && list[nextMidi].seconds < to)
     {
         const auto& m = list[nextMidi++];
         if (m.seconds < from) continue;
-        const int at = offset + jlimit (0, length - 1, (int) ((m.seconds - from) * rate));
-        const int status = m.bytes[0] & 0xF0, ch = m.bytes[0] & 15;
-        if (status == 0x90 && m.bytes[2] > 0)
+        const int status = m.bytes[0] & 0xF0, key = (m.bytes[0] & 15) * 128 + (m.bytes[1] & 127);
+        if (status == 0x90 && m.bytes[2] > 0 && (m.chance < 100 || m.velocityRange > 0 || m.jitter > 0))
         {
-            if (! d.audible) continue;
-            ++sounding[(size_t) (ch * 128 + m.bytes[1])];
+            // Played differently each time (decision 0061).
+            const auto r = playback::roll (m, dice);
+            if (! r.plays) { ++skipped[(size_t) key]; continue; }
+            std::uint8_t bytes[3] { m.bytes[0], m.bytes[1], r.velocity };
+            if (r.delay > 0 && waitingCount < (int) waiting.size())
+            {
+                waiting[(size_t) waitingCount++] = { m.seconds + r.delay, { bytes[0], bytes[1], bytes[2] } };
+                continue;
+            }
+            emit (d, bytes, 3, sampleOf (m.seconds), midi);
+            continue;
         }
-        else if (status == 0x80 || status == 0x90)
+        if ((status == 0x80 || (status == 0x90 && m.bytes[2] == 0)) && skipped[(size_t) key] > 0)
         {
-            auto& c = sounding[(size_t) (ch * 128 + m.bytes[1])];
-            if (c == 0) continue;
-            --c;
+            --skipped[(size_t) key];   // the end of a note that didn't play this time
+            continue;
         }
-        midi.addEvent (m.bytes, m.size, at);
+        // A note's end waits for its start, if that's still waiting.
+        flushWaiting (m.seconds + 1e-9);
+        emit (d, m.bytes, m.size, sampleOf (m.seconds), midi);
     }
+    flushWaiting (to);
     lastEnd = to;
 
     // Audio regions overlapping [from, to).

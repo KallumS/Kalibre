@@ -79,6 +79,11 @@ struct Note
     int articulation = -1;    // index into the track's articulation map; -1 none
     std::vector<NoteExpression> expression;   // MPE: bends, pressure, slide of this note alone
     NoteFrom from = NoteFrom::Roll;
+    // Played differently each time (decision 0061): how often it plays at all,
+    // how much softer or harder at most, how many ms early or late at most.
+    int chance = 100;          // %
+    int velocityRange = 0;     // either side of its velocity
+    double timingMs = 0;       // either side of its start
 
     Tick end() const { return start + length; }
     bool operator== (const Note&) const = default;

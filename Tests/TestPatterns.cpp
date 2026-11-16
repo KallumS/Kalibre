@@ -122,3 +122,40 @@ TEST ("one clip, several ways in: each editor shows and changes only its own not
     CHECK (loaded.has_value());
     if (loaded) CHECK (loaded->clip (clip)->midi.notes == m.notes);
 }
+
+TEST ("chance, velocity and timing: the drum grid and the step sequencer keep each step's, through writing and reading")
+{
+    Grid g;
+    g.steps = 4;
+    g.lanes = { { "Hat", 42, { 100, 0, 90, 0 } } };
+    g.lanes[0].chance = { 50, 100, 75, 100 };
+    g.lanes[0].velocityRange = { 10, 0, 0, 0 };
+    g.lanes[0].timingMs = { 0, 0, 15, 0 };
+    MidiData m;
+    unsigned id = 1;
+    writeGrid (m, g, 0, g.stepTicks * 4, id, NoteFrom::Drums);
+    CHECK_EQ (m.notes.size(), size_t (2));
+    CHECK_EQ (m.notes[0].chance, 50);
+    CHECK_EQ (m.notes[0].velocityRange, 10);
+    CHECK_EQ (m.notes[1].timingMs, 15.0);
+    const auto back = readGrid (m, g, 0, NoteFrom::Drums);
+    CHECK_EQ (back.lanes[0].chance[0], 50);
+    CHECK_EQ (back.lanes[0].chance[2], 75);
+    CHECK_EQ (back.lanes[0].velocityRange[0], 10);
+    CHECK_EQ (back.lanes[0].timingMs[2], 15.0);
+
+    StepSequence s;
+    s.steps.assign (4, {});
+    s.steps[1].on = true;
+    s.steps[1].chance = 25;
+    s.steps[1].velocityRange = 8;
+    s.steps[1].timingMs = 5;
+    MidiData m2;
+    writeSteps (m2, s, 0, s.stepTicks * 4, id, NoteFrom::Steps);
+    CHECK_EQ (m2.notes.size(), size_t (1));
+    CHECK_EQ (m2.notes[0].chance, 25);
+    const auto sb = readSteps (m2, s.stepTicks, 4, 0, NoteFrom::Steps);
+    CHECK_EQ (sb.steps[1].chance, 25);
+    CHECK_EQ (sb.steps[1].velocityRange, 8);
+    CHECK_EQ (sb.steps[1].timingMs, 5.0);
+}

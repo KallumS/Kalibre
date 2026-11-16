@@ -488,3 +488,73 @@ TEST ("routing: an instrument's second output plays on a track of its own; a har
     // 0.25 through the pan law's centre (+3 dB on each side of -3 dB): 0.25 at unity.
     CHECK (! pk.empty() && std::abs (pk[0] - 0.25f) < 0.01f);
 }
+
+TEST ("chance and timing: an export plays each note as often as its chance says, each within its timing range (decision 0061)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    // The sampler, with a click 50 ms into its sample: each note played leaves a click.
+    auto make = [] (Project& q, int chance, double timingMs)
+    {
+        q.tempo.setTempos ({ { 0, 120.0, false } });
+        const Id s = edit::addTrack (q, TrackKind::Track, "Hats");
+        const Id dev = edit::addDevice (q, s, samplerRef(), DeviceRole::Instrument);
+        KalibreSampler loader;
+        String err;
+        loader.load (clickFile (0.05), err);
+        MemoryBlock m;
+        loader.getStateInformation (m);
+        q.device (dev)->state = m.toBase64Encoding().toStdString();
+        const Id c = edit::addMidiClip (q, s, 0, PPQ * 64);
+        for (int i = 0; i < 40; ++i)
+        {
+            Note n;
+            n.start = PPQ + PPQ * i;     // every half second from 0.5 s
+            n.length = PPQ / 2;
+            n.pitch = 60;
+            n.velocity = 127;
+            n.chance = chance;
+            n.timingMs = timingMs;
+            edit::addNote (q, c, n);
+        }
+    };
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 21.5; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    String error;
+    // A click is one sample loud; count those apart from each other.
+    auto clicks = [] (const File& f)
+    {
+        std::vector<int> at;
+        for (int i : clicksIn (f)) if (at.empty() || i - at.back() > 100) at.push_back (i);
+        return at;
+    };
+
+    Project never;
+    make (never, 0, 0);
+    const auto f0 = tempFolder().getChildFile ("chance0.wav");
+    CHECK (engine.render (never, tempFolder(), f0, o, {}, error));
+    CHECK (clicks (f0).empty());
+
+    Project half;
+    make (half, 50, 0);
+    const auto f50 = tempFolder().getChildFile ("chance50.wav");
+    CHECK (engine.render (half, tempFolder(), f50, o, {}, error));
+    const auto some = clicks (f50);
+    CHECK (some.size() >= 8 && some.size() <= 32);
+
+    Project loose;
+    make (loose, 100, 20);
+    const auto ft = tempFolder().getChildFile ("timing20.wav");
+    CHECK (engine.render (loose, tempFolder(), ft, o, {}, error));
+    const auto all = clicks (ft);
+    CHECK_EQ (all.size(), size_t (40));
+    int off = 0;
+    for (size_t i = 0; i < all.size(); ++i)
+    {
+        const int written = (int) ((0.5 + 0.5 * (double) i + 0.05) * 48000);   // the note, then the click 50 ms into the sample
+        const int d = all[i] - written;
+        CHECK (std::abs (d) <= 20 * 48 + 2);
+        if (std::abs (d) > 48) ++off;      // more than a millisecond away
+    }
+    CHECK (off > 20);   // most land off the grid, either way
+}

@@ -34,6 +34,9 @@ struct Lane
     std::string name;
     int pitch = 36;
     std::vector<int> velocity;   // per step; 0 is off
+    // Per step, as a note's (decision 0061); empty means 100%, 0 and 0.
+    std::vector<int> chance, velocityRange;
+    std::vector<double> timingMs;
 };
 
 struct Grid
@@ -71,6 +74,9 @@ struct Step
     int velocity = 100;
     double gate = 0.5;    // share of a step
     bool tie = false;     // runs on into the next step
+    int chance = 100;            // decision 0061
+    int velocityRange = 0;
+    double timingMs = 0;
 };
 
 struct StepSequence

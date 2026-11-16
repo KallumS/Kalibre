@@ -67,7 +67,15 @@ static Tick stepStart (const Grid& g, int step)
 
 Grid readGrid (const MidiData& m, Grid g, Tick from, NoteFrom who)
 {
-    for (auto& l : g.lanes) l.velocity.assign (static_cast<size_t> (g.steps), 0);
+    const size_t steps = static_cast<size_t> (g.steps);
+    auto blank = [steps] (Lane& l)
+    {
+        l.velocity.assign (steps, 0);
+        l.chance.assign (steps, 100);
+        l.velocityRange.assign (steps, 0);
+        l.timingMs.assign (steps, 0.0);
+    };
+    for (auto& l : g.lanes) blank (l);
     const Tick span = g.stepTicks * g.steps;
     for (auto& n : m.notes)
     {
@@ -78,10 +86,18 @@ Grid readGrid (const MidiData& m, Grid g, Tick from, NoteFrom who)
         auto it = std::find_if (g.lanes.begin(), g.lanes.end(), [&] (const Lane& l) { return l.pitch == n.pitch; });
         if (it == g.lanes.end())
         {
-            g.lanes.push_back ({ "Note " + std::to_string (n.pitch), n.pitch, std::vector<int> (static_cast<size_t> (g.steps), 0) });
+            g.lanes.push_back ({ "Note " + std::to_string (n.pitch), n.pitch, {} });
+            blank (g.lanes.back());
             it = g.lanes.end() - 1;
         }
-        it->velocity[static_cast<size_t> (step)] = std::max (it->velocity[static_cast<size_t> (step)], n.velocity);
+        const auto s = static_cast<size_t> (step);
+        if (n.velocity >= it->velocity[s])
+        {
+            it->velocity[s] = n.velocity;
+            it->chance[s] = n.chance;
+            it->velocityRange[s] = n.velocityRange;
+            it->timingMs[s] = n.timingMs;
+        }
     }
     return g;
 }
@@ -112,6 +128,10 @@ void writeGrid (MidiData& m, const Grid& g, Tick from, Tick length, unsigned& ne
                 n.pitch = l.pitch;
                 n.velocity = std::clamp (v, 1, 127);
                 n.from = who;
+                const auto i = static_cast<size_t> (s);
+                if (i < l.chance.size()) n.chance = l.chance[i];
+                if (i < l.velocityRange.size()) n.velocityRange = l.velocityRange[i];
+                if (i < l.timingMs.size()) n.timingMs = l.timingMs[i];
                 m.notes.push_back (n);
             }
     edit::sortNotes (m);
@@ -149,6 +169,9 @@ StepSequence readSteps (const MidiData& m, Tick stepTicks, int count, Tick from,
         st.on = true;
         st.pitch = n.pitch;
         st.velocity = n.velocity;
+        st.chance = n.chance;
+        st.velocityRange = n.velocityRange;
+        st.timingMs = n.timingMs;
         const double share = static_cast<double> (n.length) / static_cast<double> (stepTicks);
         st.gate = std::clamp (share, 0.05, 1.0);
         // A note longer than its step ties into the steps it covers.
@@ -201,6 +224,9 @@ void writeSteps (MidiData& m, const StepSequence& s, Tick from, Tick length, uns
             n.pitch = std::clamp (st.pitch, 0, 127);
             n.velocity = std::clamp (st.velocity, 1, 127);
             n.from = who;
+            n.chance = st.chance;
+            n.velocityRange = st.velocityRange;
+            n.timingMs = st.timingMs;
             m.notes.push_back (n);
         }
     }
