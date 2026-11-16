@@ -82,6 +82,7 @@ loop wraps inside the block, and runs the graph.
 - A track's devices stay MIDI effects, instruments, audio effects (`edit::normaliseChain`).
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).
 - A plug-in's window is deleted before its instance: the engine keeps removed instances for a second and a half.
+- Anything drawn over the plug-ins' windows must be its own window or go through `ui::present`, which hides them meanwhile: on the Mac they're native views, drawn above everything Kalibre draws (0056).
 - A plug-in's window is opened and closed with `editors::open` and `editors::close`, never `delete`: JUCE 9 needs the plug-in told first, or it won't open another (0056).
 - Graph channels are set before connecting to them: a connection to a channel that doesn't exist yet is silently refused (that cost a render).
 - Every colour comes from `Theme.h`; every word is 7:1.

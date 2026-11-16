@@ -1,5 +1,7 @@
 #include "Theme.h"
 
+#include <juce_audio_processors/juce_audio_processors.h>
+
 namespace kal::theme
 {
 using namespace juce;
@@ -417,14 +419,45 @@ static juce::Component::SafePointer<juce::Component> hostComponent;
 void setHost (juce::Component* c) { hostComponent = c; }
 juce::Component* host() { return hostComponent.getComponent(); }
 
+namespace
+{
+// Plug-ins' windows step aside while a question is asked: on the Mac each is a
+// native view, drawn over anything Kalibre draws, so it could cover the
+// question ("Save the changes?" when quitting) with no way to bring it forward.
+struct PluginsAside : public juce::ModalComponentManager::Callback
+{
+    std::unique_ptr<juce::ModalComponentManager::Callback> inner;
+    std::vector<juce::Component::SafePointer<juce::Component>> hidden;
+
+    void hideIn (juce::Component& c)
+    {
+        for (auto* child : c.getChildren())
+        {
+            if (! child->isVisible()) continue;
+            if (dynamic_cast<juce::AudioProcessorEditor*> (child) != nullptr) { child->setVisible (false); hidden.emplace_back (child); }
+            else hideIn (*child);
+        }
+    }
+
+    void modalStateFinished (int result) override
+    {
+        for (auto& h : hidden) if (h) h->setVisible (true);
+        if (inner) inner->modalStateFinished (result);
+    }
+};
+} // namespace
+
 void present (juce::AlertWindow* w, juce::ModalComponentManager::Callback* cb, bool deleteWhenDismissed)
 {
+    auto aside = std::make_unique<PluginsAside>();
+    aside->inner.reset (cb);
     if (auto* h = host())
     {
+        aside->hideIn (*h);
         h->addAndMakeVisible (w);
         w->setAlwaysOnTop (true);
         w->setBounds (w->getBounds().withCentre (h->getLocalBounds().getCentre()));
     }
-    w->enterModalState (true, cb, deleteWhenDismissed);
+    w->enterModalState (true, aside.release(), deleteWhenDismissed);
 }
 } // namespace kal::ui

@@ -580,3 +580,32 @@ TEST ("musicxml: out of one song and, zipped as .mxl, into an empty one, with it
     CHECK (std::abs (c.project.tempo.bpmAt (0) - 84.0) < 0.01);
     CHECK_EQ (c.project.scale.root, 7);
 }
+
+TEST ("questions: plug-in windows in the main window step aside while Kalibre asks something, and come back")
+{
+    // A plug-in's window on the Mac is a native view: drawn over anything
+    // Kalibre draws, so it covered "Save the changes?" when quitting.
+    PluginManager plugins;
+    String error;
+    auto inst = plugins.create (synthRef(), 48000, 512, error);
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    Component host;
+    host.setSize (800, 600);
+    ui::setHost (&host);
+    auto* editor = editors::open (*inst);
+    host.addAndMakeVisible (editor);
+
+    auto* w = new AlertWindow ("Save the changes to this project?", {}, MessageBoxIconType::NoIcon);
+    w->addButton ("Save", 1);
+    int answered = -1;
+    ui::present (w, ModalCallbackFunction::create ([&answered] (int r) { answered = r; }), true);
+    CHECK (! editor->isVisible());
+    w->exitModalState (1);
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (answered, 1);
+    CHECK (editor->isVisible());
+    host.removeChildComponent (editor);
+    editors::close (editor);
+    ui::setHost (nullptr);
+}

@@ -36,6 +36,13 @@ plug-in from the rack into a window of its own.
   them. They're shown now, in every window. The bar under a chosen button's
   label is gone, at the user's request.
 
+- **Questions aren't covered.** On the Mac a plug-in's window is a native
+  view, drawn over anything Kalibre draws inside its window, so it covered
+  "Save the changes?" when quitting, with no way to bring it forward
+  (reported 17 November). While a question is asked (`ui::present`), the
+  plug-ins' windows in the main window step aside, and come back when it's
+  answered.
+
 ## Consequences
 
 Tested: open, close and open a plug-in's window gives its own each time;
