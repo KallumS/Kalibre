@@ -62,6 +62,12 @@ struct NoteExpression
     bool operator== (const NoteExpression&) const = default;
 };
 
+// Which editor made a note (decision 0059). The piano roll shows and edits
+// every note; the drum grid, the step sequencer and the Euclidean sequencer
+// each show and change only their own, so all of them can add to one clip.
+// Played, recorded, imported and drawn notes are the piano roll's.
+enum class NoteFrom { Roll, Drums, Steps, Euclid };
+
 struct Note
 {
     Id id = 0;
@@ -72,6 +78,7 @@ struct Note
     int channel = 0;          // 0-15
     int articulation = -1;    // index into the track's articulation map; -1 none
     std::vector<NoteExpression> expression;   // MPE: bends, pressure, slide of this note alone
+    NoteFrom from = NoteFrom::Roll;
 
     Tick end() const { return start + length; }
     bool operator== (const Note&) const = default;

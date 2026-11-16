@@ -65,12 +65,13 @@ static Tick stepStart (const Grid& g, int step)
     return t;
 }
 
-Grid readGrid (const MidiData& m, Grid g, Tick from)
+Grid readGrid (const MidiData& m, Grid g, Tick from, NoteFrom who)
 {
     for (auto& l : g.lanes) l.velocity.assign (static_cast<size_t> (g.steps), 0);
     const Tick span = g.stepTicks * g.steps;
     for (auto& n : m.notes)
     {
+        if (n.from != who) continue;
         const Tick rel = n.start - from;
         if (rel < -g.stepTicks / 2 || rel >= span - g.stepTicks / 2) continue;
         const int step = std::clamp (static_cast<int> (std::lround (static_cast<double> (rel) / g.stepTicks)), 0, g.steps - 1);
@@ -85,13 +86,13 @@ Grid readGrid (const MidiData& m, Grid g, Tick from)
     return g;
 }
 
-void writeGrid (MidiData& m, const Grid& g, Tick from, Tick length, unsigned& nextId)
+void writeGrid (MidiData& m, const Grid& g, Tick from, Tick length, unsigned& nextId, NoteFrom who)
 {
     std::set<int> pitches;
     for (auto& l : g.lanes) pitches.insert (l.pitch);
     m.notes.erase (std::remove_if (m.notes.begin(), m.notes.end(), [&] (const Note& n)
     {
-        return pitches.count (n.pitch) && n.start >= from && n.start < from + length;
+        return n.from == who && pitches.count (n.pitch) && n.start >= from && n.start < from + length;
     }), m.notes.end());
 
     const Tick span = g.stepTicks * g.steps;
@@ -110,6 +111,7 @@ void writeGrid (MidiData& m, const Grid& g, Tick from, Tick length, unsigned& ne
                 n.length = noteLen;
                 n.pitch = l.pitch;
                 n.velocity = std::clamp (v, 1, 127);
+                n.from = who;
                 m.notes.push_back (n);
             }
     edit::sortNotes (m);
@@ -130,13 +132,14 @@ void euclidLane (Lane& lane, int steps, int pulses, int rotation, int velocity, 
 }
 
 //==============================================================================
-StepSequence readSteps (const MidiData& m, Tick stepTicks, int count, Tick from)
+StepSequence readSteps (const MidiData& m, Tick stepTicks, int count, Tick from, NoteFrom who)
 {
     StepSequence s;
     s.stepTicks = stepTicks;
     s.steps.assign (static_cast<size_t> (count), Step {});
     for (auto& n : m.notes)
     {
+        if (n.from != who) continue;
         const Tick rel = n.start - from;
         if (rel < 0 || rel >= stepTicks * count) continue;
         const int i = static_cast<int> (rel / stepTicks);
@@ -163,11 +166,11 @@ StepSequence readSteps (const MidiData& m, Tick stepTicks, int count, Tick from)
     return s;
 }
 
-void writeSteps (MidiData& m, const StepSequence& s, Tick from, Tick length, unsigned& nextId)
+void writeSteps (MidiData& m, const StepSequence& s, Tick from, Tick length, unsigned& nextId, NoteFrom who)
 {
     m.notes.erase (std::remove_if (m.notes.begin(), m.notes.end(), [&] (const Note& n)
     {
-        return n.start >= from && n.start < from + length;
+        return n.from == who && n.start >= from && n.start < from + length;
     }), m.notes.end());
     const int count = static_cast<int> (s.steps.size());
     const Tick span = s.stepTicks * count;
@@ -197,6 +200,7 @@ void writeSteps (MidiData& m, const StepSequence& s, Tick from, Tick length, uns
             n.length = len;
             n.pitch = std::clamp (st.pitch, 0, 127);
             n.velocity = std::clamp (st.velocity, 1, 127);
+            n.from = who;
             m.notes.push_back (n);
         }
     }

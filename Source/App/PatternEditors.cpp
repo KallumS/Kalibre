@@ -13,15 +13,43 @@ static void emptyMessage (Graphics& g, Rectangle<int> r, const String& text)
     g.drawFittedText (text, r.reduced (20), Justification::centred, 3);
 }
 
+// The step of a pattern `steps` long being played in the chosen clip, or -1.
+// Counted from where the patterns are written (the clip's offset), round
+// its loop, as they repeat.
+static int playingStep (Controller& c, Tick stepTicks, int steps)
+{
+    const auto* clip = c.project.clip (c.selectedClip);
+    if (! clip || ! c.engine.isPlaying() || steps <= 0 || stepTicks <= 0) return -1;
+    const Tick at = c.playhead();
+    if (at < clip->start || at >= clip->end()) return -1;
+    Tick rel = at - clip->start;
+    if (clip->loopLength > 0) rel %= clip->loopLength;
+    return (int) ((rel % (stepTicks * steps)) / stepTicks);
+}
+
+// The column being played: lit behind its cells.
+static void lightColumn (Graphics& g, Rectangle<float> column)
+{
+    g.setColour (theme::playhead.withAlpha (0.22f));
+    g.fillRoundedRectangle (column, 4.0f);
+}
+
 //==============================================================================
 DrumGrid::DrumGrid (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Drum grid");
     c.addChangeListener (this);
     read();
+    startTimerHz (30);
 }
 
 DrumGrid::~DrumGrid() { c.removeChangeListener (this); }
+
+void DrumGrid::timerCallback()
+{
+    const int now = playingStep (c, grid.stepTicks, grid.steps);
+    if (now != lit) { lit = now; repaint(); }
+}
 
 int DrumGrid::stepsFor (const Clip& clip) const
 {
@@ -36,7 +64,7 @@ void DrumGrid::read()
     grid.stepTicks = c.grid;
     grid.steps = stepsFor (*clip);
     grid.lanes = patterns::standardKit (grid.steps);
-    grid = patterns::readGrid (clip->midi, grid, clip->offset);
+    grid = patterns::readGrid (clip->midi, grid, clip->offset, NoteFrom::Drums);
 }
 
 void DrumGrid::write (const String& label)
@@ -48,7 +76,7 @@ void DrumGrid::write (const String& label)
         auto* clip = p.clip (id);
         if (! clip) return;
         unsigned next = p.nextId;
-        patterns::writeGrid (clip->midi, g, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next);
+        patterns::writeGrid (clip->midi, g, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Drums);
         p.nextId = std::max (p.nextId, (Id) next);
     };
     if (label.isEmpty()) { doWrite (c.project); c.refresh(); }
@@ -69,13 +97,9 @@ void DrumGrid::paint (Graphics& g)
     const float colW = (float) area.getWidth() / (float) grid.steps;
     const int stepsPerBeat = (int) jmax<Tick> (1, c.project.tempo.meterAt (clip->start).beatTicks() / grid.stepTicks);
     // Where the playhead is, step-wise.
-    int playing = -1;
-    if (c.engine.isPlaying())
-    {
-        const Tick rel = c.playhead() - (clip->start - clip->offset);
-        const Tick span = grid.stepTicks * grid.steps;
-        if (c.playhead() >= clip->start && c.playhead() < clip->end()) playing = (int) ((rel % span) / grid.stepTicks);
-    }
+    const int playing = playingStep (c, grid.stepTicks, grid.steps);
+    if (playing >= 0)
+        lightColumn (g, Rectangle<float> ((float) area.getX() + (float) playing * colW, (float) area.getY(), colW, rowH * (float) lanes));
     for (int l = 0; l < lanes; ++l)
     {
         const auto& lane = grid.lanes[(size_t) l];
@@ -99,7 +123,7 @@ void DrumGrid::paint (Graphics& g)
             }
             if (s == playing)
             {
-                g.setColour (theme::playhead.withAlpha (0.5f));
+                g.setColour (theme::playhead);
                 g.drawRoundedRectangle (cell, 3.0f, 1.5f);
             }
         }
@@ -164,16 +188,23 @@ StepSequencer::StepSequencer (Controller& ctrl) : c (ctrl)
     setTitle ("Step sequencer");
     c.addChangeListener (this);
     read();
+    startTimerHz (30);
 }
 
 StepSequencer::~StepSequencer() { c.removeChangeListener (this); }
+
+void StepSequencer::timerCallback()
+{
+    const int now = playingStep (c, seq.stepTicks, (int) seq.steps.size());
+    if (now != lit) { lit = now; repaint(); }
+}
 
 void StepSequencer::read()
 {
     const auto* clip = c.project.clip (c.selectedClip);
     if (! clip || ! clip->isMidi()) { seq = {}; return; }
     const int count = jlimit (1, 64, (int) ((clip->loopLength > 0 ? clip->loopLength : clip->length) / jmax<Tick> (1, c.grid)));
-    seq = patterns::readSteps (clip->midi, c.grid, count, clip->offset);
+    seq = patterns::readSteps (clip->midi, c.grid, count, clip->offset, NoteFrom::Steps);
     for (auto& s : seq.steps) if (! s.on && s.pitch == 60) s.pitch = 60;
 }
 
@@ -186,7 +217,7 @@ void StepSequencer::write (const String& label)
         auto* clip = p.clip (id);
         if (! clip) return;
         unsigned next = p.nextId;
-        patterns::writeSteps (clip->midi, s, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next);
+        patterns::writeSteps (clip->midi, s, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Steps);
         p.nextId = std::max (p.nextId, (Id) next);
     };
     if (label.isEmpty()) { doWrite (c.project); c.refresh(); }
@@ -211,12 +242,19 @@ void StepSequencer::paint (Graphics& g)
     const int n = (int) seq.steps.size();
     const float w = (float) area.getWidth() / (float) n;
     const auto& scale = c.project.scale;
+    const int playing = playingStep (c, seq.stepTicks, n);
     for (int i = 0; i < n; ++i)
     {
         const auto& s = seq.steps[(size_t) i];
         auto cell = Rectangle<float> ((float) area.getX() + (float) i * w, (float) area.getY(), w, (float) area.getHeight()).reduced (2.0f);
         g.setColour (theme::sunken);
         g.fillRoundedRectangle (cell, 4.0f);
+        if (i == playing)
+        {
+            lightColumn (g, cell);
+            g.setColour (theme::playhead);
+            g.drawRoundedRectangle (cell, 4.0f, 1.5f);
+        }
         if (s.on)
         {
             // Height is pitch; the bar inside is velocity.
@@ -339,9 +377,23 @@ EuclidEditor::EuclidEditor (Controller& ctrl) : c (ctrl)
         rows.push_back (std::move (r));
     }
     build();
+    startTimerHz (30);
 }
 
 EuclidEditor::~EuclidEditor() = default;
+
+std::vector<int> EuclidEditor::litSteps() const
+{
+    std::vector<int> v;
+    for (auto& r : rows) v.push_back (playingStep (c, c.grid, r->steps));
+    return v;
+}
+
+void EuclidEditor::timerCallback()
+{
+    auto now = litSteps();
+    if (now != lit) { lit = std::move (now); repaint(); }
+}
 
 void EuclidEditor::build()
 {
@@ -400,7 +452,7 @@ void EuclidEditor::apply (Row& r)
         auto* clip = p.clip (id);
         if (! clip) return;
         unsigned next = p.nextId;
-        patterns::writeGrid (clip->midi, g, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next);
+        patterns::writeGrid (clip->midi, g, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Euclid);
         p.nextId = std::max (p.nextId, (Id) next);
     });
 }
@@ -434,8 +486,12 @@ void EuclidEditor::paint (Graphics& g)
                 area.removeFromTop (theme::px (28)), Justification::centredLeft, true);
     area.removeFromTop (theme::px (8));
     const int rowH = theme::px (90);
+    const auto playing = litSteps();
+    size_t row = 0;
     for (auto& rp : rows)
     {
+        const int now = row < playing.size() ? playing[row] : -1;
+        ++row;
         auto r = area.removeFromTop (rowH);
         r.removeFromLeft (theme::px (118));
         auto circle = r.removeFromLeft (r.getHeight()).toFloat().reduced (6.0f);
@@ -453,6 +509,13 @@ void EuclidEditor::paint (Graphics& g)
             g.setColour (hits[(size_t) i] ? theme::accent : theme::edge);
             const float d = hits[(size_t) i] ? 7.0f : 4.0f;
             g.fillEllipse (p.x - d / 2, p.y - d / 2, d, d);
+            if (i == now)
+            {
+                // The step being played: ringed, with a hand from the middle.
+                g.setColour (theme::playhead);
+                g.drawEllipse (p.x - 7.0f, p.y - 7.0f, 14.0f, 14.0f, 1.5f);
+                g.drawLine (Line<float> (centre, p), 1.0f);
+            }
             if (hits[(size_t) i]) { if (first) { poly.startNewSubPath (p); first = false; } else poly.lineTo (p); }
         }
         poly.closeSubPath();

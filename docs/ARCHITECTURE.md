@@ -9,7 +9,7 @@
 | `Core/Model.*` | The project as plain data: tracks (folders, returns, the master), versions of clips, MIDI and audio clips, devices, sends, automation, modulators, articulation maps (0003, 0005, 0006). |
 | `Core/Edit.*` | Every change as a function, and the undo history (0008). |
 | `Core/Roll.*` | The piano roll's mouse rules as a state machine (0009). |
-| `Core/Patterns.*` | Drum grid, step sequencer and Euclidean rhythms, read from and written to notes (0014). |
+| `Core/Patterns.*` | Drum grid, step sequencer and Euclidean rhythms, read from and written to notes, each only its own (`Note::from`, 0014, 0059). |
 | `Core/Harmony.*`, `ScaleModel.h` | Scales, chord names (ScaleView's, unchanged), the chord lane, key finding (0015). |
 | `Core/Playback.*` | A track's clips compiled into MIDI messages and audio regions in seconds, with track and articulation delays (0011, 0013). |
 | `Core/Modulation.*` | LFO, envelopes, follower and wavetable state (0012). |

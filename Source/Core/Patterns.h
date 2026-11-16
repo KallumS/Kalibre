@@ -5,6 +5,8 @@
     notes are the only truth: each editor reads them into its grid and writes
     the grid back as notes, so a pattern drawn on the drum grid can be fixed
     in the piano roll and opened again on the grid, and nothing is kept twice.
+    Each reads and writes only the notes it made (decision 0059), so they
+    all add to one clip without taking over each other's notes.
 
     No JUCE in here.
 */
@@ -46,14 +48,14 @@ struct Grid
 // General MIDI's drum names for the usual kit, top row first.
 std::vector<Lane> standardKit (int steps);
 
-// Reads a clip's notes into a grid: a note belongs to the step it starts
-// nearest to. Pitches not in `lanes` get rows of their own.
-Grid readGrid (const MidiData&, Grid layout, Tick from = 0);
+// Reads a clip's notes made by `who` into a grid: a note belongs to the step
+// it starts nearest to. Pitches not in `lanes` get rows of their own.
+Grid readGrid (const MidiData&, Grid layout, Tick from, NoteFrom who);
 
-// The grid as notes, repeated to fill `length`, from `from`. Notes on pitches
-// the grid has rows for, and inside [from, from + length), are replaced; every
-// other note is left alone.
-void writeGrid (MidiData&, const Grid&, Tick from, Tick length, unsigned& nextId);
+// The grid as notes made by `who`, repeated to fill `length`, from `from`.
+// Notes made by `who` on pitches the grid has rows for, and inside
+// [from, from + length), are replaced; every other note is left alone.
+void writeGrid (MidiData&, const Grid&, Tick from, Tick length, unsigned& nextId, NoteFrom who);
 
 // Fills one row from a Euclidean rhythm.
 void euclidLane (Lane&, int steps, int pulses, int rotation, int velocity = 100, int accentEvery = 0);
@@ -78,7 +80,8 @@ struct StepSequence
     double swing = 0;
 };
 
-StepSequence readSteps (const MidiData&, Tick stepTicks, int count, Tick from = 0);
-void writeSteps (MidiData&, const StepSequence&, Tick from, Tick length, unsigned& nextId);
+// As the grid: only the notes made by `who` are read, and replaced.
+StepSequence readSteps (const MidiData&, Tick stepTicks, int count, Tick from, NoteFrom who);
+void writeSteps (MidiData&, const StepSequence&, Tick from, Tick length, unsigned& nextId, NoteFrom who);
 
 } // namespace kal::patterns
