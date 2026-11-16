@@ -5,9 +5,12 @@ namespace kal
 using namespace juce;
 using notation::Value;
 
-NotationView::NotationView (Controller& ctrl) : c (ctrl)
+NotationView::NotationView (Controller& ctrl) : c (ctrl), lanes (ctrl)
 {
     setTitle ("Notation");
+    addAndMakeVisible (lanes);
+    lanes.xOf = [this] (Tick t) { return xOfClipTick (t); };
+    lanes.tickAt = [this] (float x) { return clipTickAt (x); };
     const char* names[] { "1", "1/2", "1/4", "1/8", "1/16", "1/32" };
     const char* tips[] { "Whole note", "Half note", "Quarter note", "Eighth note", "Sixteenth note", "Thirty-second note" };
     for (int i = 0; i < 6; ++i)
@@ -39,7 +42,45 @@ void NotationView::changeListenerCallback (ChangeBroadcaster*)
         clef = notation::clefFor (clip->midi.notes);
         bars = notation::layout (*clip, c.project.tempo, c.project.scale, clef);
     }
+    resized();
     repaint();
+}
+
+int NotationView::lanesHeight() const
+{
+    return lanes.heightFor (jmax (0, getHeight() - theme::px (40) - theme::px (150)));
+}
+
+// The glyphs' ticks count from where the clip starts playing (its offset).
+float NotationView::xOfClipTick (Tick t) const
+{
+    const auto* clip = c.project.clip (c.selectedClip);
+    if (! clip || tickX.empty()) return (float) lanes.gutter;
+    const Tick rel = t - clip->offset;
+    if (rel <= tickX.front().first) return tickX.front().second;
+    for (size_t i = 1; i < tickX.size(); ++i)
+        if (rel <= tickX[i].first)
+        {
+            const auto& [t0, x0] = tickX[i - 1];
+            const auto& [t1, x1] = tickX[i];
+            return t1 == t0 ? x1 : x0 + (x1 - x0) * (float) (rel - t0) / (float) (t1 - t0);
+        }
+    return (float) getWidth() + 1.0f;   // past what's shown
+}
+
+Tick NotationView::clipTickAt (float x) const
+{
+    const auto* clip = c.project.clip (c.selectedClip);
+    if (! clip || tickX.empty()) return 0;
+    if (x <= tickX.front().second) return clip->offset + tickX.front().first;
+    for (size_t i = 1; i < tickX.size(); ++i)
+        if (x <= tickX[i].second)
+        {
+            const auto& [t0, x0] = tickX[i - 1];
+            const auto& [t1, x1] = tickX[i];
+            return clip->offset + (x1 <= x0 ? t1 : t0 + (Tick) ((float) (t1 - t0) * (x - x0) / (x1 - x0)));
+        }
+    return clip->offset + tickX.back().first;
 }
 
 void NotationView::resized()
@@ -49,11 +90,13 @@ void NotationView::resized()
     top.removeFromLeft (8);
     for (auto* b : { &dotted, &triplet }) { b->setBounds (top.removeFromLeft (theme::px (30))); top.removeFromLeft (4); }
     rest.setBounds (top.removeFromLeft (rest.idealWidth (theme::smallControl)));
+    lanes.gutter = theme::px (16) + 36;
+    lanes.setBounds (getLocalBounds().removeFromBottom (lanesHeight()));
 }
 
 Rectangle<int> NotationView::staffArea() const
 {
-    return getLocalBounds().withTrimmedTop (theme::px (40)).reduced (theme::px (16), 0);
+    return getLocalBounds().withTrimmedTop (theme::px (40)).withTrimmedBottom (lanesHeight()).reduced (theme::px (16), 0);
 }
 
 float NotationView::yOfStep (int step) const

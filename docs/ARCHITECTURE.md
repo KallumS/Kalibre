@@ -25,6 +25,8 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/Controllers.*` | The MIDI controllers' standard names (0060). |
+| `Core/AutoCc.*` | AutoCC's engine, ported from the JSFX: a clip's notes to its CC curves; instrument names to its families (0060). |
 | `Core/Hui.*` | The HUI protocol (0043). |
 | `Core/Xml.*`, `Core/MusicXml.*` | A small XML reader and writer (Miderator's), and MusicXML in and out (0057). |
 | `Core/ProjectFile.*` | `.kalibre` files: JSON with nlohmann/json. |
@@ -51,6 +53,7 @@
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp` | More of the Controller: audio commands, presets and A/B, file commands. |
+| `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
 | `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
 | `App/PluginManagerView.*` | The Plug-in Manager and its window (0047). |
 | `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045). |

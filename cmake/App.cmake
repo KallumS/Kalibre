@@ -103,6 +103,7 @@ add_library(KalibreApp STATIC
     Source/App/TopBar.cpp
     Source/App/Arrange.cpp
     Source/App/PianoRoll.cpp
+    Source/App/CcLanes.cpp
     Source/App/PatternEditors.cpp
     Source/App/NotationView.cpp
     Source/App/DeviceRack.cpp

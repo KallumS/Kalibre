@@ -1176,6 +1176,28 @@ Controller::Edge Controller::zeroEdge (const Clip& clip, Tick at) const
     return { tick, song - tempo.secondsAt (tick) };
 }
 
+autocc::Found Controller::autoCcFor() const
+{
+    const Track* owner = nullptr;
+    const auto* cl = project.clip (selectedClip, &owner);
+    if (! cl || ! cl->isMidi() || ! owner) return {};
+    return autocc::familyFor (*owner);
+}
+
+void Controller::autoCc()
+{
+    const auto found = autoCcFor();
+    if (found.family == autocc::Family::None)
+    {
+        say ("Auto needs a track named for its instrument, such as Violins, Horns or Flute (or an instrument named so).");
+        return;
+    }
+    const Id cid = selectedClip;
+    apply ("Auto CC", [&] (Project& p) { autocc::fill (p, cid, found.family); });
+    say ("Auto: CC1 (dynamics), CC11 (expression), CC7 (volume) and CC21 (vibrato) drawn as AutoCC plays "
+         + String (autocc::familyName (found.family)) + ", from " + String (found.from).quoted() + ".", false, true);
+}
+
 void Controller::quantiseSelection()
 {
     if (! selectedClip) { say ("Open a MIDI clip to quantise its notes."); return; }

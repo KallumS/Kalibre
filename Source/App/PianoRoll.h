@@ -10,11 +10,13 @@
     Under the notes, the velocity lane (drag to set how hard each note is
     played; click its name to draw a controller there instead: modulation,
     expression, sustain, pitch bend, pressure or any CC) and, on a track with an articulation map, the articulation lane:
-    each note's articulation, chosen with a click (decision 0013).
+    each note's articulation, chosen with a click (decision 0013). Under
+    those, the track's CC lanes, one under another (CcLanes, decision 0060).
 */
 
 #pragma once
 
+#include "CcLanes.h"
 #include "Controller.h"
 #include "Roll.h"
 #include "Theme.h"
@@ -68,6 +70,9 @@ private:
     int keyboardWidth() const { return theme::px (56); }
     int rulerHeight() const { return theme::px (20); }
     int velocityHeight() const { return theme::px (64); }
+    CcLanes lanes;
+    int ccHeight() const;                      // the CC lanes', at the bottom
+    int lanesTop() const { return getHeight() - ccHeight(); }
     int articulationHeight() const;
     juce::Rectangle<int> noteArea() const;
     juce::Rectangle<int> velocityArea() const;

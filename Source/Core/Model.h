@@ -433,6 +433,8 @@ struct Track
     AutoMode autoMode = AutoMode::Read;
     std::vector<Modulator> modulators;
     Id articulationMap = 0;
+    // The CC lanes shown under its notes, in the piano roll and notation (decision 0060).
+    std::vector<int> ccLanes { 1, 11 };
 
     // The clip launcher (decision 0037): one slot a scene; a slot whose length is 0 is empty.
     std::vector<Clip> slots;

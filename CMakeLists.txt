@@ -65,6 +65,8 @@ add_library(KalibreCore STATIC
     Source/Core/ProjectTools.cpp
     Source/Core/Hui.cpp
     Source/Core/Mpe.cpp
+    Source/Core/Controllers.cpp
+    Source/Core/AutoCc.cpp
     Source/Script/LuaHost.cpp)
 target_include_directories(KalibreCore PUBLIC Source/Core Source/Script ThirdParty)
 target_link_libraries(KalibreCore PUBLIC KalibreLua)
@@ -99,7 +101,8 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestSurround.cpp
         Tests/TestProjectTools.cpp
         Tests/TestHui.cpp
-        Tests/TestMpe.cpp)
+        Tests/TestMpe.cpp
+        Tests/TestAutoCc.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)

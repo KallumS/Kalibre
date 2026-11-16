@@ -14,8 +14,11 @@ static bool isBlack (int pitch)
     return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
 }
 
-PianoRoll::PianoRoll (Controller& ctrl) : c (ctrl)
+PianoRoll::PianoRoll (Controller& ctrl) : c (ctrl), lanes (ctrl)
 {
+    addAndMakeVisible (lanes);
+    lanes.xOf = [this] (Tick t) { return xOf (t); };
+    lanes.tickAt = [this] (float x) { return relAt (x); };
     setWantsKeyboardFocus (true);
     setTitle ("Piano roll");
     setDescription ("Click to add a note, right-click to remove one, drag to move or stretch. Shift-drag chooses, right-drag removes.");
@@ -32,20 +35,26 @@ int PianoRoll::articulationHeight() const
     return t && c.project.articulationMap (t->articulationMap) ? theme::px (22) : 0;
 }
 
+int PianoRoll::ccHeight() const
+{
+    // At most half of what the notes would have.
+    return lanes.heightFor (jmax (0, (getHeight() - rulerHeight() - velocityHeight() - articulationHeight()) / 2));
+}
+
 Rectangle<int> PianoRoll::noteArea() const
 {
     return getLocalBounds().withTrimmedLeft (keyboardWidth()).withTrimmedTop (rulerHeight())
-                           .withTrimmedBottom (velocityHeight() + articulationHeight());
+                           .withTrimmedBottom (velocityHeight() + articulationHeight() + ccHeight());
 }
 
 Rectangle<int> PianoRoll::velocityArea() const
 {
-    return getLocalBounds().withTrimmedLeft (keyboardWidth()).removeFromBottom (velocityHeight());
+    return getLocalBounds().withTrimmedLeft (keyboardWidth()).withTrimmedBottom (ccHeight()).removeFromBottom (velocityHeight());
 }
 
 Rectangle<int> PianoRoll::articulationArea() const
 {
-    return getLocalBounds().withTrimmedLeft (keyboardWidth()).withTrimmedBottom (velocityHeight()).removeFromBottom (articulationHeight());
+    return getLocalBounds().withTrimmedLeft (keyboardWidth()).withTrimmedBottom (velocityHeight() + ccHeight()).removeFromBottom (articulationHeight());
 }
 
 Tick PianoRoll::base() const
@@ -81,11 +90,15 @@ void PianoRoll::showClip()
 void PianoRoll::resized()
 {
     if (shownClip != c.selectedClip) showClip();
+    lanes.gutter = keyboardWidth();
+    lanes.setBounds (getLocalBounds().removeFromBottom (ccHeight()));
 }
 
 void PianoRoll::changeListenerCallback (ChangeBroadcaster*)
 {
     if (shownClip != c.selectedClip) showClip();
+    lanes.setBounds (getLocalBounds().removeFromBottom (ccHeight()));
+    lanes.repaint();
     repaint();
 }
 
@@ -334,12 +347,12 @@ void PianoRoll::paint (Graphics& g)
     }
     g.restoreState();
     g.setColour (theme::ground);
-    g.fillRect (0, getHeight() - velocityHeight() - articulationHeight(), keyboardWidth(), velocityHeight() + articulationHeight());
+    g.fillRect (0, lanesTop() - velocityHeight() - articulationHeight(), keyboardWidth(), velocityHeight() + articulationHeight());
     g.setColour (theme::textSecondary);
     g.setFont (theme::font (theme::smallPoints));
-    g.drawFittedText (laneName() + ui::u8 (" \xe2\x96\xbe"), Rectangle<int> (0, getHeight() - velocityHeight(), keyboardWidth(), velocityHeight()).reduced (4), Justification::topLeft, 3);
+    g.drawFittedText (laneName() + ui::u8 (" \xe2\x96\xbe"), Rectangle<int> (0, lanesTop() - velocityHeight(), keyboardWidth(), velocityHeight()).reduced (4), Justification::topLeft, 3);
     if (articulationHeight() > 0)
-        g.drawText ("Artic.", Rectangle<int> (0, getHeight() - velocityHeight() - articulationHeight(), keyboardWidth(), articulationHeight()).reduced (4, 0), Justification::centredLeft, false);
+        g.drawText ("Artic.", Rectangle<int> (0, lanesTop() - velocityHeight() - articulationHeight(), keyboardWidth(), articulationHeight()).reduced (4, 0), Justification::centredLeft, false);
 
     // The playhead.
     if (c.engine.isPlaying() && clip)
@@ -393,7 +406,7 @@ void PianoRoll::mouseDown (const MouseEvent& e)
     pastThreshold = false;
 
     if (e.y < rulerHeight()) { c.locate (c.snapTick (base() + relAt ((float) e.x))); return; }
-    if (e.x < keyboardWidth() && e.y >= getHeight() - velocityHeight()) { laneMenu(); return; }
+    if (e.x < keyboardWidth() && e.y >= lanesTop() - velocityHeight() && e.y < lanesTop()) { laneMenu(); return; }
     if (e.x < keyboardWidth())
     {
         c.engine.audition (c.focusTrack, pitchAt ((float) e.y), 100, 0.4);

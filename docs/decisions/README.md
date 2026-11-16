@@ -61,3 +61,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0057. MusicXML in and out](0057-musicxml.md)
 - [0058. Plug-ins fitted to the rack; swipes; effects filed right](0058-plug-ins-fitted-to-the-rack.md)
 - [0059. One clip, every editor adds to it; the playing step lit](0059-one-clip-many-editors.md)
+- [0060. CC lanes, and AutoCC's Auto button](0060-cc-lanes-and-autocc.md)

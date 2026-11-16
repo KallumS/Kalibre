@@ -11,6 +11,7 @@
 #pragma once
 
 #include "Edit.h"
+#include "AutoCc.h"
 #include "Engine.h"
 #include "ControlSettings.h"
 #include "Patterns.h"
@@ -169,6 +170,10 @@ public:
     void duplicateSelection();
     void splitAtCursor();
     void quantiseSelection();
+    // AutoCC (decision 0060): the family the chosen MIDI clip's track names,
+    // if any; and its CC lanes filled as AutoCC would play the clip.
+    autocc::Found autoCcFor() const;
+    void autoCc();
     void selectAllNotes();
 
     //==========================================================================

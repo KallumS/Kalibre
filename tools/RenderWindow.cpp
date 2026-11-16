@@ -148,6 +148,27 @@ int main (int argc, char** argv)
         c.editor = EditorKind::Notation;
         c.viewChanged();
         shoot ("6-notation");
+        // AutoCC (decision 0060): a violin line, Auto pressed, in the piano roll and in notation.
+        {
+            const Id vt = edit::addTrack (c.project, TrackKind::Track, "Violins 1");
+            const Id vc = edit::addMidiClip (c.project, vt, 0, PPQ * 16);
+            const int line[][3] { { 0, 6, 67 }, { 6, 2, 69 }, { 8, 4, 71 }, { 13, 3, 72 } };   // start, length (beats), pitch
+            for (auto& l : line) { Note n; n.start = PPQ * l[0]; n.length = PPQ * l[1]; n.pitch = l[2]; n.velocity = 96; edit::addNote (c.project, vc, n); }
+            c.refresh();
+            c.selectClip (vc);
+            c.autoCc();
+            window.lowerHeight = 440;
+            c.editor = EditorKind::PianoRoll;
+            c.zoneTab = ZoneTab::Editor;
+            c.viewChanged();
+            shoot ("19-auto-cc-piano-roll");
+            c.editor = EditorKind::Notation;
+            c.viewChanged();
+            shoot ("20-auto-cc-notation");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, vt);
+            c.refresh();
+        }
         c.zoneTab = ZoneTab::Mixer;
         c.viewChanged();
         shoot ("7-mixer");

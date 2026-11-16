@@ -732,3 +732,48 @@ TEST ("questions: plug-ins in the rack step aside too, though on the Mac they're
     host.removeChildComponent (&rack);
     ui::setHost (nullptr);
 }
+
+#include "PianoRoll.h"
+
+TEST ("auto cc: only on a track named for an instrument AutoCC knows; then the clip's CC lanes are drawn, as one undo step, and shown")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id piano = edit::addTrack (c.project, TrackKind::Track, "Piano");
+    const Id violins = edit::addTrack (c.project, TrackKind::Track, "Violins 1");
+    const Id pc = edit::addMidiClip (c.project, piano, 0, PPQ * 16);
+    const Id vc = edit::addMidiClip (c.project, violins, 0, PPQ * 16);
+    for (Id clip : { pc, vc }) { Note n; n.start = PPQ; n.length = PPQ * 6; n.pitch = 67; edit::addNote (c.project, clip, n); }
+    c.refresh();
+
+    c.selectClip (pc);
+    CHECK (c.autoCcFor().family == autocc::Family::None);
+    c.autoCc();
+    CHECK (c.project.clip (pc)->midi.events.empty());
+    CHECK (c.message.contains ("Violins"));          // says what it needs
+
+    c.selectClip (vc);
+    CHECK (c.autoCcFor().family == autocc::Family::Strings);
+    c.autoCc();
+    const auto& evs = c.project.clip (vc)->midi.events;
+    std::set<int> ccs;
+    for (auto& e : evs) ccs.insert (e.number);
+    CHECK (ccs == std::set<int> ({ 1, 7, 11, 21 }));
+    c.undo();
+    CHECK (c.project.clip (vc)->midi.events.empty());
+    c.redo();
+    CHECK (! c.project.clip (vc)->midi.events.empty());
+
+    // In the piano roll: a lane for each, under the notes.
+    PianoRoll roll (c);
+    roll.setSize (1000, 700);
+    MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CcLanes* lanes = nullptr;
+    for (auto* child : roll.getChildren()) if (auto* l = dynamic_cast<CcLanes*> (child)) lanes = l;
+    CHECK (lanes != nullptr);
+    if (! lanes) return;
+    CHECK (lanes->shown() == std::vector<int> ({ 1, 11, 7, 21 }));
+    CHECK (lanes->getHeight() > 0 && lanes->getBottom() == roll.getHeight());
+}

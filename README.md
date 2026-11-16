@@ -38,6 +38,10 @@ grow and shrink with it.
   sequencer, a Euclidean sequencer, notation, **all adding to the same
   clip**, each showing its own notes and lighting the step being played.
   **MusicXML** in and out.
+- **CC lanes** under the piano roll and notation, any controller by its
+  name, and **Auto**: on a track named for its instrument (Violins, Horns,
+  Flute), it draws the dynamics, expression, volume and vibrato lanes as
+  **AutoCC** would play the notes.
 - **Choosing** is the same everywhere: Shift-click a range, Option-click to
   add, Shift-Option-click to take away.
 - **Tempo and time signature** that change and ramp along the song.
@@ -81,6 +85,7 @@ grow and shrink with it.
 ![Kalibre Synth and Sampler](docs/synth-and-sampler.png)
 ![A plug-in shown smaller to fit a short rack](docs/fitted-to-the-rack.png)
 ![The step sequencer lighting the step being played](docs/steps-playing.png)
+![Auto: a violin line's CC lanes, drawn as AutoCC plays strings](docs/auto-cc.png)
 ![The clip launcher](docs/launcher.png)
 ![The Meters tab](docs/meters.png)
 
