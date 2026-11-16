@@ -4,10 +4,11 @@ The conversation that built Kalibre, kept so the reasons and the route aren't
 lost when the session's context is compacted. Your messages and Claude's
 replies are in full; each tool call (a command, a file written, a search) is
 listed in one line by what it did, without its output. Private details (an
-email address) and the harness's internal reminders are removed. Brought up
-to date at the end of the 16 November work.
+email address) and the harness's internal reminders are removed. The session
+log only holds what was still in it when this was made: the earliest hours
+are summarised in `2026-11-15.md` rather than kept word for word.
 
-8 messages from you, 67 replies, 302 tool calls.
+10 messages from you, 70 replies, 308 tool calls.
 
 ## You (2026-11-15 19:34)
 
@@ -763,3 +764,67 @@ Everything requested is built. Running the full test suites once more, refreshin
 
 - *Bash*: Run all tests; save renders to docs
 - *Bash*: Refresh history backup and README; push
+- *Bash*: Find the latest CI runs
+- *Monitor*: Mac and Linux CI for the latest commit (run 13)
+- *Bash*: List recent commits
+
+## Claude (2026-11-16 00:55)
+
+All seven features are built and tested, and the chat history is backed up to GitHub. The newest Mac build is still running; the one before it passed on Mac and Linux.
+
+**Backup.** The conversation is saved in `docs/sessions/2026-11-15-chat-history.md`. Your email address and the system's internal notes are taken out, and each tool step is a one-line summary. The early part of the session wasn't in the saved log any more, so that part is thinner. Your three attached files are in `docs/reference/`. I refreshed both at the end of this work, and the docs are updated for everything below.
+
+**What's new:**
+- **Comping:** every pass round a loop becomes a take, and recording audio over audio keeps the old audio as Take 1. The newest take plays. Open the take lanes from the track's menu (Show Takes), then drag across a take to use it for that stretch, or click one of its clips to use all of it. Joins between takes get a 5 ms fade.
+- **Crossfades:** overlapping audio clips crossfade automatically over the overlap without the level dipping. Every audio clip has fade handles at its top corners.
+- **Sidechain routing:** choose "Sidechain From" in a plug-in's menu to feed it any track's sound. Delay compensation lines it up. It doesn't work for CLAP plug-ins yet.
+- **MIDI learn:** touch a control (a plug-in parameter, or volume, pan or mute in the mixer), press Cmd-L, then move a knob. Mapped knobs don't also play into instruments. You can remove mappings under Automation > MIDI Mappings.
+- **Loudness meters:** the mixer shows the master's momentary, short-term and integrated loudness, loudness range, true peak and stereo correlation, with a minute of history. File > Export the Mix at a Loudness renders at -14, -16 or -23 LUFS without letting peaks go over -1 dBTP.
+- **Sync:**
+  - MIDI clock and song position out
+  - following another machine's clock
+  - MIDI timecode out
+  - Ableton Link: shared tempo and start/stop; with others connected, Kalibre starts on the session's next bar.
+  - What isn't there: timecode in, and the older MMC and HUI protocols.
+- **Control surfaces:**
+  - Mackie Control mode, which most surfaces have (X-Touch, FaderPort…): motorised faders, pan knobs, the strip buttons, banks of eight, the transport and jog wheel, track names on the display, bars and beats on its timecode display, and meters.
+  - OSC, for TouchOSC and similar apps.
+  - Set it all up in Kalibre > Sync and Control Surfaces… (a new Studio tab in the browser). Every button and OSC address is listed in `docs/CONTROL.md`.
+
+**Tests:** 86 core and 17 app tests pass here. They include:
+- a loudness-matched export measuring -14 LUFS
+- a sidechain lined up through a delaying plug-in
+- MIDI learn moving a track
+- Mackie fader, knob, button and display messages
+- OSC commands
+- MIDI clock, timecode and Link timing
+
+None of the sync or surface features has been tried with real gear yet. When you have a controller, drum machine or Link app to hand, that's the next thing to test.
+
+**Mac build:** the build of everything up to the loudness meters passed. The newest run adds Link and the surfaces: https://github.com/KallumS/Kalibre/actions/runs/43783172332. I'm watching it and will fix anything it turns up.
+
+
+## You (2026-11-16 01:05)
+
+[background task finished]
+
+- *TaskUpdate*: 
+
+## Claude (2026-11-16 01:05)
+
+The newest build passed on both Mac and Linux, so everything from this round is now in a downloadable Mac app: comping, crossfades, sidechains, MIDI learn, loudness meters, sync and control surfaces. Download **Kalibre-macOS** from https://github.com/KallumS/Kalibre/actions/runs/43783172332.
+
+Sync and the control surfaces still need trying with real gear (a drum machine, a Link app, a fader surface).
+
+
+## You (2026-11-16 01:11)
+
+Back up the chat and docs
+
+- *Bash*: Check repo state
+
+## Claude (2026-11-16 01:11)
+
+Working tree is clean and pushed. Refreshing the chat backup with everything up to now, and noting the latest results in the docs.
+
+- *Bash*: Refresh history backup and session log; push
