@@ -13,12 +13,12 @@ Every feature asked for, then the list of basic DAW features
 
 | Feature | Status | Where, and notes |
 | --- | --- | --- |
-| Apple silicon Mac app | Yes, on CI | Built for arm64 on every push, with the tests passing on macOS; download Actions > Build > Kalibre-macOS. Not yet opened by the user |
-| Hosts AU, VST3 and CLAP | Built, untried | AU and VST3 through JUCE; CLAP through Kalibre's own host (0021). Kalibre menu > Scan for Plug-ins. Each plug-in is scanned in a helper: one that crashes, hangs or won't open is turned off and the scan carries on (0047). Tried on the Mac: the first scan crashed Kalibre, which led to 0047 |
+| Apple silicon Mac app | Yes, on CI | Built for arm64 on every push, with the tests passing on macOS; download Actions > Build > Kalibre-macOS. Used by the user since 16 November: the first scan crashed it (fixed, 0047), and their reports since are fixed (0049, 0056) |
+| Hosts AU, VST3 and CLAP | Yes, on the Mac | AU and VST3 through JUCE; CLAP through Kalibre's own host (0021). Kalibre menu > Scan for Plug-ins. Each plug-in is scanned in a helper: one that crashes, hangs or won't open is turned off and the scan carries on (0047). Tried on the Mac: the first scan crashed Kalibre, which led to 0047 |
 | Plug-in Manager | Yes | Kalibre > Plug-in Manager… (or View): every plug-in and every one turned off, with why; search, sort, scan again, turn off and on, show in Finder. Its own window (0002 amended). Tested (0047) |
 | Everything in one window | Yes | 0002. Small questions appear over the window, inside it. Settings may have their own window (amended 16 November; the Plug-in Manager) |
 | App icon | Yes | A K with a calibrated stem and a yellow arm (0048) |
-| Quitting ends the program | Yes, untried on the Mac | A watchdog ends it five seconds after shutdown starts, so a plug-in or driver can't keep it running (0049) |
+| Quitting ends the program | Yes, not yet confirmed on the Mac | A watchdog ends it five seconds after shutdown starts, so a plug-in or driver can't keep it running (0049) |
 | Tempo and time signature, automatable | Yes | Top bar; Transport > Ramp the Tempo to Here; View > Tempo Lane. Ramps integrated exactly, tested (0004) |
 | Scripting | Yes | Lua 5.4, Scripts menu, docs/SCRIPTING.md, tested (0019) |
 | Audio and MIDI on the same track | Yes | 0003 |
@@ -46,7 +46,7 @@ Every feature asked for, then the list of basic DAW features
 | Retrospective recording, MIDI and audio | Yes | Transport > Capture MIDI / Capture Audio; tested (0017) |
 | Warping: granular, spectral, repitch | Yes | All three, from the file's tempo or warp markers, tested (0022). Markers are added at the cursor (right-click > Warp) and dragged along the clip |
 | Offline effects on clips | Yes | Right-click a clip > Offline Effects (0026): add plug-ins, Edit Their Settings (their windows in the Devices tab, 0039), Render |
-| Piano roll mouse rules | Yes | Exactly as asked, tested (0009); choosing notes as everywhere else since 17 November (0053); a new note is as long as the last one added, clicked or stretched |
+| Piano roll mouse rules | Yes | Exactly as asked, tested (0009); choosing notes as everywhere else since 16 November (0053); a new note is as long as the last one added, clicked or stretched |
 | Menus in the title bar | Yes | The Mac's menu bar (0027) |
 | Apple's guidelines and the house colours | Yes | docs/apple-hig-review.md, docs/COLOUR.md; contrast tested |
 

@@ -2,7 +2,7 @@
 
 ## Context
 
-The user asked for MusicXML import and export (17 November), pointing at
+The user asked for MusicXML import and export (16 November), pointing at
 Noterator, Miderator and Middaw. Noterator and Miderator read and write
 MusicXML in their cores, with a small XML parser of their own (Noterator's
 decision 0021); their writer is built on Noterator's engraver, which Kalibre

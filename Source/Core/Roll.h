@@ -13,13 +13,13 @@
       - Right click and drag over an area removes every note in the area.
       - Shift and left drag chooses every note in the area; with Option too,
         it takes the area's notes out of the choice.
-      - Choosing is as everywhere else (decision 0053, asked for 17 November):
+      - Choosing is as everywhere else (decision 0053, asked for 16 November):
         Shift-click on a note chooses every note from the last one clicked to
         it (the pitches and the time between them); Option-click adds it;
         Shift-Option-click takes it out.
       - Hold Command while dragging to move off the grid.
       - A new note is as long as the last note added, clicked or stretched
-        (asked for, 17 November): the window keeps that length and passes it
+        (asked for, 16 November): the window keeps that length and passes it
         as Settings::defaultLength.
 
     The window turns the mouse into ticks and pitches and asks the gesture
@@ -88,7 +88,7 @@ struct Outcome
     bool audition = false;             // play the note that was clicked or added
     int auditionPitch = -1;
     // On release: the length the next new note takes, from the note just
-    // added, clicked or stretched (asked for, 17 November); 0 leaves it.
+    // added, clicked or stretched (asked for, 16 November); 0 leaves it.
     Tick noteLength = 0;
 
     // An area being dragged out, to draw (Select or RemoveNotes).

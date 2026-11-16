@@ -167,7 +167,7 @@ void LookAndFeel::drawButtonText (Graphics& g, TextButton& b, bool, bool)
     g.setColour (b.isEnabled() ? ink : edge);
     const auto area = b.getLocalBounds();
     g.drawText (b.getButtonText(), area.reduced (2, 0), Justification::centred, true);
-    // No bar under a chosen button's label: the user didn't want it (17 November).
+    // No bar under a chosen button's label: the user didn't want it (16 November).
 }
 
 void LookAndFeel::drawTickBox (Graphics& g, Component& c, float x, float y, float w, float h, bool ticked, bool enabled,

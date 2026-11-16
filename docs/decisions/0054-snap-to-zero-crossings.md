@@ -3,7 +3,7 @@
 ## Context
 
 A cut where the waveform isn't at zero clicks. The user asked for an option
-to snap to zero crossings wherever audio is handled (17 November).
+to snap to zero crossings wherever audio is handled (16 November).
 
 ## Decision
 

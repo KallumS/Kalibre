@@ -4,7 +4,7 @@
 
 The user wants to record the whole mix back onto a track (resampling): a
 track that, armed and recording, takes the master's output from where
-recording starts until it stops (17 November).
+recording starts until it stops (16 November).
 
 ## Decision
 

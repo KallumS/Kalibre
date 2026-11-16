@@ -11,7 +11,7 @@ here too.
 
 | | value | what it is |
 | --- | --- | --- |
-| Accent | `#FFF200` | whatever is on: a chosen button (no bar under its label since 17 November: the user's choice), chosen notes and clips, the track being played (a bar on its header), a hit in the drum grid, a sounding chord |
+| Accent | `#FFF200` | whatever is on: a chosen button (no bar under its label since 16 November: the user's choice), chosen notes and clips, the track being played (a bar on its header), a hit in the drum grid, a sounding chord |
 | Controls | `#A9AFBA` | buttons, slider thumbs, knob arcs |
 | Ground | `#23272E` | the window |
 | Ink | `#14171C` | the text on every button, chosen or not |

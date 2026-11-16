@@ -5,7 +5,7 @@
 The user asked for a device that holds several plug-ins, where each can play
 only on the mid or the sides, only on part of the spectrum (multiband), be
 switched off or soloed, and have its own volume and pan; with loudness
-compensation by short-term LUFS (17 November).
+compensation by short-term LUFS (16 November).
 
 ## Decision
 

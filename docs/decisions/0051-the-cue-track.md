@@ -4,7 +4,7 @@
 
 While producing, the user wants plug-ins on what they hear (a reference
 EQ, a headphone correction, a meter that colours the sound) that must never
-end up in the finished track (17 November).
+end up in the finished track (16 November).
 
 ## Decision
 

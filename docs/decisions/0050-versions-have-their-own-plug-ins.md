@@ -6,7 +6,7 @@ Track versions (0006) shared one set of plug-ins, so trying another sound
 for a part meant changing it for every version. The user wants to compare up
 to four versions of a track quickly, A/B/C/D, from the mixer, each able to
 have different instruments and plug-ins, and to switch several tracks at
-once (17 November).
+once (16 November).
 
 ## Decision
 

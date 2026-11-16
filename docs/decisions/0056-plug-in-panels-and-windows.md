@@ -2,7 +2,7 @@
 
 ## Context
 
-Testing on the Mac (17 November): some plug-ins were cut off or not centred
+Testing on the Mac (16 November): some plug-ins were cut off or not centred
 in the rack, and adding another device turned some blank. The user also
 asked for Match Loudness on every plug-in's panel, and a button to move a
 plug-in from the rack into a window of its own.
@@ -39,7 +39,7 @@ plug-in from the rack into a window of its own.
 - **Questions aren't covered.** On the Mac a plug-in's window is a native
   view, drawn over anything Kalibre draws inside its window, so it covered
   "Save the changes?" when quitting, with no way to bring it forward
-  (reported 17 November). While a question is asked (`ui::present`), the
+  (reported 16 November). While a question is asked (`ui::present`), the
   plug-ins' windows in the main window step aside, and come back when it's
   answered.
 
