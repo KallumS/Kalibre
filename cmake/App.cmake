@@ -95,6 +95,7 @@ add_library(KalibreApp STATIC
     Source/App/LauncherView.cpp
     Source/App/OfflineFxView.cpp
     Source/App/MetersView.cpp
+    Source/App/VideoView.cpp
     Source/App/Keys.cpp
     Source/App/KeysPanel.cpp
     Source/App/TopBar.cpp
@@ -113,6 +114,7 @@ add_library(KalibreApp STATIC
 if(APPLE)
     target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm)
     target_link_libraries(KalibreApp PRIVATE "-framework CoreMIDI")
+    target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab (decision 0046)
 else()
     target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp)
 endif()

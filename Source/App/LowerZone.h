@@ -12,6 +12,7 @@
 #include "LauncherView.h"
 #include "MetersView.h"
 #include "Mixer.h"
+#include "VideoView.h"
 #include "OfflineFxView.h"
 #include "NotationView.h"
 #include "PatternEditors.h"
@@ -39,6 +40,7 @@ private:
     theme::HouseButton mixerTab { "Mixer", "Every track's volume, pan and sends. (X)" };
     theme::HouseButton launcherTab { "Launcher", "Clips to play in loops, scene by scene. (G)" };
     theme::HouseButton metersTab { "Meters", "Spectrum, oscilloscope, phase and a tuner. (Y)" };
+    theme::HouseButton videoTab { "Video", "The song's video, following the playhead." };
     theme::HouseButton rollTab { "Piano Roll", "Notes on a piano roll." };
     theme::HouseButton drumsTab { "Drums", "A grid of drum hits." };
     theme::HouseButton stepsTab { "Steps", "A step sequencer: one note a step." };
@@ -61,6 +63,7 @@ private:
     LauncherView launcher;
     OfflineFxView offline;
     MetersView meters;
+    VideoView videoView;
     bool shownAudio = false;
     bool audioChosen() const;
 

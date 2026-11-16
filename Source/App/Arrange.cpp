@@ -579,6 +579,15 @@ void Arrange::drawSectionLane (Graphics& g, Rectangle<int> r)
         g.setColour (theme::text);
         g.drawText (String (sec.name), box.toNearestInt().withTrimmedLeft (8), Justification::centredLeft, true);
     }
+    // Where the video starts (decision 0046).
+    if (! c.project.video.file.empty())
+    {
+        const float x = xOf (c.project.video.start);
+        g.setColour (theme::playhead);
+        g.fillRect (x, (float) r.getY() + 2, 2.0f, (float) r.getHeight() - 4);
+        g.setColour (theme::text);
+        g.drawText (ui::u8 ("\xe2\x96\xb6 Video"), Rectangle<float> (x + 4, (float) r.getY(), 80, (float) r.getHeight()).toNearestInt(), Justification::centredLeft, false);
+    }
     g.restoreState();
     g.setColour (theme::rule);
     g.fillRect (r.getX(), r.getBottom() - 1, r.getWidth(), 1);

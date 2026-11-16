@@ -5,9 +5,9 @@ namespace kal
 using namespace juce;
 
 LowerZone::LowerZone (Controller& ctrl)
-    : c (ctrl), devices (ctrl), roll (ctrl), drums (ctrl), steps (ctrl), euclid (ctrl), notation (ctrl), mixer (ctrl), sample (ctrl), launcher (ctrl), offline (ctrl), meters (ctrl)
+    : c (ctrl), devices (ctrl), roll (ctrl), drums (ctrl), steps (ctrl), euclid (ctrl), notation (ctrl), mixer (ctrl), sample (ctrl), launcher (ctrl), offline (ctrl), meters (ctrl), videoView (ctrl)
 {
-    for (auto* b : { &devicesTab, &editorTab, &mixerTab, &launcherTab, &metersTab })
+    for (auto* b : { &devicesTab, &editorTab, &mixerTab, &launcherTab, &metersTab, &videoTab })
     {
         b->setRadioGroupId (1);
         b->setClickingTogglesState (true);
@@ -20,7 +20,7 @@ LowerZone::LowerZone (Controller& ctrl)
         addChildComponent (b);
     }
     for (auto* b : { &gridButton, &snapButton, &quantise, &legato }) addChildComponent (b);
-    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample, &launcher, &offline, &meters })
+    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample, &launcher, &offline, &meters, &videoView })
         addChildComponent (comp);
     drumsView.setViewedComponent (&drums, false);
     euclidView.setViewedComponent (&euclid, false);
@@ -31,6 +31,7 @@ LowerZone::LowerZone (Controller& ctrl)
     mixerTab.onClick = [this] { c.zoneTab = ZoneTab::Mixer; show(); };
     launcherTab.onClick = [this] { c.zoneTab = ZoneTab::Launcher; show(); };
     metersTab.onClick = [this] { c.zoneTab = ZoneTab::Meters; show(); };
+    videoTab.onClick = [this] { c.zoneTab = ZoneTab::Video; show(); };
     rollTab.onClick = [this] { c.editor = EditorKind::PianoRoll; show(); };
     drumsTab.onClick = [this] { c.editor = EditorKind::Drums; show(); };
     stepsTab.onClick = [this] { c.editor = EditorKind::Steps; show(); };
@@ -53,7 +54,8 @@ LowerZone::~LowerZone() { c.removeChangeListener (this); }
 
 void LowerZone::changeListenerCallback (ChangeBroadcaster*)
 {
-    if (c.zoneTab != shownTab || c.editor != shownEditor || audioChosen() != shownAudio || c.offlineClip != offline.shown()) show();
+    if (c.zoneTab != shownTab || c.editor != shownEditor || audioChosen() != shownAudio || c.offlineClip != offline.shown()
+        || videoTab.isVisible() == c.project.video.file.empty()) show();
     snapButton.setToggleState (c.snap, dontSendNotification);
 }
 
@@ -75,6 +77,11 @@ void LowerZone::show()
     launcher.setVisible (c.zoneTab == ZoneTab::Launcher);
     metersTab.setToggleState (c.zoneTab == ZoneTab::Meters, dontSendNotification);
     meters.setVisible (c.zoneTab == ZoneTab::Meters);
+    // The Video tab is there when the song has a video (decision 0046).
+    if (c.zoneTab == ZoneTab::Video && c.project.video.file.empty()) c.zoneTab = ZoneTab::Devices;
+    videoTab.setVisible (! c.project.video.file.empty());
+    videoTab.setToggleState (c.zoneTab == ZoneTab::Video, dontSendNotification);
+    videoView.setVisible (c.zoneTab == ZoneTab::Video);
     // An audio clip is edited in the sample editor; the note editors are for MIDI.
     const bool audio = c.zoneTab == ZoneTab::Editor && shownAudio;
     const bool editing = c.zoneTab == ZoneTab::Editor && ! audio;
@@ -146,6 +153,7 @@ void LowerZone::resized()
     place (mixerTab);
     place (launcherTab);
     place (metersTab);
+    if (videoTab.isVisible()) place (videoTab);
     bar.removeFromLeft (theme::px (12));
     if (c.zoneTab == ZoneTab::Editor && ! shownAudio)
     {
@@ -153,7 +161,7 @@ void LowerZone::resized()
         bar.removeFromLeft (theme::px (12));
         for (auto* b : { &gridButton, &snapButton, &quantise, &legato }) place (*b);
     }
-    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &launcher, &offline, &meters })
+    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &launcher, &offline, &meters, &videoView })
         comp->setBounds (r);
     sample.setBounds (r);
     // These two scroll when there's more than fits.

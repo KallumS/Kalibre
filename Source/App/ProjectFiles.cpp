@@ -239,4 +239,18 @@ bool Controller::exportBatch (const File& folder, const Batch& b)
     return ok;
 }
 
+bool Controller::importVideo (const File& f, Tick at)
+{
+    if (! f.existsAsFile()) return false;
+    const auto path = f.getFullPathName().toStdString();
+    apply ("Import Video", [path, at] (Project& p) { p.video.file = path; p.video.start = at; });
+    // Its sound, on a track of its own, if the Mac can read it.
+    const Id t = addTrack (TrackKind::Track, f.getFileNameWithoutExtension() + " Sound");
+    const bool sound = importFile (f, t, at);
+    if (! sound) apply ("Remove Empty Track", [t] (Project& p) { edit::removeTrack (p, t); });
+    zoneTab = ZoneTab::Video;
+    say ("The video starts at the cursor, in the Video tab." + String (sound ? " Its sound is on its own track." : " Its sound couldn't be read: export it as WAV from the video program and import that."), ! sound);
+    return true;
+}
+
 } // namespace kal

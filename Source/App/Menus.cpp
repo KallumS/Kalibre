@@ -135,6 +135,15 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item (ui::u8 ("Song Details\xe2\x80\xa6"), [this] { songDetails(); }));
             m.addSeparator();
             m.addItem (item (ui::u8 ("Import Audio or MIDI\xe2\x80\xa6"), [this] { importFiles(); }, k ("import")));
+            m.addItem (item (ui::u8 ("Import Video\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Import a video", File::getSpecialLocation (File::userMoviesDirectory), "*.mov;*.mp4;*.m4v");
+                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult().existsAsFile()) c.importVideo (fc.getResult(), c.cursor);
+                });
+            }));
+            m.addItem (item ("Remove the Video", [this] { c.apply ("Remove Video", [] (Project& pr) { pr.video = {}; }); }, {}, ! p.video.file.empty()));
             m.addItem (item (ui::u8 ("Export the Mix\xe2\x80\xa6"), [this] { exportAudio (false); }, k ("exportMix")));
             PopupMenu loud;
             loud.addItem (item (ui::u8 ("For Streaming (-14 LUFS)\xe2\x80\xa6"), [this] { exportAudio (false, -14.0); }));

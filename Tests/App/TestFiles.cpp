@@ -132,3 +132,19 @@ TEST ("files: an MP3 export with its tags; a template starts a song with the sam
     for (auto& tr : d.project.tracks) CHECK (tr.clips().empty());
     tf.deleteFile();
 }
+
+TEST ("files: a video goes on the timeline at the cursor, its sound on a track of its own")
+{
+    const auto dir = scratch();
+    const auto film = tone (dir.getChildFile ("Film.wav"));   // stands in for a film with sound
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    const auto before = c.project.tracks.size();
+    CHECK (c.importVideo (film, PPQ * 4));
+    CHECK_EQ (String (c.project.video.file), film.getFullPathName());
+    CHECK_EQ (c.project.video.start, PPQ * 4);
+    CHECK_EQ (c.project.tracks.size(), before + 1);
+    CHECK (! c.project.tracks.back().clips().empty());
+    CHECK (c.zoneTab == ZoneTab::Video);
+}

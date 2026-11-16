@@ -23,7 +23,7 @@ namespace kal
 {
 
 enum class EditorKind { PianoRoll, Drums, Steps, Euclid, Notation };
-enum class ZoneTab { Devices, Editor, Mixer, Launcher, Meters };
+enum class ZoneTab { Devices, Editor, Mixer, Launcher, Meters, Video };
 
 class Controller : public juce::ChangeBroadcaster, private juce::Timer
 {
@@ -105,6 +105,7 @@ public:
     void autosave();
     juce::File recordingsFolder() const;
     bool importFile (const juce::File&, Id track, Tick at);   // audio, MIDI
+    bool importVideo (const juce::File&, Tick at);           // the picture, and its sound on a track (decision 0046)
     bool exportMidi (const juce::File&);
     bool exportAudio (const juce::File&, const Engine::RenderOptions&, bool stems);
 
