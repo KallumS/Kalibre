@@ -26,6 +26,7 @@ Every feature asked for, then the list of basic DAW features
 | Track versions (right-click > New Version) | Yes | Version number on the header; four at most, each with its own plug-ins, chosen with the mixer's 1 to 4 buttons, several tracks at once with Shift-click; tested (0006, 0050) |
 | Summing track | Yes | Track > Add Summing Track: armed, it records the master from where recording starts; tested (0052) |
 | Shift and Option to choose | Yes | Shift-click a range, Option-click adds, Shift-Option-click takes out: tracks (arrangement and mixer), their buttons, clips, notes and the Plug-in Manager; tested (0009, 0053) |
+| Snap to zero crossings | Yes | Edit > Snap to Zero Crossings, or the sample editor's button: clip edges, splits and sample-editor ranges land on the exact sample where the waveform crosses zero; tested (0054) |
 | Cue track | Yes | Track > Add Cue Track: after the master, its plug-ins, pan and mono heard but never exported; tested (0051) |
 | MIDI effects before instruments | Yes | Tested (0007) |
 | ARA (Melodyne) | Built, untried | 0028. The track's audio clips become the plug-in's playback regions; its edits are saved with the project. One document per plug-in, so Melodyne's multi-track view shows one track |

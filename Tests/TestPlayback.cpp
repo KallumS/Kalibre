@@ -120,3 +120,39 @@ TEST ("playback: overlapping audio clips crossfade over the overlap, equal power
     const double g = playback::fadeGain (0.25, 0.5);
     CHECK (std::abs (g * g + g * g - 1.0) < 1e-9);
 }
+
+TEST ("playback: an audio clip's edges can sit between ticks, on the very sample")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Audio");
+    Clip c;
+    c.kind = Clip::Kind::Audio;
+    c.start = PPQ;
+    c.length = PPQ * 2;
+    c.offset = PPQ / 2;
+    c.audio.file = "/a.wav";
+    c.audio.sourceLength = 10;
+    c.audio.startFine = 0.0002;
+    c.audio.endFine = -0.0001;
+    const Id id = edit::addClip (p, t, c);
+    auto out = playback::compile (p, *p.track (t));
+    CHECK_EQ (out.audio.size(), size_t (1));
+    const auto& r = out.audio.front();
+    CHECK (near (r.startSeconds, p.tempo.secondsAt (PPQ) + 0.0002));
+    CHECK (near (r.endSeconds, p.tempo.secondsAt (PPQ * 3) - 0.0001));
+    CHECK (near (r.sourceSeconds, p.tempo.secondsAt (PPQ) - p.tempo.secondsAt (PPQ / 2) + 0.0002));
+
+    // Split between ticks: the left half ends there and the right begins there, the same sample.
+    const Id right = edit::splitClip (p, id, PPQ * 2, 0.00015);
+    const auto* a = p.clip (id);
+    const auto* b = p.clip (right);
+    CHECK (near (a->audio.endFine, 0.00015));
+    CHECK (near (a->audio.startFine, 0.0002));
+    CHECK (near (b->audio.startFine, 0.00015));
+    CHECK (near (b->audio.endFine, -0.0001));
+    out = playback::compile (p, *p.track (t));
+    CHECK_EQ (out.audio.size(), size_t (2));
+    CHECK (near (out.audio[0].endSeconds, out.audio[1].startSeconds));
+    // The right half reads the file from where the left stopped.
+    CHECK (near (out.audio[1].sourceSeconds - out.audio[0].sourceSeconds, out.audio[0].endSeconds - out.audio[0].startSeconds));
+}

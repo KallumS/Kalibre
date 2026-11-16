@@ -180,6 +180,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Delete", [this] { c.deleteSelection(); }, k ("delete")));
             m.addItem (item ("Duplicate", [this] { c.duplicateSelection(); }, k ("duplicate")));
             m.addItem (item ("Split at the Cursor", [this] { c.splitAtCursor(); }, k ("split")));
+            m.addItem (item ("Snap to Zero Crossings", [this] { c.zeroCrossings = ! c.zeroCrossings; c.viewChanged(); }, {}, true, c.zeroCrossings));
             m.addItem (item ("Choose Every Note", [this] { c.selectAllNotes(); }, k ("chooseAll"), c.selectedClip != 0));
             m.addSeparator();
             m.addItem (item ("Quantise", [this] { c.quantiseSelection(); }, k ("quantise"), c.selectedClip != 0));

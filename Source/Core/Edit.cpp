@@ -388,7 +388,7 @@ void resizeClip (Project& p, Id clipId, Tick newStart, Tick newEnd)
     sortClips (*owner);
 }
 
-Id splitClip (Project& p, Id clipId, Tick at)
+Id splitClip (Project& p, Id clipId, Tick at, double fine)
 {
     Track* owner = nullptr;
     auto* c = p.clip (clipId, &owner);
@@ -407,9 +407,11 @@ Id splitClip (Project& p, Id clipId, Tick at)
         eraseIf (right.midi.notes, [cut] (const Note& n) { return n.start < cut; });
         for (auto& n : right.midi.notes) n.id = p.newId();
     }
-    // Fades stay at their own end.
+    // Fades stay at their own end; both halves meet on the same sample.
     right.audio.fadeIn = 0;
     c->audio.fadeOut = 0;
+    c->audio.endFine = fine;
+    right.audio.startFine = fine;
     const Id rightId = right.id;
     owner->clips().push_back (right);
     sortClips (*owner);

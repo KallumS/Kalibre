@@ -54,6 +54,7 @@ public:
     bool showTempoLane = false;
     bool showSectionLane = true;
     bool ripple = false;            // deleting clips pulls later ones back (decision 0037)
+    bool zeroCrossings = false;     // audio edges snap to zero crossings (decision 0054)
 
     Track* focus() { return project.track (focusTrack); }
     Clip* clip() { return project.clip (selectedClip); }
@@ -147,6 +148,11 @@ public:
     // track to the selection instead of pressing it. True when it did.
     bool optionAdds (Id track);
     std::vector<Id> arrangeOrder() const;   // the tracks as the arrangement shows them
+    // Where an edge of an audio clip goes when it's put at `at` (decision 0054):
+    // with Snap to Zero Crossings on, the nearest zero crossing, as a tick
+    // and the seconds past it; otherwise `at` itself.
+    struct Edge { Tick tick = 0; double fine = 0; };
+    Edge zeroEdge (const Clip&, Tick at) const;
     void newVersion (Id track);
     // Chooses version `index` (0-3) on each of these tracks that has it (decision 0050).
     void chooseVersion (const std::vector<Id>& tracks, int index);

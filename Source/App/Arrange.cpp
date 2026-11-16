@@ -1268,7 +1268,8 @@ void Arrange::mouseDrag (const MouseEvent& e)
         {
             const auto* clip = c.project.clip (dragClip);
             if (! clip) break;
-            const Tick snapped = e.mods.isCommandDown() ? at : c.snapTick (at);
+            Tick snapped = e.mods.isCommandDown() ? at : c.snapTick (at);
+            snapped = c.zeroEdge (*clip, snapped).tick;   // onto a zero crossing, when that's on (decision 0054)
             if (drag == Drag::TrimStart) previewStart = jlimit<Tick> (0, clip->end() - 1, snapped);
             else previewEnd = std::max (clip->start + 1, snapped);
             repaint();
@@ -1366,7 +1367,15 @@ void Arrange::mouseUp (const MouseEvent&)
     {
         const Id id = dragClip;
         const Tick a = previewStart, b = previewEnd;
-        c.apply ("Trim Clip", [=] (Project& p) { edit::resizeClip (p, id, a, b); });
+        // The edge moved lands on the very sample of its zero crossing (or on its tick when that's off).
+        const auto* clip = c.project.clip (id);
+        const bool start = drag == Drag::TrimStart;
+        const double fine = clip ? c.zeroEdge (*clip, start ? a : b).fine : 0.0;
+        c.apply ("Trim Clip", [=] (Project& p)
+        {
+            edit::resizeClip (p, id, a, b);
+            if (auto* x = p.clip (id)) (start ? x->audio.startFine : x->audio.endFine) = fine;
+        });
     }
     else if (drag == Drag::Swipe)
     {

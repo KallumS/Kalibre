@@ -36,6 +36,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
     {
         lowerHeight = s->getIntValue ("lowerHeight", 320);
         browserShown = s->getBoolValue ("browser", false);
+        c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
         setTextSize ((float) s->getDoubleValue ("textSize", 1.0));
     }
     browser.setVisible (browserShown);
@@ -57,6 +58,7 @@ MainComponent::~MainComponent()
     {
         s->setValue ("lowerHeight", lowerHeight);
         s->setValue ("browser", browserShown);
+        s->setValue ("zeroCrossings", c.zeroCrossings);
         s->setValue ("textSize", (double) theme::scale());
         settingsStore().saveIfNeeded();
         settingsStore().closeFiles();

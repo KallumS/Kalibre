@@ -66,7 +66,9 @@ Id addMidiClip (Project&, Id track, Tick start, Tick length);
 void removeClips (Project&, const std::set<Id>& clips);
 bool moveClip (Project&, Id clip, Tick newStart, Id newTrack = 0);
 void resizeClip (Project&, Id clip, Tick newStart, Tick newEnd);   // trims from either side
-Id splitClip (Project&, Id clip, Tick at);                         // returns the right half's id
+// Returns the right half's id. `fine`: for audio, how far past `at` (seconds,
+// under a tick) the cut really is, so it can be on a zero crossing (decision 0054).
+Id splitClip (Project&, Id clip, Tick at, double fine = 0);
 Id duplicateClip (Project&, Id clip);                              // just after itself
 Id consolidateClips (Project&, const std::set<Id>& clips);         // MIDI clips on one track into one
 void sortClips (Track&);

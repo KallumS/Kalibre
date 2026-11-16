@@ -132,6 +132,9 @@ struct AudioData
     double sourceBpm = 0;           // 0 when unknown
     std::vector<WarpMarker> markers;
     std::string renderedFile;       // the result of offline effects, or empty
+    // Where each edge really is, in seconds from its tick: under a tick either
+    // way, so an edge can sit on the very sample of a zero crossing (decision 0054).
+    double startFine = 0, endFine = 0;
 
     bool operator== (const AudioData&) const = default;
 };

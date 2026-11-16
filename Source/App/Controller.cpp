@@ -1,5 +1,6 @@
 #include "Controller.h"
 
+#include "AudioTools.h"
 #include "Capture.h"
 #include "Comp.h"
 #include "MidiLearn.h"
@@ -1115,8 +1116,35 @@ void Controller::splitAtCursor()
         for (auto& t : project.tracks)
             if (std::find (selectedTracks.begin(), selectedTracks.end(), t.id) != selectedTracks.end())
                 for (auto& c : t.clips()) if (c.start < cursor && c.end() > cursor) clips.insert (c.id);
-    const Tick at = cursor;
-    apply ("Split", [clips, at] (Project& p) { for (auto c : clips) edit::splitClip (p, c, at); });
+    // Each audio clip is cut at its own nearest zero crossing when that's on (decision 0054).
+    std::map<Id, Edge> cuts;
+    for (auto id : clips)
+        if (const auto* cl = project.clip (id))
+        {
+            auto e = zeroEdge (*cl, cursor);
+            if (e.tick <= cl->start || e.tick >= cl->end()) e = { cursor, 0 };
+            cuts[id] = e;
+        }
+    apply ("Split", [cuts] (Project& p) { for (auto& [id, e] : cuts) edit::splitClip (p, id, e.tick, e.fine); });
+}
+
+Controller::Edge Controller::zeroEdge (const Clip& clip, Tick at) const
+{
+    if (! zeroCrossings || clip.isMidi()) return { at, 0 };
+    // The audio as it plays (the file, or its warped render), and where `at` falls in it.
+    auto audio = engine.cache.forClip (clip, project.tempo, projectFolder());
+    if (! audio || audio->buffer.getNumSamples() == 0) return { at, 0 };
+    const auto& tempo = project.tempo;
+    const bool plain = clip.audio.warp == WarpMode::Off && ! clip.audio.reversed && std::abs (clip.audio.transpose) < 1e-6;
+    const double base = (plain ? clip.audio.sourceStart : 0.0) - tempo.secondsAt (clip.start - clip.offset);
+    const double rate = audio->sampleRate;
+    const int want = (int) std::llround ((base + tempo.secondsAt (at)) * rate);
+    // Ten milliseconds either way reaches a crossing of anything above 50 Hz.
+    const int z = audiotools::nearestZeroCrossing (audio->buffer.getArrayOfReadPointers(), audio->buffer.getNumChannels(),
+                                                   audio->buffer.getNumSamples(), want, (int) (rate * 0.01));
+    const double song = z / rate - base;
+    const Tick tick = tempo.tickAt (song);
+    return { tick, song - tempo.secondsAt (tick) };
 }
 
 void Controller::quantiseSelection()

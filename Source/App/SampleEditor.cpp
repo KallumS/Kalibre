@@ -18,8 +18,11 @@ SampleEditor::SampleEditor (Controller& ctrl) : c (ctrl)
     waveButton.onClick = [this] { spectral = false; repaint(); };
     spectrumButton.onClick = [this] { spectral = true; if (spectrogram.isNull()) makeSpectrogram(); repaint(); };
     for (auto* b : { &waveButton, &spectrumButton, &normalise, &gainButton, &silenceButton, &reverseButton, &fadeInButton,
-                     &fadeOutButton, &invertButton, &dcButton, &stripButton, &quantiseButton })
+                     &fadeOutButton, &invertButton, &dcButton, &stripButton, &quantiseButton, &zeroButton })
         addAndMakeVisible (b);
+    zeroButton.setClickingTogglesState (false);
+    zeroButton.onClick = [this] { c.zeroCrossings = ! c.zeroCrossings; c.viewChanged(); };
+    zeroButton.setToggleState (c.zeroCrossings, dontSendNotification);
 
     normalise.onClick = [this] { c.normaliseClip (c.selectedClip); };
     stripButton.onClick = [this] { c.stripSilence (c.selectedClip); };
@@ -58,6 +61,7 @@ SampleEditor::~SampleEditor() { c.removeChangeListener (this); }
 
 void SampleEditor::changeListenerCallback (ChangeBroadcaster*)
 {
+    zeroButton.setToggleState (c.zeroCrossings, dontSendNotification);
     if (isVisible()) load();
 }
 
@@ -238,12 +242,12 @@ void SampleEditor::resized()
 {
     auto bar = getLocalBounds().removeFromTop (theme::px (36)).reduced (theme::px (8), theme::px (4));
     for (auto* b : { &waveButton, &spectrumButton, &normalise, &gainButton, &silenceButton, &reverseButton, &fadeInButton,
-                     &fadeOutButton, &invertButton, &dcButton, &stripButton, &quantiseButton })
+                     &fadeOutButton, &invertButton, &dcButton, &stripButton, &quantiseButton, &zeroButton })
     {
         const int w = b->idealWidth (theme::smallControl);
         b->setVisible (bar.getWidth() >= w);
         b->setBounds (bar.removeFromLeft (w));
-        bar.removeFromLeft (theme::px (b == &spectrumButton || b == &normalise || b == &dcButton ? 12 : 4));
+        bar.removeFromLeft (theme::px (b == &spectrumButton || b == &normalise || b == &dcButton || b == &quantiseButton ? 12 : 4));
     }
     peaksWidth = 0;
 }
@@ -259,9 +263,16 @@ void SampleEditor::mouseDown (const MouseEvent& e)
 void SampleEditor::mouseDrag (const MouseEvent& e)
 {
     if (dragFrom < 0) return;
-    const int s = sampleAt ((float) e.x);
-    selStart = jmin (dragFrom, s);
-    selEnd = jmax (dragFrom, s);
+    // The range's ends on zero crossings, when that's on (decision 0054).
+    auto onZero = [this] (int at)
+    {
+        if (! c.zeroCrossings) return at;
+        return audiotools::nearestZeroCrossing (audio.getArrayOfReadPointers(), audio.getNumChannels(), audio.getNumSamples(),
+                                                at, (int) (rate * 0.01));
+    };
+    const int s = onZero (sampleAt ((float) e.x)), from = onZero (dragFrom);
+    selStart = jmin (from, s);
+    selEnd = jmax (from, s);
     repaint();
 }
 

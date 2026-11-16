@@ -383,3 +383,57 @@ TEST ("choosing: Shift-click clips takes every clip between the two, across trac
     c.chooseClip (b1, none);
     CHECK (c.selectedClips == (std::set<Id> { b1 }));
 }
+
+TEST ("zero crossings: with the option on, a cut lands on the very sample where the waveform crosses zero")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    // Two seconds of a 70 Hz sine: a crossing every 343 samples or so.
+    const auto f = folder().getChildFile ("sine70.wav");
+    {
+        f.deleteFile();
+        AudioBuffer<float> b (2, 96000);
+        for (int i = 0; i < b.getNumSamples(); ++i)
+            b.setSample (0, i, 0.8f * (float) std::sin (2.0 * MathConstants<double>::pi * 70.0 * (i + 0.37) / 48000.0)), b.setSample (1, i, b.getSample (0, i));
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (32));
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    }
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Sine");
+    const Id id = edit::addClip (c.project, t, audioClip (f, 0, c.project.tempo.tickAt (2.0)));
+    c.refresh();
+    for (int i = 0; i < 200 && ! engine.cache.forClip (*c.project.clip (id), c.project.tempo, c.projectFolder()); ++i) Thread::sleep (20);
+    const auto audio = engine.cache.forClip (*c.project.clip (id), c.project.tempo, c.projectFolder());
+    CHECK (audio != nullptr);
+    if (! audio) return;
+    auto valueAt = [&] (double seconds) { return audio->buffer.getSample (0, (int) std::llround (seconds * 48000)); };
+
+    // Off: the cut is at the cursor, on its tick.
+    c.cursor = c.project.tempo.tickAt (0.5013);
+    auto e = c.zeroEdge (*c.project.clip (id), c.cursor);
+    CHECK_EQ (e.tick, c.cursor);
+    CHECK_EQ (e.fine, 0.0);
+
+    // On: the nearest crossing, between ticks.
+    c.zeroCrossings = true;
+    e = c.zeroEdge (*c.project.clip (id), c.cursor);
+    const double at = c.project.tempo.secondsAt (e.tick) + e.fine;
+    CHECK (std::abs (valueAt (at)) < 0.01f);
+    CHECK (std::abs (at - 0.5013) < 0.008);
+    CHECK (std::abs (e.fine) <= 0.5 / (PPQ * 2.0) + 1e-9);   // under half a tick at 120 bpm
+
+    // Split there: both halves meet on that sample.
+    c.selectedClips = { id };
+    c.splitAtCursor();
+    const auto& clips = c.project.track (t)->clips();
+    CHECK_EQ (clips.size(), size_t (2));
+    if (clips.size() == 2)
+    {
+        CHECK_EQ (clips[0].end(), e.tick);
+        CHECK (std::abs (clips[0].audio.endFine - e.fine) < 1e-12);
+        CHECK (std::abs (clips[1].audio.startFine - e.fine) < 1e-12);
+    }
+}
