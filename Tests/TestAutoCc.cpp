@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 using namespace kal;
 
@@ -81,6 +82,59 @@ TEST ("autocc: the instrument in a track's name, as AutoCC's families")
     const auto found = autocc::familyFor (*p.track (t));
     CHECK (found.family == Family::Strings);
     CHECK_EQ (found.from, std::string ("BBC SO Violas"));
+}
+
+TEST ("autocc: every instrument of each section, in the ways track names write them")
+{
+    using autocc::Family;
+    const char* strings[] { "Violin 1", "Violins 1", "Vlns one", "Vln. I", "VlnII", "1st Violins", "Violins1", "V1", "V2", "Vn 2",
+                            "Viola", "Violas", "Vla", "Vlas", "Va", "Cello", "Cellos", "Celli", "Vc", "Vcs", "Vlc", "Violoncello",
+                            "Double Bass", "Double Basses", "Contrabass", "Basses", "CB", "String Bass", "Strings", "Str", "Stgs",
+                            "Violini I", "Viole", "Violoncelli", "Contrabbassi", "Violons", "Violoncelles", "Contrebasses",
+                            "Violinen", "Geigen", "Bratschen", "Kontrab\xc3\xa4sse", "Fiddle", "Erhu", "Viola da Gamba", "Octobass",
+                            "V i o l i n s  1", "Spitfire Symphonic Strings" };
+    const char* brass[] { "Horn", "Horns", "French Horn", "Horn in F", "Hn 1", "Hns", "Fhn", "Horns a4", "Corni", "H\xc3\xb6rner",
+                          "Trumpet", "Trumpets 1-2", "Tpt", "Tpts", "Trp", "Piccolo Trumpet", "Trombe", "Trompeten", "Trombone",
+                          "Trombones", "Tbn", "Trb", "Bones", "Bass Trombone", "Tromboni", "Posaunen", "Tuba", "Tubas",
+                          "Cimbasso", "Euphonium", "Flugelhorn", "Fl\xc3\xbcgelhorn", "Cornet", "Bugle", "Mellophone",
+                          "Sousaphone", "Wagner Tuba", "Alto Horn", "Sackbut", "Brass", "Low Brass" };
+    const char* winds[] { "Flute", "Flutes 1-3", "Fl 1", "Fls", "Alto Flute", "Bass Flute", "Piccolo", "Picc", "Ottavino", "Oboe",
+                          "Oboes", "Ob", "Oboe d\'Amore", "English Horn", "Cor Anglais", "Corno Inglese", "Englischhorn", "Clarinet",
+                          "Clarinets in Bb", "Cl", "Clar", "Bass Clarinet", "Basset Horn", "Bassoon", "Bassoons", "Bsn",
+                          "Contrabassoon", "Contrafagotto", "Fagotti", "Fl\xc3\xb6ten", "Fl\xc3\xbbte", "Hautbois", "Klarinetten",
+                          "Saxophone", "Alto Sax", "Baritone Sax", "Recorder", "Tin Whistle", "Low Whistle", "Pan Flute",
+                          "Shakuhachi", "Bansuri", "Dizi", "Duduk", "Ocarina", "Bagpipes", "Woodwinds", "Winds", "WW" };
+    for (auto* n : strings) { CHECK (autocc::familyFor (n) == Family::Strings); if (autocc::familyFor (n) != Family::Strings) std::printf ("    not strings: %s\n", n); }
+    for (auto* n : brass) { CHECK (autocc::familyFor (n) == Family::Brass); if (autocc::familyFor (n) != Family::Brass) std::printf ("    not brass: %s\n", n); }
+    for (auto* n : winds) { CHECK (autocc::familyFor (n) == Family::Woodwinds); if (autocc::familyFor (n) != Family::Woodwinds) std::printf ("    not woodwinds: %s\n", n); }
+    // Every name Orchestration Helper (KallumS/Orchestration-Helper) gives these instruments.
+    const char* ohStrings[] { "violin i", "violins ii", "first violins", "second violins", "vn", "vns", "fiddle", "vln", "alto violin",
+                              "'cellos", "violoncellos", "double-bass", "doublebass", "d. basses", "db", "string bass",
+                              "string quartet", "string orchestra", "bowed strings", "stringed instruments", "string group" };
+    const char* ohWinds[] { "concert flute", "transverse flute", "piccolos", "piccolo flute", "altoflute", "flute in g", "alto fl",
+                            "englishhorn", "eng horn", "eh", "alto oboe", "b flat clarinet", "a clarinet", "e flat clarinet",
+                            "eb clarinet", "small clarinet", "piccolo clarinet", "d clarinet", "sopranino clarinet", "bassclarinet",
+                            "bass cl", "bcl", "pedal clarinet", "fagotto", "fagott", "fag", "bn", "c-fag", "cbn", "double-bassoon",
+                            "wood-wind", "wood wind", "wws", "woodwind section" };
+    const char* ohBrass[] { "french horns", "waldhorn", "corno", "f horn", "cor", "tromba", "clarino", "alto trumpet", "small trumpet",
+                            "bass trumpet", "cornetts", "corneta", "cornet a pistons", "posaune", "sackbut", "tenor trombone",
+                            "wagner tubas", "tuben", "ophicleide", "brasswind", "brass-wind", "brass group", "horns and trumpets" };
+    for (auto* n : ohStrings) { CHECK (autocc::familyFor (n) == Family::Strings); if (autocc::familyFor (n) != Family::Strings) std::printf ("    not strings: %s\n", n); }
+    for (auto* n : ohWinds) { CHECK (autocc::familyFor (n) == Family::Woodwinds); if (autocc::familyFor (n) != Family::Woodwinds) std::printf ("    not woodwinds: %s\n", n); }
+    for (auto* n : ohBrass) { CHECK (autocc::familyFor (n) == Family::Brass); if (autocc::familyFor (n) != Family::Brass) std::printf ("    not brass: %s\n", n); }
+    // AutoCC has nothing for percussion, harp, piano or voices: those stay off, though they share words.
+    for (auto* n : { "Choir Basses", "Chorus Altos", "Orchestra Bells", "Bass Drum", "Gran Cassa", "Timpani", "Tubular Bells", "Harps",
+                     "Celesta", "Harpsichord", "Mezzo-Soprano", "Tenor Voice", "Glockenspiel" })
+    {
+        CHECK (autocc::familyFor (n) == Family::None);
+        if (autocc::familyFor (n) != Family::None) std::printf ("    should be none: %s\n", n);
+    }
+    for (auto* n : { "Full Orchestra", "Tutti", "Orchestral Hits" }) CHECK (autocc::familyFor (n) == Family::Ensemble);
+    for (auto* n : { "Synth Bass", "Bass", "Electric Bass", "Piano", "Harp", "Choir", "Pad", "Drums", "Track 1", "Vocals 1", "Lead Synth", "Wind", "Vox V2", "Altos" })
+    {
+        CHECK (autocc::familyFor (n) == Family::None);
+        if (autocc::familyFor (n) != Family::None) std::printf ("    should be none: %s\n", n);
+    }
 }
 
 TEST ("autocc: a held string note swells from 85 to 116 on CC1, holds, and falls back; CC7 and CC21 are held levels")

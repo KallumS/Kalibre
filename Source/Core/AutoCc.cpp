@@ -23,49 +23,162 @@ std::string familyName (Family f)
 }
 
 //==============================================================================
-// Names. AutoCC's own study (tools/ccstudy.py) sorts tracks by such words; the
-// loosest of its (bass, legato, long) are left out here, where a track named
-// "Synth Bass" must not count as strings.
-Family familyFor (const std::string& name)
+// Names (decision 0060). AutoCC's presets are by section, so every instrument
+// of a section counts, written as track names write them: singular or
+// plural, numbered (Violins 1, Vln II, 1st Violins, V1), abbreviated, in
+// Italian, French or German, with accents or without, run together or
+// spaced out letter by letter. AutoCC's own study (tools/ccstudy.py) sorts
+// tracks by such words; its loosest (bass, legato, long) are left out here,
+// where "Synth Bass" must not count as strings.
+namespace
+{
+// Accented letters as plain ones: "Hörner" is "horner", "Flûte" "flute".
+std::string plain (const std::string& in)
+{
+    static const char* from[] { "\xc3\xa0", "\xc3\xa1", "\xc3\xa2", "\xc3\xa4", "\xc3\xa7", "\xc3\xa8", "\xc3\xa9", "\xc3\xaa", "\xc3\xab",
+                                "\xc3\xac", "\xc3\xad", "\xc3\xae", "\xc3\xaf", "\xc3\xb2", "\xc3\xb3", "\xc3\xb4", "\xc3\xb6", "\xc3\xb9",
+                                "\xc3\xba", "\xc3\xbb", "\xc3\xbc", "\xc3\x9f", "\xc3\x84", "\xc3\x96", "\xc3\x9c", "\xc3\x89" };
+    static const char* to[] { "a", "a", "a", "a", "c", "e", "e", "e", "e", "i", "i", "i", "i", "o", "o", "o", "o", "u", "u", "u", "u", "ss",
+                              "a", "o", "u", "e" };
+    std::string out;
+    for (size_t i = 0; i < in.size();)
+    {
+        bool done = false;
+        for (size_t k = 0; k < sizeof (from) / sizeof (from[0]) && ! done; ++k)
+            if (in.compare (i, 2, from[k]) == 0) { out += to[k]; i += 2; done = true; }
+        if (! done) out += in[i++];
+    }
+    return out;
+}
+
+// Lower case words; letters and digits apart ("Violins1" is "violins 1");
+// "V i o l i n s" joined back into "violins".
+std::vector<std::string> wordsOf (const std::string& name)
 {
     std::string n;
-    for (char ch : name) n += std::isalnum ((unsigned char) ch) ? (char) std::tolower ((unsigned char) ch) : ' ';
-    std::vector<std::string> words;
+    char prev = ' ';
+    for (char ch : plain (name))
+    {
+        const char c = std::isalnum ((unsigned char) ch) ? (char) std::tolower ((unsigned char) ch) : ' ';
+        if (c != ' ' && prev != ' ' && (std::isdigit ((unsigned char) c) != 0) != (std::isdigit ((unsigned char) prev) != 0)) n += ' ';
+        n += c;
+        prev = c;
+    }
+    std::vector<std::string> raw;
     for (size_t i = 0; i < n.size();)
     {
         while (i < n.size() && n[i] == ' ') ++i;
         size_t j = i;
         while (j < n.size() && n[j] != ' ') ++j;
-        if (j > i) words.push_back (n.substr (i, j - i));
+        if (j > i) raw.push_back (n.substr (i, j - i));
         i = j;
     }
-    auto has = [&] (std::initializer_list<const char*> list)
+    std::vector<std::string> words;
+    for (size_t i = 0; i < raw.size();)
     {
-        for (auto& w : words) for (auto* x : list) if (w == x) return true;
-        return false;
+        // Three or more single letters in a row are one word spelt out.
+        size_t j = i;
+        while (j < raw.size() && raw[j].size() == 1 && std::isalpha ((unsigned char) raw[j][0])) ++j;
+        if (j - i >= 3) { std::string w; for (size_t k = i; k < j; ++k) w += raw[k]; words.push_back (w); i = j; }
+        else words.push_back (raw[i++]);
+    }
+    return words;
+}
+
+// The singular: "violins" is "violin", "basses" "bass"; "brass" stays.
+std::string singular (const std::string& w)
+{
+    if (w.size() > 4 && w.compare (w.size() - 4, 4, "sses") == 0) return w.substr (0, w.size() - 2);
+    if (w.size() >= 3 && w.back() == 's' && w[w.size() - 2] != 's') return w.substr (0, w.size() - 1);
+    return w;
+}
+
+struct Section
+{
+    Family family;
+    std::vector<std::string> phrases;   // two or three words, in the singular
+    std::vector<std::string> words;     // one word, in the singular, or a plural that isn't English
+};
+
+const std::vector<Section>& sections()
+{
+    // Woodwinds before brass before strings, phrases before words: an English
+    // horn is a woodwind, a piccolo trumpet brass, a bass clarinet a woodwind.
+    static const std::vector<Section> list {
+        { Family::Woodwinds,
+          { "english horn", "cor anglai", "corno inglese", "corni inglesi", "cor anglais", "basset horn", "bass clarinet", "contrabass clarinet",
+            "alto clarinet", "alto flute", "bass flute", "contra bassoon", "double bassoon", "alto sax", "tenor sax", "baritone sax",
+            "soprano sax", "bass sax", "alto saxophone", "tenor saxophone", "baritone saxophone", "soprano saxophone", "tin whistle",
+            "low whistle", "pan flute", "pan pipe", "oboe d amore", "wind section", "woodwind section", "eng horn", "wood wind",
+            "bass cl", "c fag" },
+          { "flute", "flauto", "flauti", "flote", "floten", "fl", "piccolo", "picc", "pic", "ottavino", "oboe", "oboi", "oboen", "hautboi",
+            "hautbois", "ob", "englischhorn", "clarinet", "clarinetto", "clarinetti", "clarinette", "klarinette", "klarinetten", "clar", "cl",
+            "clt", "bassoon", "fagotto", "fagotti", "fagott", "fagotte", "basson", "bsn", "fg", "contrabassoon", "contrafagotto",
+            "kontrafagott", "cbsn", "cbn", "fag", "bn", "eh", "englishhorn", "altoflute", "bassclarinet", "bcl", "saxophone", "sax", "recorder", "fife", "whistle", "panpipe", "shakuhachi", "bansuri", "dizi", "xiao",
+            "ney", "nay", "duduk", "ocarina", "bagpipe", "quena", "suling", "zurna", "shawm", "crumhorn", "woodwind", "wind", "ww" } },
+        { Family::Brass,
+          { "french horn", "horn in f", "piccolo trumpet", "bass trumpet", "bass trombone", "contrabass trombone", "alto trombone",
+            "wagner tuba", "contrabass tuba", "bass tuba", "alto horn", "tenor horn", "baritone horn", "low brass", "brass section" },
+          { "horn", "corno", "corni", "cor", "horner", "hn", "hrn", "fhn", "trumpet", "tromba", "trombe", "trompette", "trompete", "trompeten",
+            "tpt", "trp", "tp", "trombone", "tromboni", "posaune", "posaunen", "tbn", "trb", "tbne", "bone", "tuba", "tuben", "cimbasso",
+            "euphonium", "flugelhorn", "flugel", "cornet", "cornetto", "bugle", "mellophone", "sousaphone", "alphorn", "sackbut", "serpent",
+            "ophicleide", "brass", "brs", "blech", "waldhorn", "clarino", "cornett", "corneta", "brasswind" } },
+        { Family::Strings,
+          { "double bass", "string bass", "contra bass", "upright bass", "viola da gamba", "string section", "string ensemble" },
+          { "violin", "violini", "violino", "violinen", "violon", "geige", "geigen", "vln", "vn", "vl", "viola", "viole", "bratsche", "bratschen",
+            "vla", "va", "cello", "celli", "violoncello", "violoncelli", "violoncelle", "vc", "vlc", "vcl", "contrabass", "contrabbasso",
+            "contrabbassi", "contrebasse", "contrebass", "kontrabass", "kontrabasse", "basses", "bass", "cb", "octobass", "viol", "violone", "fiddle", "erhu",
+            "nyckelharpa", "sarangi", "kamancheh", "kemenche", "strings", "string", "stringed", "str", "stg", "strg", "doublebass", "db" } },
+        { Family::Ensemble, { "full orchestra", "symphony orchestra" }, { "orchestra", "orchestral", "tutti", "orchester", "orchestre" } },
     };
-    auto phrase = [&] (std::initializer_list<const char*> list)
+    return list;
+}
+} // namespace
+
+Family familyFor (const std::string& name)
+{
+    const auto words = wordsOf (name);
+    std::vector<std::string> one;   // each word in the singular
+    for (auto& w : words) one.push_back (singular (w));
+    std::string spaced = " ";
+    for (auto& w : one) spaced += w + " ";
+
+    // "Bass" alone is too often a synth or an electric one, "Wind" a sound:
+    // only "Basses" (or "Double Bass") and "Winds" count.
+    auto isWord = [] (const Section& s, const std::string& w, const std::string& asWritten)
     {
-        const std::string spaced = " " + [&] { std::string s; for (auto& w : words) s += w + " "; return s; }();
-        for (auto* x : list) if (spaced.find (" " + std::string (x) + " ") != std::string::npos) return true;
-        return false;
+        if (w == "bass" && asWritten != "basses") return false;
+        if (w == "wind" && asWritten != "winds") return false;
+        return std::find (s.words.begin(), s.words.end(), w) != s.words.end();
     };
-    // Two-word names first: an English horn is a woodwind, a bass trombone brass.
-    if (phrase ({ "english horn", "cor anglais", "bass clarinet", "contrabass clarinet", "alto flute", "bass flute", "contra bassoon" }))
-        return Family::Woodwinds;
-    if (phrase ({ "french horn", "bass trombone", "wagner tuba", "contrabass trombone" })) return Family::Brass;
-    if (phrase ({ "double bass", "double basses", "string bass", "contra bass", "string ensemble" })) return Family::Strings;
-    if (has ({ "flute", "flutes", "fl", "fls", "piccolo", "picc", "oboe", "oboes", "ob", "clarinet", "clarinets", "clar", "cl", "cls",
-               "bassoon", "bassoons", "bsn", "bsns", "contrabassoon", "recorder", "recorders", "woodwind", "woodwinds", "winds", "ww",
-               "sax", "saxophone", "saxophones", "shakuhachi", "bansuri", "whistle", "duduk" }))
-        return Family::Woodwinds;
-    if (has ({ "horn", "horns", "hn", "hns", "fhn", "trumpet", "trumpets", "tpt", "tpts", "trp", "trombone", "trombones", "tbn",
-               "tbns", "trb", "tuba", "tubas", "cimbasso", "cornet", "cornets", "flugelhorn", "flugel", "brass", "brs" }))
-        return Family::Brass;
-    if (has ({ "violin", "violins", "vln", "vlns", "vn", "vns", "viola", "violas", "vla", "vlas", "cello", "cellos", "celli", "vc",
-               "vcs", "vlc", "contrabass", "contrabasses", "basses", "cb", "cbs", "strings", "string", "str", "fiddle" }))
-        return Family::Strings;
-    if (has ({ "orchestra", "orchestral", "tutti" })) return Family::Ensemble;
+    for (auto& s : sections())
+        for (auto& ph : s.phrases)
+            if (spaced.find (" " + ph + " ") != std::string::npos) return s.family;
+    // Voices, percussion, harp and keyboards have no AutoCC preset, though they
+    // share words with ours: "Choir Basses", "Orchestra Bells" (Orchestration
+    // Helper's names for them).
+    static const std::vector<std::string> notOurs {
+        "choir", "chorus", "choral", "voice", "vox", "vocal", "singer", "soprano", "mezzo", "contralto",
+        "percussion", "drum", "timpani", "timpano", "kettledrum", "tympani", "timp", "snare", "cymbal", "piatti", "crotale", "triangle",
+        "triangolo", "tambourine", "castanet", "gong", "tamtam", "glockenspiel", "campanelli", "bell", "chime", "campane", "celesta",
+        "celeste", "xylophone", "marimba", "vibraphone", "cassa", "harp", "arpa", "piano", "pianoforte", "harpsichord", "cembalo",
+        "keyboard", "organ" };
+    for (auto& w : one)
+        if (std::find (notOurs.begin(), notOurs.end(), w) != notOurs.end()) return Family::None;
+    for (auto& s : sections())
+        for (size_t i = 0; i < one.size(); ++i)
+        {
+            if (isWord (s, one[i], words[i]) || isWord (s, words[i], words[i])) return s.family;
+            // A numeral stuck on the end: "VlnII", "Violini I" written "ViolinII".
+            for (const char* roman : { "iii", "ii", "iv", "i" })
+            {
+                const std::string r (roman);
+                if (words[i].size() > r.size() + 1 && words[i].compare (words[i].size() - r.size(), r.size(), r) == 0)
+                    if (isWord (s, singular (words[i].substr (0, words[i].size() - r.size())), {})) return s.family;
+            }
+        }
+    // "V1", "V2" at the start of a name: the violins, numbered.
+    if (words.size() >= 2 && words[0] == "v" && std::isdigit ((unsigned char) words[1][0])) return Family::Strings;
     return Family::None;
 }
 
