@@ -54,6 +54,9 @@ add_library(KalibreCore STATIC
     Source/Core/Comp.cpp
     Source/Core/MidiLearn.cpp
     Source/Core/Loudness.cpp
+    Source/Core/Sync.cpp
+    Source/Core/ControlSettings.cpp
+    Source/Core/Mackie.cpp
     Source/Script/LuaHost.cpp)
 target_include_directories(KalibreCore PUBLIC Source/Core Source/Script ThirdParty)
 target_link_libraries(KalibreCore PUBLIC KalibreLua)
@@ -79,7 +82,9 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestScript.cpp
         Tests/TestComp.cpp
         Tests/TestMidiLearn.cpp
-        Tests/TestLoudness.cpp)
+        Tests/TestLoudness.cpp
+        Tests/TestSync.cpp
+        Tests/TestMackie.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)

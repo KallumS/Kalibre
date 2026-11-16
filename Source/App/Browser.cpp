@@ -130,10 +130,13 @@ struct Browser::FileList : public ListBoxModel
 };
 
 //==============================================================================
-Browser::Browser (Controller& ctrl) : c (ctrl)
+Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl)
 {
     setTitle ("Browser");
-    for (auto* b : { &pluginsTab, &filesTab, &audioTab })
+    addChildComponent (studioView);
+    studioView.setViewedComponent (&studio, false);
+    studioView.setScrollBarsShown (true, false);
+    for (auto* b : { &pluginsTab, &filesTab, &audioTab, &studioTab })
     {
         b->setRadioGroupId (3);
         b->setClickingTogglesState (true);
@@ -142,6 +145,7 @@ Browser::Browser (Controller& ctrl) : c (ctrl)
     pluginsTab.onClick = [this] { showTab (Tab::Plugins); };
     filesTab.onClick = [this] { showTab (Tab::Files); };
     audioTab.onClick = [this] { showTab (Tab::Audio); };
+    studioTab.onClick = [this] { showTab (Tab::Studio); };
     addAndMakeVisible (search);
     search.setTextToShowWhenEmpty ("Search", theme::textSecondary);
     search.setTitle ("Search");
@@ -231,11 +235,13 @@ void Browser::showTab (Tab t)
     pluginsTab.setToggleState (t == Tab::Plugins, dontSendNotification);
     filesTab.setToggleState (t == Tab::Files, dontSendNotification);
     audioTab.setToggleState (t == Tab::Audio, dontSendNotification);
+    studioTab.setToggleState (t == Tab::Studio, dontSendNotification);
+    studioView.setVisible (t == Tab::Studio);
     pluginBox.setVisible (t == Tab::Plugins);
     scan.setVisible (t == Tab::Plugins);
     fileBox.setVisible (t == Tab::Files);
     up.setVisible (t == Tab::Files);
-    search.setVisible (t != Tab::Audio);
+    search.setVisible (t == Tab::Plugins || t == Tab::Files);
     if (t == Tab::Audio && ! audio)
     {
         audio = std::make_unique<AudioDeviceSelectorComponent> (c.engine.devices(), 0, 16, 2, 16, true, true, true, false);
@@ -263,13 +269,21 @@ void Browser::resized()
 {
     auto r = getLocalBounds().reduced (theme::px (8));
     auto tabs = r.removeFromTop (theme::px (24));
-    const int w = (tabs.getWidth() - 8) / 3;
+    const int w = (tabs.getWidth() - 12) / 4;
     pluginsTab.setBounds (tabs.removeFromLeft (w));
     tabs.removeFromLeft (4);
     filesTab.setBounds (tabs.removeFromLeft (w));
     tabs.removeFromLeft (4);
-    audioTab.setBounds (tabs);
+    audioTab.setBounds (tabs.removeFromLeft (w));
+    tabs.removeFromLeft (4);
+    studioTab.setBounds (tabs);
     r.removeFromTop (theme::px (8));
+    if (tab == Tab::Studio)
+    {
+        studioView.setBounds (r);
+        studio.setSize (r.getWidth() - studioView.getScrollBarThickness(), jmax (r.getHeight(), studio.preferredHeight()));
+        return;
+    }
     if (tab != Tab::Audio)
     {
         auto row = r.removeFromTop (theme::px (26));

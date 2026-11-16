@@ -9,6 +9,7 @@ using IOProc = AudioProcessorGraph::AudioGraphIOProcessor;
 
 Engine::Engine (PluginManager& pm) : pluginManager (pm)
 {
+    syncInput = [this] (const String& device, const MidiMessage& m) { syncDevices.input (device, m); };
     graph.setPlayHead (this);
     tempo.post (std::make_unique<TempoMap>());
     // The graph's own ends exist from the start, so a project can be synced
@@ -85,6 +86,13 @@ void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numI
         c.jumped = true;
     }
     c.playing = playing.load();
+    // With others in a Link session, playing starts on the session's next bar.
+    const int quantum = map ? map->meterAt (map->tickAt (p)).numerator * 4 / map->meterAt (map->tickAt (p)).denominator : 4;
+    if (c.playing && waitingForLink.load() && map)
+    {
+        if (syncDevices.holdStartForLink (*map, jmax (1, quantum))) c.playing = false;
+        else waitingForLink = false;
+    }
     c.recording = recording.load();
     c.start = p;
     c.samples = n;
@@ -123,6 +131,13 @@ void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numI
         shared.songTicks = c.playing ? ticks : -1.0;
     }
     player.audioDeviceIOCallbackWithContext (ins, numIns, outs, numOuts, n, context);
+    if (map)
+    {
+        // Sync messages are timed to when this block is heard.
+        double latencyMs = 0;
+        if (auto* d = deviceManager.getCurrentAudioDevice()) latencyMs = d->getOutputLatencyInSamples() * 1000.0 / rate;
+        syncDevices.block (c, *map, Time::getMillisecondCounterHiRes() + latencyMs, jmax (1, quantum));
+    }
     if (c.playing) pos.store (next);
     else pos.store (p);
 }
@@ -137,6 +152,7 @@ void Engine::play()
             m->countInUntil = pos.load();
         seekTo = pos.load() - countInSeconds;
     }
+    waitingForLink = syncDevices.linkOn() && syncDevices.linkPeers() > 0;
     playing = true;
 }
 

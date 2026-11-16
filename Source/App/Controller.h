@@ -12,6 +12,7 @@
 
 #include "Edit.h"
 #include "Engine.h"
+#include "ControlSettings.h"
 #include "Patterns.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -155,6 +156,12 @@ public:
     // Snapping.
     Tick snapTick (Tick) const;       // nearest grid line, from the bar line
     Tick snapDown (Tick) const;
+
+    // The studio's sync and control surface settings (decisions 0034, 0035).
+    ControlSettings studio;
+    juce::File studioFile() const;
+    void setStudio (const ControlSettings&);
+    std::function<void()> onStudioChanged;   // the surfaces reconfigure
 
     // Scripts.
     juce::File scriptsFolder() const;

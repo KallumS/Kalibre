@@ -103,6 +103,11 @@ int main (int argc, char** argv)
         c.zoneTab = ZoneTab::Devices;
         c.refresh();
         shoot ("9-takes");
+        window.showBrowser (Browser::Tab::Studio);
+        c.zoneTab = ZoneTab::Mixer;
+        c.viewChanged();
+        shoot ("10-studio-and-loudness");
+        window.browserShown = false;
         c.project.tracks[0].collapsed = false;
         c.showTempoLane = true;
         c.project.tempo.setTempos ({ { 0, 96, true }, { PPQ * 16, 120, false } });

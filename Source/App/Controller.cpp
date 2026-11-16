@@ -33,6 +33,30 @@ Controller::Controller (Engine& e) : engine (e)
              + String (channel) + " now moves " + lt.name + ".", false, true);
     };
     engine.onMapped = [this] (const MidiMapping& m, double v) { mapped (m, v); };
+    // Another machine, or Link, moving the transport and the tempo (decision 0034).
+    engine.syncDevices.onCommand = [this] (const SyncDevices::Command& cmd)
+    {
+        using K = SyncDevices::Command::Kind;
+        switch (cmd.kind)
+        {
+            case K::Tempo:
+                // Followed only while the song has one tempo; a tempo map is the song's own.
+                if (project.tempo.tempos().size() == 1 && std::abs (project.tempo.bpmAt (0) - cmd.value) > 0.005)
+                {
+                    project.tempo.setTempoAt (0, cmd.value);
+                    refresh();
+                }
+                break;
+            case K::Play:
+                if (cmd.value >= 0) locate (project.tempo.tickAt (project.tempo.secondsAt ((Tick) std::llround (cmd.value * PPQ))));
+                play();
+                break;
+            case K::Stop: if (engine.isPlaying()) stop(); break;
+            case K::Locate: if (! engine.isPlaying()) locate ((Tick) std::llround (cmd.value * PPQ)); break;
+        }
+    };
+    if (auto loaded = loadSettings (studioFile().loadFileAsString().toStdString())) studio = *loaded;
+    engine.syncDevices.configure (studio);
     engine.onDevicePluginChanged = [this] { dirty = true; };
     MorphProcessor::choosePlugin = nullptr;
     newProject();
@@ -393,6 +417,20 @@ File Controller::projectFolder() const
 {
     return file.existsAsFile() ? file.getParentDirectory()
                                : File::getSpecialLocation (File::userMusicDirectory).getChildFile ("Kalibre");
+}
+
+File Controller::studioFile() const
+{
+    return scriptsFolder().getParentDirectory().getChildFile ("Studio.json");
+}
+
+void Controller::setStudio (const ControlSettings& s)
+{
+    studio = s;
+    studioFile().replaceWithText (String (saveSettings (s)));
+    engine.syncDevices.configure (studio);
+    if (onStudioChanged) onStudioChanged();
+    sendChangeMessage();
 }
 
 File Controller::autosaveFile() const

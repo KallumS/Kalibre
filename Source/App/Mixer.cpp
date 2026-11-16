@@ -220,7 +220,8 @@ void LoudnessPanel::paint (Graphics& g)
         g.drawText (line.name, row, Justification::centredLeft, false);
         g.setColour (String (line.name) == "True peak" && heldPeak > -1.0f ? theme::warnText : theme::text);
         g.setFont (theme::font (theme::bodyPoints, true));
-        g.drawText (line.text + (String (line.unit).isEmpty() ? String() : " " + String (line.unit)), row, Justification::centredRight, false);
+        const bool none = line.text == ui::u8 ("\xe2\x80\x94");
+        g.drawText (line.text + (String (line.unit).isEmpty() || none ? String() : " " + String (line.unit)), row, Justification::centredRight, false);
     }
     // Correlation: a bar from -1 to +1; left of centre is out of phase.
     r.removeFromTop (theme::px (4));

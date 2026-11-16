@@ -35,3 +35,5 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0031. Sidechain routing](0031-sidechain.md)
 - [0032. MIDI learn](0032-midi-learn.md)
 - [0033. Loudness meters and loudness-matched export](0033-loudness.md)
+- [0034. Sync: MIDI clock, timecode and Ableton Link](0034-sync.md)
+- [0035. Control surfaces: Mackie Control and OSC](0035-control-surfaces.md)

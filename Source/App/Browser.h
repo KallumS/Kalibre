@@ -11,6 +11,7 @@
 #pragma once
 
 #include "Controller.h"
+#include "StudioPanel.h"
 #include "Theme.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -26,7 +27,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    enum class Tab { Plugins, Files, Audio };
+    enum class Tab { Plugins, Files, Audio, Studio };
     void showTab (Tab);
 
 private:
@@ -34,6 +35,9 @@ private:
     theme::HouseButton pluginsTab { "Plug-ins", "Every plug-in found on this Mac." };
     theme::HouseButton filesTab { "Files", "Audio and MIDI files." };
     theme::HouseButton audioTab { "Audio", "The audio interface, sample rate and buffer size." };
+    theme::HouseButton studioTab { "Studio", "Sync (MIDI clock, timecode, Link) and control surfaces (Mackie Control, OSC)." };
+    juce::Viewport studioView;
+    StudioPanel studio;
     theme::HouseButton scan { ui::u8 ("Scan"), "Look for plug-ins installed since the last scan." };
     juce::TextEditor search;
 

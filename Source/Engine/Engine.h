@@ -23,6 +23,7 @@
 #include "Loudness.h"
 #include "MidiLearn.h"
 #include "PluginManager.h"
+#include "SyncDevices.h"
 #include "TrackProcessors.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -133,6 +134,7 @@ public:
 
     Shared shared;
     AudioCache cache;
+    SyncDevices syncDevices;   // MIDI clock, timecode, Link (decision 0034)
     double lastExportLoudness = loudness::silence;   // what the last export measured, after its gain
 
     // AudioIODeviceCallback (the audio thread)
@@ -174,6 +176,7 @@ private:
     std::atomic<bool> loopOn { false };
     std::atomic<double> loopStart { 0 }, loopEnd { 0 };
     double countInSeconds = 0;
+    std::atomic<bool> waitingForLink { false };
     Swap<TempoMap> tempo;
     TempoMap tempoCopy;
     Id liveTrack = 0;

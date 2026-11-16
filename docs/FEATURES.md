@@ -26,6 +26,7 @@ Every feature asked for, then the list of basic DAW features
 | Scale chosen, chord shown at the top, scale shaded in the piano roll | Yes | Top bar (Scale, Chord), chord lane, View > Shade the Scale; ScaleView's reader, tested (0015) |
 | Piano roll, drum patterns, step sequencer, Euclidean, notation | Yes | Lower zone > Editor (0009, 0014, 0020) |
 | Modulators: LFO, ADSR/ADR, envelope follower, wavetable from samples | Yes | Automation > Modulate; shown in the device rack; tested (0012). Once a block, not audio rate |
+| Comping, crossfades, sidechains, MIDI learn, loudness, sync, control surfaces | Yes | Asked for on 16 November: decisions 0029-0035. Sync and surfaces not yet tried with real gear |
 | Automation picks up the last touched control | Yes | Plug-in parameters and the mixer's faders and pan knobs. Automation > Automate; Touch/Latch/Write recording (0024) |
 | X/Y pad: four plug-ins or four samples | Yes | Add > Kalibre > X/Y Morph; tested with samples (0018) |
 | Plug-in delay compensation | Yes | Tested by rendering clicks (0016) |
@@ -56,7 +57,7 @@ Every feature asked for, then the list of basic DAW features
 | 10. Audio engine | Partly | Device, rate, buffer, inputs and outputs (browser > Audio), offline rendering, PDC. Not yet: CPU meters per track, dropout counter |
 | 11. Projects | Partly | New, open, save, save as, autosave every three minutes (File > Open the Last Autosave), a JSON format that survives versions. Not yet: templates, collect and save, relink |
 | 12. Export | Partly | Mix and every track as WAV, AIFF or FLAC, 16/24/32-bit, dither, normalise, tail, loop range; the mix at -14, -16 or -23 LUFS with a -1 dBTP ceiling (0033); MIDI file. Not yet: MP3, batch, metadata |
-| 13. Sync and control | Not yet | MIDI clock, MTC, Mackie/HUI, OSC, Link |
+| 13. Sync and control | Partly | MIDI clock out and in, Song Position, MTC out, Ableton Link (0034); Mackie Control surfaces and OSC (0035), see docs/CONTROL.md. Not yet: MTC in, MMC, HUI, network MIDI setup inside Kalibre (macOS's own works) |
 | 14. Metering | Partly | Peak meters with clip marks; on the master, loudness (momentary, short-term, integrated LUFS, range), true peak and correlation, with history (0033). Not yet: spectrum, oscilloscope, phase scope, tuner |
 | 15. Workflow | Partly | Keys for everything common, undo history (500), context menus, drag and drop, Text Size. Not yet: customisable keys, workspaces |
 | 16. Collaboration | Partly | Audio and MIDI import/export, stems. Not yet: AAF/OMF/XML, archiving |

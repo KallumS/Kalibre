@@ -30,6 +30,20 @@ if(NOT clap_POPULATED)
 endif()
 FetchContent_MakeAvailable(signalsmith_stretch)
 
+# Ableton Link (GPL v2 or later, decision 0034), headers and its asio.
+FetchContent_Declare(link
+    GIT_REPOSITORY https://github.com/Ableton/link.git
+    GIT_TAG        Link-4.1.1
+    GIT_SHALLOW    TRUE
+    GIT_SUBMODULES modules/asio-standalone)
+FetchContent_GetProperties(link)
+if(NOT link_POPULATED)
+    FetchContent_Populate(link)
+endif()
+include(${link_SOURCE_DIR}/AbletonLinkConfig.cmake)
+# Link's config sets C++17 for everything after it; Kalibre is C++20.
+set(CMAKE_CXX_STANDARD 20)
+
 option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" ${APPLE})
 if(KALIBRE_ARA)
     FetchContent_Declare(ara_sdk
@@ -55,6 +69,7 @@ add_library(KalibreApp STATIC
     Source/Engine/Warp.cpp
     Source/Engine/Engine.cpp
     Source/Engine/AraHost.cpp
+    Source/Engine/SyncDevices.cpp
     Source/App/Theme.cpp
     Source/App/Controller.cpp
     Source/App/TopBar.cpp
@@ -67,7 +82,9 @@ add_library(KalibreApp STATIC
     Source/App/LowerZone.cpp
     Source/App/Browser.cpp
     Source/App/MainComponent.cpp
-    Source/App/Menus.cpp)
+    Source/App/Menus.cpp
+    Source/App/Surfaces.cpp
+    Source/App/StudioPanel.cpp)
 if(APPLE)
     target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm)
 endif()
@@ -79,6 +96,8 @@ target_link_libraries(KalibreApp
     PUBLIC
         KalibreCore
         signalsmith-stretch
+        Ableton::Link
+        juce::juce_osc
         juce::juce_audio_utils
         juce::juce_audio_processors
         juce::juce_dsp
@@ -130,7 +149,7 @@ target_link_libraries(Kalibre PRIVATE
 # (so a change can be seen from a Linux container, decision 0023).
 if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
-    target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp)
+    target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1)
     target_link_libraries(KalibreAppTests PRIVATE KalibreApp juce::juce_recommended_config_flags)

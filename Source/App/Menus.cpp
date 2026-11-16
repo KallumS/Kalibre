@@ -53,6 +53,13 @@ PopupMenu MainComponent::appMenu()
         browser.showTab (Browser::Tab::Audio);
         resized();
     }, cmd (",")));
+    m.addItem (item (ui::u8 ("Sync and Control Surfaces\xe2\x80\xa6"), [this]
+    {
+        browserShown = true;
+        browser.setVisible (true);
+        browser.showTab (Browser::Tab::Studio);
+        resized();
+    }));
     m.addItem (item (ui::u8 ("Scan for Plug-ins"), [this]
     {
         c.engine.plugins().scan ([this] (float p, const String& what)

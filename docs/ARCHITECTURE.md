@@ -15,6 +15,11 @@
 | `Core/Modulation.*` | LFO, envelopes, follower and wavetable state (0012). |
 | `Core/Capture.*` | The always-on MIDI ring and the last performance (0017). |
 | `Core/Notation.*` | Spelling and bar layout for the staff (0020). |
+| `Core/Comp.*` | Takes and comping (0029). |
+| `Core/MidiLearn.*` | MIDI learn mappings (0032). |
+| `Core/Loudness.*` | BS.1770 / R128 loudness, true peak, correlation (0033). |
+| `Core/Sync.*`, `ControlSettings.*` | MIDI clock, MTC, clock following; the studio's settings (0034). |
+| `Core/Mackie.*` | The Mackie Control protocol (0035). |
 | `Core/ProjectFile.*` | `.kalibre` files: JSON with nlohmann/json. |
 | `Source/Script/LuaHost.*` | The `kalibre` Lua API (0019). |
 | `Source/Engine/` | JUCE's audio side. |
@@ -24,15 +29,17 @@
 | `Engine/PluginManager.*` | Scanning and making plug-ins of every format. |
 | `Engine/MorphProcessor.*` | The X/Y morph (0018), and a latency device the tests use. |
 | `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |
+| `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |
 | `Engine/Warp.*` | Audio in memory, and warping (0022). |
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
 | `Source/App/` | The window (0002). `Controller` owns the project, undo, the selection and every command; the views ask it. |
 | `App/TopBar`, `Arrange`, `LowerZone`, `PianoRoll`, `PatternEditors`, `NotationView`, `DeviceRack`, `Mixer`, `Browser`, `Menus` | What they say. |
+| `App/Surfaces.*`, `StudioPanel.*` | Mackie Control and OSC; the browser's Studio tab (0034, 0035). |
 | `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md). |
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
 | `tools/RenderWindow.cpp` | Draws the window into PNGs on CI (0023). |
 | `Scripts/` | Example scripts. |
-| `ThirdParty/` | Lua 5.4 (MIT) and nlohmann/json (MIT). JUCE, the CLAP SDK and Signalsmith Stretch are fetched by CMake. |
+| `ThirdParty/` | Lua 5.4 (MIT) and nlohmann/json (MIT). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK and Ableton Link are fetched by CMake. |
 
 ## How sound flows
 

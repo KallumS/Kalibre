@@ -22,6 +22,7 @@
 #include "Browser.h"
 #include "Controller.h"
 #include "LowerZone.h"
+#include "Surfaces.h"
 #include "TopBar.h"
 
 namespace kal
@@ -56,6 +57,7 @@ public:
     void exportAudio (bool stems, double loudnessTarget = 0);
     void exportMidi();
     void setTextSize (float);
+    void showBrowser (Browser::Tab);
 
     Controller& controller() { return c; }
     bool browserShown = false;
@@ -67,6 +69,7 @@ private:
     Arrange arrange;
     LowerZone lower;
     Browser browser;
+    Surfaces surfaces;
     std::unique_ptr<juce::MenuBarComponent> menuBar;   // on Linux and Windows; the Mac uses its own
     std::unique_ptr<juce::FileChooser> chooser;
     int dragStartHeight = 0;

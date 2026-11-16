@@ -21,7 +21,7 @@ static ApplicationProperties& settingsStore()
     return p;
 }
 
-MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange (ctrl), lower (ctrl), browser (ctrl)
+MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange (ctrl), lower (ctrl), browser (ctrl), surfaces (ctrl)
 {
     ui::setHost (this);
     addAndMakeVisible (top);
@@ -63,6 +63,14 @@ void MainComponent::changeListenerCallback (ChangeBroadcaster*)
 {
     if (auto* w = findParentComponentOfClass<DocumentWindow>())
         w->setName ((c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Untitled")) + (c.dirty ? ui::u8 (" \xe2\x80\x94 Edited") : String()));
+    resized();
+}
+
+void MainComponent::showBrowser (Browser::Tab tab)
+{
+    browserShown = true;
+    browser.setVisible (true);
+    browser.showTab (tab);
     resized();
 }
 
