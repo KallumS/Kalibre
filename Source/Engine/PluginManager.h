@@ -77,6 +77,7 @@ public:
 
     void save();
     juce::File listFile() const { return file; }
+    juce::File logFile() const { return file.getSiblingFile ("Plug-in Scan.log"); }
 
     // The helper. main() hands over when the first argument is workerFlag:
     //   Kalibre --kalibre-scan <format> <file or identifier> <result file>

@@ -208,7 +208,7 @@ struct Outcome
 };
 
 // Runs the helper and waits for it, without a shell, its output thrown away.
-Outcome runHelper (const File& exe, const StringArray& args, int timeoutMs, Thread& thread)
+Outcome runHelper (const File& exe, const StringArray& args, const File& log, int timeoutMs, Thread& thread)
 {
     std::vector<std::string> strings { exe.getFullPathName().toStdString() };
     for (auto& a : args) strings.push_back (a.toStdString());
@@ -219,7 +219,9 @@ Outcome runHelper (const File& exe, const StringArray& args, int timeoutMs, Thre
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init (&actions);
     posix_spawn_file_actions_addopen (&actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
-    posix_spawn_file_actions_addopen (&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
+    // What the helper says goes to a log beside the list, for when something goes wrong.
+    const auto logPath = log.getFullPathName().toStdString();
+    posix_spawn_file_actions_addopen (&actions, STDERR_FILENO, logPath.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
     pid_t pid = 0;
     const int rc = posix_spawn (&pid, strings[0].c_str(), &actions, nullptr, argv.data(), environ);
     posix_spawn_file_actions_destroy (&actions);
@@ -271,6 +273,8 @@ public:
     void run() override
     {
         const auto exe = owner.helper;
+        const auto log = owner.logFile();
+        if (log.getSize() > 1024 * 1024) log.deleteFile();
         const int timeout = owner.timeoutMs;
         for (auto& item : items)
         {
@@ -280,7 +284,7 @@ public:
                 owner.current = item.format + ": " + item.name;
             }
             const auto out = File::getSpecialLocation (File::tempDirectory).getNonexistentChildFile ("Kalibre scan", ".xml", false);
-            const auto how = runHelper (exe, { PluginManager::workerFlag, item.format, item.file, out.getFullPathName() }, timeout, *this);
+            const auto how = runHelper (exe, { PluginManager::workerFlag, item.format, item.file, out.getFullPathName() }, log, timeout, *this);
             if (how.how == Outcome::Cancelled) { out.deleteFile(); return; }
             if (how.how == Outcome::CouldNotStart) { helperFailed = true; return; }
 
@@ -326,6 +330,12 @@ int PluginManager::runWorker (int argc, char* argv[])
     const String format = String::fromUTF8 (argv[2]);
     const String id = String::fromUTF8 (argv[3]);
     const File out (String::fromUTF8 (argv[4]));
+    auto say = [&] (const String& what)
+    {
+        std::fprintf (stderr, "%s  %s: %s\n", Time::getCurrentTime().toString (true, true).toRawUTF8(), id.toRawUTF8(), what.toRawUTF8());
+        std::fflush (stderr);
+    };
+    say ("looking at it (" + format + ")");
 
     ScopedJuceInitialiser_GUI gui;
    #if JUCE_MAC
@@ -333,26 +343,28 @@ int PluginManager::runWorker (int argc, char* argv[])
    #endif
     AudioPluginFormatManager fm;
     addFormats (fm);
-    // Looked at from the message loop, as plug-ins expect.
-    MessageManager::callAsync ([=, &fm]
+    XmlElement xml ("KALIBRE_SCAN");
+    bool known = false;
+    for (auto* f : fm.getFormats())
+        if (f->getName() == format)
+        {
+            known = true;
+            OwnedArray<PluginDescription> found;
+            f->findAllTypesForFile (found, id);
+            for (auto* d : found)
+                if (auto e = d->createXml()) xml.addChildElement (e.release());
+            say ("found " + String (found.size()));
+        }
+    if (! known)
     {
-        XmlElement xml ("KALIBRE_SCAN");
-        for (auto* f : fm.getFormats())
-            if (f->getName() == format)
-            {
-                OwnedArray<PluginDescription> found;
-                f->findAllTypesForFile (found, id);
-                for (auto* d : found)
-                    if (auto e = d->createXml()) xml.addChildElement (e.release());
-            }
-        const auto part = out.getSiblingFile (out.getFileName() + ".part");
-        if (xml.writeTo (part)) part.moveFileTo (out);
-        // Gone at once: some plug-ins crash or hang as they're unloaded, and
-        // what they held has been written down.
-        std::_Exit (0);
-    });
-    MessageManager::getInstance()->runDispatchLoop();
-    return 0;
+        say ("no format called " + format);
+        xml.setAttribute ("error", "Kalibre has no format called " + format);
+    }
+    const auto part = out.getSiblingFile (out.getFileName() + ".part");
+    if (! (xml.writeTo (part) && part.moveFileTo (out))) { say ("couldn't write " + out.getFullPathName()); std::_Exit (3); }
+    // Gone at once: some plug-ins crash or hang as they're unloaded, and
+    // what they held has been written down.
+    std::_Exit (0);
 }
 
 //==============================================================================

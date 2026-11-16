@@ -73,6 +73,21 @@ String waitFor (PluginManager& pm, std::function<void (PluginManager::Progress)>
     return summary;
 }
 
+// Only the fake format's: on the Mac, Apple's own Audio Units are scanned too.
+int fakeTypes (PluginManager& pm)
+{
+    int n = 0;
+    for (auto& d : pm.known().getTypes()) n += d.pluginFormatName == "Fake" ? 1 : 0;
+    return n;
+}
+
+size_t fakeBlocked (PluginManager& pm)
+{
+    size_t n = 0;
+    for (auto& b : pm.blocked()) n += b.format == "Fake" ? 1 : 0;
+    return n;
+}
+
 const PluginManager::Blocked* find (const std::vector<PluginManager::Blocked>& all, const String& file)
 {
     for (auto& b : all) if (b.file == file) return &b;
@@ -94,11 +109,22 @@ TEST ("plug-ins: one that crashes, hangs or holds nothing is turned off with its
     const auto summary = waitFor (pm, [&] (auto p) { pm.scan (p); });
 
     // Kalibre is still here, and found the two that open.
-    CHECK_EQ (pm.known().getNumTypes(), 2);
+    CHECK_EQ (fakeTypes (pm), 2);
+   #if JUCE_MAC
+    // Apple's own Audio Units, scanned the same way, open: the helper works on the Mac.
+    int apple = 0;
+    for (auto& d : pm.known().getTypes()) apple += d.pluginFormatName == "AudioUnit" && d.manufacturerName == "Apple" ? 1 : 0;
+    CHECK (apple > 5);
+   #endif
+    if (fakeTypes (pm) != 2 || fakeBlocked (pm) != 3)
+    {
+        for (auto& b : pm.blocked()) std::printf ("  off: %s (%s): %s\n", b.file.toRawUTF8(), PluginManager::describe (b.reason).toRawUTF8(), b.detail.toRawUTF8());
+        std::printf ("  helper's log:\n%s\n", pm.logFile().loadFileAsString().toRawUTF8());
+    }
     CHECK (summary.contains ("crash"));
     CHECK (summary.contains ("hang"));
     const auto blocked = pm.blocked();
-    CHECK_EQ (blocked.size(), size_t (3));
+    CHECK_EQ (fakeBlocked (pm), size_t (3));
     if (auto* b = find (blocked, "fake:crash")) { CHECK (b->reason == PluginManager::Reason::Crashed); CHECK (b->detail.contains ("signal 6")); }
     else CHECK (false);
     if (auto* b = find (blocked, "fake:hang")) CHECK (b->reason == PluginManager::Reason::TookTooLong);
@@ -108,8 +134,8 @@ TEST ("plug-ins: one that crashes, hangs or holds nothing is turned off with its
 
     // Saved as it went: a new start knows all of it.
     PluginManager again (folder);
-    CHECK_EQ (again.known().getNumTypes(), 2);
-    CHECK_EQ (again.blocked().size(), size_t (3));
+    CHECK_EQ (fakeTypes (again), 2);
+    CHECK_EQ (fakeBlocked (again), size_t (3));
     const auto againBlocked = again.blocked();
     if (auto* b = find (againBlocked, "fake:hang")) CHECK (b->reason == PluginManager::Reason::TookTooLong);
     else CHECK (false);
@@ -121,17 +147,17 @@ TEST ("plug-ins: a second scan skips what's known and what's turned off")
     fakeFiles() = { "fake:ok:Good Synth", "fake:crash" };
     PluginManager pm (folder);
     waitFor (pm, [&] (auto p) { pm.scan (p); });
-    CHECK_EQ (pm.known().getNumTypes(), 1);
+    CHECK_EQ (fakeTypes (pm), 1);
     const auto started = Time::getMillisecondCounter();
     const auto summary = waitFor (pm, [&] (auto p) { pm.scan (p); });
     CHECK (Time::getMillisecondCounter() - started < 1000);    // no helper was run
     CHECK (! summary.contains ("Turned off"));
-    CHECK_EQ (pm.known().getNumTypes(), 1);
-    CHECK_EQ (pm.blocked().size(), size_t (1));
+    CHECK_EQ (fakeTypes (pm), 1);
+    CHECK_EQ (fakeBlocked (pm), size_t (1));
 
     // Scanned again by hand: it still crashes, and stays off.
     waitFor (pm, [&] (auto p) { pm.rescan ({ { "Fake", "fake:crash" } }, p); });
-    CHECK_EQ (pm.blocked().size(), size_t (1));
+    CHECK_EQ (fakeBlocked (pm), size_t (1));
 }
 
 TEST ("plug-ins: turned off by hand, it isn't loaded or listed; turned on, it's back without a scan")
@@ -140,11 +166,11 @@ TEST ("plug-ins: turned off by hand, it isn't loaded or listed; turned on, it's 
     fakeFiles() = { "fake:ok:Good Synth" };
     PluginManager pm (folder);
     waitFor (pm, [&] (auto p) { pm.scan (p); });
-    CHECK_EQ (pm.known().getNumTypes(), 1);
-    const auto ref = PluginManager::refFor (pm.known().getTypes()[0]);
+    CHECK_EQ (fakeTypes (pm), 1);
+    const auto ref = PluginManager::refFor (*pm.known().getTypeForFile ("fake:ok:Good Synth"));
 
     pm.turnOff ("Fake", "fake:ok:Good Synth");
-    CHECK_EQ (pm.known().getNumTypes(), 0);
+    CHECK_EQ (fakeTypes (pm), 0);
     String error;
     CHECK (pm.create (ref, 48000, 512, error) == nullptr);
     CHECK (error.contains ("turned off"));
@@ -154,9 +180,9 @@ TEST ("plug-ins: turned off by hand, it isn't loaded or listed; turned on, it's 
 
     PluginManager reopened (folder);
     reopened.turnOn ("fake:ok:Good Synth");
-    CHECK_EQ (reopened.known().getNumTypes(), 1);
-    CHECK_EQ (reopened.known().getTypes()[0].name, String ("Good Synth"));
-    CHECK (reopened.blocked().empty());
+    CHECK_EQ (fakeTypes (reopened), 1);
+    CHECK (reopened.known().getTypeForFile ("fake:ok:Good Synth") != nullptr);
+    CHECK_EQ (fakeBlocked (reopened), size_t (0));
 }
 
 TEST ("plug-ins: what the old scanner left in Scanning.txt is turned off as a crash")
