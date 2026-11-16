@@ -129,6 +129,47 @@ struct Browser::FileList : public ListBoxModel
     std::vector<File> entries;
 };
 
+struct Browser::PresetList : public ListBoxModel
+{
+    PresetList (Controller& ctrl) : c (ctrl) {}
+
+    struct Entry { Id device; String plugin; File file; };
+    std::vector<Entry> entries;
+
+    void refresh (const String& filter)
+    {
+        entries.clear();
+        const auto* t = c.project.track (c.focusTrack);
+        if (! t) return;
+        for (auto& d : t->devices)
+            for (auto& f : c.presetsFor (d.plugin))
+                if (filter.isEmpty() || f.getFileNameWithoutExtension().containsIgnoreCase (filter) || String (d.plugin.name).containsIgnoreCase (filter))
+                    entries.push_back ({ d.id, String (d.plugin.name), f });
+    }
+
+    int getNumRows() override { return (int) entries.size(); }
+
+    void paintListBoxItem (int row, Graphics& g, int w, int h, bool selected) override
+    {
+        if (row < 0 || row >= (int) entries.size()) return;
+        const auto& e = entries[(size_t) row];
+        if (selected) { g.setColour (theme::rule); g.fillRect (0, 0, w, h); }
+        g.setColour (theme::text);
+        g.setFont (theme::font());
+        g.drawText (e.file.getFileNameWithoutExtension(), 8, 0, w - 16, h * 3 / 5, Justification::bottomLeft, true);
+        g.setColour (theme::textSecondary);
+        g.setFont (theme::font (theme::smallPoints));
+        g.drawText (e.plugin, 8, h * 3 / 5, w - 16, h * 2 / 5, Justification::topLeft, true);
+    }
+
+    void listBoxItemDoubleClicked (int row, const MouseEvent&) override
+    {
+        if (row >= 0 && row < (int) entries.size()) c.loadPreset (entries[(size_t) row].device, entries[(size_t) row].file);
+    }
+
+    Controller& c;
+};
+
 //==============================================================================
 Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl)
 {
@@ -136,7 +177,7 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl)
     addChildComponent (studioView);
     studioView.setViewedComponent (&studio, false);
     studioView.setScrollBarsShown (true, false);
-    for (auto* b : { &pluginsTab, &filesTab, &audioTab, &studioTab })
+    for (auto* b : { &pluginsTab, &presetsTab, &filesTab, &audioTab, &studioTab })
     {
         b->setRadioGroupId (3);
         b->setClickingTogglesState (true);
@@ -146,6 +187,7 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl)
     filesTab.onClick = [this] { showTab (Tab::Files); };
     audioTab.onClick = [this] { showTab (Tab::Audio); };
     studioTab.onClick = [this] { showTab (Tab::Studio); };
+    presetsTab.onClick = [this] { showTab (Tab::Presets); };
     addAndMakeVisible (search);
     search.setTextToShowWhenEmpty ("Search", theme::textSecondary);
     search.setTitle ("Search");
@@ -155,6 +197,8 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl)
         pluginBox.updateContent();
         files->refresh (search.getText());
         fileBox.updateContent();
+        presets->refresh (search.getText());
+        presetBox.updateContent();
         repaint();
     };
     addAndMakeVisible (scan);
@@ -186,7 +230,13 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl)
     fileBox.setRowHeight (theme::px (24));
     fileBox.setTitle ("Files");
     addChildComponent (fileBox);
-    for (auto* box : { &pluginBox, &fileBox })
+    presets = std::make_unique<PresetList> (c);
+    presetBox.setModel (presets.get());
+    presetBox.setRowHeight (theme::px (34));
+    presetBox.setTitle ("Presets");
+    addChildComponent (presetBox);
+    c.addChangeListener (this);
+    for (auto* box : { &pluginBox, &fileBox, &presetBox })
     {
         box->setColour (ListBox::backgroundColourId, theme::sunken);
         box->setColour (ListBox::outlineColourId, theme::rule);
@@ -201,14 +251,20 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl)
 
 Browser::~Browser()
 {
+    c.removeChangeListener (this);
     c.engine.plugins().known().removeChangeListener (this);
     c.engine.devices().removeAudioCallback (&previewPlayer);
     transport.setSource (nullptr);
     previewPlayer.setSource (nullptr);
 }
 
-void Browser::changeListenerCallback (ChangeBroadcaster*)
+void Browser::changeListenerCallback (ChangeBroadcaster* from)
 {
+    if (from == &c)
+    {
+        if (tab == Tab::Presets) { presets->refresh (search.getText()); presetBox.updateContent(); presetBox.repaint(); }
+        return;
+    }
     plugins->filter (search.getText());
     pluginBox.updateContent();
     pluginBox.repaint();
@@ -236,12 +292,15 @@ void Browser::showTab (Tab t)
     filesTab.setToggleState (t == Tab::Files, dontSendNotification);
     audioTab.setToggleState (t == Tab::Audio, dontSendNotification);
     studioTab.setToggleState (t == Tab::Studio, dontSendNotification);
+    presetsTab.setToggleState (t == Tab::Presets, dontSendNotification);
+    presetBox.setVisible (t == Tab::Presets);
+    if (t == Tab::Presets) { presets->refresh (search.getText()); presetBox.updateContent(); }
     studioView.setVisible (t == Tab::Studio);
     pluginBox.setVisible (t == Tab::Plugins);
     scan.setVisible (t == Tab::Plugins);
     fileBox.setVisible (t == Tab::Files);
     up.setVisible (t == Tab::Files);
-    search.setVisible (t == Tab::Plugins || t == Tab::Files);
+    search.setVisible (t == Tab::Plugins || t == Tab::Files || t == Tab::Presets);
     if (t == Tab::Audio && ! audio)
     {
         audio = std::make_unique<AudioDeviceSelectorComponent> (c.engine.devices(), 0, 16, 2, 16, true, true, true, false);
@@ -268,15 +327,16 @@ void Browser::paint (Graphics& g)
 void Browser::resized()
 {
     auto r = getLocalBounds().reduced (theme::px (8));
-    auto tabs = r.removeFromTop (theme::px (24));
-    const int w = (tabs.getWidth() - 12) / 4;
-    pluginsTab.setBounds (tabs.removeFromLeft (w));
-    tabs.removeFromLeft (4);
-    filesTab.setBounds (tabs.removeFromLeft (w));
-    tabs.removeFromLeft (4);
-    audioTab.setBounds (tabs.removeFromLeft (w));
-    tabs.removeFromLeft (4);
-    studioTab.setBounds (tabs);
+    // Two rows of three.
+    auto placeRow = [&] (std::initializer_list<theme::HouseButton*> row)
+    {
+        auto tabs = r.removeFromTop (theme::px (24));
+        const int w = (tabs.getWidth() - 8) / 3;
+        for (auto* b : row) { b->setBounds (tabs.removeFromLeft (w)); tabs.removeFromLeft (4); }
+        r.removeFromTop (4);
+    };
+    placeRow ({ &pluginsTab, &presetsTab, &filesTab });
+    placeRow ({ &audioTab, &studioTab });
     r.removeFromTop (theme::px (8));
     if (tab == Tab::Studio)
     {
@@ -299,6 +359,7 @@ void Browser::resized()
     }
     pluginBox.setBounds (r);
     fileBox.setBounds (r);
+    presetBox.setBounds (r);
     if (audio) audio->setBounds (r);
 }
 

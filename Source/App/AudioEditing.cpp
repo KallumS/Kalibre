@@ -137,4 +137,19 @@ void Controller::quantiseAudio (Id clipId, double strength)
     say ("Quantised " + String ((int) hits.size()) + " hits to the grid with warp markers. Undo, or clear the markers, to go back.", false, true);
 }
 
+void Controller::renderOfflineFx (Id clipId)
+{
+    const auto* cl = project.clip (clipId);
+    if (! cl || cl->offlineFx.chain.empty()) return;
+    const File src = fileOf (*cl, false);
+    const auto out = recordingsFolder().getNonexistentChildFile (src.getFileNameWithoutExtension() + " fx", ".wav");
+    String error;
+    if (engine.renderOfflineFx (*cl, src, out, error))
+    {
+        apply ("Render Offline Effects", [clipId, out] (Project& p) { if (auto* x = p.clip (clipId)) x->audio.renderedFile = out.getFullPathName().toStdString(); });
+        say ("Rendered. The clip plays the processed audio; the original is kept, and removing the effects brings it back.", false, true);
+    }
+    else say ("The effects couldn't be rendered. " + error, true);
+}
+
 } // namespace kal

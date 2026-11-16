@@ -134,6 +134,7 @@ public:
     void stripSilence (Id clip, double thresholdDb = -48.0);
     void quantiseAudio (Id clip, double strength = 1.0);
     std::vector<double> hitsIn (Id clip, double sensitivity = 0.5);   // seconds into its file
+    void renderOfflineFx (Id clip);
 
     //==========================================================================
     // The clip launcher (decision 0037): not undo steps.
@@ -147,6 +148,20 @@ public:
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
     void setDeviceActive (Id device, bool);
     void storeDeviceStates();   // every loaded plug-in's state into the project, before a save
+
+    // Presets and A/B (decision 0039; Presets.cpp).
+    juce::File presetsFolder (const PluginRef&) const;
+    juce::Array<juce::File> presetsFor (const PluginRef&) const;
+    bool savePreset (Id device, const juce::String& name);
+    bool loadPreset (Id device, const juce::File&);
+    void loadProgram (Id device, int index);
+    void switchAB (Id device);           // the other of the two settings being compared
+    void copyToOther (Id device);        // the one heard now becomes the other too
+    void pluginChanged (const Project& before, const juce::String& label);
+    Id changedDevice = 0;
+
+    // Offline effects being edited in the Devices tab (decision 0039), or 0.
+    Id offlineClip = 0;
 
     //==========================================================================
     // Capture (decision 0017).
@@ -208,6 +223,8 @@ private:
 
     void syncEngine();
     std::map<Id, Track::Launch> launchStates() const;
+    std::map<Id, int> deviceStates() const;
+    void reloadChangedStates (const std::map<Id, int>&);
     void restoreLaunches (const std::map<Id, Track::Launch>&);
     std::vector<song::TrackMix> lastMix;   // the mix as last synced, for grouped tracks
     void timerCallback() override;

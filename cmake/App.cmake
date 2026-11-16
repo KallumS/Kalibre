@@ -66,6 +66,7 @@ add_library(KalibreApp STATIC
     Source/Engine/PluginManager.cpp
     Source/Engine/TrackProcessors.cpp
     Source/Engine/MorphProcessor.cpp
+    Source/Engine/BuiltinInstruments.cpp
     Source/Engine/Warp.cpp
     Source/Engine/Engine.cpp
     Source/Engine/AraHost.cpp
@@ -73,8 +74,10 @@ add_library(KalibreApp STATIC
     Source/App/Theme.cpp
     Source/App/Controller.cpp
     Source/App/AudioEditing.cpp
+    Source/App/Presets.cpp
     Source/App/SampleEditor.cpp
     Source/App/LauncherView.cpp
+    Source/App/OfflineFxView.cpp
     Source/App/TopBar.cpp
     Source/App/Arrange.cpp
     Source/App/PianoRoll.cpp

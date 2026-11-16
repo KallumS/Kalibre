@@ -361,3 +361,52 @@ TEST ("automation: a mute lane silences a click; a send lane's level is followed
     CHECK_EQ (clicksIn (out).size(), size_t (1));
     CHECK (engine.instance (dev) != nullptr);   // the plug-in itself, not its stopwatch
 }
+
+#include "BuiltinInstruments.h"
+
+TEST ("instruments: the built-in synth and sampler play a track's notes")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Synth");
+    edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (p, t, 0, PPQ * 4);
+    edit::addNote (p, clip, { .start = 0, .length = PPQ, .pitch = 57, .velocity = 110 });
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 1.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("synth.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    auto peakOf = [&fm] (const File& f, double from, double to)
+    {
+        std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+        if (! r) return 0.0f;
+        AudioBuffer<float> b (2, (int) r->lengthInSamples);
+        r->read (&b, 0, b.getNumSamples(), 0, true, true);
+        const int a = (int) (from * r->sampleRate), z = jmin (b.getNumSamples(), (int) (to * r->sampleRate));
+        return z > a ? b.getMagnitude (a, z - a) : 0.0f;
+    };
+    CHECK (peakOf (out, 0.05, 0.4) > 0.05f);    // the note sounds
+    CHECK (peakOf (out, 0.95, 1.0) < 0.01f);    // and has stopped by the end
+
+    // The sampler, with a click as its sample, played an octave up: twice as fast, still one click.
+    Project q;
+    const Id s = edit::addTrack (q, TrackKind::Track, "Sampler");
+    const Id dev = edit::addDevice (q, s, samplerRef(), DeviceRole::Instrument);
+    KalibreSampler loader;
+    String err;
+    CHECK (loader.load (clickFile (0.5), err));
+    MemoryBlock m;
+    loader.getStateInformation (m);
+    q.device (dev)->state = m.toBase64Encoding().toStdString();
+    const Id c2 = edit::addMidiClip (q, s, 0, PPQ * 4);
+    edit::addNote (q, c2, { .start = 0, .length = PPQ * 2, .pitch = 72, .velocity = 127 });
+    const auto out2 = tempFolder().getChildFile ("sampler.wav");
+    CHECK (engine.render (q, tempFolder(), out2, o, {}, error));
+    const auto clicks = clicksIn (out2);
+    CHECK (! clicks.empty());
+    if (! clicks.empty()) CHECK (std::abs (clicks.front() - 12000) <= 2);   // 0.5 s of sample in 0.25 s
+}

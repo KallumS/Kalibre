@@ -5,7 +5,7 @@ namespace kal
 using namespace juce;
 
 LowerZone::LowerZone (Controller& ctrl)
-    : c (ctrl), devices (ctrl), roll (ctrl), drums (ctrl), steps (ctrl), euclid (ctrl), notation (ctrl), mixer (ctrl), sample (ctrl), launcher (ctrl)
+    : c (ctrl), devices (ctrl), roll (ctrl), drums (ctrl), steps (ctrl), euclid (ctrl), notation (ctrl), mixer (ctrl), sample (ctrl), launcher (ctrl), offline (ctrl)
 {
     for (auto* b : { &devicesTab, &editorTab, &mixerTab, &launcherTab })
     {
@@ -20,7 +20,7 @@ LowerZone::LowerZone (Controller& ctrl)
         addChildComponent (b);
     }
     for (auto* b : { &gridButton, &snapButton, &quantise, &legato }) addChildComponent (b);
-    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample, &launcher })
+    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample, &launcher, &offline })
         addChildComponent (comp);
     drumsView.setViewedComponent (&drums, false);
     euclidView.setViewedComponent (&euclid, false);
@@ -52,7 +52,7 @@ LowerZone::~LowerZone() { c.removeChangeListener (this); }
 
 void LowerZone::changeListenerCallback (ChangeBroadcaster*)
 {
-    if (c.zoneTab != shownTab || c.editor != shownEditor || audioChosen() != shownAudio) show();
+    if (c.zoneTab != shownTab || c.editor != shownEditor || audioChosen() != shownAudio || c.offlineClip != offline.shown()) show();
     snapButton.setToggleState (c.snap, dontSendNotification);
 }
 
@@ -86,7 +86,13 @@ void LowerZone::show()
     notationTab.setToggleState (c.editor == EditorKind::Notation, dontSendNotification);
     snapButton.setToggleState (c.snap, dontSendNotification);
 
-    devices.setVisible (c.zoneTab == ZoneTab::Devices);
+    // A clip's offline effects take the Devices tab while they're being set (decision 0039).
+    if (c.offlineClip != 0 && ! c.project.clip (c.offlineClip)) c.offlineClip = 0;
+    const bool offlineShown = c.zoneTab == ZoneTab::Devices && c.offlineClip != 0;
+    if (offlineShown) offline.open (c.offlineClip);
+    else if (offline.shown() != 0) offline.close();
+    offline.setVisible (offlineShown);
+    devices.setVisible (c.zoneTab == ZoneTab::Devices && ! offlineShown);
     mixer.setVisible (c.zoneTab == ZoneTab::Mixer);
     roll.setVisible (editing && c.editor == EditorKind::PianoRoll);
     drumsView.setVisible (editing && c.editor == EditorKind::Drums);
@@ -143,7 +149,7 @@ void LowerZone::resized()
         bar.removeFromLeft (theme::px (12));
         for (auto* b : { &gridButton, &snapButton, &quantise, &legato }) place (*b);
     }
-    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &launcher })
+    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &launcher, &offline })
         comp->setBounds (r);
     sample.setBounds (r);
     // These two scroll when there's more than fits.

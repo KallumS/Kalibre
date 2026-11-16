@@ -1616,20 +1616,13 @@ void Arrange::clipMenu (Id id)
                 c.apply ("Remove Offline Effect", [id, i] (Project& p) { if (auto* cl = p.clip (id)) cl->offlineFx.chain.erase (cl->offlineFx.chain.begin() + (long) i); });
             });
         fxMenu.addSeparator();
-        fxMenu.addItem ("Render", ! clip->offlineFx.chain.empty(), false, [this, id]
+        fxMenu.addItem ("Edit Their Settings", ! clip->offlineFx.chain.empty(), false, [this, id]
         {
-            const auto* cl = c.project.clip (id);
-            if (! cl) return;
-            const File src (cl->audio.file);
-            const auto out = c.recordingsFolder().getNonexistentChildFile (src.getFileNameWithoutExtension() + " fx", ".wav");
-            String error;
-            if (c.engine.renderOfflineFx (*cl, src, out, error))
-            {
-                c.apply ("Render Offline Effects", [id, out] (Project& p) { if (auto* x = p.clip (id)) x->audio.renderedFile = out.getFullPathName().toStdString(); });
-                c.say ("Rendered. The clip plays the processed audio; the original is kept, and removing the effects brings it back.", false, true);
-            }
-            else c.say ("The effects couldn't be rendered. " + error, true);
+            c.offlineClip = id;
+            c.zoneTab = ZoneTab::Devices;
+            c.viewChanged();
         });
+        fxMenu.addItem ("Render", ! clip->offlineFx.chain.empty(), false, [this, id] { c.renderOfflineFx (id); });
         fxMenu.addItem ("Back to the Original", clip->audio.renderedFile.size() > 0, false, [this, id]
         {
             c.apply ("Original Audio", [id] (Project& p) { if (auto* x = p.clip (id)) x->audio.renderedFile.clear(); });

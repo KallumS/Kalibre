@@ -1,5 +1,6 @@
 #include "MorphProcessor.h"
 
+#include "BuiltinInstruments.h"
 #include "Morph.h"
 #include "PluginManager.h"
 #include "Theme.h"
@@ -114,6 +115,7 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
 {
     if (ref.identifier == "test-sidechain") return std::make_unique<SidechainTest>();
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
+    if (auto inst = makeInstrument (ref)) return inst;
     if (String (ref.identifier).startsWith ("test-latency:"))
         return std::make_unique<LatencyTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getIntValue());
     return nullptr;

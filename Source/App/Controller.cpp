@@ -106,6 +106,35 @@ void Controller::apply (const String& label, std::function<void (Project&)> chan
     sendChangeMessage();
 }
 
+std::map<Id, int> Controller::deviceStates() const
+{
+    std::map<Id, int> out;
+    for (auto& t : project.tracks) for (auto& d : t.devices) out[d.id] = d.stateVersion;
+    for (auto& d : project.master.devices) out[d.id] = d.stateVersion;
+    return out;
+}
+
+// Undo and redo put a plug-in's settings back when they were what changed
+// (a preset, A/B); a plug-in whose settings didn't change is left alone.
+void Controller::reloadChangedStates (const std::map<Id, int>& was)
+{
+    auto reload = [this, &was] (const Track& t)
+    {
+        for (auto& d : t.devices)
+        {
+            auto it = was.find (d.id);
+            if (it == was.end() || it->second == d.stateVersion || d.state.empty()) continue;
+            if (auto* inst = engine.instance (d.id))
+            {
+                MemoryBlock m;
+                if (m.fromBase64Encoding (d.state)) inst->setStateInformation (m.getData(), (int) m.getSize());
+            }
+        }
+    };
+    for (auto& t : project.tracks) reload (t);
+    reload (project.master);
+}
+
 // What the launcher is playing isn't part of the song's history (decision 0037).
 std::map<Id, Track::Launch> Controller::launchStates() const
 {
@@ -156,22 +185,27 @@ bool Controller::undo()
     storeDeviceStates();
     const auto label = history.undoLabel();
     const auto launches = launchStates();
+    const auto states = deviceStates();
     if (! history.undo (project)) return false;
     restoreLaunches (launches);
     dirty = true;
     syncEngine();
+    reloadChangedStates (states);
     say ("Undid " + String (label) + ".");
     return true;
 }
 
 bool Controller::redo()
 {
+    storeDeviceStates();
     const auto label = history.redoLabel();
     const auto launches = launchStates();
+    const auto states = deviceStates();
     if (! history.redo (project)) return false;
     restoreLaunches (launches);
     dirty = true;
     syncEngine();
+    reloadChangedStates (states);
     say ("Redid " + String (label) + ".");
     return true;
 }

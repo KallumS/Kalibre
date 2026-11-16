@@ -542,7 +542,8 @@ void Engine::sync (const Project& project, Id live, const File& folder)
     {
         newShape << (int64) t->id << ":" << (int) t->kind << ":" << (int64) project.outputOf (t->id) << ":" << (t->id == live ? 1 : 0)
                  << (t->armed ? "a" : "") << (int) t->monitor << "/" << t->input.audioChannel << "[";
-        for (auto& d : t->devices) if (d.active && wantedDevices.count (d.id)) newShape << (int64) d.id << (int) d.role << (d.bypassed ? "b" : "") << "<" << (int64) d.sidechainFrom << ",";
+        // The node's own number too: a device replaced by another under the same id is rewired.
+        for (auto& d : t->devices) if (d.active && wantedDevices.count (d.id)) newShape << (int64) d.id << "#" << (int64) deviceNodes[d.id]->nodeID.uid << (int) d.role << (d.bypassed ? "b" : "") << "<" << (int64) d.sidechainFrom << ",";
         newShape << "]{";
         for (auto& s : t->sends) newShape << (int64) s.target << (s.preFader ? "p" : "") << ",";
         newShape << "}";

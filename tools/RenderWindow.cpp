@@ -4,6 +4,7 @@
 //   KalibreRender out-folder [scale]
 
 #include "../Tests/App/Demo.h"
+#include "BuiltinInstruments.h"
 #include "Comp.h"
 #include "Song.h"
 #include "MainComponent.h"
@@ -125,6 +126,19 @@ int main (int argc, char** argv)
         c.refresh();
         shoot ("12-launcher");
         song::backToArrangement (c.project);
+        // Kalibre's own synth and sampler, side by side (decision 0039).
+        {
+            const Id synthTrack = edit::addTrack (c.project, TrackKind::Track, "Synth");
+            edit::addDevice (c.project, synthTrack, synthRef(), DeviceRole::Instrument);
+            edit::addDevice (c.project, synthTrack, samplerRef(), DeviceRole::Instrument);
+            c.focusTrack = synthTrack;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            window.lowerHeight = 380;
+            shoot ("13-synth-and-sampler");
+            window.lowerHeight = 320;
+            c.focusTrack = c.project.tracks[1].id;
+        }
         c.project.tracks[0].collapsed = false;
         c.showTempoLane = true;
         c.project.tempo.setTempos ({ { 0, 96, true }, { PPQ * 16, 120, false } });

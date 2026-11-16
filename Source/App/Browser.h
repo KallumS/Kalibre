@@ -2,6 +2,8 @@
     Browser - the panel on the left (View > Browser): plug-ins, files and
     the audio set-up, inside the window like everything else.
 
+    Presets (decision 0039): the saved presets of the chosen track's
+    plug-ins; double-click one to load it.
     Plug-ins: search by name or maker; drag one onto a track, or double-click
     to add it to the chosen track. Files: audio and MIDI from your folders;
     click to hear it, drag it onto a track or double-click to put it at the
@@ -27,7 +29,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    enum class Tab { Plugins, Files, Audio, Studio };
+    enum class Tab { Plugins, Files, Audio, Studio, Presets };
     void showTab (Tab);
 
 private:
@@ -35,6 +37,7 @@ private:
     theme::HouseButton pluginsTab { "Plug-ins", "Every plug-in found on this Mac." };
     theme::HouseButton filesTab { "Files", "Audio and MIDI files." };
     theme::HouseButton audioTab { "Audio", "The audio interface, sample rate and buffer size." };
+    theme::HouseButton presetsTab { "Presets", "Saved presets for the chosen track's plug-ins." };
     theme::HouseButton studioTab { "Studio", "Sync (MIDI clock, timecode, Link) and control surfaces (Mackie Control, OSC)." };
     juce::Viewport studioView;
     StudioPanel studio;
@@ -43,6 +46,9 @@ private:
 
     struct PluginList;
     struct FileList;
+    struct PresetList;
+    std::unique_ptr<PresetList> presets;
+    juce::ListBox presetBox;
     std::unique_ptr<PluginList> plugins;
     std::unique_ptr<FileList> files;
     std::unique_ptr<juce::AudioDeviceSelectorComponent> audio;

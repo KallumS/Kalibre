@@ -1,6 +1,7 @@
 #include "DeviceRack.h"
 
 #include "Modulation.h"
+#include "BuiltinInstruments.h"
 #include "MorphProcessor.h"
 
 namespace kal
@@ -13,7 +14,13 @@ class DevicePanel : public Component
 public:
     DevicePanel (Controller& ctrl, Id dev) : c (ctrl), id (dev)
     {
-        for (auto* b : { &power, &bypass, &menu }) addAndMakeVisible (b);
+        for (auto* b : { &power, &bypass, &menu, &ab, &presets }) addAndMakeVisible (b);
+        ab.onClick = [this]
+        {
+            if (ModifierKeys::currentModifiers.isPopupMenu()) return;
+            c.switchAB (id);
+        };
+        presets.onClick = [this] { presetMenu(); };
         power.setTitle ("Plug-in On");
         bypass.setTitle ("Bypass");
         menu.setTitle ("Plug-in Menu");
@@ -33,6 +40,8 @@ public:
         if (! d) return;
         power.setToggleState (d->active, dontSendNotification);
         bypass.setToggleState (d->bypassed, dontSendNotification);
+        ab.setButtonText (d->onB ? "Set B" : "Set A");
+        ab.setTitle (d->onB ? "Settings B" : "Settings A");
         auto* inst = c.engine.instance (id);
         if (! d->active || ! inst) { editor.reset(); natural = {}; return; }
         if (! editor || editorFor != inst)
@@ -62,7 +71,7 @@ public:
         g.setColour (theme::sunken);
         g.fillRoundedRectangle (getLocalBounds().toFloat(), 6.0f);
         auto header = getLocalBounds().removeFromTop (theme::px (30)).reduced (theme::px (8), 0);
-        header.removeFromRight (theme::px (96));
+        header.removeFromRight (theme::px (220));
         g.setColour (d && d->active ? theme::text : theme::textSecondary);
         g.setFont (theme::font (theme::bodyPoints, true));
         if (d)
@@ -99,6 +108,10 @@ public:
         bypass.setBounds (header.removeFromRight (theme::px (30)));
         header.removeFromRight (3);
         power.setBounds (header.removeFromRight (theme::px (30)));
+        header.removeFromRight (6);
+        ab.setBounds (header.removeFromRight (ab.idealWidth (theme::smallControl)));
+        header.removeFromRight (3);
+        presets.setBounds (header.removeFromRight (presets.idealWidth (theme::smallControl)));
         if (! editor || natural.isEmpty()) return;
         auto area = getLocalBounds().withTrimmedTop (theme::px (30));
         const float s = jlimit (0.25f, 3.0f, (float) area.getHeight() / (float) jmax (1, natural.getHeight()));
@@ -120,6 +133,45 @@ public:
             editor->setScaleFactor (s);
             editor->setTopLeftPosition (area.getTopLeft());
         }
+    }
+
+    // Presets (decision 0039): saved ones, then the plug-in's own programs.
+    void presetMenu()
+    {
+        auto* d = device();
+        if (! d) return;
+        auto* inst = c.engine.instance (id);
+        PopupMenu m;
+        m.addItem (ui::u8 ("Save Preset\xe2\x80\xa6"), inst != nullptr, false, [this]
+        {
+            auto* w = new AlertWindow ("Save a Preset", "A name for the plug-in's settings as they are now.", MessageBoxIconType::NoIcon);
+            w->addTextEditor ("name", "My Preset");
+            w->addButton ("Save", 1, KeyPress (KeyPress::returnKey));
+            w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+            ui::present (w, ModalCallbackFunction::create ([this, w] (int ok)
+            {
+                if (ok == 1 && w->getTextEditorContents ("name").trim().isNotEmpty()) c.savePreset (id, w->getTextEditorContents ("name").trim());
+            }), true);
+        });
+        m.addSeparator();
+        const auto files = c.presetsFor (d->plugin);
+        if (files.isEmpty()) m.addSectionHeader ("No Saved Presets Yet");
+        else m.addSectionHeader ("Saved Presets");
+        for (auto& f : files)
+            m.addItem (f.getFileNameWithoutExtension(), inst != nullptr, false, [this, f] { c.loadPreset (id, f); });
+        if (inst && inst->getNumPrograms() > 1)
+        {
+            PopupMenu programs;
+            for (int i = 0; i < inst->getNumPrograms() && i < 512; ++i)
+            {
+                const auto name = inst->getProgramName (i);
+                programs.addItem (name.isEmpty() ? "Program " + String (i + 1) : name, true, inst->getCurrentProgram() == i, [this, i] { c.loadProgram (id, i); });
+            }
+            m.addSubMenu ("The Plug-in's Own", programs);
+        }
+        m.addSeparator();
+        m.addItem (d->onB ? "Copy B to A" : "Copy A to B", inst != nullptr, false, [this] { c.copyToOther (id); });
+        m.showMenuAsync (PopupMenu::Options().withTargetComponent (&presets));
     }
 
     void showMenu()
@@ -163,6 +215,8 @@ public:
     theme::HouseButton power { ui::u8 ("\xe2\x8f\xbb"), "Switch the plug-in off (unloaded, settings kept) or on." };
     theme::HouseButton bypass { "B", "Bypass: let the sound through untouched, still loaded." };
     theme::HouseButton menu { ui::u8 ("\xe2\x80\xa6"), "Move, remove, automate or modulate." };
+    theme::HouseButton ab { "Set A", "Compare two settings: click to switch between A and B. Copy one to the other in Presets." };
+    theme::HouseButton presets { "Presets", "Save the settings as a preset, or load one." };
     std::unique_ptr<AudioProcessorEditor> editor;
     AudioPluginInstance* editorFor = nullptr;
     Rectangle<int> natural;
@@ -419,6 +473,9 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     for (auto& [maker, menu] : byMaker[0]) midi.addSubMenu (maker, menu);
     for (auto& [maker, menu] : byMaker[1]) instruments.addSubMenu (maker, menu);
     for (auto& [maker, menu] : byMaker[2]) effects.addSubMenu (maker, menu);
+    kalibre.addItem ("Kalibre Synth", [&c, track] { c.addBuiltIn (track, synthRef(), DeviceRole::Instrument); });
+    kalibre.addItem ("Kalibre Sampler", [&c, track] { c.addBuiltIn (track, samplerRef(), DeviceRole::Instrument); });
+    kalibre.addSeparator();
     kalibre.addItem ("X/Y Morph as an Instrument (Samples or Instruments)", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::Instrument); });
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
     PopupMenu m;

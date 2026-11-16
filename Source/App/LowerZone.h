@@ -11,6 +11,7 @@
 #include "DeviceRack.h"
 #include "LauncherView.h"
 #include "Mixer.h"
+#include "OfflineFxView.h"
 #include "NotationView.h"
 #include "PatternEditors.h"
 #include "PianoRoll.h"
@@ -56,6 +57,7 @@ private:
     Mixer mixer;
     SampleEditor sample;
     LauncherView launcher;
+    OfflineFxView offline;
     bool shownAudio = false;
     bool audioChosen() const;
 

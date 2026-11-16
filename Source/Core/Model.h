@@ -160,6 +160,7 @@ struct Device
     float editorScale = 1.0f;  // last scale the lower zone gave its editor
     std::string stateB;        // A/B (decision 0039): the other of the two settings being compared
     bool onB = false;          // B is the one loaded
+    int stateVersion = 0;      // counts Kalibre's own changes to the state (a preset, A/B), for Undo
 
     bool operator== (const Device&) const = default;
 };
