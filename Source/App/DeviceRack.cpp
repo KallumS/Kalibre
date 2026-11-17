@@ -723,6 +723,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
         const char* kinds[] { "MIDI Effect", "Instrument", "Effect" };
         kalibre.addItem (String (s.name) + "  (" + kinds[(int) s.role] + ")", [&c, track, &s] { c.addBuiltIn (track, jsfxRef (s), s.role); });
     }
+    kalibre.addItem ("Instant Virtual Instrument  (Instrument)", [&c, track] { c.addBuiltIn (track, instantVirtualInstrumentRef(), DeviceRole::Instrument); });
     PopupMenu m;
     m.addSubMenu ("MIDI Effects", midi, midi.getNumItems() > 0);
     m.addSubMenu ("Instruments", instruments, instruments.getNumItems() > 0);

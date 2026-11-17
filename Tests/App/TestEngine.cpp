@@ -652,3 +652,46 @@ TEST ("jsfx: Reese Basser and Instrument Creator play a note; Reverberator rings
         if (peak <= 0.01f) std::printf ("    evolver: peak %f\n", peak);
     }
 }
+
+TEST ("instant virtual instrument: built in, its parameters passed on, its window, its demo played, its state kept")
+{
+    auto inst = makeInstantVirtualInstrument();
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    CHECK (inst->getParameters().size() >= 15);
+    inst->prepareToPlay (48000, 512);
+    CHECK (loadInstantVirtualInstrumentDemo (*inst));
+    // Its analysis runs in the background: play a held note until it sounds (20 s at most).
+    AudioBuffer<float> b (2, 512);
+    float heard = 0;
+    for (int i = 0; i < 400 && heard < 0.01f; ++i)
+    {
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        MidiBuffer m;
+        if (i % 20 == 0) m.addEvent (MidiMessage::noteOn (1, 60, (uint8) 110), 0);
+        b.clear();
+        inst->processBlock (b, m);
+        heard = jmax (heard, b.getMagnitude (0, 512));
+    }
+    CHECK (heard > 0.01f);
+    // A parameter set through Kalibre reaches it, and comes back from its saved state.
+    int which = 0;
+    for (int i = 0; i < inst->getParameters().size(); ++i)
+        if (inst->getParameters()[i]->getName (40) == "Brightness") which = i;
+    auto* p = inst->getParameters()[which];
+    CHECK_EQ (p->getName (40), String ("Brightness"));
+    p->setValueNotifyingHost (0.25f);
+    MemoryBlock state;
+    inst->getStateInformation (state);
+    auto again = makeInstantVirtualInstrument();
+    again->setStateInformation (state.getData(), (int) state.getSize());
+    CHECK (std::abs (p->getValue() - 0.25f) < 0.01f);
+    CHECK (std::abs (again->getParameters()[which]->getValue() - 0.25f) < 0.01f);
+    // Its own window, inside the device's; open, close, open again.
+    for (int k = 0; k < 2; ++k)
+    {
+        editors::Owned e (editors::open (*inst));
+        CHECK (e != nullptr && e->getNumChildComponents() == 1);
+        CHECK (e && e->getWidth() > 300 && e->getHeight() > 200);
+    }
+}

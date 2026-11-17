@@ -296,6 +296,21 @@ int main (int argc, char** argv)
             edit::removeTrack (c.project, jt);
             c.refresh();
         }
+        // Instant Virtual Instrument in the rack (decision 0067), its demo loaded.
+        {
+            const Id it = edit::addTrack (c.project, TrackKind::Track, "Instant");
+            const Id dev = edit::addDevice (c.project, it, instantVirtualInstrumentRef(), DeviceRole::Instrument);
+            c.focusTrack = it;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            if (auto* inst = engine.instance (dev)) loadInstantVirtualInstrumentDemo (*inst);
+            window.lowerHeight = 520;
+            for (int i = 0; i < 40; ++i) MessageManager::getInstance()->runDispatchLoopUntil (50);   // its analysis, in the background
+            shoot ("22-instant-virtual-instrument");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, it);
+            c.refresh();
+        }
         // Kalibre's own synth and sampler, side by side (decision 0039).
         {
             const Id synthTrack = edit::addTrack (c.project, TrackKind::Track, "Synth");

@@ -29,6 +29,17 @@ const std::vector<JsfxSpec>& jsfxDevices()
     return list;
 }
 
+PluginRef instantVirtualInstrumentRef()
+{
+    PluginRef r;
+    r.format = "Kalibre";
+    r.identifier = "instant-virtual-instrument";
+    r.name = "Instant Virtual Instrument";
+    r.manufacturer = "KallumS";
+    r.isInstrument = true;
+    return r;
+}
+
 PluginRef jsfxRef (const JsfxSpec& s)
 {
     PluginRef r;

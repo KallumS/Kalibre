@@ -44,4 +44,10 @@ PluginRef jsfxRef (const JsfxSpec&);
 // The JSFX a reference names, made; nullptr if it names none.
 std::unique_ptr<juce::AudioPluginInstance> makeJsfx (const PluginRef&);
 
+// Instant Virtual Instrument, built in (decision 0067; InstantVirtualInstrument.cpp).
+std::unique_ptr<juce::AudioPluginInstance> makeInstantVirtualInstrument();
+// Its own demo sound loaded, for the tests (and anyone wanting one to start from).
+bool loadInstantVirtualInstrumentDemo (juce::AudioPluginInstance&);
+PluginRef instantVirtualInstrumentRef();
+
 } // namespace kal

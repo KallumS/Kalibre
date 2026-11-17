@@ -102,6 +102,7 @@ add_library(KalibreApp STATIC
     Source/Engine/MorphProcessor.cpp
     Source/Engine/ContainerProcessor.cpp
     Source/Engine/JsfxDevice.cpp
+    Source/Engine/HostedProcessor.cpp
     ${ysfx_SOURCE_DIR}/plugin/components/graphics_view.cpp
     ${ysfx_SOURCE_DIR}/plugin/utility/async_updater.cpp
     ${ysfx_SOURCE_DIR}/plugin/utility/rt_semaphore.cpp
@@ -139,6 +140,16 @@ add_library(KalibreApp STATIC
     Source/App/Menus.cpp
     Source/App/Surfaces.cpp
     Source/App/StudioPanel.cpp)
+# Instant Virtual Instrument (KallumS/Instant-Virtual-Instrument, GPL-3.0), its
+# source unchanged, compiled into the app library as a built-in instrument
+# (decision 0067). Its own folder is its include root, and its plug-in name
+# the one JUCE would have given it, on its files only.
+file(GLOB_RECURSE IVI_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/InstantVirtualInstrument/Source/*.cpp)
+target_sources(KalibreApp PRIVATE ${IVI_SOURCES} Source/Engine/InstantVirtualInstrument.cpp)
+set_source_files_properties(${IVI_SOURCES} Source/Engine/InstantVirtualInstrument.cpp PROPERTIES
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/InstantVirtualInstrument/Source
+    COMPILE_DEFINITIONS "JucePlugin_Name=\"Instant Virtual Instrument\"")
+
 if(APPLE)
     target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm Source/App/PluginClipMac.mm)
     target_link_libraries(KalibreApp PRIVATE "-framework CoreMIDI")
