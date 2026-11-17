@@ -1,9 +1,11 @@
-# Chat history: building Kalibre (16 November 2026, part 3)
+# Chat history: building Kalibre (16 and 17 November 2026, part 3)
 
 The third part of the conversation: plug-ins fitted to the rack, swipes,
 Add Track, the Match button, every MIDI editor adding to one clip, CC lanes
-and AutoCC, note chance, Random from Good Idea, swing, gate and repeat, and
-arming for audio or MIDI. Parts one and two are in
+and AutoCC, note chance, Random from Good Idea, swing, gate and repeat,
+arming for audio or MIDI, and the family's repos as devices (the JSFX,
+Instant Virtual Instrument, Starting Blocks, its Notation, Midi Catalogue,
+Orchestration Helper). Parts one and two are in
 `2026-11-15-chat-history.md` and `2026-11-16-chat-history.md`.
 Kept so the reasons and the route aren't lost when the session's context is
 compacted. Your messages and Claude's replies are in full; each tool call (a
@@ -12,7 +14,7 @@ without its output. Private details (an email address) and the harness's
 internal reminders are removed, as are the automatic "background task
 finished" notices. Messages you sent while Claude was working are marked so.
 
-18 messages from you, 149 replies, 381 tool calls.
+22 messages from you, 204 replies, 553 tool calls.
 
 ## You (2026-11-16 17:47)
 
@@ -1385,3 +1387,501 @@ Please backup the chat and update the docs on GitHub
 ## Claude (2026-11-16 23:45)
 
 - *Bash*: python3 -I tools/export-chat.py ~/.claude/projects/-home-user-Kalibre/8a946807-4283-518b-8867-98a9109befa1.jsonl docs/sessions/2026-11-16...
+
+## Claude (2026-11-16 23:45)
+
+Backup written (18 of your messages, no email address in it). Now the session log's closing summary, and the arm picture for the README:
+
+- *Bash*: cp /tmp/claude-0/-home-user-Kalibre/8a946807-4283-518b-8867-98a9109befa1/scratchpad/arm-four-ways.png docs/arm-four-ways.png && grep -n "...
+- *Bash*: cat >> docs/sessions/2026-11-16.md <<'EOF'  ## Open at the end of the night  - To confirm on the Mac with real plug-ins: plug-ins shown s...
+
+## Claude (2026-11-16 23:45)
+
+The chat is backed up and the docs are up to date on GitHub, pushed to the `claude/wonderful-heisenberg-grlwnv` branch.
+
+- **Chat backup:** `docs/sessions/2026-11-16-chat-history-part-3.md` now covers this whole session, with all 18 of your messages and my replies in full. Your email address is removed.
+- **Session log:** the closing summary in `docs/sessions/2026-11-16.md` lists what's done and what's still open:
+  - **Still to check on your Mac:** plug-ins scaled and clipped in the rack, the swipes, and MIDI arming with a real arpeggiator.
+  - **Duplicate notes:** recording an instrument's MIDI over its own clips records those notes again.
+  - **Not done:** Midi Suggester as a "Suggest" button.
+  - **Set A/B button:** in the plug-in panel it may switch on a right-click; I haven't changed it.
+- **README:** now has a picture of the four arm states, alongside the others.
+- **Decision records** 0058–0065, and the features and architecture pages, were updated with each change as we went.
+- **Mac builds:** everything up to the first arm modes passed. The Shift-click arming build and this docs push are still building.
+
+None of this reaches the repo's main branch until the branch is merged, as with last time's PR. Should I open a pull request?
+
+## You (2026-11-16 23:47)
+
+Please add some of my repos as devices: Midi Evolver, Instant Virtual Instrument, Transient Shuffler, Midi Catalogue, Starting Blocks, Starting Blocks Notation, Orchestration Helper, Reese Basser, Reverberator and Instrument Creator
+
+## Claude (2026-11-16 23:47)
+
+Ten repos, so I'll look at what each one is first. Cloning them all read-only:
+
+- *Bash*: cd /home/user/kallums && for r in Midi-Evolver Instant-Virtual-Instrument Transient-Shuffler Midi-Catalogue Starting-Blocks Starting-Bloc...
+- *Bash*: cd /home/user/kallums && cat Reverberator/tools/build_host.sh | head -40; echo ----; head -60 Instant-Virtual-Instrument/CMakeLists.txt; ...
+- *Bash*: cd /home/user/kallums && wc -l orchestration-helper/macos/*.c orchestration-helper/macos/*.m orchestration-helper/macos/*.h; sed -n 1,40p...
+- *Bash*: mkdir -p /home/user/kallums/ext && cd /home/user/kallums/ext && [ -d ysfx ] || git clone -q --depth 1 --recurse-submodules --shallow-subm...
+
+## Claude (2026-11-16 23:48)
+
+ysfx is Apache 2.0, which works with Kalibre's AGPL. Checking its graphics build and API:
+
+- *Bash*: cd /home/user/kallums/ext/ysfx && grep -n "GFX\|freetype\|Freetype\|fontconfig\|APPLE\|swell\|lice" cmake.ysfx.txt cmake.wdl.txt cmake.de...
+- *Bash*: cd /home/user/kallums/ext/ysfx && sed -n 440,480p include/ysfx.h; sed -n 55,70p cmake.wdl.txt; sed -n 78,84p cmake.wdl.txt; sed -n 100,15...
+- *Bash*: cd /home/user/kallums/ext/ysfx && sed -n 150,200p cmake.wdl.txt; sed -n 1,30p cmake/*.cmake 2>/dev/null | head -5; ls cmake; grep -n "add...
+- *Bash*: cd /home/user/kallums/ext/ysfx && sed -n 128,150p cmake.wdl.txt; grep -rn "aarch64\|arm64" thirdparty/WDL/source/WDL/eel2/nseel-compiler....
+
+## Claude (2026-11-16 23:49)
+
+EEL2 has an arm64 compiler (Apple silicon is covered). This is a long job, so I'll track it in stages:
+
+- *ToolSearch*: select:TaskCreate,TaskUpdate
+- *TaskCreate*: Embed ysfx (FetchContent, GFX on); a JsfxProcessor (AudioPluginInstance) running a vendored .jsfx with its @gfx window as the editor; Mid...
+- *TaskCreate*: Vendor its Source/Core and Source/Plugin, build into KalibreApp, wrap its AudioProcessor as an AudioPluginInstance in makeBuiltIn; test i...
+- *TaskCreate*: A REAPER gfx + reaper.* shim over JUCE (from Orchestration Helper's host.c/backend.h); a script device panel in the rack; notes go into t...
+- *TaskCreate*: Decision records, FEATURES, ARCHITECTURE, README, Engines/VENDORED.md, session log; check each Mac build.
+- *TaskUpdate*: 1
+
+## Claude (2026-11-16 23:49)
+
+Seeing how Kalibre fetches its other dependencies:
+
+- *Bash*: sed -n 1,75p cmake/App.cmake; ls cmake
+
+## Claude (2026-11-16 23:49)
+
+I'll fetch ysfx at a pinned commit, graphics on, with its own plug-in, tests and tools off:
+
+- *Bash*: cd /home/user/kallums/ext/ysfx && git rev-parse HEAD; git submodule status | head; grep -n "YSFX_BUILD_FROM_HERE\|CMAKE_SOURCE_DIR" CMake...
+
+## Claude (2026-11-16 23:49)
+
+WDL is bundled inside ysfx, and only `dr_libs` is a submodule. Checking whether the five JSFX import other files or need data files beside them:
+
+- *Bash*: cd /home/user/kallums && for f in "Midi-Evolver/Midi Evolver.jsfx" Transient-Shuffler/TransientShuffler.jsfx Reese-Basser/ReeseBasser.jsf...
+- *Bash*: cd /home/user/kallums/ext/ysfx && ls plugin plugin/components 2>/dev/null | head -40; wc -l plugin/processor.cpp plugin/components/graphi...
+- *Bash*: cd /home/user/kallums/ext/ysfx && grep -n "ysfx_[a-z_]*(" plugin/processor.cpp | sed 's/.*\(ysfx_[a-z_]*\)(.*/\1/' | sort | uniq -c | sor...
+- *Bash*: cd /home/user/kallums/ext/ysfx && grep -n "ysfx_config_new\|ysfx_register_builtin\|ysfx_new\|ysfx_load_file\|ysfx_compile\|ysfx_set_sampl...
+- *Bash*: cd /home/user/kallums/ext/ysfx && sed -n 530,560p plugin/processor.cpp; sed -n 755,790p plugin/processor.cpp; grep -n "ysfx_[a-z_]*(" plu...
+*(Interrupted, 2026-11-16 23:49: Claude stopped there, before doing any of it.)*
+
+## You (2026-11-16 23:50)
+
+The repos might have branches that could help
+
+## Claude (2026-11-16 23:50)
+
+Checking every repo's branches:
+
+- *Bash*: cd /home/user/kallums && for r in Midi-Evolver Instant-Virtual-Instrument Transient-Shuffler Midi-Catalogue Starting-Blocks Starting-Bloc...
+- *Bash*: cd /home/user/kallums && for r in Starting-Blocks Starting-Blocks-Notation Reese-Basser Reverberator Instrument-Creator; do git -C $r fet...
+
+## Claude (2026-11-16 23:50)
+
+The `plugin` branches are exactly that. The three JSFX ones share a JUCE wrapper (`JsfxPlugin.cpp`), and the Starting Blocks pair run their Lua in a plug-in through ImGui. Reading the JSFX wrapper:
+
+- *Bash*: cd /home/user/kallums/Reverberator && git show plugin:plugin/wrapper.cmake | head -80; git show plugin:plugin/source/JsfxPlugin.h | head ...
+- *Bash*: cd /home/user/kallums/Reverberator && git show plugin:plugin/source/JsfxPlugin.cpp
+- *Bash*: cd /home/user/kallums && for r in Reese-Basser:ReeseBasser.jsfx Reverberator:Reverberator.jsfx Instrument-Creator:Instrument-Creator.jsfx...
+- *Bash*: cd /home/user/kallums && for r in Reese-Basser:ReeseBasser.jsfx Reverberator:Reverberator.jsfx Instrument-Creator:Instrument-Creator.jsfx...
+
+## Claude (2026-11-16 23:51)
+
+Same files on both branches. Vendoring the five `.jsfx` files from each repo's main branch (recording the commits), and checking what ysfx's graphics view pulls in:
+
+- *Bash*: mkdir -p Engines/jsfx && K=/home/user/kallums; cp "$K/Midi-Evolver/Midi Evolver.jsfx" "Engines/jsfx/Midi Evolver.jsfx"; cp $K/Transient-S...
+
+## Claude (2026-11-16 23:51)
+
+Checking which of ysfx's submodules its engine build needs:
+
+- *Bash*: cd /home/user/kallums/ext/ysfx && cat .gitmodules; ls thirdparty; grep -rn "dr_libs\|clap-juce" cmake.deps.txt cmake.wdl.txt cmake.ysfx.t...
+
+## Claude (2026-11-16 23:51)
+
+Only `dr_libs` is needed. Adding ysfx to the build, and having the embedder carry `.jsfx` files too:
+
+- *Bash*: python3 - <<'EOF' def rep(p,a,b,n=1):     s=open(p).read(); assert s.count(a)==n,(p,a[:60],s.count(a)); open(p,'w').write(s.replace(a,b))...
+- *Bash*: grep -n "ysfx::ysfx" -B3 -A3 cmake/App.cmake
+
+## Claude (2026-11-16 23:51)
+
+Now the device itself, adapted from the repos' wrapper:
+
+- *Write*: /home/user/Kalibre/Source/Engine/JsfxDevice.h
+- *Write*: /home/user/Kalibre/Source/Engine/JsfxDevice.cpp
+
+## Claude (2026-11-16 23:52)
+
+Now hooking it into the built-in devices and the Add menu:
+
+- *Bash*: python3 - <<'EOF' def rep(p,a,b,n=1):     s=open(p).read(); assert s.count(a)==n,(p,a[:60],s.count(a)); open(p,'w').write(s.replace(a,b))...
+
+## Claude (2026-11-16 23:53)
+
+Configured. Building (ysfx and WDL compile for the first time):
+
+- *Bash*: cmake --build build 2>&1 | grep -E "error|Error" | head -20; cmake --build build 2>&1 | tail -2
+
+## Claude (2026-11-16 23:53)
+
+JUCE 9 makes plug-in instances add parameters as "hosted parameters". Checking how Kalibre's other built-ins do it:
+
+- *Bash*: grep -n "class MorphParameter\|addHostedParameter\|HostedParameter" Source/Engine/*.h Source/Engine/*.cpp | head; grep -n "class MorphPar...
+- *Bash*: python3 - <<'EOF' def rep(p,a,b,n=1):     s=open(p).read(); assert s.count(a)==n,(p,a[:60],s.count(a)); open(p,'w').write(s.replace(a,b))...
+- *Bash*: cat >> Tests/App/TestEngine.cpp <<'EOF'  #include "JsfxDevice.h"  TEST ("jsfx: the family's five JSFX load, each with its sliders as para...
+
+## Claude (2026-11-16 23:59)
+
+The test should open the window as Kalibre does (`editors::open`), not call `createEditor` directly:
+
+- *Bash*: python3 - <<'EOF' p='/home/user/Kalibre/Tests/App/TestEngine.cpp' s=open(p).read() s=s.replace("""        std::unique_ptr<AudioProcessorE...
+- *Bash*: python3 - <<'EOF' p='/home/user/Kalibre/tools/RenderWindow.cpp' s=open(p).read() a="""        // Kalibre's own synth and sampler, side by...
+- *Read*: /tmp/claude-0/-home-user-Kalibre/8a946807-4283-518b-8867-98a9109befa1/scratchpad/r/renders/21-jsfx-devices.png
+- *Bash*: python3 - <<'EOF' p='/home/user/Kalibre/Engines/VENDORED.md' s=open(p).read() s=s.replace("""| `good-idea/` | KallumS/Good-Idea | 91500c5...
+- *TaskUpdate*: 2
+
+## Claude (2026-11-17 00:00)
+
+Stage 2, Instant Virtual Instrument. Looking at its processor and what the plug-in sources need:
+
+- *Bash*: cd /home/user/kallums/Instant-Virtual-Instrument && git log -1 --format='%h %ci'; wc -l Source/*/*.cpp Source/*/*.h | tail -1; sed -n 60,...
+- *Bash*: cd /home/user/kallums/Instant-Virtual-Instrument && grep -rhn "^namespace\|^class \|^struct " Source | sort | uniq | head -40; grep -rn "...
+- *Bash*: cd /home/user/kallums/Instant-Virtual-Instrument && head -3 LICENSE; grep -n "createEditor\|AudioProcessorValueTreeState\|getStateInforma...
+- *Bash*: mkdir -p ThirdParty/InstantVirtualInstrument && cp -r /home/user/kallums/Instant-Virtual-Instrument/Source ThirdParty/InstantVirtualInstr...
+- *Bash*: sed -n 1,60p ThirdParty/InstantVirtualInstrument/Source/Plugin/PluginProcessor.h; cat ThirdParty/InstantVirtualInstrument/Source/Core/Juc...
+
+## Claude (2026-11-17 00:01)
+
+It needs JUCE's `juce_dsp` module too. Writing the wrapper device:
+
+- *Write*: /home/user/Kalibre/Source/Engine/HostedProcessor.h
+- *Write*: /home/user/Kalibre/Source/Engine/HostedProcessor.cpp
+
+## Claude (2026-11-17 00:01)
+
+The destructor shouldn't delete a window it doesn't own (the rack closes windows before devices go), so I'm removing that. Then the build wiring:
+
+- *Bash*: python3 - <<'EOF' def rep(p,a,b,n=1):     s=open(p).read(); assert s.count(a)==n,(p,a[:60],s.count(a)); open(p,'w').write(s.replace(a,b))...
+
+## Claude (2026-11-17 00:02)
+
+`juce_dsp` is already linked. Now a small factory, compiled with IVI's include folder, and the menu entry:
+
+- *Bash*: cat > Source/Engine/InstantVirtualInstrument.cpp <<'EOF' // Instant Virtual Instrument as a built-in instrument (decision 0067): its own ...
+
+## Claude (2026-11-17 00:02)
+
+`BusesProperties` is only reachable from inside a processor class, so `busesOf` becomes a static member, as `TimedPlugin` has it:
+
+- *Bash*: python3 - <<'EOF' def rep(p,a,b,n=1):     s=open(p).read(); assert s.count(a)==n,(p,a[:60],s.count(a)); open(p,'w').write(s.replace(a,b))...
+
+## Claude (2026-11-17 00:03)
+
+Instant Virtual Instrument compiles under JUCE 9. For a playing test I need to know whether it starts with a sound loaded:
+
+- *Bash*: sed -n 12,56p ThirdParty/InstantVirtualInstrument/Source/Plugin/PluginProcessor.cpp; grep -n "void IVIProcessor::loadDemo" -A15 ThirdPart...
+- *Bash*: python3 - <<'EOF' def rep(p,a,b,n=1):     s=open(p).read(); assert s.count(a)==n,(p,a[:60],s.count(a)); open(p,'w').write(s.replace(a,b))...
+
+## Claude (2026-11-17 00:04)
+
+The demo played and the window opens, but the saved parameter didn't come back as set. Checking what was set and what came back:
+
+- *Bash*: python3 - <<'EOF' p='/home/user/Kalibre/Tests/App/TestEngine.cpp' s=open(p).read() s=s.replace("""    CHECK (std::abs (again->getParamete...
+
+## Claude (2026-11-17 00:04)
+
+That parameter is Articulation, which the instrument resets when no sample is loaded (the fresh copy has none). A plain sound parameter is the fair test, so the test uses Brightness:
+
+- *Bash*: python3 - <<'EOF' p='/home/user/Kalibre/Tests/App/TestEngine.cpp' s=open(p).read() s=s.replace("""    // A parameter set through Kalibre ...
+
+## Claude (2026-11-17 00:05)
+
+Still not restored. Reading how Instant Virtual Instrument saves and loads:
+
+- *Bash*: sed -n 432,520p ThirdParty/InstantVirtualInstrument/Source/Plugin/PluginProcessor.cpp
+- *Bash*: python3 - <<'EOF' p='/home/user/Kalibre/Source/Engine/HostedProcessor.cpp' s=open(p).read() a="""    void setValue (float v) override { f...
+
+## Claude (2026-11-17 00:05)
+
+All 60 pass. A render of it in the rack, with its demo loaded:
+
+- *Bash*: python3 - <<'EOF' p='/home/user/Kalibre/tools/RenderWindow.cpp' s=open(p).read() a="""        // Kalibre's own synth and sampler, side by...
+- *Read*: /tmp/claude-0/-home-user-Kalibre/8a946807-4283-518b-8867-98a9109befa1/scratchpad/r/renders/22-instant-virtual-instrument.png
+
+## Claude (2026-11-17 00:06)
+
+Its own window, with the demo analysed ("Demo Strings is ready… 73 keys × 5 layers × 4 round robins"). Checking the Mac build of stage 1 before pushing stage 2:
+
+- *mcp__github__actions_list*: list_workflow_runs
+
+## Claude (2026-11-17 00:06)
+
+Still running. Committing stage 2 meanwhile:
+
+- *Bash*: cat > docs/decisions/0067-instant-virtual-instrument-built-in.md <<'EOF' # 0067. Instant Virtual Instrument, built in  ## Context  One of...
+- *TaskUpdate*: 3
+
+## Claude (2026-11-17 00:06)
+
+Stage 3, the four Lua tools. Starting Blocks and Starting Blocks Notation have `plugin` branches; reading how those run the script:
+
+- *Bash*: cd /home/user/kallums/Starting-Blocks && git show plugin:plugin/CMakeLists.txt | head -80; git show plugin:plugin/source/Plugin.h | head -80
+- *Bash*: cd /home/user/kallums/Starting-Blocks && for f in $(git ls-tree -r --name-only plugin plugin/ | grep -v "\.gitignore"); do echo "$(git sh...
+- *Bash*: cd /home/user/kallums/Starting-Blocks && git show plugin:plugin/build.sh | sed -n 12,30p; git show plugin:plugin/source/Session.h; git sh...
+- *Bash*: cd /home/user/kallums/Starting-Blocks && git show plugin:plugin/source/ImGuiLua.h | head -31; git show plugin:plugin/source/Session.cpp |...
+- *Bash*: grep -n "LUA_VERSION_RELEASE\b\|LUA_VERSION_RELEASE_NUM\|define LUA_VERSION_MINOR" ThirdParty/lua/lua.h | head -3; grep -rln "lua.h\|laux...
+
+## Claude (2026-11-17 00:07)
+
+Same version (5.4.7). Switching Kalibre's Lua to build as C++, then running the core tests (scripting and Good Idea use it):
+
+- *Bash*: python3 - <<'EOF' def rep(p,a,b,n=1):     s=open(p).read(); assert s.count(a)==n,(p,a[:60],s.count(a)); open(p,'w').write(s.replace(a,b))...
+
+## Claude (2026-11-17 00:07)
+
+Core still passes with Lua as C++. Reading the rest of the plug-in's `sb_place.lua` stand-in, the part that gets a block into the song, and the REAPER original it replaces:
+
+- *Bash*: cd /home/user/kallums/Starting-Blocks && git show plugin:plugin/lua/sb_place.lua | sed -n 60,136p; echo ======; grep -n "^function M\.\|^...
+- *mcp__github__actions_list*: list_workflow_runs
+- *Bash*: Check working tree state and scratchpad
+- *ToolSearch*: select:mcp__github__actions_list,mcp__github__get_job_logs,Monitor
+- *Bash*: Rebuild app and run app tests after Lua change
+- *mcp__github__actions_list*: list_workflow_runs
+- *Bash*: Commit Lua change, find cloned repos
+- *Bash*: List cloned repos and branches
+- *Bash*: Inspect SB plugin branch files
+
+## Claude (2026-11-17 00:10)
+
+Building the Lua-tool host for Starting Blocks now (Lua-as-C++ change committed, app tests still pass; Mac CI for the JSFX and Instant Virtual Instrument builds is still running).
+
+- *Bash*: Extract SB plugin branch to scratchpad
+- *Bash*: Read SB plugin headers
+- *Bash*: Read Session.cpp
+- *Bash*: Read Plugin.cpp
+- *Bash*: Read SB plugin place stand-in and its usage
+- *Bash*: See how the window script uses Place
+
+## Claude (2026-11-17 00:10)
+
+Adapting the Starting Blocks plug-in host (its Lua + ImGui window runner) into Kalibre as one shared "script device" for Starting Blocks, Starting Blocks Notation and Midi Catalogue.
+
+- *Bash*: Compare SBN plugin branch with SB
+- *Bash*: Inspect Midi Catalogue and embed mechanism
+- *Bash*: Read Midi Catalogue's place and REAPER calls
+- *Bash*: Compare ImGui functions MC needs vs provided
+- *Bash*: Read ImGuiLua registration and constants
+- *Bash*: Read MC's insert, loop end, key usage
+
+## Claude (2026-11-17 00:11)
+
+Porting the host now: Dear ImGui fetched by the build, the Lua window scripts embedded, and the block handed to the audio thread through Kalibre's `Swap` (the original uses a lock).
+
+- *Bash*: Look at Swap and built-in device factory
+- *Bash*: Find where built-in devices are listed
+- *Bash*: Find instance lookup and clip-adding edits
+- *Bash*: Look at newMidiClip and edit functions
+- *Bash*: See clip creation, apply, tick units
+- *Bash*: Note struct, TrackKind, addBuiltIn
+
+## Claude (2026-11-17 00:11)
+
+Writing the code now: three Lua tools (Starting Blocks, Starting Blocks Notation, Midi Catalogue) sharing one host; Orchestration Helper after.
+
+- *Bash*: Vendor the Lua tool scripts into Engines/tools
+- *Bash*: Fix SBN copy, check Ideas file filter
+- *Bash*: Write Kalibre's place stand-ins
+- *Bash*: Check MC note and part shapes
+- *Bash*: Look at ImGuiLua functions and App.cmake fetches
+- *Bash*: Read App.cmake head
+
+## Claude (2026-11-17 00:12)
+
+Adding Dear ImGui to the build and writing the device's C++ (processor, window, Lua session).
+
+- *Bash*: Add Dear ImGui and LuaTool sources to App.cmake
+- *Bash*: Link ImGui; copy ImGuiLua sources
+- *Bash*: Adapt ImGuiLua to Kalibre namespace, add MC needs
+
+## Claude (2026-11-17 00:13)
+
+Now the session (the Lua + ImGui runner) and the device.
+
+- *Bash*: Write ToolSession.h and LuaTool.h
+- *Bash*: Write ToolProcessor.h
+- *Bash*: Write ToolSession.cpp
+- *Bash*: Add run() to session; check theme colours
+- *Bash*: Check if Engine uses Theme.h
+
+## Claude (2026-11-17 00:14)
+
+Now the device itself (LuaTool.cpp), built from the plug-in's Plugin.cpp.
+
+- *Bash*: Write LuaTool.cpp, pasting the editor and drawImGui
+- *Bash*: Adapt pasted editor to Kalibre names
+- *Bash*: Read addTrack and addClip; model fields
+- *Bash*: Find device lookup and Controller ctor
+- *Bash*: Add Controller::placeToolBlock and hook
+- *Bash*: Register tools in makeBuiltIn; view rack menu
+
+## Claude (2026-11-17 00:16)
+
+Wiring it into the Add menu, then building.
+
+- *Bash*: Add menu entries, configure and build
+- *Bash*: Confirm build completes
+
+## Claude (2026-11-17 00:21)
+
+Builds. Writing the tests: each tool's script starts without error, its block plays through MIDI out, Insert at Cursor puts the block in the song as one undo step, and settings survive save/load.
+
+- *Bash*: Find existing device tests to mirror
+- *Bash*: See IVI test structure
+- *Bash*: See how JSFX MIDI-out tested
+- *Bash*: See rest of IVI test and Controller-based test setup
+- *Bash*: Controller test setup and seeking
+- *Bash*: Write tool tests, build and run
+
+## Claude (2026-11-17 00:22)
+
+Both new tests pass first time (62 app tests). Now a render to see the windows.
+
+- *Bash*: See existing renders 21, 22
+- *Bash*: Add tool renders and produce them
+- *Read*: /home/user/Kalibre/build/renders/23-starting-blocks.png
+- *Read*: /home/user/Kalibre/build/renders/23-midi-catalogue.png
+- *Read*: /home/user/Kalibre/build/renders/23-starting-blocks-notation.png
+
+## Claude (2026-11-17 00:22)
+
+All three run their own windows in the rack. Committing, then Orchestration Helper.
+
+- *Bash*: Commit and push stage 3a
+
+## Claude (2026-11-17 00:22)
+
+Now Orchestration Helper.
+
+- *Bash*: Inspect Orchestration Helper repo
+- *Bash*: Read the gfx host for Orchestration Helper
+- *Bash*: Read rest of host.c
+- *Bash*: Read OH script head and host calls
+- *Bash*: Read OH menu, input loop, fonts
+- *Bash*: Check modal loops and OH main loop
+
+## Claude (2026-11-17 00:23)
+
+Orchestration Helper draws with REAPER's `gfx` rather than ImGui, so it gets its own small JUCE drawing backend, ported from its Mac app's host. Reading its key and menu handling now.
+
+- *Bash*: Find key and menu code in mac.m
+- *Bash*: Read mac.m keys, fonts, menu
+- *Bash*: Vendor OH scripts, list gfx usage
+
+## Claude (2026-11-17 00:23)
+
+Writing the gfx backend now.
+
+- *Bash*: Write GfxTool.h
+- *Bash*: Write GfxTool.cpp
+- *Bash*: Fix includes/menu; add GfxTool.cpp to build
+- *Bash*: Register Orchestration Helper and build
+- *Bash*: Fix menu position types, rebuild
+- *Bash*: Extend test for OH, build, run
+
+## Claude (2026-11-17 00:27)
+
+Orchestration Helper passes its test too. Rendering it to check how it looks.
+
+- *Bash*: Render Orchestration Helper
+- *Read*: /home/user/Kalibre/build/renders/23-orchestration-helper.png
+
+## Claude (2026-11-17 00:27)
+
+Looks right. Now checking typing works: a render of Orchestration Helper after typing "trombone" into its search box.
+
+- *Bash*: Find how to reach a device editor in renders
+- *Bash*: Render OH after typing a search
+- *Bash*: Look at render window setup
+- *Bash*: Search from the render window instead
+- *Bash*: Check how PluginClip holds editors on Linux
+- *Bash*: Find innermost editor and render
+- *Read*: /home/user/Kalibre/build/renders/23-orchestration-helper-search.png
+
+## Claude (2026-11-17 00:29)
+
+Typing works: "trombone" finds its page. Committing and checking the Mac builds.
+
+- *Bash*: Commit and push Orchestration Helper
+- *mcp__github__actions_list*: list_workflow_runs
+
+## Claude (2026-11-17 00:29)
+
+The Mac builds for the JSFX devices and Instant Virtual Instrument both passed. Writing the docs while the latest build runs.
+
+- *Bash*: Look at decision records and VENDORED
+
+## Claude (2026-11-17 00:29)
+
+You've hit your 5-hour limit · resets 2:30am (UTC)
+
+## You (2026-11-17 07:41)
+
+Try again
+
+## Claude (2026-11-17 07:41)
+
+- *Bash*: Check repo and build state after restart
+- *mcp__github__actions_list*: list_workflow_runs
+
+## Claude (2026-11-17 07:41)
+
+All four Mac builds passed (JSFX, Instant Virtual Instrument, the three ImGui tools, Orchestration Helper), and nothing was lost. Finishing the docs.
+
+- *Bash*: Find where docs need updates
+- *Bash*: Context for FEATURES, ARCHITECTURE, README
+- *Bash*: Read ARCHITECTURE engine table and rules tail
+
+## Claude (2026-11-17 07:41)
+
+Writing decision 0068 and updating FEATURES, ARCHITECTURE, VENDORED, README and the session log.
+
+- *Bash*: Write 0068 and update FEATURES, ARCHITECTURE, VENDORED
+- *Bash*: Copy screenshots, read README features list
+- *Bash*: Update README, session log; commit and push docs
+- *SendUserFile*: docs/starting-blocks.png, docs/midi-catalogue.png, docs/orchestration-helper.png, docs/jsfx-devices.png, docs/instant-virtual-instrument.png
+
+## Claude (2026-11-17 07:42)
+
+All ten repos you named now work as devices in Kalibre. To add one, click **+ Add > Kalibre**; they're listed under "KallumS". The Mac builds for each stage passed, and the newest `.dmg` is at Actions > Build > Kalibre-macOS once the docs build finishes.
+
+The branches you mentioned saved a lot of work. Each tool runs its own original files from your repos, unchanged, so each opens the same window it has in REAPER.
+
+- **Midi Evolver, Transient Shuffler, Reese Basser, Reverberator, Instrument Creator:**
+  - Their sliders can be automated.
+  - Their settings save with the song.
+  - Midi Evolver's notes play the instrument after it.
+- **Instant Virtual Instrument** is built in as an instrument.
+- **Starting Blocks, Starting Blocks Notation, Midi Catalogue** go on a track as MIDI effects:
+  - **Audition** and **Play with the Song** play the block through the instrument after it.
+  - **Insert at Cursor** puts the block on that track as a MIDI clip, starting at the playhead. One undo removes it.
+  - When a Midi Catalogue block covers a section, each instrument gets its own new track, named for it.
+- **Orchestration Helper** sits beside the track as a reference you can search. Its sound passes straight through it. In the test picture, typing "trombone" opened the trombone page.
+
+Tests check that each one opens without errors, plays its notes and keeps its settings when the song is saved and reopened, and that Insert at Cursor works. I haven't been able to try them on a real Mac. Please check typing into the boxes, the menus, and trackpad scrolling in Orchestration Helper.
+
+Because your scripts are unchanged, a few on-screen words are still REAPER's. For example, Midi Catalogue's tips mention the "virtual keyboard" and "REAPER's resource folder", and "edit cursor" means the playhead. Those would be fixed in the scripts' own repos, then copied in again.
+
+The docs are updated with the screenshots above, and the reasons are in decision 0068.
+
+## You (2026-11-17 07:43)
+
+Please back up the chat to GitHub
+
+## Claude (2026-11-17 07:43)
+
+- *Bash*: Check export tool usage and transcripts
+- *Bash*: See how titles/descriptions are passed
+- *Bash*: Regenerate the chat backup through now
