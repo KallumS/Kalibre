@@ -30,6 +30,12 @@ grow and shrink with it.
   export.
 - **MIDI effects** (Scaler, arpeggiators, sequencers) always run before the
   instrument.
+- **The family's own tools, built in** (Add > Kalibre): Midi Evolver,
+  Transient Shuffler, Reese Basser, Reverberator and Instrument Creator (the
+  JSFX REAPER runs); Instant Virtual Instrument; Starting Blocks, Starting
+  Blocks Notation and Midi Catalogue, whose Insert at Cursor puts the block
+  in the song; and Orchestration Helper beside the track. Each in its own
+  window, as in REAPER.
 - **The scale and the chord** at the top of the window; the scale shaded in
   the piano roll, a chord lane along the timeline.
 - **Five ways to write notes**: the piano roll (click to add, right-click to
@@ -99,6 +105,11 @@ grow and shrink with it.
 ![The step sequencer lighting the step being played](docs/steps-playing.png)
 ![Auto: a violin line's CC lanes, drawn as AutoCC plays strings](docs/auto-cc.png)
 ![Arming four ways: audio (red), MIDI (blue), both, MIDI input](docs/arm-four-ways.png)
+![Reese Basser and Reverberator in the rack](docs/jsfx-devices.png)
+![Instant Virtual Instrument](docs/instant-virtual-instrument.png)
+![Starting Blocks](docs/starting-blocks.png)
+![Midi Catalogue](docs/midi-catalogue.png)
+![Orchestration Helper, "trombone" searched](docs/orchestration-helper.png)
 ![The clip launcher](docs/launcher.png)
 ![The Meters tab](docs/meters.png)
 

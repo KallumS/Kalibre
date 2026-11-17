@@ -69,3 +69,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0065. Shift to arm for both, or for MIDI input](0065-arm-for-both-or-midi-input.md)
 - [0066. The family's JSFX as devices](0066-the-familys-jsfx-as-devices.md)
 - [0067. Instant Virtual Instrument, built in](0067-instant-virtual-instrument-built-in.md)
+- [0068. The family's ReaScripts as devices](0068-the-familys-reascripts-as-devices.md)

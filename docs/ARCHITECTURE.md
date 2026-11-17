@@ -47,6 +47,9 @@
 | `Engine/LoudnessMatch.h` | Match Loudness: output held to the input's short-term loudness (0056). |
 | `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050), and on a track armed for MIDI catches what its instrument is played (`MidiTap`, 0064). |
 | `Engine/BuiltinInstruments.*`, `HardwareInsert.*` | Kalibre Synth and Sampler (0039); the hardware insert and the interface's channels it shares (0040). |
+| `Engine/JsfxDevice.*` | The family's JSFX as devices, run by ysfx (0066). |
+| `Engine/HostedProcessor.*` | A plain JUCE `AudioProcessor` compiled into Kalibre as a device: parameters passed on, its window inside the device's (0067). |
+| `Engine/LuaTool/` | The family's ReaScripts as devices (0068): `ImGuiLua` (ReaImGui on Dear ImGui), `ToolSession` (a script's Lua, `reaper` and `host`), `LuaTool` (the processor, the window); `GfxTool` (gfx, for Orchestration Helper). |
 | `Engine/Mp3Writer.*` | MP3 export through Shine (0041). |
 | `Engine/NetworkMidi*` | The Mac's network MIDI session (0043). |
 | `Source/App/` | The window (0002). `Controller` owns the project, undo, the selection and every command; the views ask it. |
@@ -63,10 +66,10 @@
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
 | `tools/RenderWindow.cpp` | Draws the window into PNGs on CI (0023). |
 | `tools/export-chat.py` | Writes a session's transcript as the chat backup in `docs/sessions/`; a new part's title and description are its last two arguments. |
-| `Engines/` | The family's Lua engines, copied unchanged from their repositories (`Engines/VENDORED.md`). |
+| `Engines/` | The family's engines, JSFX and ReaScripts (`tools/`), copied unchanged from their repositories (`Engines/VENDORED.md`), embedded in the app. |
 | `Scripts/` | Example scripts. |
 | `Resources/` | The app icon: `Icon.svg`, and `Icon.png` drawn from it (0048). |
-| `ThirdParty/` | Lua 5.4 (MIT) and nlohmann/json (MIT). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link and Shine (LGPL, MP3) are fetched by CMake. |
+| `ThirdParty/` | Lua 5.4 (MIT), nlohmann/json (MIT) and Instant Virtual Instrument's source (GPL-3.0, 0067). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link, Shine (LGPL, MP3), ysfx (Apache-2.0, 0066) and Dear ImGui (MIT, 0068) are fetched by CMake. |
 
 ## How sound flows
 
@@ -102,3 +105,5 @@ loop wraps inside the block, and runs the graph.
 - The engine's "no jump" position is `noJump` (-1e9), not -1: positions below zero are real (a count-in). With -1, live playback jumped back to -1 s every block.
 - A note's chance, velocity range and timing are rolled on the audio thread as each note-on comes up (`playback::roll`); a late one waits in `TrackSource::waiting`, a fixed list, emptied on a jump or stop (0061).
 - What the clip launcher plays (`Track::launch`) isn't saved and survives Undo.
+- Lua is compiled as C++ (0068): include its headers plainly, never inside `extern "C"`, or nothing links.
+- The family's scripts in `Engines/` are copied unchanged: what Kalibre needs differently goes in its own stand-ins (`Engines/tools/sb_place.lua`, `mc_place.lua`) or the host, and a fix to a script goes to its repo first.
