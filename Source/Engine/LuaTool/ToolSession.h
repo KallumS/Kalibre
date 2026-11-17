@@ -69,6 +69,11 @@ private:
     juce::String failure;
 };
 
+// `dofile` for the scripts: "<embedded>/tools/<tool>/x.lua" is the file
+// Kalibre carries (Engines/tools/); anything else, the real dofile (its
+// upvalue 1).
+int embeddedDofile (lua_State*);
+
 // Draws a finished ImGui frame with JUCE.
 void drawImGui (juce::Graphics&, ImDrawData*, const juce::Image& atlas);
 

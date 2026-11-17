@@ -23,7 +23,7 @@ static const embedded::File* findFile (const String& name)
     return nullptr;
 }
 
-static const embedded::File* resource (const String& path)
+const embedded::File* resource (const String& path)
 {
     if (! path.startsWith (String (EMBEDDED) + "/")) return nullptr;
     const auto inside = path.fromFirstOccurrenceOf ("/", false, false);   // tools/<tool>/x.lua
@@ -57,7 +57,7 @@ namespace kal::tools
 
 // ---- dofile, for the script's own files ------------------------------------------
 
-static int embeddedDofile (lua_State* L)
+int embeddedDofile (lua_State* L)
 {
     const String path = String::fromUTF8 (luaL_checkstring (L, 1));
     const auto* f = resource (path);

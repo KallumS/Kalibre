@@ -1,6 +1,7 @@
 #include "LuaTool.h"
 #include "ToolProcessor.h"
 #include "ToolSession.h"
+#include "GfxTool.h"
 #include "HostedProcessor.h"
 #include "Theme.h"
 
@@ -24,6 +25,8 @@ const std::vector<LuaToolSpec>& luaTools()
           "Starting Blocks, shown as notation" },
         { "midi-catalogue", "Midi Catalogue", "Midi Catalogue.lua",
           "A catalogue of parts for every instrument, from the choices made" },
+        { "orchestration-helper", "Orchestration Helper", "Orchestration Helper.lua",
+          "Doublings, pairings and combinations, each with its source", true },
     };
     return list;
 }
@@ -50,6 +53,7 @@ std::unique_ptr<AudioPluginInstance> makeLuaTool (const PluginRef& ref)
         d.fileOrIdentifier = ref.identifier;
         d.category = "MIDI Effect";
         d.numInputChannels = d.numOutputChannels = 2;
+        if (s.gfx) return std::make_unique<HostedProcessor> (std::make_unique<tools::GfxProcessor> (s), d);
         auto tool = std::make_unique<tools::ToolProcessor> (s);
         auto* inner = tool.get();
         auto hosted = std::make_unique<HostedProcessor> (std::move (tool), d);
@@ -59,23 +63,25 @@ std::unique_ptr<AudioPluginInstance> makeLuaTool (const PluginRef& ref)
     return nullptr;
 }
 
-static tools::ToolProcessor* toolOf (AudioPluginInstance& instance)
+template <typename P>
+static P* toolOf (AudioPluginInstance& instance)
 {
     auto* hosted = dynamic_cast<HostedProcessor*> (&instance);
-    return hosted ? dynamic_cast<tools::ToolProcessor*> (&hosted->inner()) : nullptr;
+    return hosted ? dynamic_cast<P*> (&hosted->inner()) : nullptr;
 }
 
 String luaToolError (AudioPluginInstance& instance)
 {
-    auto* t = toolOf (instance);
-    if (t == nullptr) return "not a tool";
-    return t->session() ? t->session()->error() : String ("no session");
+    if (auto* t = toolOf<tools::ToolProcessor> (instance)) return t->session() ? t->session()->error() : String ("no session");
+    if (auto* t = toolOf<tools::GfxProcessor> (instance)) return t->session() ? t->session()->error() : String ("no session");
+    return "not a tool";
 }
 
 String luaToolRun (AudioPluginInstance& instance, const String& lua)
 {
-    auto* t = toolOf (instance);
-    return t && t->session() ? t->session()->run (lua) : String ("not a tool");
+    if (auto* t = toolOf<tools::ToolProcessor> (instance); t && t->session()) return t->session()->run (lua);
+    if (auto* t = toolOf<tools::GfxProcessor> (instance); t && t->session()) return t->session()->run (lua);
+    return "not a tool";
 }
 
 namespace tools

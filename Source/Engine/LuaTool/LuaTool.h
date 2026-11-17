@@ -1,8 +1,10 @@
 /*
-    LuaTool - the family's ReaImGui tools, built into Kalibre as MIDI
-    devices (decision 0068): Starting Blocks, Starting Blocks Notation and
-    Midi Catalogue, each its own window script, unchanged, run by an embedded
-    Lua on a stand-in for ReaImGui (ImGuiLua.cpp) and drawn with JUCE.
+    LuaTool - the family's ReaScripts, built into Kalibre as MIDI devices
+    (decision 0068): Starting Blocks, Starting Blocks Notation and Midi
+    Catalogue, each its own window script, unchanged, run by an embedded Lua
+    on a stand-in for ReaImGui (ImGuiLua.cpp) and drawn with JUCE; and
+    Orchestration Helper, drawn with REAPER's gfx (GfxTool.cpp), a reference
+    beside the track that passes everything through.
 
     Adapted from the plug-in the Starting Blocks repos' plugin branches build
     (plugin/source/Plugin.cpp): the script builds a block; the device plays
@@ -33,6 +35,7 @@ struct LuaToolSpec
     const char* name;      // "Starting Blocks"
     const char* script;    // Engines/tools/<id>/<script>
     const char* about;
+    bool gfx = false;      // drawn with gfx (GfxTool), not ReaImGui
 };
 
 const std::vector<LuaToolSpec>& luaTools();

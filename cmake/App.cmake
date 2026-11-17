@@ -124,6 +124,7 @@ add_library(KalibreApp STATIC
     Source/Engine/LuaTool/LuaTool.cpp
     Source/Engine/LuaTool/ToolSession.cpp
     Source/Engine/LuaTool/ImGuiLua.cpp
+    Source/Engine/LuaTool/GfxTool.cpp
     ${ysfx_SOURCE_DIR}/plugin/components/graphics_view.cpp
     ${ysfx_SOURCE_DIR}/plugin/utility/async_updater.cpp
     ${ysfx_SOURCE_DIR}/plugin/utility/rt_semaphore.cpp

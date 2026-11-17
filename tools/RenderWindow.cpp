@@ -313,7 +313,7 @@ int main (int argc, char** argv)
             c.refresh();
         }
         // The family's ReaImGui tools in the rack (decision 0068), one at a time.
-        for (const char* id : { "starting-blocks", "starting-blocks-notation", "midi-catalogue" })
+        for (const char* id : { "starting-blocks", "starting-blocks-notation", "midi-catalogue", "orchestration-helper" })
         {
             const Id tt = edit::addTrack (c.project, TrackKind::Track, "Tools");
             for (auto& sp : luaTools())
@@ -324,6 +324,27 @@ int main (int argc, char** argv)
             window.lowerHeight = 560;
             for (int i = 0; i < 12; ++i) MessageManager::getInstance()->runDispatchLoopUntil (40);   // the script draws on a timer
             shoot ("23-" + String (id));
+            if (String (id) == "orchestration-helper")
+            {
+                // Typed into its search box, as from the keyboard.
+                std::function<Component* (Component&)> find = [&] (Component& in) -> Component*
+                {
+                    for (auto* ch : in.getChildren())   // the innermost: the script's own window
+                    {
+                        if (auto* r = find (*ch)) return r;
+                        if (auto* ed = dynamic_cast<AudioProcessorEditor*> (ch); ed && ed->processor.getName() == "Orchestration Helper") return ed;
+                    }
+                    return nullptr;
+                };
+                Component* ed = find (window);
+                if (ed != nullptr)
+                {
+                    for (auto ch : String ("trombone")) ed->keyPressed (KeyPress ((int) ch, 0, ch));
+                    for (int i = 0; i < 12; ++i) MessageManager::getInstance()->runDispatchLoopUntil (40);
+                    shoot ("23-orchestration-helper-search");
+                }
+                else std::printf ("no Orchestration Helper window found\n");
+            }
             window.lowerHeight = 320;
             edit::removeTrack (c.project, tt);
             c.refresh();

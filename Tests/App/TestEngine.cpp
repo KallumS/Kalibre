@@ -698,7 +698,7 @@ TEST ("instant virtual instrument: built in, its parameters passed on, its windo
 
 #include "LuaTool/LuaTool.h"
 
-TEST ("lua tools: Starting Blocks, its Notation and Midi Catalogue run their own scripts, play their block, keep their settings")
+TEST ("lua tools: Starting Blocks, its Notation, Midi Catalogue and Orchestration Helper run their own scripts, play their block, keep their settings")
 {
     for (const auto& spec : luaTools())
     {
@@ -717,8 +717,17 @@ TEST ("lua tools: Starting Blocks, its Notation and Midi Catalogue run their own
             CHECK_EQ (luaToolError (*inst), String());
         }
 
+        // Orchestration Helper draws its page with gfx: something is on it.
+        if (spec.gfx)
+        {
+            CHECK (luaToolRun (*inst, "return gfx.w").getIntValue() >= 320);
+            CHECK (luaToolRun (*inst, "return gfx.texth").getIntValue() > 4);
+        }
+
         // Audition plays the block through MIDI out. Midi Catalogue hands its
         // block over when Audition is clicked; the others as soon as they start.
+        if (! spec.gfx)
+        {
         if (String (spec.id) == "midi-catalogue")
             luaToolRun (*inst, "host.setBlock({ { start = 0, len = 1, pitch = 64, vel = 90 } }, 4)");
         inst->prepareToPlay (48000, 512);
@@ -733,6 +742,7 @@ TEST ("lua tools: Starting Blocks, its Notation and Midi Catalogue run their own
         }
         CHECK (ons > 0);
         if (ons == 0) std::printf ("    %s: no notes\n", spec.id);
+        }
 
         // Its settings (REAPER's ExtState) go with the project.
         luaToolRun (*inst, "reaper.SetExtState('kalibre-test', 'k', 'kept', true)");
