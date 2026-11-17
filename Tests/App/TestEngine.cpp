@@ -558,3 +558,97 @@ TEST ("chance and timing: an export plays each note as often as its chance says,
     }
     CHECK (off > 20);   // most land off the grid, either way
 }
+
+#include "JsfxDevice.h"
+#include "Editors.h"
+
+TEST ("jsfx: the family's five JSFX load, each with its sliders as parameters, and keep their state")
+{
+    for (auto& s : jsfxDevices())
+    {
+        auto inst = makeJsfx (jsfxRef (s));
+        CHECK (inst != nullptr);
+        if (! inst) continue;
+        CHECK (inst->getParameters().size() > 0);           // compiled: its sliders are there
+        if (inst->getParameters().isEmpty()) { std::printf ("    %s didn't compile\n", s.name); continue; }
+        inst->prepareToPlay (48000, 512);
+        // A slider moved, saved, and loaded into a fresh one.
+        auto* p = inst->getParameters()[0];
+        p->setValueNotifyingHost (p->getValue() < 0.5f ? 0.8f : 0.2f);
+        AudioBuffer<float> b (2, 512);
+        MidiBuffer m;
+        b.clear();
+        inst->processBlock (b, m);
+        MemoryBlock state;
+        inst->getStateInformation (state);
+        auto again = makeJsfx (jsfxRef (s));
+        again->setStateInformation (state.getData(), (int) state.getSize());
+        CHECK (std::abs (again->getParameters()[0]->getValue() - p->getValue()) < 0.01f);
+        // Its window opens.
+        editors::Owned e (editors::open (*inst));
+        CHECK (e != nullptr && dynamic_cast<GenericAudioProcessorEditor*> (e.get()) == nullptr);
+        if (e) CHECK (e->getWidth() >= s.minWidth && e->getHeight() >= s.minHeight);
+    }
+}
+
+TEST ("jsfx: Reese Basser and Instrument Creator play a note; Reverberator rings on after a click; Midi Evolver's notes play the synth")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    auto find = [] (const char* id) -> const JsfxSpec& { for (auto& s : jsfxDevices()) if (String (s.id) == id) return s; return jsfxDevices().front(); };
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    auto peakIn = [&fm] (const File& f, double from, double to)
+    {
+        std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+        if (! r) return 0.0f;
+        AudioBuffer<float> b (2, (int) r->lengthInSamples);
+        r->read (&b, 0, b.getNumSamples(), 0, true, true);
+        const int a = (int) (from * r->sampleRate), z = jmin (b.getNumSamples(), (int) (to * r->sampleRate));
+        return z > a ? b.getMagnitude (a, z - a) : 0.0f;
+    };
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 2.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    String error;
+
+    for (const char* id : { "reese-basser", "instrument-creator" })
+    {
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, id);
+        edit::addDevice (p, t, jsfxRef (find (id)), DeviceRole::Instrument);
+        const Id clip = edit::addMidiClip (p, t, 0, PPQ * 4);
+        edit::addNote (p, clip, { .start = 0, .length = PPQ * 2, .pitch = 48, .velocity = 110 });
+        const auto out = tempFolder().getChildFile (String (id) + ".wav");
+        CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+        const float peak = peakIn (out, 0.0, 1.0);
+        CHECK (peak > 0.01f);
+        if (peak <= 0.01f) std::printf ("    %s: peak %f\n", id, peak);
+    }
+
+    {
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, "Reverb");
+        edit::addClip (p, t, audioClip (clickFile (0.1), 0, PPQ * 4));
+        edit::addDevice (p, t, jsfxRef (find ("reverberator")), DeviceRole::AudioFx);
+        const auto out = tempFolder().getChildFile ("reverberator.wav");
+        CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+        const float tail = peakIn (out, 0.4, 1.5);
+        CHECK (tail > 0.0005f);                      // the click rings on in the material
+        if (tail <= 0.0005f) std::printf ("    reverberator tail %f\n", tail);
+    }
+
+    {
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, "Evolving");
+        edit::addDevice (p, t, jsfxRef (find ("midi-evolver")), DeviceRole::MidiFx);
+        edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+        const Id clip = edit::addMidiClip (p, t, 0, PPQ * 8);
+        for (int pitch : { 48, 52, 55 }) edit::addNote (p, clip, { .start = 0, .length = PPQ * 6, .pitch = pitch, .velocity = 100 });
+        o.end = 3.0;
+        const auto out = tempFolder().getChildFile ("evolver.wav");
+        CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+        const float peak = peakIn (out, 0.0, 3.0);
+        CHECK (peak > 0.01f);                         // the synth heard what Midi Evolver played
+        if (peak <= 0.01f) std::printf ("    evolver: peak %f\n", peak);
+    }
+}

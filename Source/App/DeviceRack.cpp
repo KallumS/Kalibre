@@ -6,6 +6,7 @@
 #include "MorphProcessor.h"
 #include "ContainerProcessor.h"
 #include "Editors.h"
+#include "JsfxDevice.h"
 #include "PluginClip.h"
 
 namespace kal
@@ -714,6 +715,14 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();
     kalibre.addItem ("Container (Plug-ins on a Band, the Mid or the Sides)", [&c, track] { c.addBuiltIn (track, containerRef(), DeviceRole::AudioFx); });
+    // The family's JSFX, built in (decision 0066).
+    kalibre.addSeparator();
+    kalibre.addSectionHeader ("KallumS");
+    for (auto& s : jsfxDevices())
+    {
+        const char* kinds[] { "MIDI Effect", "Instrument", "Effect" };
+        kalibre.addItem (String (s.name) + "  (" + kinds[(int) s.role] + ")", [&c, track, &s] { c.addBuiltIn (track, jsfxRef (s), s.role); });
+    }
     PopupMenu m;
     m.addSubMenu ("MIDI Effects", midi, midi.getNumItems() > 0);
     m.addSubMenu ("Instruments", instruments, instruments.getNumItems() > 0);

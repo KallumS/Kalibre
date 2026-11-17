@@ -9,6 +9,7 @@
 #include "Comp.h"
 #include "Song.h"
 #include "MainComponent.h"
+#include "JsfxDevice.h"
 
 using namespace juce;
 using namespace kal;
@@ -278,6 +279,21 @@ int main (int argc, char** argv)
             shoot ("17-container");
             window.lowerHeight = 320;
             edit::removeTrack (c.project, t);
+            c.refresh();
+        }
+        // The family's JSFX in the rack (decision 0066): Reese Basser, then Reverberator.
+        {
+            const Id jt = edit::addTrack (c.project, TrackKind::Track, "Reese");
+            for (auto& sp : jsfxDevices())
+                if (String (sp.id) == "reese-basser" || String (sp.id) == "reverberator") edit::addDevice (c.project, jt, jsfxRef (sp), sp.role);
+            c.focusTrack = jt;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            window.lowerHeight = 480;
+            for (int i = 0; i < 10; ++i) MessageManager::getInstance()->runDispatchLoopUntil (40);   // their windows draw on a timer
+            shoot ("21-jsfx-devices");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, jt);
             c.refresh();
         }
         // Kalibre's own synth and sampler, side by side (decision 0039).

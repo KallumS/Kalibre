@@ -57,6 +57,27 @@ add_library(KalibreShine STATIC ${SHINE_SOURCES})
 target_include_directories(KalibreShine PUBLIC ${shine_SOURCE_DIR}/src/lib)
 set_target_properties(KalibreShine PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
 
+# ysfx (Apache-2.0): the JSFX engine (REAPER's EEL2) with its graphics, for the
+# family's JSFX built in as devices (decision 0066). Its engine only: not its
+# own plug-in, tests or tools; its graphics view (plugin/components) is
+# compiled into KalibreApp below.
+FetchContent_Declare(ysfx
+    GIT_REPOSITORY https://github.com/JoepVanlier/ysfx.git
+    GIT_TAG        5c3452fee62583aa3d1b7e877d0c758c4024af89
+    GIT_SUBMODULES thirdparty/dr_libs)
+FetchContent_GetProperties(ysfx)
+if(NOT ysfx_POPULATED)
+    FetchContent_Populate(ysfx)
+endif()
+set(YSFX_PLUGIN OFF CACHE BOOL "" FORCE)
+set(YSFX_GFX ON CACHE BOOL "" FORCE)
+set(YSFX_TESTS OFF CACHE BOOL "" FORCE)
+set(YSFX_TOOLS OFF CACHE BOOL "" FORCE)
+set(YSFX_SKIP_CHECKSUM ON CACHE BOOL "" FORCE)
+add_subdirectory(${ysfx_SOURCE_DIR} ${ysfx_BINARY_DIR} EXCLUDE_FROM_ALL)
+# ysfx sets the standard for what comes after it; Kalibre is C++20.
+set(CMAKE_CXX_STANDARD 20)
+
 option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" ${APPLE})
 if(KALIBRE_ARA)
     FetchContent_Declare(ara_sdk
@@ -80,6 +101,10 @@ add_library(KalibreApp STATIC
     Source/Engine/TrackProcessors.cpp
     Source/Engine/MorphProcessor.cpp
     Source/Engine/ContainerProcessor.cpp
+    Source/Engine/JsfxDevice.cpp
+    ${ysfx_SOURCE_DIR}/plugin/components/graphics_view.cpp
+    ${ysfx_SOURCE_DIR}/plugin/utility/async_updater.cpp
+    ${ysfx_SOURCE_DIR}/plugin/utility/rt_semaphore.cpp
     Source/Engine/BuiltinInstruments.cpp
     Source/Engine/HardwareInsert.cpp
     Source/Engine/Mp3Writer.cpp
@@ -124,9 +149,11 @@ endif()
 
 target_include_directories(KalibreApp PUBLIC
     Source/App Source/Engine
+    ${ysfx_SOURCE_DIR}/plugin
     ${clap_SOURCE_DIR}/include)
 target_link_libraries(KalibreApp
     PUBLIC
+        ysfx::ysfx
         KalibreCore
         KalibreShine
         signalsmith-stretch

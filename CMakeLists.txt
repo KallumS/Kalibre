@@ -41,7 +41,7 @@ endif()
 #==============================================================================
 # The family's Lua engines (Engines/, decision 0062), embedded so the app needs
 # nothing beside itself: a generated table of { name, bytes }.
-file(GLOB_RECURSE KALIBRE_LUA_ENGINES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Engines/*.lua)
+file(GLOB_RECURSE KALIBRE_LUA_ENGINES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Engines/*.lua ${CMAKE_CURRENT_SOURCE_DIR}/Engines/*.jsfx)
 set(EMBEDDED_LUA_CPP ${CMAKE_CURRENT_BINARY_DIR}/EmbeddedLua.cpp)
 add_custom_command(
     OUTPUT ${EMBEDDED_LUA_CPP}

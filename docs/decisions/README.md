@@ -67,3 +67,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0063. Swing, gate and repeat](0063-swing-gate-and-repeat.md)
 - [0064. Arm for audio (click, red) or MIDI (right-click, blue)](0064-arm-for-audio-or-midi.md)
 - [0065. Shift to arm for both, or for MIDI input](0065-arm-for-both-or-midi-input.md)
+- [0066. The family's JSFX as devices](0066-the-familys-jsfx-as-devices.md)
