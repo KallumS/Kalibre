@@ -14,7 +14,7 @@ static Colour trackColour (const Track& t) { return Colour (t.colour); }
 //==============================================================================
 TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), arrange (a), c (ctrl)
 {
-    for (auto* b : { &version, &mute, &solo, &arm, &fold }) addAndMakeVisible (b);
+    for (theme::HouseButton* b : std::initializer_list<theme::HouseButton*> { &version, &mute, &solo, &arm, &fold }) addAndMakeVisible (b);
     addAndMakeVisible (name);
     name.setEditable (false, true);
     name.setFont (theme::font());
@@ -33,7 +33,14 @@ TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), 
     // Option-click on any of them adds the track to the selection instead (decision 0053).
     mute.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Mute", [this] (Project& p) { if (auto* t = p.track (id)) t->mute = ! t->mute; }); };
     solo.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Solo", [this] (Project& p) { if (auto* t = p.track (id)) t->solo = ! t->solo; }); };
-    arm.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Arm", [this] (Project& p) { if (auto* t = p.track (id)) t->armed = ! t->armed; }); };
+    // Click: armed for audio (red); right-click: for MIDI (blue) (decision 0064).
+    arm.onClick = [this]
+    {
+        if (c.optionAdds (id)) { refreshButtons(); return; }
+        const bool right = std::exchange (arm.right, false), shift = std::exchange (arm.shift, false);
+        c.arm (id, right ? (shift ? ArmFor::MidiInput : ArmFor::Midi) : (shift ? ArmFor::Both : ArmFor::Audio));
+        refreshButtons();
+    };
     fold.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } c.apply ("Fold", [this] (Project& p) { if (auto* t = p.track (id)) t->collapsed = ! t->collapsed; }); };
     version.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } versionMenu(); };
 }
@@ -51,6 +58,19 @@ void TrackHeader::update (const Track& t)
     mute.setToggleState (t.mute, dontSendNotification);
     solo.setToggleState (t.solo, dontSendNotification);
     arm.setToggleState (t.armed, dontSendNotification);
+    // Red for audio, blue for MIDI, half each for both; "In" for MIDI input (decisions 0064, 0065).
+    const auto how = t.armFor;
+    arm.getProperties().set ("onColour", (int64) (how == ArmFor::Audio || how == ArmFor::Both ? theme::armAudio : theme::armMidi).getARGB());
+    if (how == ArmFor::Both) arm.getProperties().set ("onColour2", (int64) theme::armMidi.getARGB());
+    else arm.getProperties().remove ("onColour2");
+    arm.setButtonText (t.armed && how == ArmFor::MidiInput ? "In" : "R");
+    const String ways = "Click: audio (red). Right-click: MIDI, as the instrument plays it (blue). Shift-click: both. Shift-right-click: MIDI as it comes in.";
+    arm.setTip (! t.armed ? "Arm for recording. " + ways
+                : how == ArmFor::Audio ? "Armed for audio: records the sound coming in. Click again to disarm. " + ways
+                : how == ArmFor::Midi ? "Armed for MIDI: records what the instrument is played, arpeggiators and MIDI effects included. Right-click again to disarm. " + ways
+                : how == ArmFor::Both ? "Armed for audio and MIDI: the sound coming in, and what the instrument is played. Shift-click again to disarm. " + ways
+                                      : "Armed for MIDI input: records the notes as they come in, before any plug-in. Shift-right-click again to disarm. " + ways);
+    arm.repaint();
     arm.setVisible (t.holdsClips());
     version.setVisible (t.holdsClips());
     version.setButtonText ("v" + String (t.activeVersion + 1));
@@ -100,7 +120,7 @@ void TrackHeader::resized()
     auto top = r.removeFromTop (theme::px (theme::smallControl));
     if (fold.isVisible()) { fold.setBounds (top.removeFromLeft (theme::px (22))); top.removeFromLeft (2); }
     const int b = theme::px (22);
-    for (auto* btn : { &arm, &solo, &mute })
+    for (theme::HouseButton* btn : std::initializer_list<theme::HouseButton*> { &arm, &solo, &mute })
         if (btn->isVisible()) { btn->setBounds (top.removeFromRight (b)); top.removeFromRight (2); }
     if (version.isVisible()) { version.setBounds (top.removeFromRight (theme::px (30))); top.removeFromRight (4); }
     name.setBounds (top);
@@ -322,6 +342,20 @@ void TrackHeader::showMenu()
     m.addItem ("Lock", true, t->locked, [this] { c.apply ("Lock", [this] (Project& p) { if (auto* tr = p.track (id)) tr->locked = ! tr->locked; }); });
     m.addItem ("Duplicate", [this] { c.duplicateSelectedTracks(); });
     m.addItem ("Delete", [this] { c.deleteSelectedTracks(); });
+    m.showMenuAsync (PopupMenu::Options());
+}
+
+// The track panel's own menu, under the tracks: a new one goes at the end,
+// outside any folder.
+void Arrange::trackPanelMenu()
+{
+    auto add = [this] (TrackKind k) { return [this, k] { c.focusTrack = 0; c.addTrack (k); }; };
+    PopupMenu m;
+    m.addItem ("Add Track", add (TrackKind::Track));
+    m.addItem ("Add Folder", add (TrackKind::Folder));
+    m.addItem ("Add Return", add (TrackKind::Return));
+    m.addItem ("Add Summing Track", add (TrackKind::Summing));
+    m.addItem ("Add Cue Track", c.project.cue.empty(), false, add (TrackKind::Cue));
     m.showMenuAsync (PopupMenu::Options());
 }
 
@@ -1142,6 +1176,8 @@ void Arrange::mouseDown (const MouseEvent& e)
             return;
         }
     }
+    // Right-click under the tracks, in the track panel or the lanes: add one.
+    if (e.mods.isPopupMenu() && e.y >= lanes.getY() && e.y < lanes.getBottom() && ! rowAt (e.y)) { trackPanelMenu(); return; }
     if (! lanes.contains (e.getPosition())) return;
 
     const auto* row = rowAt (e.y);

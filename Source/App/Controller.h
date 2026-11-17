@@ -11,6 +11,7 @@
 #pragma once
 
 #include "Edit.h"
+#include "AutoCc.h"
 #include "Engine.h"
 #include "ControlSettings.h"
 #include "Patterns.h"
@@ -21,6 +22,9 @@
 
 namespace kal
 {
+// VST3 effects once filed as MIDI effects, put right on opening (decision 0058).
+void refileEffects (Project&);
+
 
 enum class EditorKind { PianoRoll, Drums, Steps, Euclid, Notation };
 enum class ZoneTab { Devices, Editor, Mixer, Launcher, Meters, Video };
@@ -94,6 +98,11 @@ public:
     void play();
     void stop();
     void record();
+    // Arms a track (decisions 0064, 0065): for audio (click, red), MIDI
+    // (right-click, blue: what its instrument is played, arpeggiators and MIDI
+    // effects included), both (Shift-click) or MIDI input (Shift-right-click).
+    // The same again disarms it; another kind switches to it.
+    void arm (Id track, ArmFor);
     void locate (Tick);
     void goToStart();
     void toggleLoop();
@@ -166,6 +175,10 @@ public:
     void duplicateSelection();
     void splitAtCursor();
     void quantiseSelection();
+    // AutoCC (decision 0060): the family the chosen MIDI clip's track names,
+    // if any; and its CC lanes filled as AutoCC would play the clip.
+    autocc::Found autoCcFor() const;
+    void autoCc();
     void selectAllNotes();
 
     //==========================================================================
@@ -192,6 +205,7 @@ public:
     // Devices.
     void addPlugin (Id track, const juce::PluginDescription&);
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
+    bool placeToolBlock (juce::AudioPluginInstance& from, const struct ToolBlock&);   // decision 0068
     void setDeviceActive (Id device, bool);
     void storeDeviceStates();   // every loaded plug-in's state into the project, before a save
 

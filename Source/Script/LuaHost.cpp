@@ -6,12 +6,10 @@
 
 #include <chrono>
 
-extern "C"
-{
+// Lua is built as C++ (decision 0068).
 #include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
-}
 
 namespace kal::script
 {

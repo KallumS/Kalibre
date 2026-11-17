@@ -19,7 +19,9 @@ LowerZone::LowerZone (Controller& ctrl)
         b->setClickingTogglesState (true);
         addChildComponent (b);
     }
-    for (auto* b : { &gridButton, &snapButton, &quantise, &legato }) addChildComponent (b);
+    for (auto* b : { &gridButton, &snapButton, &quantise, &legato, &ccLanes, &autoCc }) addChildComponent (b);
+    ccLanes.onClick = [this] { CcLanes::lanesMenu (c, &ccLanes); };
+    autoCc.onClick = [this] { c.autoCc(); };
     for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample, &launcher, &offline, &meters, &videoView })
         addChildComponent (comp);
     drumsView.setViewedComponent (&drums, false);
@@ -57,6 +59,18 @@ void LowerZone::changeListenerCallback (ChangeBroadcaster*)
     if (c.zoneTab != shownTab || c.editor != shownEditor || audioChosen() != shownAudio || c.offlineClip != offline.shown()
         || videoTab.isVisible() == c.project.video.file.empty()) show();
     snapButton.setToggleState (c.snap, dontSendNotification);
+    updateAuto();
+}
+
+// Auto works only on a track that names an instrument AutoCC knows (decision 0060).
+void LowerZone::updateAuto()
+{
+    const auto found = c.autoCcFor();
+    autoCc.setEnabled (found.family != autocc::Family::None);
+    autoCc.setTip (found.family != autocc::Family::None
+                       ? "Auto: draw CC1, CC11, CC7 and CC21 as AutoCC plays " + String (autocc::familyName (found.family))
+                             + " (from " + String (found.from).quoted() + "), replacing what those lanes have."
+                       : String ("Auto draws the CC lanes as AutoCC would play the notes. It needs a track named for its instrument, such as Violins, Horns or Flute."));
 }
 
 bool LowerZone::audioChosen() const
@@ -87,6 +101,10 @@ void LowerZone::show()
     const bool editing = c.zoneTab == ZoneTab::Editor && ! audio;
     for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab, &gridButton, &snapButton, &quantise, &legato })
         b->setVisible (editing);
+    const bool withLanes = editing && (c.editor == EditorKind::PianoRoll || c.editor == EditorKind::Notation);
+    ccLanes.setVisible (withLanes);
+    autoCc.setVisible (withLanes);
+    updateAuto();
     sample.setVisible (audio);
     if (audio) sample.load();
     rollTab.setToggleState (c.editor == EditorKind::PianoRoll, dontSendNotification);
@@ -160,6 +178,12 @@ void LowerZone::resized()
         for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab }) place (*b);
         bar.removeFromLeft (theme::px (12));
         for (auto* b : { &gridButton, &snapButton, &quantise, &legato }) place (*b);
+        if (ccLanes.isVisible())
+        {
+            bar.removeFromLeft (theme::px (12));
+            place (ccLanes);
+            place (autoCc);
+        }
     }
     for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &launcher, &offline, &meters, &videoView })
         comp->setBounds (r);

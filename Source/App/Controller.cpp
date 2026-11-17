@@ -7,6 +7,7 @@
 #include "Mpe.h"
 #include "Harmony.h"
 #include "LuaHost.h"
+#include "LuaTool/LuaTool.h"
 #include "MorphProcessor.h"
 #include "ProjectFile.h"
 #include "Song.h"
@@ -20,6 +21,7 @@ Controller::Controller (Engine& e) : engine (e)
 {
     engine.onTouched = [this] (const Engine::Touch& t) { touched (t); };
     engine.onMessage = [this] (const String& m) { say (m, true); };
+    insertToolBlock = [this] (AudioPluginInstance& from, const ToolBlock& b) { return placeToolBlock (from, b); };
     engine.cache.onReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onAudioReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onLearned = [this] (int channel, int controller)
@@ -79,6 +81,7 @@ Controller::~Controller()
     engine.cache.onReady = nullptr;
     engine.onTouched = nullptr;
     engine.onMessage = nullptr;
+    insertToolBlock = nullptr;
 }
 
 //==============================================================================
@@ -302,6 +305,23 @@ void Controller::stop()
     sendChangeMessage();
 }
 
+void Controller::arm (Id id, ArmFor how)
+{
+    const auto* t = project.track (id);
+    if (! t || ! t->holdsClips()) return;
+    if (how != ArmFor::Audio && t->kind == TrackKind::Summing)
+    {
+        say ("A Summing track records the master's sound, so it's armed for audio.");
+        how = ArmFor::Audio;
+    }
+    const bool same = t->armed && t->armFor == how;
+    const char* names[] { "Arm for Audio", "Arm for MIDI", "Arm for Audio and MIDI", "Arm for MIDI Input" };
+    apply (names[(int) how], [=] (Project& p)
+    {
+        if (auto* x = p.track (id)) { x->armed = ! same; x->armFor = how; }
+    });
+}
+
 void Controller::record()
 {
     if (wasRecording) { stop(); return; }
@@ -309,8 +329,12 @@ void Controller::record()
     for (auto& t : project.tracks) if (t.armed) armed.push_back (t.id);
     if (armed.empty() && focus() && focus()->holdsClips())
     {
-        // Recording with nothing armed records onto the track being played.
-        apply ("Arm Track", [id = focusTrack] (Project& p) { if (auto* t = p.track (id)) t->armed = true; });
+        // Recording with nothing armed records onto the track being played: for
+        // MIDI if it has an instrument or MIDI effect or no sound coming in.
+        const auto* f = focus();
+        const bool plays = std::any_of (f->devices.begin(), f->devices.end(), [] (const Device& d) { return d.role != DeviceRole::AudioFx; });
+        const bool midi = f->kind != TrackKind::Summing && (plays || f->input.audioChannel < 0);
+        apply ("Arm Track", [id = focusTrack, midi] (Project& p) { if (auto* t = p.track (id)) { t->armed = true; t->armFor = midi ? ArmFor::Midi : ArmFor::Audio; } });
         armed.push_back (focusTrack);
     }
     if (armed.empty()) { say ("Choose a track to record onto first.", true); return; }
@@ -320,15 +344,23 @@ void Controller::record()
     recordFromSeconds = project.tempo.secondsAt (from);
     const auto folder = recordingsFolder();
     for (auto id : armed)
+    {
+        // Nothing left over from before.
+        if (auto* s = engine.source (id))
+        {
+            s->tappedFifo.reset();
+            s->playedFifo.reset();
+        }
         if (auto* s = engine.recordSource (id))
         {
             const auto* t = project.track (id);
-            // A Summing track records the master (decision 0052); others their input.
-            if (t && (t->kind == TrackKind::Summing || t->input.audioChannel >= 0))
+            // A Summing track records the master (decision 0052); others armed for audio their input.
+            if (t && (t->kind == TrackKind::Summing || (t->input.audioChannel >= 0 && t->armedAudio())))
                 s->startRecording (folder.getNonexistentChildFile (String (t->name).replaceCharacters ("/\\:", "---") + " "
                                                                    + Time::getCurrentTime().formatted ("%Y-%m-%d %H%M%S"), ".wav"),
                                    engine.sampleRate());
         }
+    }
     wasRecording = true;
     engine.setRecording (true);
     if (project.punch.on)
@@ -392,21 +424,41 @@ void Controller::finishRecording()
             else f.deleteFile();
         }
         if (t.kind == TrackKind::Summing) continue;   // it records sound only
-        // MIDI played in.
-        std::vector<capture::Event> events;
+        // Armed for MIDI (decision 0064): what the instrument was played, caught on it
+        // (or, if it sent notes of its own, what it sent); with no instrument or MIDI
+        // effect, what was played in.
+        std::vector<capture::Event> events, tappedIn, tappedOut;
+        {
+            int s1, n1, s2, n2;
+            s->tappedFifo.prepareToRead (s->tappedFifo.getNumReady(), s1, n1, s2, n2);
+            for (int i = 0; i < n1 + n2; ++i)
+            {
+                const auto& p = s->tapped[(size_t) (i < n1 ? s1 + i : s2 + i - n1)];
+                capture::Event e;
+                e.wallSeconds = p.seconds;
+                e.songTicks = project.tempo.ticksAt (p.seconds);
+                std::memcpy (e.bytes, p.bytes, 3);
+                (p.fromOutput ? tappedOut : tappedIn).push_back (e);
+            }
+            s->tappedFifo.finishedRead (n1 + n2);
+        }
+        const bool sentNotes = std::any_of (tappedOut.begin(), tappedOut.end(), [] (const capture::Event& e) { return (e.bytes[0] & 0xF0) == 0x90; });
+        if (t.armedPlugins()) events = sentNotes ? tappedOut : tappedIn;
+        // Armed for MIDI input (decision 0065): what was played in, before any plug-in.
         int s1, n1, s2, n2;
         s->playedFifo.prepareToRead (s->playedFifo.getNumReady(), s1, n1, s2, n2);
-        for (int i = 0; i < n1 + n2; ++i)
-        {
-            const auto& p = s->played[(size_t) (i < n1 ? s1 + i : s2 + i - n1)];
-            capture::Event e;
-            e.songTicks = p.ticks;
-            e.wallSeconds = project.tempo.secondsAt ((Tick) p.ticks);
-            std::memcpy (e.bytes, p.bytes, 3);
-            events.push_back (e);
-        }
+        if (events.empty() && (t.armedPlugins() || t.armedMidiIn()))
+            for (int i = 0; i < n1 + n2; ++i)
+            {
+                const auto& p = s->played[(size_t) (i < n1 ? s1 + i : s2 + i - n1)];
+                capture::Event e;
+                e.songTicks = p.ticks;
+                e.wallSeconds = project.tempo.secondsAt ((Tick) p.ticks);
+                std::memcpy (e.bytes, p.bytes, 3);
+                events.push_back (e);
+            }
         s->playedFifo.finishedRead (n1 + n2);
-        if (events.empty()) continue;
+        if (! (t.armedPlugins() || t.armedMidiIn()) || events.empty()) continue;
         Recorded midi { t.id, {} };
         for (auto& pass : looping ? comp::midiPasses (events) : std::vector<std::vector<capture::Event>> { events })
         {
@@ -571,6 +623,34 @@ File Controller::recordingsFolder() const
     return f;
 }
 
+// VST3 effects were filed as MIDI effects, before the instrument, where they
+// heard nothing (decision 0058): put them with the audio effects.
+void refileEffects (Project& p)
+{
+    auto refile = [] (std::vector<Device>& devices)
+    {
+        bool moved = false;
+        for (auto& d : devices)
+            if (d.role == DeviceRole::MidiFx && d.plugin.format == "VST3")
+                if (PluginDescription desc; PluginManager::descriptionFor (d.plugin, desc) && PluginManager::roleFor (desc) == DeviceRole::AudioFx)
+                {
+                    d.role = DeviceRole::AudioFx;
+                    moved = true;
+                }
+        return moved;
+    };
+    auto track = [&] (Track& t)
+    {
+        if (refile (t.devices)) edit::normaliseChain (t);
+        for (auto& v : t.versions)
+            if (refile (v.devices))
+                std::stable_sort (v.devices.begin(), v.devices.end(), [] (const Device& a, const Device& b) { return (int) a.role < (int) b.role; });
+    };
+    for (auto& t : p.tracks) track (t);
+    track (p.master);
+    for (auto& t : p.cue) track (t);
+}
+
 bool Controller::open (const File& f)
 {
     std::string error;
@@ -578,6 +658,7 @@ bool Controller::open (const File& f)
     if (! loaded) { say (String (error), true); return false; }
     engine.stop();
     project = std::move (*loaded);
+    refileEffects (project);
     history.clear();
     file = f;
     dirty = false;
@@ -1147,6 +1228,28 @@ Controller::Edge Controller::zeroEdge (const Clip& clip, Tick at) const
     return { tick, song - tempo.secondsAt (tick) };
 }
 
+autocc::Found Controller::autoCcFor() const
+{
+    const Track* owner = nullptr;
+    const auto* cl = project.clip (selectedClip, &owner);
+    if (! cl || ! cl->isMidi() || ! owner) return {};
+    return autocc::familyFor (*owner);
+}
+
+void Controller::autoCc()
+{
+    const auto found = autoCcFor();
+    if (found.family == autocc::Family::None)
+    {
+        say ("Auto needs a track named for its instrument, such as Violins, Horns or Flute (or an instrument named so).");
+        return;
+    }
+    const Id cid = selectedClip;
+    apply ("Auto CC", [&] (Project& p) { autocc::fill (p, cid, found.family); });
+    say ("Auto: CC1 (dynamics), CC11 (expression), CC7 (volume) and CC21 (vibrato) drawn as AutoCC plays "
+         + String (autocc::familyName (found.family)) + ", from " + String (found.from).quoted() + ".", false, true);
+}
+
 void Controller::quantiseSelection()
 {
     if (! selectedClip) { say ("Open a MIDI clip to quantise its notes."); return; }
@@ -1182,6 +1285,59 @@ void Controller::addPlugin (Id track, const PluginDescription& d)
         say (d.name + " couldn't be loaded.", true);
     zoneTab = ZoneTab::Devices;
     sendChangeMessage();
+}
+
+// A Lua tool's block, into the song (decision 0068): one part on the
+// device's own track at the playhead; several, a new track each under it,
+// named for its instrument. One undo step either way.
+bool Controller::placeToolBlock (AudioPluginInstance& from, const ToolBlock& b)
+{
+    Id track = 0;
+    for (auto& t : project.tracks)
+        for (auto& d : t.devices)
+            if (engine.instance (d.id) == &from) track = t.id;
+    if (track == 0 || b.parts.empty()) return false;
+
+    const Tick at = playhead();
+    const Tick length = std::max<Tick> (PPQ / 4, (Tick) std::llround (b.beats * PPQ));
+    auto clipOf = [&] (const ToolBlock::Part& part, const std::string& name)
+    {
+        Clip c;
+        c.kind = Clip::Kind::Midi;
+        c.start = at;
+        c.length = length;
+        c.name = name;
+        for (const auto& n : part.notes)
+        {
+            Note note;
+            note.start = (Tick) std::llround (n.start * PPQ);
+            note.length = std::max<Tick> (1, (Tick) std::llround (n.length * PPQ));
+            note.pitch = n.pitch;
+            note.velocity = n.velocity;
+            c.midi.notes.push_back (note);
+        }
+        edit::sortNotes (c.midi);
+        return c;
+    };
+
+    Id made = 0;
+    const auto label = String (from.getName()) + ": " + String (b.name);
+    apply (label, [&] (Project& p)
+    {
+        if (b.parts.size() == 1) { made = edit::addClip (p, track, clipOf (b.parts.front(), b.name)); return; }
+        const auto* t = p.track (track);
+        const Id parent = t ? t->parent : 0;
+        Id after = track;
+        for (const auto& part : b.parts)
+        {
+            after = edit::addTrack (p, TrackKind::Track, part.name, after, parent);
+            const Id c = edit::addClip (p, after, clipOf (part, b.name + " - " + part.name));
+            if (made == 0) made = c;
+        }
+    });
+    if (made == 0) return false;
+    selectClip (made);
+    return true;
 }
 
 void Controller::addBuiltIn (Id track, const PluginRef& ref, DeviceRole role)

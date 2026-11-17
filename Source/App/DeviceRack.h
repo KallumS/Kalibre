@@ -3,11 +3,13 @@
     each showing its own window (decision 0002): FabFilter Volcano, Pro-Q and
     Pro-C next to each other, ready to use, with nothing floating.
 
-    Every plug-in window is shown at its own size, centred, never scaled
-    (scaling cut some off): a resizable one is fitted to the zone's height,
-    keeping its shape; one taller than the zone scrolls. If they don't all
-    fit across, the rack scrolls sideways. A panel is kept while its plug-in
-    stays, so adding another doesn't make its window again (some went blank).
+    Every plug-in window is fitted to the zone, its shape kept (decision
+    0058): a resizable one is asked to take the zone's height; one that
+    can't, or won't, is shown smaller, the same both ways, never stretched
+    and never bigger than it is. If they don't all fit across, the rack
+    scrolls sideways: its scroll bar, or a two-finger swipe anywhere over
+    it. A panel is kept while its plug-in stays, so adding another doesn't
+    make its window again (some went blank).
 
     The window button moves a plug-in's window out into a window of its own,
     and back (decision 0056). Match Loudness keeps an effect's output as loud
@@ -54,9 +56,28 @@ public:
     void dock (Id device);
     void relayout() { layoutStrip(); }
 
+    // How wide the rack's view is, and the part of it a panel can be seen in
+    // (in the panel's own coordinates).
+    int fitWidth() const { return viewport.getMaximumVisibleWidth(); }
+    juce::Rectangle<int> shownArea (const juce::Component& panel) const
+    {
+        return viewport.getViewArea().translated (-panel.getX(), -panel.getY());
+    }
+
+    // Where a device's plug-in window is drawn, in the rack's coordinates, and
+    // the window itself (empty and null when it isn't shown here).
+    juce::Rectangle<int> pluginArea (Id device) const;
+    juce::AudioProcessorEditor* editorOf (Id device) const;
+
 private:
     Controller& c;
-    juce::Viewport viewport;
+    struct RackViewport : juce::Viewport
+    {
+        std::function<void()> moved;
+        void visibleAreaChanged (const juce::Rectangle<int>&) override { if (moved) moved(); }
+    };
+    RackViewport viewport;
+    std::shared_ptr<void> swipes;
     juce::Component strip;
     juce::OwnedArray<DevicePanel> panels;
     juce::OwnedArray<ModulatorPanel> modulators;
@@ -67,6 +88,7 @@ private:
     std::map<Id, juce::AudioPluginInstance*> windowFor;
 
     void layoutStrip();
+    void placeEditors();
     void closeStaleWindows();
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;

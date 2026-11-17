@@ -5,6 +5,8 @@
 #include "Controller.h"
 #include "Edit.h"
 #include "Engine.h"
+#include "ProjectFile.h"
+#include "PluginManager.h"
 
 using namespace kal;
 using namespace juce;
@@ -485,6 +487,7 @@ TEST ("match loudness: a plug-in that turns the sound down 10 dB is brought back
 #include "BuiltinInstruments.h"
 #include "DeviceRack.h"
 #include "Editors.h"
+#include "PluginClip.h"
 
 TEST ("plug-in windows: closed properly, so a plug-in opens its own window again; adding devices leaves the others' windows alone")
 {
@@ -518,22 +521,19 @@ TEST ("plug-in windows: closed properly, so a plug-in opens its own window again
     // In the rack: a third device added; the first two keep the very windows they had.
     DeviceRack rack (c);
     rack.setSize (1400, 360);
-    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument); });
+    std::vector<Id> devices;
+    c.apply ("Add", [&] (Project& p) { devices.push_back (edit::addDevice (p, t, synthRef(), DeviceRole::Instrument)); devices.push_back (edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument)); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
-    auto editorsIn = [] (Component& root)
+    // On the Mac a plug-in's window is held in a native view of its own (decision 0058), so it's asked for by device.
+    auto editorsIn = [&] (DeviceRack& r)
     {
         std::vector<AudioProcessorEditor*> found;
-        std::function<void (Component&)> walk = [&] (Component& comp)
-        {
-            if (auto* e = dynamic_cast<AudioProcessorEditor*> (&comp)) found.push_back (e);
-            for (auto* child : comp.getChildren()) walk (*child);
-        };
-        walk (root);
+        for (auto d : devices) if (auto* e = r.editorOf (d)) found.push_back (e);
         return found;
     };
     const auto before = editorsIn (rack);
     CHECK_EQ (before.size(), size_t (2));
-    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    c.apply ("Add", [&] (Project& p) { devices.push_back (edit::addDevice (p, t, synthRef(), DeviceRole::Instrument)); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
     const auto after = editorsIn (rack);
     CHECK_EQ (after.size(), size_t (3));
@@ -608,4 +608,437 @@ TEST ("questions: plug-in windows in the main window step aside while Kalibre as
     host.removeChildComponent (editor);
     editors::close (editor);
     ui::setHost (nullptr);
+}
+
+TEST ("plug-ins: a VST3 effect is an audio effect, though its description has no channel counts (BitFuzzer was filed as a MIDI effect)")
+{
+    // JUCE reads a VST3's moduleinfo.json for its description: no channel counts, 0 in and 0 out.
+    PluginDescription d;
+    d.pluginFormatName = "VST3";
+    d.name = "BitFuzzer";
+    d.category = "Fx|Distortion";
+    d.numInputChannels = d.numOutputChannels = 0;
+    CHECK (PluginManager::roleFor (d) == DeviceRole::AudioFx);
+    d.category = "Fx|Instrument";
+    d.isInstrument = true;
+    CHECK (PluginManager::roleFor (d) == DeviceRole::Instrument);
+
+    // A project saved with it as a MIDI effect, before its instrument: put back after it on opening.
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Bass");
+    d = {};
+    d.pluginFormatName = "VST3";
+    d.name = "BitFuzzer";
+    d.fileOrIdentifier = "/Library/Audio/Plug-Ins/VST3/BitFuzzer.vst3";
+    d.category = "Fx|Distortion";
+    const Id fx = edit::addDevice (p, t, PluginManager::refFor (d), DeviceRole::MidiFx);
+    const Id synth = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+    const auto f = folder().getChildFile ("refile.kalibre");
+    CHECK (f.replaceWithText (String (file::save (p))));
+    CHECK (c.open (f));
+    const auto* track = c.project.track (t);
+    CHECK (track != nullptr);
+    if (! track) return;
+    CHECK_EQ (track->devices.size(), size_t (2));
+    if (track->devices.size() != 2) return;
+    CHECK (track->devices[0].id == synth);
+    CHECK (track->devices[1].id == fx);
+    CHECK (track->devices[1].role == DeviceRole::AudioFx);
+}
+
+TEST ("plug-in panels: a plug-in taller than the zone is shown smaller to fit, the same both ways; never bigger, never stretched")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Synths");
+    c.focusTrack = t;
+    c.refresh();
+    DeviceRack rack (c);
+    rack.setSize (1400, 160);   // a short lower zone
+    Id synth = 0;
+    c.apply ("Add", [&] (Project& p) { synth = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    auto* editor = rack.editorOf (synth);
+    CHECK (editor != nullptr);
+    if (! editor) return;
+    auto shownIn = [&]
+    {
+        rack.resized();
+        const auto area = rack.pluginArea (synth).toFloat();
+       #if ! JUCE_MAC
+        // Off the Mac it's an ordinary child: where JUCE draws it is where the rack says.
+        const auto drawn = rack.getLocalArea (editor, editor->getLocalBounds().toFloat());
+        CHECK (area.getPosition().getDistanceFrom (drawn.getPosition()) < 1.5f);
+        CHECK (std::abs (area.getWidth() - drawn.getWidth()) < 1.5f && std::abs (area.getHeight() - drawn.getHeight()) < 1.5f);
+       #endif
+        return area;
+    };
+    const auto own = editor->getLocalBounds().toFloat();
+    auto shown = shownIn();
+    CHECK (shown.getHeight() <= 160.0f - 30.0f);                         // under the header, inside the zone
+    CHECK (shown.getHeight() < own.getHeight());                         // smaller than it is
+    CHECK (std::abs (shown.getWidth() / shown.getHeight() - own.getWidth() / own.getHeight()) < 0.02f);   // its shape kept
+    CHECK (rack.getLocalBounds().toFloat().contains (shown));
+
+    // A tall zone: its own size, not made bigger.
+    rack.setSize (1400, 1400);
+    MessageManager::getInstance()->runDispatchLoopUntil (20);
+    shown = shownIn();
+    CHECK (std::abs (shown.getWidth() - (float) editor->getWidth()) < 1.5f);
+    CHECK (std::abs (shown.getHeight() - (float) editor->getHeight()) < 1.5f);
+}
+
+TEST ("questions: plug-ins in the rack step aside too, though on the Mac they're held in native views of their own")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Synths");
+    c.focusTrack = t;
+    c.refresh();
+    Component host;
+    host.setSize (1400, 600);
+    ui::setHost (&host);
+    DeviceRack rack (c);
+    host.addAndMakeVisible (rack);
+    rack.setBounds (0, 200, 1400, 400);
+    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    std::vector<PluginClip*> clips;
+    std::function<void (Component&)> walk = [&] (Component& comp)
+    {
+        if (auto* p = dynamic_cast<PluginClip*> (&comp)) clips.push_back (p);
+        for (auto* child : comp.getChildren()) walk (*child);
+    };
+    walk (host);
+    CHECK_EQ (clips.size(), size_t (1));
+    if (clips.empty()) { ui::setHost (nullptr); return; }
+    CHECK (clips[0]->isVisible());
+
+    auto* w = new AlertWindow ("Save the changes to this project?", {}, MessageBoxIconType::NoIcon);
+    w->addButton ("Save", 1);
+    ui::present (w, ModalCallbackFunction::create ([] (int) {}), true);
+    CHECK (! clips[0]->isVisible());
+    w->exitModalState (1);
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (clips[0]->isVisible());
+    host.removeChildComponent (&rack);
+    ui::setHost (nullptr);
+}
+
+#include "PianoRoll.h"
+
+TEST ("auto cc: only on a track named for an instrument AutoCC knows; then the clip's CC lanes are drawn, as one undo step, and shown")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id piano = edit::addTrack (c.project, TrackKind::Track, "Piano");
+    const Id violins = edit::addTrack (c.project, TrackKind::Track, "Violins 1");
+    const Id pc = edit::addMidiClip (c.project, piano, 0, PPQ * 16);
+    const Id vc = edit::addMidiClip (c.project, violins, 0, PPQ * 16);
+    for (Id clip : { pc, vc }) { Note n; n.start = PPQ; n.length = PPQ * 6; n.pitch = 67; edit::addNote (c.project, clip, n); }
+    c.refresh();
+
+    c.selectClip (pc);
+    CHECK (c.autoCcFor().family == autocc::Family::None);
+    c.autoCc();
+    CHECK (c.project.clip (pc)->midi.events.empty());
+    CHECK (c.message.contains ("Violins"));          // says what it needs
+
+    c.selectClip (vc);
+    CHECK (c.autoCcFor().family == autocc::Family::Strings);
+    c.autoCc();
+    const auto& evs = c.project.clip (vc)->midi.events;
+    std::set<int> ccs;
+    for (auto& e : evs) ccs.insert (e.number);
+    CHECK (ccs == std::set<int> ({ 1, 7, 11, 21 }));
+    c.undo();
+    CHECK (c.project.clip (vc)->midi.events.empty());
+    c.redo();
+    CHECK (! c.project.clip (vc)->midi.events.empty());
+
+    // In the piano roll: a lane for each, under the notes.
+    PianoRoll roll (c);
+    roll.setSize (1000, 700);
+    MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CcLanes* lanes = nullptr;
+    for (auto* child : roll.getChildren()) if (auto* l = dynamic_cast<CcLanes*> (child)) lanes = l;
+    CHECK (lanes != nullptr);
+    if (! lanes) return;
+    CHECK (lanes->shown() == std::vector<int> ({ 1, 11, 7, 21 }));
+    CHECK (lanes->getHeight() > 0 && lanes->getBottom() == roll.getHeight());
+}
+
+#include "PatternEditors.h"
+
+TEST ("random: each pattern editor's Random writes a new pattern of its own each click, as one undo step, leaving the piano roll's notes")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Beat");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 8);
+    Note played; played.start = 0; played.length = PPQ * 8; played.pitch = 48;
+    edit::addNote (c.project, clip, played);
+    c.refresh();
+    c.selectClip (clip);
+    c.grid = PPQ / 4;
+
+    auto press = [] (Component& editor)
+    {
+        for (auto* child : editor.getChildren())
+            if (auto* b = dynamic_cast<TextButton*> (child); b && b->getButtonText() == "Random") { b->triggerClick(); break; }
+        MessageManager::getInstance()->runDispatchLoopUntil (20);
+    };
+    auto mine = [&] (NoteFrom who)
+    {
+        std::vector<std::pair<Tick, int>> out;
+        for (auto& n : c.project.clip (clip)->midi.notes) if (n.from == who) out.push_back ({ n.start, n.pitch });
+        return out;
+    };
+    auto rollKept = [&] { return std::any_of (c.project.clip (clip)->midi.notes.begin(), c.project.clip (clip)->midi.notes.end(),
+                                              [] (const Note& n) { return n.from == NoteFrom::Roll && n.pitch == 48; }); };
+
+    DrumGrid drums (c);
+    drums.setSize (900, 400);
+    press (drums);
+    const auto first = mine (NoteFrom::Drums);
+    CHECK (! first.empty());
+    CHECK (rollKept());
+    CHECK (c.message.contains ("Good Idea"));
+    press (drums);
+    CHECK (mine (NoteFrom::Drums) != first);               // a new one each click
+    c.undo();
+    CHECK (mine (NoteFrom::Drums) == first);               // one undo step each
+
+    StepSequencer steps (c);
+    steps.setSize (900, 400);
+    press (steps);
+    const auto tune = mine (NoteFrom::Steps);
+    CHECK (! tune.empty());
+    for (auto& [at, pitch] : tune) CHECK (at % (PPQ / 4) == 0);   // one a step, on the steps
+    CHECK (rollKept());
+    CHECK (! mine (NoteFrom::Drums).empty());               // the drums are still there
+
+    EuclidEditor euclid (c);
+    euclid.setSize (900, 400);
+    press (euclid);
+    const auto rhythm = mine (NoteFrom::Euclid);
+    CHECK (! rhythm.empty());
+    CHECK (rollKept() && ! mine (NoteFrom::Steps).empty());
+}
+
+TEST ("swing and gate: a drag of the drum grid's or step sequencer's slider moves their notes, is saved with the clip, and is one undo step")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Beat");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    c.grid = PPQ / 4;
+    {
+        patterns::Grid g;
+        g.stepTicks = PPQ / 4;
+        g.steps = 16;
+        g.lanes = { { "Closed Hat", 42, std::vector<int> (16, 100) } };
+        unsigned next = 1000;
+        patterns::writeGrid (c.project.clip (clip)->midi, g, 0, PPQ * 4, next, NoteFrom::Drums);
+    }
+    c.refresh();
+    c.selectClip (clip);
+
+    auto drag = [] (Component& editor, int which, double to)
+    {
+        for (auto* child : editor.getChildren())
+            if (auto* f = dynamic_cast<FeelControls*> (child))
+            {
+                f->began();
+                int k = 0;
+                for (auto* s : f->getChildren())
+                    if (auto* slider = dynamic_cast<Slider*> (s); slider && k++ == which) slider->setValue (to, sendNotificationSync);   // as a mouse drag does
+                f->ended();
+            }
+        MessageManager::getInstance()->runDispatchLoopUntil (20);
+    };
+    auto hatAt = [&] (int step)
+    {
+        for (auto& n : c.project.clip (clip)->midi.notes) if (n.start / (PPQ / 4) == step && n.from == NoteFrom::Drums) return n;
+        return Note {};
+    };
+
+    DrumGrid drums (c);
+    drums.setSize (1000, 400);
+    drag (drums, 0, 50);                                   // swing 50%
+    CHECK_EQ (hatAt (1).start, PPQ / 4 + PPQ / 8);           // the off-step half a step late
+    CHECK_EQ (hatAt (2).start, PPQ / 2);                     // the on-step where it was
+    CHECK_EQ (c.project.clip (clip)->drumsFeel.swing, 0.5);
+    drag (drums, 1, 25);                                   // gate 25%
+    CHECK_EQ (hatAt (2).length, PPQ / 16);
+    c.undo();                                              // the gate's drag, alone
+    CHECK_EQ (c.project.clip (clip)->drumsFeel.gate, 0.9);
+    CHECK_EQ (hatAt (1).start, PPQ / 4 + PPQ / 8);
+    c.undo();
+    CHECK_EQ (hatAt (1).start, PPQ / 4);
+
+    StepSequencer steps (c);
+    steps.setSize (1000, 400);
+    {
+        // Two steps on.
+        auto* cl = c.project.clip (clip);
+        patterns::StepSequence s;
+        s.steps.assign (16, {});
+        s.steps[0].on = s.steps[3].on = true;
+        unsigned next = 2000;
+        patterns::writeSteps (cl->midi, s, 0, PPQ * 4, next, NoteFrom::Steps);
+        c.refresh();
+    }
+    drag (steps, 1, 25);                                   // gate 25% for every step
+    for (auto& n : c.project.clip (clip)->midi.notes)
+        if (n.from == NoteFrom::Steps) CHECK_EQ (n.length, PPQ / 16);
+    CHECK_EQ (c.project.clip (clip)->stepsFeel.gate, 0.25);
+}
+
+TEST ("arming: click for audio (red), right-click for MIDI (blue), Shift-click for both, Shift-right-click for MIDI input; the same again disarms")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    c.refresh();
+    auto track = [&] { return c.project.track (t); };
+    c.arm (t, ArmFor::Audio);
+    CHECK (track()->armedAudio() && ! track()->armedPlugins() && ! track()->armedMidiIn());
+    c.arm (t, ArmFor::Midi);                                 // another kind: switched to it
+    CHECK (! track()->armedAudio() && track()->armedPlugins());
+    c.arm (t, ArmFor::Midi);                                 // the same again: off
+    CHECK (! track()->armed);
+    c.arm (t, ArmFor::Both);
+    CHECK (track()->armedAudio() && track()->armedPlugins() && ! track()->armedMidiIn());
+    c.arm (t, ArmFor::MidiInput);
+    CHECK (! track()->armedAudio() && ! track()->armedPlugins() && track()->armedMidiIn());
+    c.arm (t, ArmFor::MidiInput);
+    CHECK (! track()->armed);
+    // A Summing track records sound only.
+    const Id sum = edit::addTrack (c.project, TrackKind::Summing, "Summing");
+    c.refresh();
+    for (auto how : { ArmFor::Midi, ArmFor::Both, ArmFor::MidiInput })
+    {
+        c.arm (sum, how);
+        CHECK (c.project.track (sum)->armed && c.project.track (sum)->armFor == ArmFor::Audio);
+        c.arm (sum, ArmFor::Audio);
+    }
+    // Saved.
+    c.arm (t, ArmFor::Both);
+    auto loaded = file::load (file::save (c.project));
+    CHECK (loaded && loaded->track (t)->armed && loaded->track (t)->armFor == ArmFor::Both);
+}
+
+TEST ("arming for MIDI: what a free-running arpeggiator plays into the instrument is recorded as a MIDI clip; armed for audio, it isn't")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    c.project.tempo.setTempos ({ { 0, 120.0, false } });
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Arp");
+    edit::addDevice (c.project, t, PluginRef { "Kalibre", "test-arp", "Arp" }, DeviceRole::MidiFx);
+    edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+    c.focusTrack = t;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.arm (t, ArmFor::Midi);
+    c.refresh();
+
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 2.0);
+    c.stop();
+    const auto* track = c.project.track (t);
+    CHECK_EQ (track->clips().size(), size_t (1));
+    if (track->clips().empty()) return;
+    const auto& clip = track->clips().front();
+    CHECK (clip.isMidi());
+    // A note every quarter of a second (the arpeggiator's, not anything played in): about eight in two seconds.
+    CHECK (clip.midi.notes.size() >= 6 && clip.midi.notes.size() <= 9);
+    for (auto& n : clip.midi.notes) CHECK_EQ (n.pitch, 72);
+    if (clip.midi.notes.size() >= 2)
+    {
+        const double gap = c.project.tempo.secondsAt (clip.start + clip.midi.notes[1].start) - c.project.tempo.secondsAt (clip.start + clip.midi.notes[0].start);
+        CHECK (std::abs (gap - 0.25) < 0.01);
+    }
+
+    // Armed for audio instead: its sound coming in is recorded, but no MIDI from it.
+    c.arm (t, ArmFor::Audio);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 1.0);
+    c.stop();
+    const auto& after = c.project.track (t)->clips();
+    CHECK_EQ (std::count_if (after.begin(), after.end(), [] (const Clip& x) { return x.isMidi(); }), 1);
+}
+
+TEST ("arming for both records the sound coming in and the instrument's MIDI; for MIDI input, the keys played, not the arpeggiator's notes")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    c.project.tempo.setTempos ({ { 0, 120.0, false } });
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Arp");
+    c.project.track (t)->input.audioChannel = 0;
+    edit::addDevice (c.project, t, PluginRef { "Kalibre", "test-arp", "Arp" }, DeviceRole::MidiFx);
+    edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+    c.focusTrack = t;
+    c.refresh();
+    startLive (engine, device, c.project);
+    auto count = [&] (bool midi)
+    {
+        const auto& clips = c.project.track (t)->clips();
+        return (int) std::count_if (clips.begin(), clips.end(), [midi] (const Clip& x) { return x.isMidi() == midi; });
+    };
+
+    // Both: an audio clip and a MIDI clip of the arpeggiator's notes.
+    c.arm (t, ArmFor::Both);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 1.0);
+    c.stop();
+    CHECK_EQ (count (false), 1);
+    CHECK_EQ (count (true), 1);
+
+    // MIDI input: a key played (E4), not the arpeggiator's C5s; no sound recorded.
+    c.arm (t, ArmFor::MidiInput);
+    c.refresh();
+    c.cursor = c.project.tempo.tickAt (4.0);
+    c.record();
+    playLive (engine, 0.25);
+    engine.playIn (MidiMessage::noteOn (1, 64, (uint8) 90));
+    playLive (engine, 0.5);
+    engine.playIn (MidiMessage::noteOff (1, 64));
+    playLive (engine, 0.25);
+    c.stop();
+    CHECK_EQ (count (false), 1);
+    CHECK_EQ (count (true), 2);
+    for (auto& clip : c.project.track (t)->clips())
+        if (clip.isMidi() && clip.start >= c.project.tempo.tickAt (3.9))
+        {
+            CHECK_EQ (clip.midi.notes.size(), size_t (1));
+            if (! clip.midi.notes.empty()) CHECK_EQ (clip.midi.notes.front().pitch, 64);
+        }
 }

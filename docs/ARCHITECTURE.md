@@ -9,7 +9,7 @@
 | `Core/Model.*` | The project as plain data: tracks (folders, returns, the master), versions of clips, MIDI and audio clips, devices, sends, automation, modulators, articulation maps (0003, 0005, 0006). |
 | `Core/Edit.*` | Every change as a function, and the undo history (0008). |
 | `Core/Roll.*` | The piano roll's mouse rules as a state machine (0009). |
-| `Core/Patterns.*` | Drum grid, step sequencer and Euclidean rhythms, read from and written to notes (0014). |
+| `Core/Patterns.*` | Drum grid, step sequencer and Euclidean rhythms, read from and written to notes, each only its own (`Note::from`, 0014, 0059). |
 | `Core/Harmony.*`, `ScaleModel.h` | Scales, chord names (ScaleView's, unchanged), the chord lane, key finding (0015). |
 | `Core/Playback.*` | A track's clips compiled into MIDI messages and audio regions in seconds, with track and articulation delays (0011, 0013). |
 | `Core/Modulation.*` | LFO, envelopes, follower and wavetable state (0012). |
@@ -25,6 +25,9 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/Ideas.*` | Good Idea's engine (Lua, `Engines/good-idea/`, embedded by `cmake/EmbedLua.cmake`): drum grooves and motifs for the Random buttons (0062). |
+| `Core/Controllers.*` | The MIDI controllers' standard names (0060). |
+| `Core/AutoCc.*` | AutoCC's engine, ported from the JSFX: a clip's notes to its CC curves; instrument names to its families (0060). |
 | `Core/Hui.*` | The HUI protocol (0043). |
 | `Core/Xml.*`, `Core/MusicXml.*` | A small XML reader and writer (Miderator's), and MusicXML in and out (0057). |
 | `Core/ProjectFile.*` | `.kalibre` files: JSON with nlohmann/json. |
@@ -42,8 +45,11 @@
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
 | `Engine/Editors.h` | Opening and closing plug-ins' windows, telling the plug-in first (0056). |
 | `Engine/LoudnessMatch.h` | Match Loudness: output held to the input's short-term loudness (0056). |
-| `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050). |
+| `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050), and on a track armed for MIDI catches what its instrument is played (`MidiTap`, 0064). |
 | `Engine/BuiltinInstruments.*`, `HardwareInsert.*` | Kalibre Synth and Sampler (0039); the hardware insert and the interface's channels it shares (0040). |
+| `Engine/JsfxDevice.*` | The family's JSFX as devices, run by ysfx (0066). |
+| `Engine/HostedProcessor.*` | A plain JUCE `AudioProcessor` compiled into Kalibre as a device: parameters passed on, its window inside the device's (0067). |
+| `Engine/LuaTool/` | The family's ReaScripts as devices (0068): `ImGuiLua` (ReaImGui on Dear ImGui), `ToolSession` (a script's Lua, `reaper` and `host`), `LuaTool` (the processor, the window); `GfxTool` (gfx, for Orchestration Helper). |
 | `Engine/Mp3Writer.*` | MP3 export through Shine (0041). |
 | `Engine/NetworkMidi*` | The Mac's network MIDI session (0043). |
 | `Source/App/` | The window (0002). `Controller` owns the project, undo, the selection and every command; the views ask it. |
@@ -51,15 +57,19 @@
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp` | More of the Controller: audio commands, presets and A/B, file commands. |
+| `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |
+| `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
+| `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
 | `App/PluginManagerView.*` | The Plug-in Manager and its window (0047). |
 | `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045). |
 | `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md). |
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
 | `tools/RenderWindow.cpp` | Draws the window into PNGs on CI (0023). |
-| `tools/export-chat.py` | Writes a session's transcript as the chat backup in `docs/sessions/`. |
+| `tools/export-chat.py` | Writes a session's transcript as the chat backup in `docs/sessions/`; a new part's title and description are its last two arguments. |
+| `Engines/` | The family's engines, JSFX and ReaScripts (`tools/`), copied unchanged from their repositories (`Engines/VENDORED.md`), embedded in the app. |
 | `Scripts/` | Example scripts. |
 | `Resources/` | The app icon: `Icon.svg`, and `Icon.png` drawn from it (0048). |
-| `ThirdParty/` | Lua 5.4 (MIT) and nlohmann/json (MIT). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link and Shine (LGPL, MP3) are fetched by CMake. |
+| `ThirdParty/` | Lua 5.4 (MIT), nlohmann/json (MIT) and Instant Virtual Instrument's source (GPL-3.0, 0067). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link, Shine (LGPL, MP3), ysfx (Apache-2.0, 0066) and Dear ImGui (MIT, 0068) are fetched by CMake. |
 
 ## How sound flows
 
@@ -84,6 +94,7 @@ loop wraps inside the block, and runs the graph.
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).
 - A plug-in's window is deleted before its instance: the engine keeps removed instances for a second and a half.
 - Anything drawn over the plug-ins' windows must be its own window or go through `ui::present`, which hides them meanwhile: on the Mac they're native views, drawn above everything Kalibre draws (0056).
+- On the Mac nothing Kalibre draws clips a plug-in's window, and a `Viewport` doesn't either: a plug-in in the rack is shown through a `PluginClip` (0058).
 - A plug-in's window is opened and closed with `editors::open` and `editors::close`, never `delete`: JUCE 9 needs the plug-in told first, or it won't open another (0056).
 - Graph channels are set before connecting to them: a connection to a channel that doesn't exist yet is silently refused (that cost a render).
 - Every colour comes from `Theme.h`; every word is 7:1.
@@ -92,4 +103,7 @@ loop wraps inside the block, and runs the graph.
 - `main` is Kalibre's own (Main.cpp): with `--kalibre-scan` it's the scanner's helper and never starts the app. Test programs that scan do the same.
 - A track's `devices` are its active version's; the others' wait in their versions under the same ids, and the engine keys instances by (version, device) (0050). `Project::device` finds only the playing ones.
 - The engine's "no jump" position is `noJump` (-1e9), not -1: positions below zero are real (a count-in). With -1, live playback jumped back to -1 s every block.
+- A note's chance, velocity range and timing are rolled on the audio thread as each note-on comes up (`playback::roll`); a late one waits in `TrackSource::waiting`, a fixed list, emptied on a jump or stop (0061).
 - What the clip launcher plays (`Track::launch`) isn't saved and survives Undo.
+- Lua is compiled as C++ (0068): include its headers plainly, never inside `extern "C"`, or nothing links.
+- The family's scripts in `Engines/` are copied unchanged: what Kalibre needs differently goes in its own stand-ins (`Engines/tools/sb_place.lua`, `mc_place.lua`) or the host, and a fix to a script goes to its repo first.

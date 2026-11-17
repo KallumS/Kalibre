@@ -62,6 +62,12 @@ struct NoteExpression
     bool operator== (const NoteExpression&) const = default;
 };
 
+// Which editor made a note (decision 0059). The piano roll shows and edits
+// every note; the drum grid, the step sequencer and the Euclidean sequencer
+// each show and change only their own, so all of them can add to one clip.
+// Played, recorded, imported and drawn notes are the piano roll's.
+enum class NoteFrom { Roll, Drums, Steps, Euclid };
+
 struct Note
 {
     Id id = 0;
@@ -72,6 +78,15 @@ struct Note
     int channel = 0;          // 0-15
     int articulation = -1;    // index into the track's articulation map; -1 none
     std::vector<NoteExpression> expression;   // MPE: bends, pressure, slide of this note alone
+    NoteFrom from = NoteFrom::Roll;
+    // Played differently each time (decision 0061): how often it plays at all,
+    // how much softer or harder at most, how many ms early or late at most.
+    int chance = 100;          // %
+    int velocityRange = 0;     // either side of its velocity
+    double timingMs = 0;       // either side of its start
+    // A pattern step played several times in its length (decision 0063): the
+    // first of them says how many; the rest are 0, "a repeat of the one before".
+    int repeat = 1;
 
     Tick end() const { return start + length; }
     bool operator== (const Note&) const = default;
@@ -190,6 +205,15 @@ struct OfflineFx
 //==============================================================================
 // Clips, versions
 
+// A pattern editor's feel for a clip (decision 0063): every second step
+// pushed late by `swing` of a step (0-0.75), each note `gate` of its step long.
+struct PatternFeel
+{
+    double swing = 0;
+    double gate = 0.9;
+    bool operator== (const PatternFeel&) const = default;
+};
+
 struct Clip
 {
     enum class Kind { Midi, Audio };
@@ -209,6 +233,7 @@ struct Clip
     OfflineFx offlineFx;
     Id fromTake = 0;          // made by the comp from this take (decision 0029); 0 for an ordinary clip
     Id link = 0;              // linked clips (decision 0037) share this: an edit to one's content is made to all
+    PatternFeel drumsFeel { 0, 0.9 }, stepsFeel { 0, 0.5 }, euclidFeel { 0, 0.9 };   // decision 0063
 
     Tick end() const { return start + length; }
     bool isMidi() const { return kind == Kind::Midi; }
@@ -392,6 +417,12 @@ struct TrackInput
     bool operator== (const TrackInput&) const = default;
 };
 
+// What an armed track records (decisions 0064, 0065): the sound coming in
+// (click, red); the MIDI its instrument is played, arpeggiators and MIDI
+// effects included (right-click, blue); both (Shift-click); or the MIDI
+// played in, before any plug-in (Shift-right-click).
+enum class ArmFor { Audio, Midi, Both, MidiInput };
+
 struct Track
 {
     Id id = 0;
@@ -406,6 +437,10 @@ struct Track
     double pan = 0.0;            // -1..1
     double frontBack = 1.0;      // in a surround mix: -1 behind .. 1 in front (decision 0040)
     bool mute = false, solo = false, armed = false;
+    ArmFor armFor = ArmFor::Audio;   // what it records when armed (decisions 0064, 0065)
+    bool armedAudio() const   { return armed && (armFor == ArmFor::Audio || armFor == ArmFor::Both); }
+    bool armedPlugins() const { return armed && (armFor == ArmFor::Midi || armFor == ArmFor::Both); }
+    bool armedMidiIn() const  { return armed && armFor == ArmFor::MidiInput; }
     Monitor monitor = Monitor::Auto;
     bool phaseInvert = false, mono = false;
     bool locked = false, hidden = false, enabled = true;
@@ -426,6 +461,8 @@ struct Track
     AutoMode autoMode = AutoMode::Read;
     std::vector<Modulator> modulators;
     Id articulationMap = 0;
+    // The CC lanes shown under its notes, in the piano roll and notation (decision 0060).
+    std::vector<int> ccLanes { 1, 11 };
 
     // The clip launcher (decision 0037): one slot a scene; a slot whose length is 0 is empty.
     std::vector<Clip> slots;

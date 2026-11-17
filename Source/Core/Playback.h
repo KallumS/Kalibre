@@ -41,7 +41,41 @@ struct MidiMessage
     std::uint8_t bytes[3] {};
     std::uint8_t size = 3;
     int order = 0;           // at the same moment: note-offs, then keyswitches and controllers, then note-ons
+    // A note-on played differently each time (decision 0061): it plays
+    // `chance` times in 100, its velocity moved up to `velocityRange` either
+    // way, and up to `jitter` seconds after `seconds` (which is early by half
+    // of it, so it can land either side of where it's written).
+    std::uint8_t chance = 100;
+    std::uint8_t velocityRange = 0;
+    float jitter = 0;
 };
+
+// The audio thread's dice: no locks, no allocation.
+class Dice
+{
+public:
+    explicit Dice (std::uint32_t seed = 0x2545F491u) : state (seed ? seed : 1u) {}
+    double next()   // 0 up to 1
+    {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        return (double) (state >> 8) / 16777216.0;
+    }
+
+private:
+    std::uint32_t state;
+};
+
+struct Rolled
+{
+    bool plays = true;
+    std::uint8_t velocity = 100;
+    double delay = 0;   // seconds after the message's time
+};
+
+// What one note-on does this time.
+Rolled roll (const MidiMessage&, Dice&);
 
 struct AudioRegion
 {

@@ -156,3 +156,66 @@ TEST ("playback: an audio clip's edges can sit between ticks, on the very sample
     // The right half reads the file from where the left stopped.
     CHECK (near (out.audio[1].sourceSeconds - out.audio[0].sourceSeconds, out.audio[0].endSeconds - out.audio[0].startSeconds));
 }
+
+//==============================================================================
+// Note chance, velocity range and timing range (decision 0061).
+TEST ("chance, velocity and timing: a note carries them to playback, played early by its range so it can land either side")
+{
+    Project p;
+    p.tempo.setTempos ({ { 0, 120.0, false } });
+    const Id t = edit::addTrack (p, TrackKind::Track, "Hats");
+    const Id c = edit::addMidiClip (p, t, 0, PPQ * 4);
+    Note n;
+    n.start = PPQ;              // 0.5 s
+    n.length = PPQ;
+    n.pitch = 42;
+    n.velocity = 90;
+    n.chance = 60;
+    n.velocityRange = 12;
+    n.timingMs = 20;
+    edit::addNote (p, c, n);
+    const auto out = playback::compile (p, *p.track (t));
+    const playback::MidiMessage* on = nullptr;
+    for (auto& m : out.midi) if ((m.bytes[0] & 0xF0) == 0x90) on = &m;
+    CHECK (on != nullptr);
+    if (! on) return;
+    CHECK (std::abs (on->seconds - 0.48) < 1e-9);       // up to 20 ms early...
+    CHECK (std::abs (on->jitter - 0.04) < 1e-9);         // ...to 20 ms late
+    CHECK_EQ ((int) on->chance, 60);
+    CHECK_EQ ((int) on->velocityRange, 12);
+
+    // A timing range never moves a note past its own end: at most a quarter of its length.
+    p.clip (c)->midi.notes.front().length = PPQ / 16;      // 31 ms
+    const auto shortOut = playback::compile (p, *p.track (t));
+    for (auto& m : shortOut.midi)
+        if ((m.bytes[0] & 0xF0) == 0x90) CHECK (m.jitter <= (PPQ / 16) / (double) PPQ * 0.5 * 0.5 + 1e-9);
+}
+
+TEST ("chance, velocity and timing: the dice, as the audio thread rolls them")
+{
+    playback::MidiMessage m;
+    m.bytes[0] = 0x90; m.bytes[1] = 60; m.bytes[2] = 100;
+    playback::Dice dice (1234);
+    // Chance: about as often as asked.
+    m.chance = 30;
+    int played = 0;
+    for (int i = 0; i < 10000; ++i) if (playback::roll (m, dice).plays) ++played;
+    CHECK (played > 2700 && played < 3300);
+    m.chance = 0;
+    for (int i = 0; i < 1000; ++i) CHECK (! playback::roll (m, dice).plays);
+    m.chance = 100;
+    for (int i = 0; i < 1000; ++i) CHECK (playback::roll (m, dice).plays);
+    // Velocity: within the range either side, never past 1-127, and not always the same.
+    m.velocityRange = 20;
+    int lo = 999, hi = -1;
+    for (int i = 0; i < 2000; ++i) { const int v = playback::roll (m, dice).velocity; lo = std::min (lo, v); hi = std::max (hi, v); }
+    CHECK (lo >= 80 && hi <= 120 && lo < 85 && hi > 115);
+    m.bytes[2] = 120;
+    for (int i = 0; i < 500; ++i) CHECK (playback::roll (m, dice).velocity <= 127);
+    // Timing: a delay within the window.
+    m.velocityRange = 0;
+    m.jitter = 0.04f;
+    double dlo = 1, dhi = -1;
+    for (int i = 0; i < 2000; ++i) { const double d = playback::roll (m, dice).delay; dlo = std::min (dlo, d); dhi = std::max (dhi, d); }
+    CHECK (dlo >= 0 && dhi <= 0.04 && dlo < 0.002 && dhi > 0.038);
+}

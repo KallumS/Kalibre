@@ -488,3 +488,323 @@ TEST ("routing: an instrument's second output plays on a track of its own; a har
     // 0.25 through the pan law's centre (+3 dB on each side of -3 dB): 0.25 at unity.
     CHECK (! pk.empty() && std::abs (pk[0] - 0.25f) < 0.01f);
 }
+
+TEST ("chance and timing: an export plays each note as often as its chance says, each within its timing range (decision 0061)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    // The sampler, with a click 50 ms into its sample: each note played leaves a click.
+    auto make = [] (Project& q, int chance, double timingMs)
+    {
+        q.tempo.setTempos ({ { 0, 120.0, false } });
+        const Id s = edit::addTrack (q, TrackKind::Track, "Hats");
+        const Id dev = edit::addDevice (q, s, samplerRef(), DeviceRole::Instrument);
+        KalibreSampler loader;
+        String err;
+        loader.load (clickFile (0.05), err);
+        MemoryBlock m;
+        loader.getStateInformation (m);
+        q.device (dev)->state = m.toBase64Encoding().toStdString();
+        const Id c = edit::addMidiClip (q, s, 0, PPQ * 64);
+        for (int i = 0; i < 40; ++i)
+        {
+            Note n;
+            n.start = PPQ + PPQ * i;     // every half second from 0.5 s
+            n.length = PPQ / 2;
+            n.pitch = 60;
+            n.velocity = 127;
+            n.chance = chance;
+            n.timingMs = timingMs;
+            edit::addNote (q, c, n);
+        }
+    };
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 21.5; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    String error;
+    // A click is one sample loud; count those apart from each other.
+    auto clicks = [] (const File& f)
+    {
+        std::vector<int> at;
+        for (int i : clicksIn (f)) if (at.empty() || i - at.back() > 100) at.push_back (i);
+        return at;
+    };
+
+    Project never;
+    make (never, 0, 0);
+    const auto f0 = tempFolder().getChildFile ("chance0.wav");
+    CHECK (engine.render (never, tempFolder(), f0, o, {}, error));
+    CHECK (clicks (f0).empty());
+
+    Project half;
+    make (half, 50, 0);
+    const auto f50 = tempFolder().getChildFile ("chance50.wav");
+    CHECK (engine.render (half, tempFolder(), f50, o, {}, error));
+    const auto some = clicks (f50);
+    CHECK (some.size() >= 8 && some.size() <= 32);
+
+    Project loose;
+    make (loose, 100, 20);
+    const auto ft = tempFolder().getChildFile ("timing20.wav");
+    CHECK (engine.render (loose, tempFolder(), ft, o, {}, error));
+    const auto all = clicks (ft);
+    CHECK_EQ (all.size(), size_t (40));
+    int off = 0;
+    for (size_t i = 0; i < all.size(); ++i)
+    {
+        const int written = (int) ((0.5 + 0.5 * (double) i + 0.05) * 48000);   // the note, then the click 50 ms into the sample
+        const int d = all[i] - written;
+        CHECK (std::abs (d) <= 20 * 48 + 2);
+        if (std::abs (d) > 48) ++off;      // more than a millisecond away
+    }
+    CHECK (off > 20);   // most land off the grid, either way
+}
+
+#include "JsfxDevice.h"
+#include "Editors.h"
+
+TEST ("jsfx: the family's five JSFX load, each with its sliders as parameters, and keep their state")
+{
+    for (auto& s : jsfxDevices())
+    {
+        auto inst = makeJsfx (jsfxRef (s));
+        CHECK (inst != nullptr);
+        if (! inst) continue;
+        CHECK (inst->getParameters().size() > 0);           // compiled: its sliders are there
+        if (inst->getParameters().isEmpty()) { std::printf ("    %s didn't compile\n", s.name); continue; }
+        inst->prepareToPlay (48000, 512);
+        // A slider moved, saved, and loaded into a fresh one.
+        auto* p = inst->getParameters()[0];
+        p->setValueNotifyingHost (p->getValue() < 0.5f ? 0.8f : 0.2f);
+        AudioBuffer<float> b (2, 512);
+        MidiBuffer m;
+        b.clear();
+        inst->processBlock (b, m);
+        MemoryBlock state;
+        inst->getStateInformation (state);
+        auto again = makeJsfx (jsfxRef (s));
+        again->setStateInformation (state.getData(), (int) state.getSize());
+        CHECK (std::abs (again->getParameters()[0]->getValue() - p->getValue()) < 0.01f);
+        // Its window opens.
+        editors::Owned e (editors::open (*inst));
+        CHECK (e != nullptr && dynamic_cast<GenericAudioProcessorEditor*> (e.get()) == nullptr);
+        if (e) CHECK (e->getWidth() >= s.minWidth && e->getHeight() >= s.minHeight);
+    }
+}
+
+TEST ("jsfx: Reese Basser and Instrument Creator play a note; Reverberator rings on after a click; Midi Evolver's notes play the synth")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    auto find = [] (const char* id) -> const JsfxSpec& { for (auto& s : jsfxDevices()) if (String (s.id) == id) return s; return jsfxDevices().front(); };
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    auto peakIn = [&fm] (const File& f, double from, double to)
+    {
+        std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+        if (! r) return 0.0f;
+        AudioBuffer<float> b (2, (int) r->lengthInSamples);
+        r->read (&b, 0, b.getNumSamples(), 0, true, true);
+        const int a = (int) (from * r->sampleRate), z = jmin (b.getNumSamples(), (int) (to * r->sampleRate));
+        return z > a ? b.getMagnitude (a, z - a) : 0.0f;
+    };
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 2.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    String error;
+
+    for (const char* id : { "reese-basser", "instrument-creator" })
+    {
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, id);
+        edit::addDevice (p, t, jsfxRef (find (id)), DeviceRole::Instrument);
+        const Id clip = edit::addMidiClip (p, t, 0, PPQ * 4);
+        edit::addNote (p, clip, { .start = 0, .length = PPQ * 2, .pitch = 48, .velocity = 110 });
+        const auto out = tempFolder().getChildFile (String (id) + ".wav");
+        CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+        const float peak = peakIn (out, 0.0, 1.0);
+        CHECK (peak > 0.01f);
+        if (peak <= 0.01f) std::printf ("    %s: peak %f\n", id, peak);
+    }
+
+    {
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, "Reverb");
+        edit::addClip (p, t, audioClip (clickFile (0.1), 0, PPQ * 4));
+        edit::addDevice (p, t, jsfxRef (find ("reverberator")), DeviceRole::AudioFx);
+        const auto out = tempFolder().getChildFile ("reverberator.wav");
+        CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+        const float tail = peakIn (out, 0.4, 1.5);
+        CHECK (tail > 0.0005f);                      // the click rings on in the material
+        if (tail <= 0.0005f) std::printf ("    reverberator tail %f\n", tail);
+    }
+
+    {
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, "Evolving");
+        edit::addDevice (p, t, jsfxRef (find ("midi-evolver")), DeviceRole::MidiFx);
+        edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+        const Id clip = edit::addMidiClip (p, t, 0, PPQ * 8);
+        for (int pitch : { 48, 52, 55 }) edit::addNote (p, clip, { .start = 0, .length = PPQ * 6, .pitch = pitch, .velocity = 100 });
+        o.end = 3.0;
+        const auto out = tempFolder().getChildFile ("evolver.wav");
+        CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+        const float peak = peakIn (out, 0.0, 3.0);
+        CHECK (peak > 0.01f);                         // the synth heard what Midi Evolver played
+        if (peak <= 0.01f) std::printf ("    evolver: peak %f\n", peak);
+    }
+}
+
+TEST ("instant virtual instrument: built in, its parameters passed on, its window, its demo played, its state kept")
+{
+    auto inst = makeInstantVirtualInstrument();
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    CHECK (inst->getParameters().size() >= 15);
+    inst->prepareToPlay (48000, 512);
+    CHECK (loadInstantVirtualInstrumentDemo (*inst));
+    // Its analysis runs in the background: play a held note until it sounds (20 s at most).
+    AudioBuffer<float> b (2, 512);
+    float heard = 0;
+    for (int i = 0; i < 400 && heard < 0.01f; ++i)
+    {
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        MidiBuffer m;
+        if (i % 20 == 0) m.addEvent (MidiMessage::noteOn (1, 60, (uint8) 110), 0);
+        b.clear();
+        inst->processBlock (b, m);
+        heard = jmax (heard, b.getMagnitude (0, 512));
+    }
+    CHECK (heard > 0.01f);
+    // A parameter set through Kalibre reaches it, and comes back from its saved state.
+    int which = 0;
+    for (int i = 0; i < inst->getParameters().size(); ++i)
+        if (inst->getParameters()[i]->getName (40) == "Brightness") which = i;
+    auto* p = inst->getParameters()[which];
+    CHECK_EQ (p->getName (40), String ("Brightness"));
+    p->setValueNotifyingHost (0.25f);
+    MemoryBlock state;
+    inst->getStateInformation (state);
+    auto again = makeInstantVirtualInstrument();
+    again->setStateInformation (state.getData(), (int) state.getSize());
+    CHECK (std::abs (p->getValue() - 0.25f) < 0.01f);
+    CHECK (std::abs (again->getParameters()[which]->getValue() - 0.25f) < 0.01f);
+    // Its own window, inside the device's; open, close, open again.
+    for (int k = 0; k < 2; ++k)
+    {
+        editors::Owned e (editors::open (*inst));
+        CHECK (e != nullptr && e->getNumChildComponents() == 1);
+        CHECK (e && e->getWidth() > 300 && e->getHeight() > 200);
+    }
+}
+
+#include "LuaTool/LuaTool.h"
+
+TEST ("lua tools: Starting Blocks, its Notation, Midi Catalogue and Orchestration Helper run their own scripts, play their block, keep their settings")
+{
+    for (const auto& spec : luaTools())
+    {
+        auto inst = makeLuaTool (luaToolRef (spec));
+        CHECK (inst != nullptr);
+        if (! inst) continue;
+        CHECK_EQ (luaToolError (*inst), String());
+        if (luaToolError (*inst).isNotEmpty()) std::printf ("    %s: %s\n", spec.id, luaToolError (*inst).toRawUTF8());
+        CHECK (inst->acceptsMidi() && inst->producesMidi());
+
+        // Its window: the script draws a frame at least once a size.
+        {
+            editors::Owned e (editors::open (*inst));
+            CHECK (e != nullptr && e->getWidth() >= 320 && e->getHeight() >= 240);
+            MessageManager::getInstance()->runDispatchLoopUntil (200);
+            CHECK_EQ (luaToolError (*inst), String());
+        }
+
+        // Orchestration Helper draws its page with gfx: something is on it.
+        if (spec.gfx)
+        {
+            CHECK (luaToolRun (*inst, "return gfx.w").getIntValue() >= 320);
+            CHECK (luaToolRun (*inst, "return gfx.texth").getIntValue() > 4);
+        }
+
+        // Audition plays the block through MIDI out. Midi Catalogue hands its
+        // block over when Audition is clicked; the others as soon as they start.
+        if (! spec.gfx)
+        {
+        if (String (spec.id) == "midi-catalogue")
+            luaToolRun (*inst, "host.setBlock({ { start = 0, len = 1, pitch = 64, vel = 90 } }, 4)");
+        inst->prepareToPlay (48000, 512);
+        CHECK_EQ (luaToolRun (*inst, "host.audition(true) return host.auditioning()"), String ("true"));
+        AudioBuffer<float> b (2, 512);
+        int ons = 0;
+        for (int i = 0; i < 400; ++i)   // about 4 s at 120 bpm: a block's worth
+        {
+            MidiBuffer m;
+            inst->processBlock (b, m);
+            for (const auto meta : m) if (meta.getMessage().isNoteOn()) ++ons;
+        }
+        CHECK (ons > 0);
+        if (ons == 0) std::printf ("    %s: no notes\n", spec.id);
+        }
+
+        // Its settings (REAPER's ExtState) go with the project.
+        luaToolRun (*inst, "reaper.SetExtState('kalibre-test', 'k', 'kept', true)");
+        MemoryBlock state;
+        inst->getStateInformation (state);
+        auto again = makeLuaTool (luaToolRef (spec));
+        again->setStateInformation (state.getData(), (int) state.getSize());
+        CHECK_EQ (luaToolRun (*again, "return reaper.GetExtState('kalibre-test', 'k')"), String ("kept"));
+        CHECK_EQ (luaToolError (*again), String());
+    }
+}
+
+TEST ("lua tools: Insert at Cursor puts the block on the device's track at the playhead; Midi Catalogue's parts get a track each; one undo step")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Blocks");
+    const auto find = [] (const char* id) { for (auto& s : luaTools()) if (String (s.id) == id) return luaToolRef (s); return PluginRef(); };
+    const Id sb = edit::addDevice (c.project, t, find ("starting-blocks"), DeviceRole::MidiFx);
+    c.refresh();
+    auto* inst = engine.instance (sb);
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    c.locate (PPQ * 8);
+
+    const String one = "return dofile('<embedded>/tools/starting-blocks/sb_place.lua').insert({ name = 'Lift', beats = 4, "
+                       "notes = { { start = 0, len = 1, pitch = 60, vel = 100 }, { start = 1.5, len = 0.5, pitch = 64, vel = 90 } } })";
+    CHECK_EQ (luaToolRun (*inst, one), String ("0"));   // Place.OK
+    const auto& clips = c.project.track (t)->clips();
+    CHECK_EQ (clips.size(), size_t (1));
+    if (clips.size() == 1)
+    {
+        CHECK_EQ (clips[0].start, PPQ * 8);
+        CHECK_EQ (clips[0].length, PPQ * 4);
+        CHECK_EQ (clips[0].name, std::string ("Lift"));
+        CHECK_EQ (clips[0].midi.notes.size(), size_t (2));
+        if (clips[0].midi.notes.size() == 2) CHECK_EQ (clips[0].midi.notes[1].start, PPQ * 3 / 2);
+    }
+    CHECK (c.undo());
+    CHECK (c.project.track (t)->clips().empty());
+
+    // Midi Catalogue's block across a section: one new track per instrument.
+    const Id mc = edit::addDevice (c.project, t, find ("midi-catalogue"), DeviceRole::MidiFx);
+    c.refresh();
+    auto* cat = engine.instance (mc);
+    CHECK (cat != nullptr);
+    if (! cat) return;
+    const size_t before = c.project.tracks.size();
+    const String parts = "local n = { start = 0, len = 2, pitch = 67, vel = 100 } "
+                         "return dofile('<embedded>/tools/midi-catalogue/mc_place.lua').insert({ name = 'Swell', beats = 8, notes = { n, n }, "
+                         "parts = { { name = 'Violin I', notes = { n } }, { name = 'Viola', notes = { n } } } })";
+    CHECK_EQ (luaToolRun (*cat, parts), String ("0"));
+    CHECK_EQ (c.project.tracks.size(), before + 2);
+    const int at = c.project.indexOf (t);
+    if (at >= 0 && (size_t) at + 2 < c.project.tracks.size())
+    {
+        CHECK_EQ (c.project.tracks[(size_t) at + 1].name, std::string ("Violin I"));
+        CHECK_EQ (c.project.tracks[(size_t) at + 2].name, std::string ("Viola"));
+        CHECK_EQ (c.project.tracks[(size_t) at + 1].clips().size(), size_t (1));
+    }
+    CHECK (c.undo());
+    CHECK_EQ (c.project.tracks.size(), before);
+}

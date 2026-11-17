@@ -24,6 +24,7 @@
 #include "Modulation.h"
 #include "Playback.h"
 #include "Swap.h"
+#include "TimedPlugin.h"
 
 #include <array>
 #include "Warp.h"
@@ -180,7 +181,7 @@ private:
 };
 
 //==============================================================================
-class TrackSource : public juce::AudioProcessor
+class TrackSource : public juce::AudioProcessor, public MidiTap
 {
 public:
     TrackSource (Shared&, Id track);
@@ -213,6 +214,7 @@ public:
         bool audible = true;          // false when muted: notes still stop cleanly
         bool monitor = false;         // pass the live input on
         bool armed = false;
+        bool armedMidi = false;       // armed for MIDI (decision 0064)
         bool readAutomation = true;
         bool summing = false;         // a Summing track: silent while it records the master (decision 0052)
         Fader* fader = nullptr;
@@ -239,6 +241,15 @@ public:
     juce::AbstractFifo playedFifo { 8192 };
     std::array<Played, 8192> played {};
 
+    // Armed for MIDI (decision 0064): what the track's instrument is played
+    // (or, if it sends MIDI of its own, what it sends), caught on the device
+    // the engine taps, with its place in the song in seconds; read by the window.
+    struct Tapped { double seconds; std::uint8_t bytes[3]; bool fromOutput; };
+    juce::AbstractFifo tappedFifo { 16384 };
+    std::array<Tapped, 16384> tapped {};
+    std::atomic<bool> recordOutput { false };
+    void caught (const juce::MidiBuffer&, bool fromOutput) override;
+
     // Last-touched: a parameter of this track's plug-ins being written by a hand.
     Id trackId;
 
@@ -264,6 +275,14 @@ private:
     size_t nextMidi = 0;
     double lastEnd = -1;
     std::array<std::uint16_t, 16 * 128> sounding {};   // notes we started and haven't ended
+    // Note chance, velocity and timing (decision 0061): rolled as each note
+    // comes up; a note played late waits here, in a list that never grows.
+    playback::Dice dice;
+    struct Waiting { double seconds; std::uint8_t bytes[3]; };
+    std::array<Waiting, 256> waiting {};
+    int waitingCount = 0;
+    std::array<std::uint16_t, 16 * 128> skipped {};    // note-ons not played this time, whose note-offs are dropped too
+    void emit (const Data&, const std::uint8_t* bytes, int size, int at, juce::MidiBuffer&);
     std::array<modulation::Runner, 32> runners;
     std::array<Id, 32> runnerIds {};
     juce::AudioBuffer<float> live;

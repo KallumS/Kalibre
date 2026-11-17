@@ -17,7 +17,8 @@ plug-in from the rack into a window of its own.
   plug-in window is now opened and closed through `Engine/Editors.h`.
 - **Panels are kept** while their plug-in stays: adding a device makes only
   its own panel.
-- **No scaling.** A plug-in's window is shown at its own size, centred; a
+- **No scaling** (replaced by 0058: fitted, shown smaller when it must be,
+  never stretched). A plug-in's window is shown at its own size, centred; a
   resizable one is fitted to the zone's height keeping its shape. One taller
   than the zone scrolls. (Scaling was ignored by many plug-ins, so the panel
   was sized for a scaled window that wasn't: cut off, or off-centre.) When a

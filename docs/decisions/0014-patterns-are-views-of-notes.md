@@ -11,3 +11,5 @@ The drum grid, step sequencer and Euclidean sequencer read the clip's notes into
 ## Consequences
 
 Euclidean settings aren't saved: the rhythm is, as notes.
+
+Since 0059 each editor reads and writes only the notes it made, so they share one clip.

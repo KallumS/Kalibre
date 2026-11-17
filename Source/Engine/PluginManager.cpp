@@ -521,7 +521,11 @@ DeviceRole PluginManager::roleFor (const PluginDescription& d)
 {
     if (d.isInstrument) return DeviceRole::Instrument;
     const auto cat = d.category.toLowerCase();
-    if (cat.contains ("note effect") || cat.contains ("midi") || (d.numInputChannels == 0 && d.numOutputChannels == 0))
+    if (cat.contains ("note effect") || cat.contains ("midi")) return DeviceRole::MidiFx;
+    // No audio in or out means MIDI only, except for a VST3: JUCE describes one
+    // from its moduleinfo.json, which has no channel counts, so every VST3
+    // effect looked like that and was filed as a MIDI effect (decision 0058).
+    if (d.pluginFormatName != "VST3" && d.numInputChannels == 0 && d.numOutputChannels == 0)
         return DeviceRole::MidiFx;
     return DeviceRole::AudioFx;
 }

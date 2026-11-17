@@ -1,4 +1,5 @@
 #include "Theme.h"
+#include "PluginClip.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -148,15 +149,30 @@ int LookAndFeel::getTextButtonWidthToFitText (TextButton& b, int buttonHeight)
 void LookAndFeel::drawButtonBackground (Graphics& g, Button& b, const Colour& base, bool highlighted, bool down)
 {
     const auto on = b.getToggleState();
-    auto fill = on ? accent : (base == findColour (TextButton::buttonColourId) ? control : base);
+    // A button may have an "on" colour of its own (an armed track's, decision 0064).
+    const auto own = b.getProperties()["onColour"];
+    const bool ownOn = on && ! own.isVoid();
+    const auto onFill = ownOn ? Colour ((uint32) (int64) own) : accent;
+    auto fill = on ? onFill : (base == findColour (TextButton::buttonColourId) ? control : base);
     if (! b.isEnabled()) fill = rule;
-    else if (down) fill = on ? accentHeld : controlHeld;
-    else if (highlighted) fill = on ? accentHover : (fill == control ? controlHover : fill.brighter (0.1f));
+    else if (down) fill = on ? (ownOn ? onFill.darker (0.2f) : accentHeld) : controlHeld;
+    else if (highlighted) fill = on ? (ownOn ? onFill.brighter (0.08f) : accentHover) : (fill == control ? controlHover : fill.brighter (0.1f));
 
     const auto area = b.getLocalBounds().toFloat().reduced (1.0f);
     const auto radius = jmin (cornerRadius, area.getHeight() * 0.3f);
     g.setColour (fill);
     g.fillRoundedRectangle (area, radius);
+    // A second "on" colour fills the right half (armed for audio and MIDI, decision 0065).
+    if (const auto second = b.getProperties()["onColour2"]; ownOn && ! second.isVoid() && b.isEnabled())
+    {
+        Colour two ((uint32) (int64) second);
+        if (down) two = two.darker (0.2f); else if (highlighted) two = two.brighter (0.08f);
+        g.saveState();
+        g.reduceClipRegion (area.withLeft (area.getCentreX()).toNearestInt());
+        g.setColour (two);
+        g.fillRoundedRectangle (area, radius);
+        g.restoreState();
+    }
     if (b.hasKeyboardFocus (false)) drawFocusRing (g, area, radius);
 }
 
@@ -434,7 +450,13 @@ struct PluginsAside : public juce::ModalComponentManager::Callback
         for (auto* child : c.getChildren())
         {
             if (! child->isVisible()) continue;
-            if (dynamic_cast<juce::AudioProcessorEditor*> (child) != nullptr) { child->setVisible (false); hidden.emplace_back (child); }
+            // A plug-in's window, or what shows one in the rack (decision 0058:
+            // on the Mac that holds it in a native view of its own, outside this tree).
+            if (dynamic_cast<juce::AudioProcessorEditor*> (child) != nullptr || dynamic_cast<PluginClip*> (child) != nullptr)
+            {
+                child->setVisible (false);
+                hidden.emplace_back (child);
+            }
             else hideIn (*child);
         }
     }

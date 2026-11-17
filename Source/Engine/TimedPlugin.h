@@ -21,6 +21,15 @@
 namespace kal
 {
 
+// Where the MIDI going into a plug-in, and coming out of it, is caught while
+// a track is armed for MIDI (decision 0064): a track's Source is one. Called
+// on the audio thread, once with the plug-in's input and once with its output.
+struct MidiTap
+{
+    virtual ~MidiTap() = default;
+    virtual void caught (const juce::MidiBuffer&, bool fromOutput) = 0;
+};
+
 class TimedPlugin : public juce::AudioPluginInstance
 {
 public:
@@ -38,6 +47,9 @@ public:
     // A plug-in of a version not playing (decision 0050): loaded, kept, silent,
     // and costing nothing, so choosing its version is instant.
     std::atomic<bool> parked { false };
+
+    // The track's tap, on the device whose MIDI is recorded when armed for MIDI (decision 0064).
+    std::atomic<MidiTap*> tap { nullptr };
 
     // Match Loudness (decision 0056): what comes out kept as loud as what went in.
     std::atomic<bool> matchLoudness { false };
@@ -73,11 +85,14 @@ public:
         const auto start = juce::Time::getHighResolutionTicks();
         const bool matching = matchLoudness.load (std::memory_order_relaxed);
         if (matching) match.keepInput (audio, audio.getNumSamples());
+        auto* t = tap.load (std::memory_order_relaxed);
+        if (t != nullptr) t->caught (midi, false);
         {
             const juce::ScopedLock lock (inner->getCallbackLock());
             if (inner->isSuspended()) { audio.clear(); midi.clear(); }
             else inner->processBlock (audio, midi);
         }
+        if (t != nullptr) t->caught (midi, true);
         if (matching || match.appliedDb.load() != 0.0f) match.apply (audio, audio.getNumSamples(), matching);
         busyTicks.fetch_add (juce::Time::getHighResolutionTicks() - start, std::memory_order_relaxed);
     }
@@ -85,6 +100,7 @@ public:
     void processBlockBypassed (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
     {
         if (parked.load (std::memory_order_relaxed)) { audio.clear(); midi.clear(); return; }
+        if (auto* t = tap.load (std::memory_order_relaxed)) t->caught (midi, false);   // bypassed: what it would have played
         const juce::ScopedLock lock (inner->getCallbackLock());
         inner->processBlockBypassed (audio, midi);
     }

@@ -128,6 +128,7 @@ bool Controller::newFromTemplate (const File& f)
     if (! loaded) { say (String (error), true); return false; }
     engine.stop();
     project = std::move (*loaded);
+    refileEffects (project);
     history.clear();
     file = File();
     dirty = false;

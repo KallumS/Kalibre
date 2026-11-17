@@ -1,0 +1,43 @@
+# 0066. The family's JSFX as devices
+
+## Context
+
+Asked on 17 November: add the user's repos as devices: Midi Evolver,
+Instant Virtual Instrument, Transient Shuffler, Midi Catalogue, Starting
+Blocks, Starting Blocks Notation, Orchestration Helper, Reese Basser,
+Reverberator and Instrument Creator; their branches may help. Five are
+REAPER JSFX (EEL2, each with its own @gfx window). Reese Basser, Reverberator
+and Instrument Creator have a `plugin` branch: a JUCE wrapper that runs the
+JSFX through ysfx (REAPER's EEL2 engine, open source) with its window as the
+plug-in's.
+
+## Decision
+
+- **The JSFX themselves**, unchanged (`Engines/jsfx/`, carried in the app by
+  `cmake/EmbedLua.cmake`, written to Kalibre's own folder for ysfx to load):
+  Midi Evolver (a MIDI effect), Transient Shuffler and Reverberator
+  (effects), Reese Basser and Instrument Creator (instruments). Nothing of
+  their sound or windows is redone, so what was measured in REAPER holds.
+- **Run by ysfx** (Apache-2.0, fetched by CMake at a fixed commit, its
+  graphics on; its own plug-in, tests and tools off), as in the plugin
+  branches.
+- **One device for all five** (`Engine/JsfxDevice.*`), adapted from those
+  branches' `JsfxPlugin.cpp`: one host parameter per slider (automation,
+  last touched, MIDI learn), the sliders and @serialize data saved with the
+  project, the @gfx window as the device's window (ysfx's graphics view),
+  resizable down to the least size each asks. What differs per JSFX is a
+  `JsfxSpec`, not a build of its own. MIDI the JSFX sends goes on to what
+  follows, so Midi Evolver plays the instrument after it (the branch's
+  wrapper dropped it).
+- In Add > Kalibre, under KallumS, each with its kind.
+- Midi Evolver's helper script (taking a performance into REAPER through
+  shared memory) isn't needed: arming its track for MIDI (0064) records what
+  it plays.
+
+## Consequences
+
+Tested: the five compile, their sliders are parameters, a slider moved
+survives saving and loading, each opens its own window at least its least
+size; in exports, Reese Basser and Instrument Creator sound a note,
+Reverberator rings on after a click, and the synth after Midi Evolver plays
+what it plays from a held chord. Rendered in the rack (render 21).

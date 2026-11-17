@@ -6,6 +6,9 @@
 #include "MorphProcessor.h"
 #include "ContainerProcessor.h"
 #include "Editors.h"
+#include "JsfxDevice.h"
+#include "LuaTool/LuaTool.h"
+#include "PluginClip.h"
 
 namespace kal
 {
@@ -60,9 +63,8 @@ public:
         match.onClick = [this] { c.apply ("Match Loudness", [this] (Project& p) { if (auto* d = p.device (id)) d->matchLoudness = ! d->matchLoudness; }); };
         window.onClick = [this] { if (rack.isFloating (id)) rack.dock (id); else rack.float_ (id); };
         menu.onClick = [this] { showMenu(); };
-        addAndMakeVisible (view);
-        view.setViewedComponent (&holder, false);
-        view.setScrollBarsShown (true, true, false, false);
+        addChildComponent (clip);
+        clip.setContent (&holder);
         update();
     }
 
@@ -76,6 +78,8 @@ public:
         editor.reset();
         editorFor = nullptr;
         natural = {};
+        ownSize = false;
+        fittedBox = {};
     }
 
     void update()
@@ -86,7 +90,9 @@ public:
         bypass.setToggleState (d->bypassed, dontSendNotification);
         match.setToggleState (d->matchLoudness, dontSendNotification);
         // Effects only; the Container has its own, for everything in it.
+        const bool matchShown = match.isVisible();
         match.setVisible (d->role == DeviceRole::AudioFx && d->plugin.identifier != "container");
+        if (match.isVisible() != matchShown) resized();
         ab.setButtonText (d->onB ? "Set B" : "Set A");
         ab.setTitle (d->onB ? "Settings B" : "Settings A");
         const bool floating = rack.isFloating (id);
@@ -101,6 +107,7 @@ public:
             editorFor = inst;
             editor.reset (editors::open (*inst));
             natural = editor->getBounds().withZeroOrigin();
+            fittedBox = {};
             holder.addAndMakeVisible (*editor);
             editor->addComponentListener (this);
             rack.relayout();
@@ -116,27 +123,69 @@ public:
                       + String (db >= 0 ? "+" : "") + String (db, 1) + " dB now.");
     }
 
-    // The width this panel takes at a height: the plug-in's own width (fitted
-    // to the height if it can be resized), never scaled.
+    // The width this panel takes at a height: the plug-in as shown, fitted.
     int widthFor (int height)
     {
-        const int header = theme::px (30), least = theme::px (330);
+        const int least = theme::px (330);
         if (! editor || natural.isEmpty()) return least;
-        const auto size = editorSizeFor (height - header);
-        const bool scrolls = size.getHeight() > height - header;
-        return jmax (least, size.getWidth() + (scrolls ? view.getScrollBarThickness() : 0) + 4);
+        return jmax (least, fitInto (boxFor (height)).shownWidth() + 4);
     }
 
-    // A resizable plug-in is given the height, keeping its shape, as far as it
-    // allows; any other keeps its own size.
-    Rectangle<int> editorSizeFor (int height)
+    // The room a plug-in has in a panel this tall: the zone's height under the
+    // header, and the rack's width, so a single wide one fits too.
+    Rectangle<int> boxFor (int height) const
     {
-        if (! editor || ! editor->isResizable()) return natural;
-        const float s = (float) height / (float) jmax (1, natural.getHeight());
-        Rectangle<int> b (0, 0, roundToInt ((float) natural.getWidth() * s), height);
-        if (auto* k = editor->getConstrainer())
-            k->checkBounds (b, editor->getBounds(), Rectangle<int> (0, 0, 100000, 100000), false, false, true, true);
-        return b;
+        return { 0, 0, jmax (1, rack.fitWidth() - 4), jmax (1, height - theme::px (30) - 4) };
+    }
+
+    // A plug-in's window fitted into a box, its shape kept (decision 0058): one
+    // that can be resized is asked to take the box's size, drawn by itself, so
+    // it stays sharp; whatever's still too big, or can't be resized, is shown
+    // smaller, the same both ways. Never stretched, and never shown bigger
+    // than it is (a picture made bigger blurs).
+    struct Fit
+    {
+        Rectangle<int> editor;   // the size the plug-in's window is, in its own units
+        float scale = 1.0f;      // and how much it's shown at
+        int shownWidth() const { return roundToInt ((float) editor.getWidth() * scale); }
+        int shownHeight() const { return roundToInt ((float) editor.getHeight() * scale); }
+    };
+
+    Fit fitInto (Rectangle<int> box)
+    {
+        if (! editor || natural.isEmpty() || box.isEmpty()) return {};
+        if (box == fittedBox) return fitted;
+        auto size = natural;
+        laying = true;
+        if (editor->isResizable() && ! ownSize)
+        {
+            const float s = jmin ((float) box.getWidth() / (float) natural.getWidth(), (float) box.getHeight() / (float) natural.getHeight());
+            Rectangle<int> want (0, 0, jmax (1, roundToInt ((float) natural.getWidth() * s)), jmax (1, roundToInt ((float) natural.getHeight() * s)));
+            if (auto* k = editor->getConstrainer())
+                k->checkBounds (want, editor->getBounds(), Rectangle<int> (0, 0, 100000, 100000), false, false, true, true);
+            editor->setBounds (want);
+            size = editor->getBounds().withZeroOrigin();   // what it took: some keep to sizes of their own
+        }
+        else if (editor->getBounds().withZeroOrigin() != natural) editor->setBounds (natural);
+        laying = false;
+        editor->setTopLeftPosition (0, 0);
+        if (size.isEmpty()) size = natural;
+        fitted = { size, jmin (1.0f, (float) box.getWidth() / (float) size.getWidth(), (float) box.getHeight() / (float) size.getHeight()) };
+        fittedBox = box;
+        return fitted;
+    }
+
+    // Where the plug-in's window is drawn: centred in the panel, and only the
+    // part inside the rack's view (on the Mac nothing else would hide the rest).
+    void placeEditor()
+    {
+        if (! editor || natural.isEmpty()) { clip.setVisible (false); return; }
+        const Point<int> at (body.getX() + (body.getWidth() - fitted.shownWidth()) / 2,
+                             body.getY() + (body.getHeight() - fitted.shownHeight()) / 2);
+        const auto shown = body.getIntersection (rack.shownArea (*this));
+        clip.setVisible (! shown.isEmpty());
+        clip.setBounds (shown);
+        clip.setContentPlacement (at - shown.getPosition(), fitted.scale);
     }
 
     void paint (Graphics& g) override
@@ -155,6 +204,7 @@ public:
             g.setColour (theme::textSecondary);
             g.setFont (theme::font (theme::smallPoints));
             String sub = String (roles[(int) d->role]) + " " + ui::u8 ("\xc2\xb7") + " " + String (d->plugin.format);
+            if (editor && fitted.scale < 0.995f) sub << " " << ui::u8 ("\xc2\xb7") << " " << roundToInt (fitted.scale * 100.0f) << "% to fit";
             if (const auto* from = c.project.track (d->sidechainFrom)) sub << " " << ui::u8 ("\xc2\xb7") << " sidechain: " << String (from->name);
             g.drawFittedText (sub, header, Justification::topLeft, 1);
             const auto body = getLocalBounds().withTrimmedTop (theme::px (30)).reduced (12);
@@ -195,19 +245,14 @@ public:
         header.removeFromRight (3);
         presets.setBounds (header.removeFromRight (presets.idealWidth (theme::smallControl)));
 
-        auto area = getLocalBounds().withTrimmedTop (theme::px (30)).reduced (2);
-        view.setBounds (area);
-        view.setVisible (editor != nullptr);
-        if (! editor || natural.isEmpty()) return;
-        // Its own size (or fitted, if it can be resized), centred; it scrolls if
-        // it's bigger than the zone.
-        const auto size = editorSizeFor (area.getHeight());
-        laying = true;
-        editor->setBounds (size);
-        laying = false;
-        const int w = jmax (size.getWidth(), view.getMaximumVisibleWidth()), h = jmax (size.getHeight(), view.getMaximumVisibleHeight());
-        holder.setSize (w, h);
-        editor->setTopLeftPosition ((w - size.getWidth()) / 2, (h - size.getHeight()) / 2);
+        body = getLocalBounds().withTrimmedTop (theme::px (30)).reduced (2);
+        if (! editor || natural.isEmpty()) { clip.setVisible (false); return; }
+        const auto f = fitInto (boxFor (getHeight()));
+        holder.setSize (f.editor.getWidth(), f.editor.getHeight());
+        placeEditor();
+        repaint();
+        // A plug-in that took another size than expected needs another width.
+        if (widthFor (getHeight()) != getWidth()) rack.relayout();
     }
 
     // Presets (decision 0039): saved ones, then the plug-in's own programs.
@@ -321,18 +366,25 @@ public:
     theme::HouseButton window { ui::u8 ("\xe2\xa7\x89"), "Move its window out of the rack, into a window of its own.", true };
     theme::HouseButton match { "Match", "Match Loudness: keep what comes out as loud as what goes in, by short-term loudness (LUFS-S, K-weighted).", true };
     DeviceRack& rack;
-    Viewport view;
-    Component holder;
+    Component holder;   // the plug-in's window, at (0, 0); before the clip, which shows it
+    PluginClip clip;
     editors::Owned editor;
     AudioPluginInstance* editorFor = nullptr;
     Rectangle<int> natural;   // the size the plug-in's window asks for
+    Rectangle<int> body;      // where it's shown, under the header
+    Rectangle<int> fittedBox;
+    Fit fitted;
+    bool ownSize = false;     // it chose a size itself: kept, only shown smaller
     bool laying = false;
 
-    // The plug-in resized its own window (a bigger view, a panel opened): take that as its size.
+    // The plug-in resized its own window (a bigger view, a panel opened, its
+    // corner dragged): that's its size now, shown smaller if it must be.
     void componentMovedOrResized (Component& comp, bool, bool wasResized) override
     {
         if (laying || ! wasResized || &comp != editor.get()) return;
         natural = editor->getBounds().withZeroOrigin();
+        ownSize = true;
+        fittedBox = {};
         rack.relayout();
     }
 };
@@ -553,6 +605,14 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     addAndMakeVisible (viewport);
     viewport.setViewedComponent (&strip, false);
     viewport.setScrollBarsShown (false, true);
+    viewport.moved = [this] { placeEditors(); };
+    // Two fingers sideways move the rack, over the plug-ins' windows too.
+    swipes = watchSidewaysSwipes (viewport, [this] (float dx)
+    {
+        if (strip.getWidth() <= viewport.getViewWidth()) return false;
+        viewport.setViewPosition (jlimit (0, strip.getWidth() - viewport.getViewWidth(), viewport.getViewPositionX() - roundToInt (dx)), 0);
+        return true;
+    });
     strip.addAndMakeVisible (add);
     add.onClick = [this] { addMenu (c, c.focusTrack, &add); };
     MorphProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
@@ -626,6 +686,7 @@ void DeviceRack::closeStaleWindows()
 DeviceRack::~DeviceRack()
 {
     stopTimer();
+    swipes.reset();
     windows.clear();   // their editors go before the plug-ins
     MorphProcessor::choosePlugin = nullptr;
     ContainerProcessor::choosePlugin = nullptr;
@@ -655,6 +716,18 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();
     kalibre.addItem ("Container (Plug-ins on a Band, the Mid or the Sides)", [&c, track] { c.addBuiltIn (track, containerRef(), DeviceRole::AudioFx); });
+    // The family's JSFX, built in (decision 0066).
+    kalibre.addSeparator();
+    kalibre.addSectionHeader ("KallumS");
+    for (auto& s : jsfxDevices())
+    {
+        const char* kinds[] { "MIDI Effect", "Instrument", "Effect" };
+        kalibre.addItem (String (s.name) + "  (" + kinds[(int) s.role] + ")", [&c, track, &s] { c.addBuiltIn (track, jsfxRef (s), s.role); });
+    }
+    kalibre.addItem ("Instant Virtual Instrument  (Instrument)", [&c, track] { c.addBuiltIn (track, instantVirtualInstrumentRef(), DeviceRole::Instrument); });
+    // The family's ReaImGui tools, built in (decision 0068).
+    for (auto& s : luaTools())
+        kalibre.addItem (String (s.name) + "  (MIDI Effect)", [&c, track, &s] { c.addBuiltIn (track, luaToolRef (s), DeviceRole::MidiFx); });
     PopupMenu m;
     m.addSubMenu ("MIDI Effects", midi, midi.getNumItems() > 0);
     m.addSubMenu ("Instruments", instruments, instruments.getNumItems() > 0);
@@ -742,6 +815,28 @@ void DeviceRack::layoutStrip()
     add.setBounds (x, theme::px (4), add.idealWidth(), theme::px (28));
     x += add.idealWidth() + theme::px (8);
     strip.setSize (jmax (x, viewport.getWidth()), h);
+    placeEditors();
+}
+
+juce::Rectangle<int> DeviceRack::pluginArea (Id device) const
+{
+    for (auto* p : panels)
+        if (p->id == device && p->editor)
+            return { p->getX() + p->body.getX() + (p->body.getWidth() - p->fitted.shownWidth()) / 2 - viewport.getViewPositionX() + viewport.getX(),
+                     p->getY() + p->body.getY() + (p->body.getHeight() - p->fitted.shownHeight()) / 2 + viewport.getY(),
+                     p->fitted.shownWidth(), p->fitted.shownHeight() };
+    return {};
+}
+
+juce::AudioProcessorEditor* DeviceRack::editorOf (Id device) const
+{
+    for (auto* p : panels) if (p->id == device) return p->editor.get();
+    return nullptr;
+}
+
+void DeviceRack::placeEditors()
+{
+    for (auto* p : panels) p->placeEditor();
 }
 
 void DeviceRack::paint (Graphics& g)

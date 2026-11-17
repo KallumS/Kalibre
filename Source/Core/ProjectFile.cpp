@@ -33,7 +33,8 @@ NLOHMANN_JSON_SERIALIZE_ENUM (Monitor, { { Monitor::Auto, "auto" }, { Monitor::I
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TempoPoint, tick, bpm, rampToNext)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Meter, bar, numerator, denominator)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (NoteExpression, tick, bend, pressure, timbre)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Note, id, start, length, pitch, velocity, channel, articulation, expression)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Note, id, start, length, pitch, velocity, channel, articulation, expression, from,
+                                                 chance, velocityRange, timingMs, repeat)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiEvent, tick, type, channel, number, value)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (MidiData, notes, events)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (WarpMarker, sourceSeconds, tick)
@@ -44,8 +45,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (PluginRef, format, identifier, 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Device, id, role, plugin, state, bypassed, active, useAra, araState, sidechainFrom, editorScale,
                                                  stateB, onB, matchLoudness)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (OfflineFx, chain, includeTail)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (PatternFeel, swing, gate)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Clip, id, kind, name, start, length, offset, loopLength, colour, muted, locked,
-                                                 midi, audio, offlineFx, fromTake, link)
+                                                 midi, audio, offlineFx, fromTake, link, drumsFeel, stepsFeel, euclidFeel)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Take, id, name, clips)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (CompSegment, start, end, take)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackVersion, id, name, clips, takes, comp, takesShown, devices, ownDevices)
@@ -65,7 +67,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Track, id, name, colour, kind, 
                                                  armed, monitor, phaseInvert, mono, locked, hidden, enabled, frozen, frozenFile,
                                                  delayMs, group, input, output, versions, activeVersion, devices, sends,
                                                  automation, autoMode, modulators, articulationMap,
-                                                 slots, mpe, sourceDevice, sourcePair, frontBack)
+                                                 slots, mpe, sourceDevice, sourcePair, frontBack, ccLanes, armFor)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Marker, id, tick, name)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Section, id, name, start, end, colour)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Metadata, title, artist, album, genre, comment, isrc, year, trackNumber)

@@ -56,7 +56,7 @@ inline Project song()
         if (lane.pitch == 42) for (int s = 0; s < 16; s += 2) lane.velocity[(size_t) s] = 70 + (s % 4 == 0 ? 20 : 0);
     }
     unsigned next = p.nextId;
-    patterns::writeGrid (p.clip (dc)->midi, g, 0, PPQ * 16, next);
+    patterns::writeGrid (p.clip (dc)->midi, g, 0, PPQ * 16, next, NoteFrom::Drums);
     p.nextId = next;
 
     ArticulationMap m;

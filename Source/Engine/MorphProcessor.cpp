@@ -1,4 +1,6 @@
 #include "MorphProcessor.h"
+#include "JsfxDevice.h"
+#include "LuaTool/LuaTool.h"
 
 #include "BuiltinInstruments.h"
 #include "Editors.h"
@@ -163,8 +165,54 @@ public:
 };
 } // namespace
 
+namespace
+{
+// For the tests: a free-running arpeggiator (decision 0064). Whatever comes
+// in is dropped; out comes a C5 every quarter of a second, a tenth long.
+class ArpTest : public AudioPluginInstance
+{
+public:
+    ArpTest() : AudioPluginInstance (BusesProperties()) {}
+    const String getName() const override { return "Arp Test"; }
+    void fillInPluginDescription (PluginDescription& d) const override { d.name = getName(); d.pluginFormatName = "Kalibre"; }
+    void prepareToPlay (double r, int) override { rate = r; at = 0; }
+    void releaseResources() override {}
+    void processBlock (AudioBuffer<float>& b, MidiBuffer& m) override
+    {
+        m.clear();
+        const auto every = (int64) (rate * 0.25), length = (int64) (rate * 0.1);
+        for (int i = 0; i < b.getNumSamples(); ++i, ++at)
+        {
+            if (at % every == 0) m.addEvent (MidiMessage::noteOn (1, 72, (uint8) 100), i);
+            if (at % every == length) m.addEvent (MidiMessage::noteOff (1, 72), i);
+        }
+    }
+    double getTailLengthSeconds() const override { return 0; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return true; }
+    bool isMidiEffect() const override { return true; }
+    bool hasEditor() const override { return false; }
+    AudioProcessorEditor* createEditor() override { return nullptr; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const String&) override {}
+    void getStateInformation (MemoryBlock&) override {}
+    void setStateInformation (const void*, int) override {}
+
+private:
+    double rate = 48000;
+    int64 at = 0;
+};
+} // namespace
+
 std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginManager& pm)
 {
+    if (ref.identifier == "test-arp") return std::make_unique<ArpTest>();
+    if (auto j = makeJsfx (ref)) return j;   // the family's JSFX (decision 0066)
+    if (ref.identifier == "instant-virtual-instrument") return makeInstantVirtualInstrument();   // decision 0067
+    if (auto t = makeLuaTool (ref)) return t;   // the family's ReaImGui tools (decision 0068)
     if (ref.identifier == "test-sidechain") return std::make_unique<SidechainTest>();
     if (ref.identifier == "test-multiout") return std::make_unique<MultiOutTest>();
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);

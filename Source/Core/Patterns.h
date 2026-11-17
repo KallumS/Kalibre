@@ -5,6 +5,8 @@
     notes are the only truth: each editor reads them into its grid and writes
     the grid back as notes, so a pattern drawn on the drum grid can be fixed
     in the piano roll and opened again on the grid, and nothing is kept twice.
+    Each reads and writes only the notes it made (decision 0059), so they
+    all add to one clip without taking over each other's notes.
 
     No JUCE in here.
 */
@@ -32,6 +34,10 @@ struct Lane
     std::string name;
     int pitch = 36;
     std::vector<int> velocity;   // per step; 0 is off
+    // Per step, as a note's (decision 0061); empty means 100%, 0 and 0.
+    std::vector<int> chance, velocityRange;
+    std::vector<double> timingMs;
+    std::vector<int> repeat;     // per step, times it plays in its length (decision 0063); empty means once
 };
 
 struct Grid
@@ -43,17 +49,26 @@ struct Grid
     std::vector<Lane> lanes;
 };
 
+// General MIDI's name for a drum ("Pedal Hi-Hat" for 44); "Note 90" past its list.
+std::string drumName (int pitch);
+
 // General MIDI's drum names for the usual kit, top row first.
 std::vector<Lane> standardKit (int steps);
 
-// Reads a clip's notes into a grid: a note belongs to the step it starts
-// nearest to. Pitches not in `lanes` get rows of their own.
-Grid readGrid (const MidiData&, Grid layout, Tick from = 0);
+// Reads a clip's notes made by `who` into a grid: a note belongs to the step
+// it starts nearest to. Pitches not in `lanes` get rows of their own.
+Grid readGrid (const MidiData&, Grid layout, Tick from, NoteFrom who);
 
-// The grid as notes, repeated to fill `length`, from `from`. Notes on pitches
-// the grid has rows for, and inside [from, from + length), are replaced; every
-// other note is left alone.
-void writeGrid (MidiData&, const Grid&, Tick from, Tick length, unsigned& nextId);
+// The grid as notes made by `who`, repeated to fill `length`, from `from`.
+// Notes made by `who` on pitches the grid has rows for, and inside
+// [from, from + length), are replaced; every other note is left alone.
+void writeGrid (MidiData&, const Grid&, Tick from, Tick length, unsigned& nextId, NoteFrom who);
+
+// Random Euclidean settings for a drum (decision 0062): steps, hits and
+// rotation in the ranges that drum usually plays (a kick few, a hat many,
+// a snare turned onto the backbeat); a new set for each seed.
+struct EuclidSettings { int steps = 16, pulses = 4, rotation = 0; };
+EuclidSettings randomEuclid (int pitch, unsigned seed);
 
 // Fills one row from a Euclidean rhythm.
 void euclidLane (Lane&, int steps, int pulses, int rotation, int velocity = 100, int accentEvery = 0);
@@ -69,6 +84,10 @@ struct Step
     int velocity = 100;
     double gate = 0.5;    // share of a step
     bool tie = false;     // runs on into the next step
+    int chance = 100;            // decision 0061
+    int velocityRange = 0;
+    double timingMs = 0;
+    int repeat = 1;              // times it plays in its step (decision 0063)
 };
 
 struct StepSequence
@@ -78,7 +97,8 @@ struct StepSequence
     double swing = 0;
 };
 
-StepSequence readSteps (const MidiData&, Tick stepTicks, int count, Tick from = 0);
-void writeSteps (MidiData&, const StepSequence&, Tick from, Tick length, unsigned& nextId);
+// As the grid: only the notes made by `who` are read, and replaced.
+StepSequence readSteps (const MidiData&, Tick stepTicks, int count, Tick from, NoteFrom who);
+void writeSteps (MidiData&, const StepSequence&, Tick from, Tick length, unsigned& nextId, NoteFrom who);
 
 } // namespace kal::patterns

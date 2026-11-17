@@ -1,6 +1,6 @@
 # Writes a session transcript (Claude Code .jsonl) as a readable chat backup in docs/sessions.
-# python3 -I tools/export-chat.py <transcript.jsonl> docs/sessions/<date>-chat-history.md
-# Edit the heading text below for a new part.
+# python3 -I tools/export-chat.py <transcript.jsonl> docs/sessions/<date>-chat-history.md ["Title" "What this part covers."]
+# Without a title and description, the second part's heading is used.
 import json, re, sys
 src, out = sys.argv[1], sys.argv[2]
 EMAIL = re.compile(r'[A-Za-z0-9._%+-]+@gmail\.com')
@@ -61,10 +61,12 @@ body = []
 for l in lines:
     if l.startswith('## ') and body and body[-1].startswith('- '): body.append('')
     body.append(l)
-head = f'''# Chat history: building Kalibre (16 November 2026)
+title = sys.argv[3] if len(sys.argv) > 3 else 'Chat history: building Kalibre (16 November 2026)'
+part = sys.argv[4] if len(sys.argv) > 4 else '''The second part of the conversation, from the first test on the Mac (the
+plug-in scan crash) on. The first part is in `2026-11-15-chat-history.md`.'''
+head = f'''# {title}
 
-The second part of the conversation, from the first test on the Mac (the
-plug-in scan crash) on. The first part is in `2026-11-15-chat-history.md`.
+{part}
 Kept so the reasons and the route aren't lost when the session's context is
 compacted. Your messages and Claude's replies are in full; each tool call (a
 command, a file written, a search) is listed in one line by what it did,

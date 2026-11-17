@@ -9,6 +9,8 @@
 #include "Comp.h"
 #include "Song.h"
 #include "MainComponent.h"
+#include "JsfxDevice.h"
+#include "LuaTool/LuaTool.h"
 
 using namespace juce;
 using namespace kal;
@@ -148,6 +150,27 @@ int main (int argc, char** argv)
         c.editor = EditorKind::Notation;
         c.viewChanged();
         shoot ("6-notation");
+        // AutoCC (decision 0060): a violin line, Auto pressed, in the piano roll and in notation.
+        {
+            const Id vt = edit::addTrack (c.project, TrackKind::Track, "Violins 1");
+            const Id vc = edit::addMidiClip (c.project, vt, 0, PPQ * 16);
+            const int line[][3] { { 0, 6, 67 }, { 6, 2, 69 }, { 8, 4, 71 }, { 13, 3, 72 } };   // start, length (beats), pitch
+            for (auto& l : line) { Note n; n.start = PPQ * l[0]; n.length = PPQ * l[1]; n.pitch = l[2]; n.velocity = 96; edit::addNote (c.project, vc, n); }
+            c.refresh();
+            c.selectClip (vc);
+            c.autoCc();
+            window.lowerHeight = 440;
+            c.editor = EditorKind::PianoRoll;
+            c.zoneTab = ZoneTab::Editor;
+            c.viewChanged();
+            shoot ("19-auto-cc-piano-roll");
+            c.editor = EditorKind::Notation;
+            c.viewChanged();
+            shoot ("20-auto-cc-notation");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, vt);
+            c.refresh();
+        }
         c.zoneTab = ZoneTab::Mixer;
         c.viewChanged();
         shoot ("7-mixer");
@@ -259,6 +282,73 @@ int main (int argc, char** argv)
             edit::removeTrack (c.project, t);
             c.refresh();
         }
+        // The family's JSFX in the rack (decision 0066): Reese Basser, then Reverberator.
+        {
+            const Id jt = edit::addTrack (c.project, TrackKind::Track, "Reese");
+            for (auto& sp : jsfxDevices())
+                if (String (sp.id) == "reese-basser" || String (sp.id) == "reverberator") edit::addDevice (c.project, jt, jsfxRef (sp), sp.role);
+            c.focusTrack = jt;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            window.lowerHeight = 480;
+            for (int i = 0; i < 10; ++i) MessageManager::getInstance()->runDispatchLoopUntil (40);   // their windows draw on a timer
+            shoot ("21-jsfx-devices");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, jt);
+            c.refresh();
+        }
+        // Instant Virtual Instrument in the rack (decision 0067), its demo loaded.
+        {
+            const Id it = edit::addTrack (c.project, TrackKind::Track, "Instant");
+            const Id dev = edit::addDevice (c.project, it, instantVirtualInstrumentRef(), DeviceRole::Instrument);
+            c.focusTrack = it;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            if (auto* inst = engine.instance (dev)) loadInstantVirtualInstrumentDemo (*inst);
+            window.lowerHeight = 520;
+            for (int i = 0; i < 40; ++i) MessageManager::getInstance()->runDispatchLoopUntil (50);   // its analysis, in the background
+            shoot ("22-instant-virtual-instrument");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, it);
+            c.refresh();
+        }
+        // The family's ReaImGui tools in the rack (decision 0068), one at a time.
+        for (const char* id : { "starting-blocks", "starting-blocks-notation", "midi-catalogue", "orchestration-helper" })
+        {
+            const Id tt = edit::addTrack (c.project, TrackKind::Track, "Tools");
+            for (auto& sp : luaTools())
+                if (String (sp.id) == id) edit::addDevice (c.project, tt, luaToolRef (sp), DeviceRole::MidiFx);
+            c.focusTrack = tt;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            window.lowerHeight = 560;
+            for (int i = 0; i < 12; ++i) MessageManager::getInstance()->runDispatchLoopUntil (40);   // the script draws on a timer
+            shoot ("23-" + String (id));
+            if (String (id) == "orchestration-helper")
+            {
+                // Typed into its search box, as from the keyboard.
+                std::function<Component* (Component&)> find = [&] (Component& in) -> Component*
+                {
+                    for (auto* ch : in.getChildren())   // the innermost: the script's own window
+                    {
+                        if (auto* r = find (*ch)) return r;
+                        if (auto* ed = dynamic_cast<AudioProcessorEditor*> (ch); ed && ed->processor.getName() == "Orchestration Helper") return ed;
+                    }
+                    return nullptr;
+                };
+                Component* ed = find (window);
+                if (ed != nullptr)
+                {
+                    for (auto ch : String ("trombone")) ed->keyPressed (KeyPress ((int) ch, 0, ch));
+                    for (int i = 0; i < 12; ++i) MessageManager::getInstance()->runDispatchLoopUntil (40);
+                    shoot ("23-orchestration-helper-search");
+                }
+                else std::printf ("no Orchestration Helper window found\n");
+            }
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, tt);
+            c.refresh();
+        }
         // Kalibre's own synth and sampler, side by side (decision 0039).
         {
             const Id synthTrack = edit::addTrack (c.project, TrackKind::Track, "Synth");
@@ -269,6 +359,9 @@ int main (int argc, char** argv)
             c.refresh();
             window.lowerHeight = 380;
             shoot ("13-synth-and-sampler");
+            // A short zone: shown smaller to fit, its shape kept (decision 0058).
+            window.lowerHeight = 250;
+            shoot ("18-fitted-to-a-short-zone");
             window.lowerHeight = 320;
             c.focusTrack = c.project.tracks[1].id;
         }

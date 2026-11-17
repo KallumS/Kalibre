@@ -57,6 +57,45 @@ add_library(KalibreShine STATIC ${SHINE_SOURCES})
 target_include_directories(KalibreShine PUBLIC ${shine_SOURCE_DIR}/src/lib)
 set_target_properties(KalibreShine PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
 
+# ysfx (Apache-2.0): the JSFX engine (REAPER's EEL2) with its graphics, for the
+# family's JSFX built in as devices (decision 0066). Its engine only: not its
+# own plug-in, tests or tools; its graphics view (plugin/components) is
+# compiled into KalibreApp below.
+FetchContent_Declare(ysfx
+    GIT_REPOSITORY https://github.com/JoepVanlier/ysfx.git
+    GIT_TAG        5c3452fee62583aa3d1b7e877d0c758c4024af89
+    GIT_SUBMODULES thirdparty/dr_libs)
+FetchContent_GetProperties(ysfx)
+if(NOT ysfx_POPULATED)
+    FetchContent_Populate(ysfx)
+endif()
+set(YSFX_PLUGIN OFF CACHE BOOL "" FORCE)
+set(YSFX_GFX ON CACHE BOOL "" FORCE)
+set(YSFX_TESTS OFF CACHE BOOL "" FORCE)
+set(YSFX_TOOLS OFF CACHE BOOL "" FORCE)
+set(YSFX_SKIP_CHECKSUM ON CACHE BOOL "" FORCE)
+add_subdirectory(${ysfx_SOURCE_DIR} ${ysfx_BINARY_DIR} EXCLUDE_FROM_ALL)
+# ysfx sets the standard for what comes after it; Kalibre is C++20.
+set(CMAKE_CXX_STANDARD 20)
+
+# Dear ImGui (MIT): the window the family's ReaImGui tools draw (Starting
+# Blocks, Starting Blocks Notation, Midi Catalogue), run by an embedded Lua on
+# a stand-in for ReaImGui and drawn with JUCE (decision 0068).
+FetchContent_Declare(imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG        v1.91.9b
+    GIT_SHALLOW    TRUE)
+FetchContent_GetProperties(imgui)
+if(NOT imgui_POPULATED)
+    FetchContent_Populate(imgui)
+endif()
+add_library(KalibreImGui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
+target_include_directories(KalibreImGui PUBLIC ${imgui_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Source/Engine/LuaTool)
+target_compile_definitions(KalibreImGui PUBLIC IMGUI_USER_CONFIG="ToolImConfig.h")
+set_target_properties(KalibreImGui PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" ${APPLE})
 if(KALIBRE_ARA)
     FetchContent_Declare(ara_sdk
@@ -80,6 +119,15 @@ add_library(KalibreApp STATIC
     Source/Engine/TrackProcessors.cpp
     Source/Engine/MorphProcessor.cpp
     Source/Engine/ContainerProcessor.cpp
+    Source/Engine/JsfxDevice.cpp
+    Source/Engine/HostedProcessor.cpp
+    Source/Engine/LuaTool/LuaTool.cpp
+    Source/Engine/LuaTool/ToolSession.cpp
+    Source/Engine/LuaTool/ImGuiLua.cpp
+    Source/Engine/LuaTool/GfxTool.cpp
+    ${ysfx_SOURCE_DIR}/plugin/components/graphics_view.cpp
+    ${ysfx_SOURCE_DIR}/plugin/utility/async_updater.cpp
+    ${ysfx_SOURCE_DIR}/plugin/utility/rt_semaphore.cpp
     Source/Engine/BuiltinInstruments.cpp
     Source/Engine/HardwareInsert.cpp
     Source/Engine/Mp3Writer.cpp
@@ -103,6 +151,7 @@ add_library(KalibreApp STATIC
     Source/App/TopBar.cpp
     Source/App/Arrange.cpp
     Source/App/PianoRoll.cpp
+    Source/App/CcLanes.cpp
     Source/App/PatternEditors.cpp
     Source/App/NotationView.cpp
     Source/App/DeviceRack.cpp
@@ -113,19 +162,32 @@ add_library(KalibreApp STATIC
     Source/App/Menus.cpp
     Source/App/Surfaces.cpp
     Source/App/StudioPanel.cpp)
+# Instant Virtual Instrument (KallumS/Instant-Virtual-Instrument, GPL-3.0), its
+# source unchanged, compiled into the app library as a built-in instrument
+# (decision 0067). Its own folder is its include root, and its plug-in name
+# the one JUCE would have given it, on its files only.
+file(GLOB_RECURSE IVI_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/InstantVirtualInstrument/Source/*.cpp)
+target_sources(KalibreApp PRIVATE ${IVI_SOURCES} Source/Engine/InstantVirtualInstrument.cpp)
+set_source_files_properties(${IVI_SOURCES} Source/Engine/InstantVirtualInstrument.cpp PROPERTIES
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/InstantVirtualInstrument/Source
+    COMPILE_DEFINITIONS "JucePlugin_Name=\"Instant Virtual Instrument\"")
+
 if(APPLE)
-    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm)
+    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm Source/App/PluginClipMac.mm)
     target_link_libraries(KalibreApp PRIVATE "-framework CoreMIDI")
     target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab (decision 0046)
 else()
-    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp)
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp Source/App/PluginClipOther.cpp)
 endif()
 
 target_include_directories(KalibreApp PUBLIC
     Source/App Source/Engine
+    ${ysfx_SOURCE_DIR}/plugin
     ${clap_SOURCE_DIR}/include)
 target_link_libraries(KalibreApp
     PUBLIC
+        ysfx::ysfx
+        KalibreImGui
         KalibreCore
         KalibreShine
         signalsmith-stretch

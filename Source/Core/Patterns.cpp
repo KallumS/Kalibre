@@ -3,6 +3,8 @@
 #include "Edit.h"
 
 #include <algorithm>
+#include <limits>
+#include <random>
 #include <cmath>
 #include <map>
 #include <set>
@@ -45,6 +47,19 @@ std::vector<bool> euclid (int steps, int pulses, int rotation)
     return out;
 }
 
+std::string drumName (int pitch)
+{
+    static const char* names[] {
+        "Acoustic Bass Drum", "Kick", "Rim", "Snare", "Clap", "Electric Snare", "Low Floor Tom", "Closed Hat", "High Floor Tom",
+        "Pedal Hi-Hat", "Low Tom", "Open Hat", "Low-Mid Tom", "Hi-Mid Tom", "Crash", "High Tom", "Ride", "Chinese Cymbal",
+        "Ride Bell", "Tambourine", "Splash", "Cowbell", "Crash 2", "Vibraslap", "Ride 2", "High Bongo", "Low Bongo",
+        "Mute High Conga", "Open High Conga", "Low Conga", "High Timbale", "Low Timbale", "High Agogo", "Low Agogo", "Cabasa",
+        "Maracas", "Short Whistle", "Long Whistle", "Short Guiro", "Long Guiro", "Claves", "High Wood Block", "Low Wood Block",
+        "Mute Cuica", "Open Cuica", "Mute Triangle", "Open Triangle" };
+    if (pitch >= 35 && pitch <= 81) return names[pitch - 35];
+    return "Note " + std::to_string (pitch);
+}
+
 std::vector<Lane> standardKit (int steps)
 {
     const std::vector<std::pair<const char*, int>> kit {
@@ -54,7 +69,7 @@ std::vector<Lane> standardKit (int steps)
     };
     std::vector<Lane> lanes;
     for (auto& [name, pitch] : kit)
-        lanes.push_back ({ name, pitch, std::vector<int> (static_cast<size_t> (steps), 0) });
+        lanes.push_back ({ name, pitch, std::vector<int> (static_cast<size_t> (steps), 0), {}, {}, {}, {} });
     return lanes;
 }
 
@@ -65,54 +80,114 @@ static Tick stepStart (const Grid& g, int step)
     return t;
 }
 
-Grid readGrid (const MidiData& m, Grid g, Tick from)
+Grid readGrid (const MidiData& m, Grid g, Tick from, NoteFrom who)
 {
-    for (auto& l : g.lanes) l.velocity.assign (static_cast<size_t> (g.steps), 0);
+    const size_t steps = static_cast<size_t> (g.steps);
+    auto blank = [steps] (Lane& l)
+    {
+        l.velocity.assign (steps, 0);
+        l.chance.assign (steps, 100);
+        l.velocityRange.assign (steps, 0);
+        l.timingMs.assign (steps, 0.0);
+        l.repeat.assign (steps, 1);
+    };
+    for (auto& l : g.lanes) blank (l);
     const Tick span = g.stepTicks * g.steps;
     for (auto& n : m.notes)
     {
+        if (n.from != who || n.repeat == 0) continue;   // a repeat belongs to the hit before it (decision 0063)
         const Tick rel = n.start - from;
-        if (rel < -g.stepTicks / 2 || rel >= span - g.stepTicks / 2) continue;
-        const int step = std::clamp (static_cast<int> (std::lround (static_cast<double> (rel) / g.stepTicks)), 0, g.steps - 1);
+        if (rel < -g.stepTicks / 2) continue;
+        // The step whose (swung) start is nearest; nearer the next pass's first, it's that pass's.
+        int step = -1;
+        Tick best = std::numeric_limits<Tick>::max();
+        const int around = static_cast<int> (rel / std::max<Tick> (1, g.stepTicks));
+        for (int s = std::max (0, around - 1); s <= std::min (g.steps, around + 1); ++s)
+        {
+            const Tick at = s == g.steps ? span : stepStart (g, s);
+            if (std::abs (rel - at) < best) { best = std::abs (rel - at); step = s; }
+        }
+        if (step < 0 || step >= g.steps) continue;
         auto it = std::find_if (g.lanes.begin(), g.lanes.end(), [&] (const Lane& l) { return l.pitch == n.pitch; });
         if (it == g.lanes.end())
         {
-            g.lanes.push_back ({ "Note " + std::to_string (n.pitch), n.pitch, std::vector<int> (static_cast<size_t> (g.steps), 0) });
+            g.lanes.push_back ({ drumName (n.pitch), n.pitch, {}, {}, {}, {}, {} });
+            blank (g.lanes.back());
             it = g.lanes.end() - 1;
         }
-        it->velocity[static_cast<size_t> (step)] = std::max (it->velocity[static_cast<size_t> (step)], n.velocity);
+        const auto s = static_cast<size_t> (step);
+        if (n.velocity >= it->velocity[s])
+        {
+            it->velocity[s] = n.velocity;
+            it->chance[s] = n.chance;
+            it->velocityRange[s] = n.velocityRange;
+            it->timingMs[s] = n.timingMs;
+            it->repeat[s] = std::clamp (n.repeat, 1, 8);
+        }
     }
     return g;
 }
 
-void writeGrid (MidiData& m, const Grid& g, Tick from, Tick length, unsigned& nextId)
+void writeGrid (MidiData& m, const Grid& g, Tick from, Tick length, unsigned& nextId, NoteFrom who)
 {
     std::set<int> pitches;
     for (auto& l : g.lanes) pitches.insert (l.pitch);
     m.notes.erase (std::remove_if (m.notes.begin(), m.notes.end(), [&] (const Note& n)
     {
-        return pitches.count (n.pitch) && n.start >= from && n.start < from + length;
+        return n.from == who && pitches.count (n.pitch) && n.start >= from && n.start < from + length;
     }), m.notes.end());
 
     const Tick span = g.stepTicks * g.steps;
-    const Tick noteLen = std::max<Tick> (1, static_cast<Tick> (std::lround (g.gate * static_cast<double> (g.stepTicks))));
     for (Tick base = from; base < from + length; base += span)
         for (auto& l : g.lanes)
             for (int s = 0; s < g.steps && s < static_cast<int> (l.velocity.size()); ++s)
             {
                 const int v = l.velocity[static_cast<size_t> (s)];
                 if (v <= 0) continue;
-                const Tick at = base + stepStart (g, s);
-                if (at >= from + length) continue;
-                Note n;
-                n.id = nextId++;
-                n.start = at;
-                n.length = noteLen;
-                n.pitch = l.pitch;
-                n.velocity = std::clamp (v, 1, 127);
-                m.notes.push_back (n);
+                const auto i = static_cast<size_t> (s);
+                // Repeated, the step is shared out among its repeats, each gated (decision 0063).
+                const int times = i < l.repeat.size() ? std::clamp (l.repeat[i], 1, 8) : 1;
+                const Tick each = std::max<Tick> (1, g.stepTicks / times);
+                const Tick noteLen = std::max<Tick> (1, static_cast<Tick> (std::lround (g.gate * static_cast<double> (each))));
+                for (int k = 0; k < times; ++k)
+                {
+                    const Tick at = base + stepStart (g, s) + each * k;
+                    if (at >= from + length) continue;
+                    Note n;
+                    n.id = nextId++;
+                    n.start = at;
+                    n.length = noteLen;
+                    n.pitch = l.pitch;
+                    n.velocity = std::clamp (v, 1, 127);
+                    n.from = who;
+                    n.repeat = k == 0 ? times : 0;
+                    if (i < l.chance.size()) n.chance = l.chance[i];
+                    if (i < l.velocityRange.size()) n.velocityRange = l.velocityRange[i];
+                    if (i < l.timingMs.size()) n.timingMs = l.timingMs[i];
+                    m.notes.push_back (n);
+                }
             }
     edit::sortNotes (m);
+}
+
+EuclidSettings randomEuclid (int pitch, unsigned seed)
+{
+    std::mt19937 dice (seed * 2654435761u + (unsigned) pitch);
+    auto pick = [&] (int lo, int hi) { return std::uniform_int_distribution<int> (lo, hi) (dice); };
+    EuclidSettings e;
+    const int lengths[] { 16, 16, 16, 8, 12, 32 };
+    e.steps = lengths[pick (0, 5)];
+    const int per8 = e.steps / 8;   // hits are counted per eight steps
+    switch (pitch)
+    {
+        case 35: case 36:           e.pulses = std::max (1, pick (2, 3) * per8 + pick (0, 1)); e.rotation = pick (0, 1) ? 0 : pick (0, e.steps - 1); break;
+        case 38: case 39: case 40:  e.pulses = std::max (1, pick (1, 2) * per8); e.rotation = pick (0, 2) ? e.steps / (2 * e.pulses) : pick (0, e.steps - 1); break;
+        case 42: case 44: case 46:  e.pulses = std::max (1, pick (3, 7) * per8); e.rotation = pick (0, e.steps - 1); break;
+        default:                    e.pulses = std::max (1, pick (1, 5) * per8); e.rotation = pick (0, e.steps - 1); break;
+    }
+    e.pulses = std::clamp (e.pulses, 1, e.steps - 1);
+    e.rotation = ((e.rotation % e.steps) + e.steps) % e.steps;
+    return e;
 }
 
 void euclidLane (Lane& lane, int steps, int pulses, int rotation, int velocity, int accentEvery)
@@ -130,13 +205,14 @@ void euclidLane (Lane& lane, int steps, int pulses, int rotation, int velocity, 
 }
 
 //==============================================================================
-StepSequence readSteps (const MidiData& m, Tick stepTicks, int count, Tick from)
+StepSequence readSteps (const MidiData& m, Tick stepTicks, int count, Tick from, NoteFrom who)
 {
     StepSequence s;
     s.stepTicks = stepTicks;
     s.steps.assign (static_cast<size_t> (count), Step {});
     for (auto& n : m.notes)
     {
+        if (n.from != who || n.repeat == 0) continue;   // a repeat belongs to the note before it (decision 0063)
         const Tick rel = n.start - from;
         if (rel < 0 || rel >= stepTicks * count) continue;
         const int i = static_cast<int> (rel / stepTicks);
@@ -146,7 +222,12 @@ StepSequence readSteps (const MidiData& m, Tick stepTicks, int count, Tick from)
         st.on = true;
         st.pitch = n.pitch;
         st.velocity = n.velocity;
-        const double share = static_cast<double> (n.length) / static_cast<double> (stepTicks);
+        st.chance = n.chance;
+        st.velocityRange = n.velocityRange;
+        st.timingMs = n.timingMs;
+        st.repeat = std::clamp (n.repeat, 1, 8);
+        // A repeated note's gate is of its share of the step.
+        const double share = static_cast<double> (n.length) * st.repeat / static_cast<double> (stepTicks);
         st.gate = std::clamp (share, 0.05, 1.0);
         // A note longer than its step ties into the steps it covers.
         const int covered = static_cast<int> ((n.length - 1) / stepTicks);
@@ -163,11 +244,11 @@ StepSequence readSteps (const MidiData& m, Tick stepTicks, int count, Tick from)
     return s;
 }
 
-void writeSteps (MidiData& m, const StepSequence& s, Tick from, Tick length, unsigned& nextId)
+void writeSteps (MidiData& m, const StepSequence& s, Tick from, Tick length, unsigned& nextId, NoteFrom who)
 {
     m.notes.erase (std::remove_if (m.notes.begin(), m.notes.end(), [&] (const Note& n)
     {
-        return n.start >= from && n.start < from + length;
+        return n.from == who && n.start >= from && n.start < from + length;
     }), m.notes.end());
     const int count = static_cast<int> (s.steps.size());
     const Tick span = s.stepTicks * count;
@@ -189,15 +270,28 @@ void writeSteps (MidiData& m, const StepSequence& s, Tick from, Tick length, uns
             if (i % 2 == 1) at += static_cast<Tick> (std::lround (s.swing * static_cast<double> (s.stepTicks)));
             if (at >= from + length) continue;
             const double lastGate = s.steps[static_cast<size_t> (last)].gate;
+            // A step on its own may repeat in its length, each repeat gated (decision 0063);
+            // a tied run is one long note.
+            const int times = last == i ? std::clamp (st.repeat, 1, 8) : 1;
+            const Tick each = last == i ? std::max<Tick> (1, s.stepTicks / times) : s.stepTicks;
             const Tick len = static_cast<Tick> (last - i) * s.stepTicks
-                           + std::max<Tick> (1, static_cast<Tick> (std::lround (lastGate * static_cast<double> (s.stepTicks))));
-            Note n;
-            n.id = nextId++;
-            n.start = at;
-            n.length = len;
-            n.pitch = std::clamp (st.pitch, 0, 127);
-            n.velocity = std::clamp (st.velocity, 1, 127);
-            m.notes.push_back (n);
+                           + std::max<Tick> (1, static_cast<Tick> (std::lround (lastGate * static_cast<double> (each))));
+            for (int k = 0; k < times; ++k)
+            {
+                if (at + each * k >= from + length) continue;
+                Note n;
+                n.id = nextId++;
+                n.start = at + each * k;
+                n.length = len;
+                n.pitch = std::clamp (st.pitch, 0, 127);
+                n.velocity = std::clamp (st.velocity, 1, 127);
+                n.from = who;
+                n.chance = st.chance;
+                n.velocityRange = st.velocityRange;
+                n.timingMs = st.timingMs;
+                n.repeat = k == 0 ? times : 0;
+                m.notes.push_back (n);
+            }
         }
     }
     edit::sortNotes (m);

@@ -63,3 +63,22 @@ TEST ("harmony: key finding prefers the obvious key")
     CHECK_EQ (ranked.front().root, 0);
     CHECK_EQ (ranked.front().scale, 0);
 }
+
+TEST ("harmony: drums written in the drum grid or the Euclidean aren't read as chords")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Beat");
+    const Id c = edit::addMidiClip (p, t, 0, PPQ * 4);
+    for (int pitch : { 36, 38, 42, 51 })
+    {
+        Note n; n.start = 0; n.length = PPQ; n.pitch = pitch; n.from = NoteFrom::Drums;
+        edit::addNote (p, c, n);
+    }
+    Note e; e.start = 0; e.length = PPQ; e.pitch = 39; e.from = NoteFrom::Euclid;
+    edit::addNote (p, c, e);
+    CHECK (harmony::soundingAt (p, 10).empty());
+    // A step-sequenced or played note still counts.
+    Note s; s.start = 0; s.length = PPQ; s.pitch = 60; s.from = NoteFrom::Steps;
+    edit::addNote (p, c, s);
+    CHECK (harmony::soundingAt (p, 10) == std::vector<int> ({ 60 }));
+}

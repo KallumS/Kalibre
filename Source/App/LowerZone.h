@@ -50,6 +50,9 @@ private:
     theme::HouseButton snapButton { "Snap", "Snap to the grid. Hold Command while dragging to move freely.", true };
     theme::HouseButton quantise { "Quantise", "Move the chosen notes (or all of them) onto the grid. (Q)" };
     theme::HouseButton legato { "Legato", "Lengthen the chosen notes up to the next one." };
+    theme::HouseButton ccLanes { ui::u8 ("CC Lanes\xe2\x80\xa6"), "Choose the controller lanes shown under the notes: modulation, expression, volume, any CC." };
+    theme::HouseButton autoCc { "Auto", "Draw the CC lanes as AutoCC would play these notes." };
+    void updateAuto();
 
     DeviceRack devices;
     PianoRoll roll;

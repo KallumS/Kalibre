@@ -3,11 +3,13 @@
     write into it. Choose a note value along the top, click a line or space
     to put a note there (spelled from the scale; Option-click sharpens it,
     Shift-click flattens it), right-click a note to remove it. Notes go in at
-    the cursor, which then moves on by the value.
+    the cursor, which then moves on by the value. Under the staff, the
+    track's CC lanes, each value under the note it goes with (decision 0060).
 */
 
 #pragma once
 
+#include "CcLanes.h"
 #include "Controller.h"
 #include "Notation.h"
 #include "Theme.h"
@@ -43,6 +45,10 @@ private:
     float yOfStep (int step) const;
     int stepAt (float y) const;
     Tick tickAtX (float x) const;
+    CcLanes lanes;
+    int lanesHeight() const;
+    float xOfClipTick (Tick) const;       // where a clip tick falls, between the glyphs either side
+    Tick clipTickAt (float x) const;
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
 };
 

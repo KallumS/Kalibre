@@ -11,8 +11,10 @@ grow and shrink with it.
 
 - **AU, VST3 and CLAP** plug-ins, hosted side by side, with **plug-in delay
   compensation** so they stay in time; switch one **off** and it's unloaded
-  from memory with its settings kept. Each can move to **its own window**,
-  and **Match Loudness** keeps an effect's output as loud as its input.
+  from memory with its settings kept. Each is **fitted to the rack**, shown
+  smaller if it must be, never stretched; swipe sideways with two fingers to
+  move along the rack. Each can move to **its own window**, and **Match
+  Loudness** keeps an effect's output as loud as its input.
 - A **plug-in scanner** that looks at each plug-in in a helper, so one that
   crashes is turned off instead of taking Kalibre with it; the **Plug-in
   Manager** shows them all.
@@ -28,12 +30,36 @@ grow and shrink with it.
   export.
 - **MIDI effects** (Scaler, arpeggiators, sequencers) always run before the
   instrument.
+- **The family's own tools, built in** (Add > Kalibre): Midi Evolver,
+  Transient Shuffler, Reese Basser, Reverberator and Instrument Creator (the
+  JSFX REAPER runs); Instant Virtual Instrument; Starting Blocks, Starting
+  Blocks Notation and Midi Catalogue, whose Insert at Cursor puts the block
+  in the song; and Orchestration Helper beside the track. Each in its own
+  window, as in REAPER.
 - **The scale and the chord** at the top of the window; the scale shaded in
   the piano roll, a chord lane along the timeline.
 - **Five ways to write notes**: the piano roll (click to add, right-click to
   remove, drag to move or stretch, right-drag to clear an area, Shift-drag to
   choose; a new note is as long as the last one), a drum grid, a step
-  sequencer, a Euclidean sequencer, notation. **MusicXML** in and out.
+  sequencer, a Euclidean sequencer, notation, **all adding to the same
+  clip**, each showing its own notes and lighting the step being played.
+  **MusicXML** in and out.
+- **Arm for audio or MIDI**: click a track's arm button for audio (red),
+  right-click for MIDI (blue), which records what its instrument is played,
+  a free-running arpeggiator's notes included; Shift-click for both,
+  Shift-right-click for the MIDI as it comes in.
+- **Swing, gate and repeat** in the drum grid and step sequencer (swing
+  and gate in the Euclidean too): a step can play up to eight times in its
+  length, for flams, rolls and ratchets.
+- **Random** in the drum grid, step sequencer and Euclidean: a new groove,
+  tune or set of rhythms every click, made by **Good Idea**'s engine.
+- **Note chance, random velocity and random timing** for every note, in the
+  piano roll, the step sequencer and the drum grid: chosen afresh each time
+  it plays.
+- **CC lanes** under the piano roll and notation, any controller by its
+  name, and **Auto**: on a track named for its instrument (Violins, Horns,
+  Flute), it draws the dynamics, expression, volume and vibrato lanes as
+  **AutoCC** would play the notes.
 - **Choosing** is the same everywhere: Shift-click a range, Option-click to
   add, Shift-Option-click to take away.
 - **Tempo and time signature** that change and ramp along the song.
@@ -75,6 +101,15 @@ grow and shrink with it.
 ![The Plug-in Manager](docs/plugin-manager.png)
 ![The sample editor](docs/sample-editor.png)
 ![Kalibre Synth and Sampler](docs/synth-and-sampler.png)
+![A plug-in shown smaller to fit a short rack](docs/fitted-to-the-rack.png)
+![The step sequencer lighting the step being played](docs/steps-playing.png)
+![Auto: a violin line's CC lanes, drawn as AutoCC plays strings](docs/auto-cc.png)
+![Arming four ways: audio (red), MIDI (blue), both, MIDI input](docs/arm-four-ways.png)
+![Reese Basser and Reverberator in the rack](docs/jsfx-devices.png)
+![Instant Virtual Instrument](docs/instant-virtual-instrument.png)
+![Starting Blocks](docs/starting-blocks.png)
+![Midi Catalogue](docs/midi-catalogue.png)
+![Orchestration Helper, "trombone" searched](docs/orchestration-helper.png)
 ![The clip launcher](docs/launcher.png)
 ![The Meters tab](docs/meters.png)
 
