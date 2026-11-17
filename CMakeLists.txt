@@ -25,6 +25,9 @@ list(REMOVE_ITEM LUA_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/lua/luac.c
     ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/lua/onelua.c
     ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/lua/ltests.c)
+# Built as C++ (decision 0068): an error in a script unwinds through C++ (the
+# Lua tools' ImGui windows) as an exception, cleanly, instead of a longjmp.
+set_source_files_properties(${LUA_SOURCES} PROPERTIES LANGUAGE CXX)
 add_library(KalibreLua STATIC ${LUA_SOURCES})
 target_include_directories(KalibreLua PUBLIC ThirdParty/lua)
 set_target_properties(KalibreLua PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
