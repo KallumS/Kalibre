@@ -1,5 +1,6 @@
 #include "MorphProcessor.h"
 #include "JsfxDevice.h"
+#include "LuaTool/LuaTool.h"
 
 #include "BuiltinInstruments.h"
 #include "Editors.h"
@@ -211,6 +212,7 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "test-arp") return std::make_unique<ArpTest>();
     if (auto j = makeJsfx (ref)) return j;   // the family's JSFX (decision 0066)
     if (ref.identifier == "instant-virtual-instrument") return makeInstantVirtualInstrument();   // decision 0067
+    if (auto t = makeLuaTool (ref)) return t;   // the family's ReaImGui tools (decision 0068)
     if (ref.identifier == "test-sidechain") return std::make_unique<SidechainTest>();
     if (ref.identifier == "test-multiout") return std::make_unique<MultiOutTest>();
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);

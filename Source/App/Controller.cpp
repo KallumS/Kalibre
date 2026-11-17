@@ -7,6 +7,7 @@
 #include "Mpe.h"
 #include "Harmony.h"
 #include "LuaHost.h"
+#include "LuaTool/LuaTool.h"
 #include "MorphProcessor.h"
 #include "ProjectFile.h"
 #include "Song.h"
@@ -20,6 +21,7 @@ Controller::Controller (Engine& e) : engine (e)
 {
     engine.onTouched = [this] (const Engine::Touch& t) { touched (t); };
     engine.onMessage = [this] (const String& m) { say (m, true); };
+    insertToolBlock = [this] (AudioPluginInstance& from, const ToolBlock& b) { return placeToolBlock (from, b); };
     engine.cache.onReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onAudioReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onLearned = [this] (int channel, int controller)
@@ -79,6 +81,7 @@ Controller::~Controller()
     engine.cache.onReady = nullptr;
     engine.onTouched = nullptr;
     engine.onMessage = nullptr;
+    insertToolBlock = nullptr;
 }
 
 //==============================================================================
@@ -1282,6 +1285,59 @@ void Controller::addPlugin (Id track, const PluginDescription& d)
         say (d.name + " couldn't be loaded.", true);
     zoneTab = ZoneTab::Devices;
     sendChangeMessage();
+}
+
+// A Lua tool's block, into the song (decision 0068): one part on the
+// device's own track at the playhead; several, a new track each under it,
+// named for its instrument. One undo step either way.
+bool Controller::placeToolBlock (AudioPluginInstance& from, const ToolBlock& b)
+{
+    Id track = 0;
+    for (auto& t : project.tracks)
+        for (auto& d : t.devices)
+            if (engine.instance (d.id) == &from) track = t.id;
+    if (track == 0 || b.parts.empty()) return false;
+
+    const Tick at = playhead();
+    const Tick length = std::max<Tick> (PPQ / 4, (Tick) std::llround (b.beats * PPQ));
+    auto clipOf = [&] (const ToolBlock::Part& part, const std::string& name)
+    {
+        Clip c;
+        c.kind = Clip::Kind::Midi;
+        c.start = at;
+        c.length = length;
+        c.name = name;
+        for (const auto& n : part.notes)
+        {
+            Note note;
+            note.start = (Tick) std::llround (n.start * PPQ);
+            note.length = std::max<Tick> (1, (Tick) std::llround (n.length * PPQ));
+            note.pitch = n.pitch;
+            note.velocity = n.velocity;
+            c.midi.notes.push_back (note);
+        }
+        edit::sortNotes (c.midi);
+        return c;
+    };
+
+    Id made = 0;
+    const auto label = String (from.getName()) + ": " + String (b.name);
+    apply (label, [&] (Project& p)
+    {
+        if (b.parts.size() == 1) { made = edit::addClip (p, track, clipOf (b.parts.front(), b.name)); return; }
+        const auto* t = p.track (track);
+        const Id parent = t ? t->parent : 0;
+        Id after = track;
+        for (const auto& part : b.parts)
+        {
+            after = edit::addTrack (p, TrackKind::Track, part.name, after, parent);
+            const Id c = edit::addClip (p, after, clipOf (part, b.name + " - " + part.name));
+            if (made == 0) made = c;
+        }
+    });
+    if (made == 0) return false;
+    selectClip (made);
+    return true;
 }
 
 void Controller::addBuiltIn (Id track, const PluginRef& ref, DeviceRole role)

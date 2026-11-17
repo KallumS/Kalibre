@@ -7,6 +7,7 @@
 #include "ContainerProcessor.h"
 #include "Editors.h"
 #include "JsfxDevice.h"
+#include "LuaTool/LuaTool.h"
 #include "PluginClip.h"
 
 namespace kal
@@ -724,6 +725,9 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
         kalibre.addItem (String (s.name) + "  (" + kinds[(int) s.role] + ")", [&c, track, &s] { c.addBuiltIn (track, jsfxRef (s), s.role); });
     }
     kalibre.addItem ("Instant Virtual Instrument  (Instrument)", [&c, track] { c.addBuiltIn (track, instantVirtualInstrumentRef(), DeviceRole::Instrument); });
+    // The family's ReaImGui tools, built in (decision 0068).
+    for (auto& s : luaTools())
+        kalibre.addItem (String (s.name) + "  (MIDI Effect)", [&c, track, &s] { c.addBuiltIn (track, luaToolRef (s), DeviceRole::MidiFx); });
     PopupMenu m;
     m.addSubMenu ("MIDI Effects", midi, midi.getNumItems() > 0);
     m.addSubMenu ("Instruments", instruments, instruments.getNumItems() > 0);

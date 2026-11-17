@@ -10,6 +10,7 @@
 #include "Song.h"
 #include "MainComponent.h"
 #include "JsfxDevice.h"
+#include "LuaTool/LuaTool.h"
 
 using namespace juce;
 using namespace kal;
@@ -309,6 +310,22 @@ int main (int argc, char** argv)
             shoot ("22-instant-virtual-instrument");
             window.lowerHeight = 320;
             edit::removeTrack (c.project, it);
+            c.refresh();
+        }
+        // The family's ReaImGui tools in the rack (decision 0068), one at a time.
+        for (const char* id : { "starting-blocks", "starting-blocks-notation", "midi-catalogue" })
+        {
+            const Id tt = edit::addTrack (c.project, TrackKind::Track, "Tools");
+            for (auto& sp : luaTools())
+                if (String (sp.id) == id) edit::addDevice (c.project, tt, luaToolRef (sp), DeviceRole::MidiFx);
+            c.focusTrack = tt;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            window.lowerHeight = 560;
+            for (int i = 0; i < 12; ++i) MessageManager::getInstance()->runDispatchLoopUntil (40);   // the script draws on a timer
+            shoot ("23-" + String (id));
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, tt);
             c.refresh();
         }
         // Kalibre's own synth and sampler, side by side (decision 0039).

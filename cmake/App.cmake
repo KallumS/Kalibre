@@ -78,6 +78,24 @@ add_subdirectory(${ysfx_SOURCE_DIR} ${ysfx_BINARY_DIR} EXCLUDE_FROM_ALL)
 # ysfx sets the standard for what comes after it; Kalibre is C++20.
 set(CMAKE_CXX_STANDARD 20)
 
+# Dear ImGui (MIT): the window the family's ReaImGui tools draw (Starting
+# Blocks, Starting Blocks Notation, Midi Catalogue), run by an embedded Lua on
+# a stand-in for ReaImGui and drawn with JUCE (decision 0068).
+FetchContent_Declare(imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG        v1.91.9b
+    GIT_SHALLOW    TRUE)
+FetchContent_GetProperties(imgui)
+if(NOT imgui_POPULATED)
+    FetchContent_Populate(imgui)
+endif()
+add_library(KalibreImGui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
+target_include_directories(KalibreImGui PUBLIC ${imgui_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/Source/Engine/LuaTool)
+target_compile_definitions(KalibreImGui PUBLIC IMGUI_USER_CONFIG="ToolImConfig.h")
+set_target_properties(KalibreImGui PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" ${APPLE})
 if(KALIBRE_ARA)
     FetchContent_Declare(ara_sdk
@@ -103,6 +121,9 @@ add_library(KalibreApp STATIC
     Source/Engine/ContainerProcessor.cpp
     Source/Engine/JsfxDevice.cpp
     Source/Engine/HostedProcessor.cpp
+    Source/Engine/LuaTool/LuaTool.cpp
+    Source/Engine/LuaTool/ToolSession.cpp
+    Source/Engine/LuaTool/ImGuiLua.cpp
     ${ysfx_SOURCE_DIR}/plugin/components/graphics_view.cpp
     ${ysfx_SOURCE_DIR}/plugin/utility/async_updater.cpp
     ${ysfx_SOURCE_DIR}/plugin/utility/rt_semaphore.cpp
@@ -165,6 +186,7 @@ target_include_directories(KalibreApp PUBLIC
 target_link_libraries(KalibreApp
     PUBLIC
         ysfx::ysfx
+        KalibreImGui
         KalibreCore
         KalibreShine
         signalsmith-stretch

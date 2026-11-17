@@ -695,3 +695,106 @@ TEST ("instant virtual instrument: built in, its parameters passed on, its windo
         CHECK (e && e->getWidth() > 300 && e->getHeight() > 200);
     }
 }
+
+#include "LuaTool/LuaTool.h"
+
+TEST ("lua tools: Starting Blocks, its Notation and Midi Catalogue run their own scripts, play their block, keep their settings")
+{
+    for (const auto& spec : luaTools())
+    {
+        auto inst = makeLuaTool (luaToolRef (spec));
+        CHECK (inst != nullptr);
+        if (! inst) continue;
+        CHECK_EQ (luaToolError (*inst), String());
+        if (luaToolError (*inst).isNotEmpty()) std::printf ("    %s: %s\n", spec.id, luaToolError (*inst).toRawUTF8());
+        CHECK (inst->acceptsMidi() && inst->producesMidi());
+
+        // Its window: the script draws a frame at least once a size.
+        {
+            editors::Owned e (editors::open (*inst));
+            CHECK (e != nullptr && e->getWidth() >= 320 && e->getHeight() >= 240);
+            MessageManager::getInstance()->runDispatchLoopUntil (200);
+            CHECK_EQ (luaToolError (*inst), String());
+        }
+
+        // Audition plays the block through MIDI out. Midi Catalogue hands its
+        // block over when Audition is clicked; the others as soon as they start.
+        if (String (spec.id) == "midi-catalogue")
+            luaToolRun (*inst, "host.setBlock({ { start = 0, len = 1, pitch = 64, vel = 90 } }, 4)");
+        inst->prepareToPlay (48000, 512);
+        CHECK_EQ (luaToolRun (*inst, "host.audition(true) return host.auditioning()"), String ("true"));
+        AudioBuffer<float> b (2, 512);
+        int ons = 0;
+        for (int i = 0; i < 400; ++i)   // about 4 s at 120 bpm: a block's worth
+        {
+            MidiBuffer m;
+            inst->processBlock (b, m);
+            for (const auto meta : m) if (meta.getMessage().isNoteOn()) ++ons;
+        }
+        CHECK (ons > 0);
+        if (ons == 0) std::printf ("    %s: no notes\n", spec.id);
+
+        // Its settings (REAPER's ExtState) go with the project.
+        luaToolRun (*inst, "reaper.SetExtState('kalibre-test', 'k', 'kept', true)");
+        MemoryBlock state;
+        inst->getStateInformation (state);
+        auto again = makeLuaTool (luaToolRef (spec));
+        again->setStateInformation (state.getData(), (int) state.getSize());
+        CHECK_EQ (luaToolRun (*again, "return reaper.GetExtState('kalibre-test', 'k')"), String ("kept"));
+        CHECK_EQ (luaToolError (*again), String());
+    }
+}
+
+TEST ("lua tools: Insert at Cursor puts the block on the device's track at the playhead; Midi Catalogue's parts get a track each; one undo step")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Blocks");
+    const auto find = [] (const char* id) { for (auto& s : luaTools()) if (String (s.id) == id) return luaToolRef (s); return PluginRef(); };
+    const Id sb = edit::addDevice (c.project, t, find ("starting-blocks"), DeviceRole::MidiFx);
+    c.refresh();
+    auto* inst = engine.instance (sb);
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    c.locate (PPQ * 8);
+
+    const String one = "return dofile('<embedded>/tools/starting-blocks/sb_place.lua').insert({ name = 'Lift', beats = 4, "
+                       "notes = { { start = 0, len = 1, pitch = 60, vel = 100 }, { start = 1.5, len = 0.5, pitch = 64, vel = 90 } } })";
+    CHECK_EQ (luaToolRun (*inst, one), String ("0"));   // Place.OK
+    const auto& clips = c.project.track (t)->clips();
+    CHECK_EQ (clips.size(), size_t (1));
+    if (clips.size() == 1)
+    {
+        CHECK_EQ (clips[0].start, PPQ * 8);
+        CHECK_EQ (clips[0].length, PPQ * 4);
+        CHECK_EQ (clips[0].name, std::string ("Lift"));
+        CHECK_EQ (clips[0].midi.notes.size(), size_t (2));
+        if (clips[0].midi.notes.size() == 2) CHECK_EQ (clips[0].midi.notes[1].start, PPQ * 3 / 2);
+    }
+    CHECK (c.undo());
+    CHECK (c.project.track (t)->clips().empty());
+
+    // Midi Catalogue's block across a section: one new track per instrument.
+    const Id mc = edit::addDevice (c.project, t, find ("midi-catalogue"), DeviceRole::MidiFx);
+    c.refresh();
+    auto* cat = engine.instance (mc);
+    CHECK (cat != nullptr);
+    if (! cat) return;
+    const size_t before = c.project.tracks.size();
+    const String parts = "local n = { start = 0, len = 2, pitch = 67, vel = 100 } "
+                         "return dofile('<embedded>/tools/midi-catalogue/mc_place.lua').insert({ name = 'Swell', beats = 8, notes = { n, n }, "
+                         "parts = { { name = 'Violin I', notes = { n } }, { name = 'Viola', notes = { n } } } })";
+    CHECK_EQ (luaToolRun (*cat, parts), String ("0"));
+    CHECK_EQ (c.project.tracks.size(), before + 2);
+    const int at = c.project.indexOf (t);
+    if (at >= 0 && (size_t) at + 2 < c.project.tracks.size())
+    {
+        CHECK_EQ (c.project.tracks[(size_t) at + 1].name, std::string ("Violin I"));
+        CHECK_EQ (c.project.tracks[(size_t) at + 2].name, std::string ("Viola"));
+        CHECK_EQ (c.project.tracks[(size_t) at + 1].clips().size(), size_t (1));
+    }
+    CHECK (c.undo());
+    CHECK_EQ (c.project.tracks.size(), before);
+}
