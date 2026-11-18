@@ -7,6 +7,7 @@
 #include "Controller.h"
 #include "Articulations.h"
 #include "DawProject.h"
+#include "AudioFiles.h"
 #include "MusicXml.h"
 #include "Theme.h"
 
@@ -487,12 +488,19 @@ bool Controller::importDawProject (const File& f)
         if (auto* e = zip.getEntry (String (c.audio.file)))
         {
             audioFolder.createDirectory();
-            const auto dest = audioFolder.getChildFile (File::createLegalFileName (String (c.audio.file).fromLastOccurrenceOf ("/", false, false)));
+            auto dest = audioFolder.getChildFile (File::createLegalFileName (String (c.audio.file).fromLastOccurrenceOf ("/", false, false)));
             if (std::unique_ptr<InputStream> in (zip.createStreamForEntry (*e)); in)
             {
                 dest.deleteFile();
                 FileOutputStream out (dest);
                 if (out.openedOk()) out.writeFromInputStream (*in, -1);
+            }
+            // Kept as 32-bit float WAV, as all Kalibre's audio (decision 0079).
+            if (! audiofile::isFloatWav (dest))
+            {
+                const auto wav = dest.getSiblingFile (dest.getFileNameWithoutExtension() + ".wav").getNonexistentSibling (false);
+                const auto converted = dest.hasFileExtension ("wav") ? dest.getSiblingFile (dest.getFileNameWithoutExtension() + " float.wav") : wav;
+                if (audiofile::convertToFloatWav (dest, converted)) { dest.deleteFile(); dest = converted; }
             }
             extracted[c.audio.file] = dest.getFullPathName().toStdString();
             c.audio.file = dest.getFullPathName().toStdString();

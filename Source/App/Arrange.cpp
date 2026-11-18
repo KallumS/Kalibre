@@ -1710,6 +1710,7 @@ void Arrange::clipMenu (Id id)
                    + String (c.project.tempo.formatBarBeat (c.project.loop.end)) + ", and on.", false, true);
         });
         m.addItem ("Explode Chords to Tracks", midi, false, [this, chosen] { c.explodeChords (chosen); });
+        m.addItem ("Bounce in Place", [this, chosen] { c.bounceInPlace (chosen); });
         m.addItem ("Detect Chords", midi, midi && allDetected, [this, chosen, on = ! (midi && allDetected)]
         {
             c.apply (on ? "Detect Chords" : "Hide Chords", [chosen, on] (Project& p) { song::detectChords (p, chosen, on); });

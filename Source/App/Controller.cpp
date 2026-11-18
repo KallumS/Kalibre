@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "AudioFiles.h"
 
 #include "AudioTools.h"
 #include "Capture.h"
@@ -203,6 +204,7 @@ bool Controller::undo()
     dirty = true;
     syncEngine();
     reloadChangedStates (states);
+    refreezeMissing();
     say ("Undid " + String (label) + ".");
     return true;
 }
@@ -218,6 +220,7 @@ bool Controller::redo()
     dirty = true;
     syncEngine();
     reloadChangedStates (states);
+    refreezeMissing();
     say ("Redid " + String (label) + ".");
     return true;
 }
@@ -1001,8 +1004,9 @@ bool Controller::saveAs (const File& f)
     return save();
 }
 
-bool Controller::importFile (const File& f, Id trackId, Tick at)
+bool Controller::importFile (const File& original, Id trackId, Tick at)
 {
+    auto f = original;
     const auto ext = f.getFileExtension().toLowerCase();
     if (ext == ".mid" || ext == ".midi")
     {
@@ -1060,14 +1064,21 @@ bool Controller::importFile (const File& f, Id trackId, Tick at)
     double seconds = 0, sr = 0;
     int channels = 0;
     if (! AudioCache::describe (f, seconds, sr, channels)) { say ("Kalibre can't read that file.", true); return false; }
+    // Kept as a 32-bit float WAV, copied into the song's Audio folder if it isn't one (decision 0079).
+    if (! audiofile::isFloatWav (f))
+    {
+        const auto copy = recordingsFolder().getNonexistentChildFile (f.getFileNameWithoutExtension(), ".wav");
+        if (! audiofile::convertToFloatWav (f, copy)) { say ("Kalibre couldn't copy " + f.getFileName() + " into the song's Audio folder.", true); return false; }
+        f = copy;
+    }
     apply ("Import Audio", [&] (Project& p)
     {
         Id target = trackId;
         if (! p.track (target) || ! p.track (target)->holdsClips())
-            target = edit::addTrack (p, TrackKind::Track, f.getFileNameWithoutExtension().toStdString());
+            target = edit::addTrack (p, TrackKind::Track, original.getFileNameWithoutExtension().toStdString());
         Clip c;
         c.kind = Clip::Kind::Audio;
-        c.name = f.getFileNameWithoutExtension().toStdString();
+        c.name = original.getFileNameWithoutExtension().toStdString();
         c.start = at;
         c.length = std::max<Tick> (1, p.tempo.tickAt (p.tempo.secondsAt (at) + seconds) - at);
         c.audio.file = f.getFullPathName().toStdString();
@@ -1075,7 +1086,7 @@ bool Controller::importFile (const File& f, Id trackId, Tick at)
         c.audio.fileSampleRate = sr;
         c.audio.fileChannels = channels;
         // A loop named with its tempo ("Drums 96bpm") is warped to the project.
-        const auto name = f.getFileNameWithoutExtension().toLowerCase();
+        const auto name = original.getFileNameWithoutExtension().toLowerCase();
         const auto bpmAt = name.indexOf ("bpm");
         if (bpmAt > 0)
         {
@@ -1226,49 +1237,157 @@ void Controller::folderFromSelection()
     else focusOn (made);
 }
 
+bool Controller::renderTrackAudio (Id id, const std::set<Id>& onlyClips, double start, double end, double tail,
+                                   const File& out, String& error)
+{
+    storeDeviceStates();
+    // The whole song, so no other plug-in is unloaded; only this track goes out, at unity.
+    Project copy = project;
+    for (auto& t : copy.tracks) t.solo = false;
+    auto* t = copy.track (id);
+    if (! t) { error = "There's no such track."; return false; }
+    t->frozen = false;
+    t->mute = false;
+    t->volumeDb = 0;
+    t->pan = 0;
+    t->sends.clear();
+    t->automation.erase (std::remove_if (t->automation.begin(), t->automation.end(), [] (const AutomationLane& a)
+    {
+        return a.target.kind == AutoTarget::Kind::Volume || a.target.kind == AutoTarget::Kind::Pan || a.target.kind == AutoTarget::Kind::Mute;
+    }), t->automation.end());
+    if (! onlyClips.empty())
+        t->clips().erase (std::remove_if (t->clips().begin(), t->clips().end(), [&] (const Clip& c) { return onlyClips.count (c.id) == 0; }), t->clips().end());
+    copy.metronome.on = false;
+    const bool ok = engine.renderTrack (copy, id, projectFolder(), out, start, end, tail, error);
+    syncEngine();
+    return ok;
+}
+
 void Controller::freeze (Id id, bool on)
 {
     auto* t = project.track (id);
     if (! t || ! t->holdsClips()) return;
     if (! on)
     {
-        apply ("Unfreeze", [id] (Project& p) { if (auto* x = p.track (id)) x->frozen = false; });
-        say ("Unfrozen: its plug-ins are loaded again.");
+        const File render (String (t->frozenFile));
+        apply ("Unfreeze", [id] (Project& p) { if (auto* x = p.track (id)) { x->frozen = false; x->frozenFile.clear(); } });
+        // The render goes (Undo renders it again); the plug-ins come back with their states.
+        if (render.existsAsFile()) render.deleteFile();
+        say ("Unfrozen: the render is deleted and its plug-ins are loaded again, as they were.", false, true);
         return;
     }
-    storeDeviceStates();
-    // The track alone, through its own plug-ins, at unity: what it puts into its fader.
-    Project solo = project;
-    Track only = *solo.track (id);
-    only.parent = 0;
-    only.output = 0;
-    only.sends.clear();
-    only.volumeDb = 0;
-    only.pan = 0;
-    only.mute = only.solo = false;
-    only.automation.erase (std::remove_if (only.automation.begin(), only.automation.end(), [] (const AutomationLane& a)
-    {
-        return a.target.kind == AutoTarget::Kind::Volume || a.target.kind == AutoTarget::Kind::Pan;
-    }), only.automation.end());
-    solo.tracks = { only };
-    solo.master.devices.clear();
-    solo.master.automation.clear();
-    solo.master.volumeDb = 0;
-    solo.metronome.on = false;
+    if (t->frozen) return;
     Tick end = 0;
-    for (auto& c : only.clips()) end = std::max (end, c.end());
-    Engine::RenderOptions o;
-    o.start = 0;
-    o.end = project.tempo.secondsAt (end);
-    o.tail = 4.0;
-    o.bitDepth = 32;
-    o.dither = false;
+    for (auto& c : t->clips()) end = std::max (end, c.end());
     const auto out = recordingsFolder().getNonexistentChildFile (String (t->name) + " frozen", ".wav");
     String error;
-    if (! engine.render (solo, projectFolder(), out, o, {}, error)) { say ("The track couldn't be frozen. " + error, true); syncEngine(); return; }
+    if (! renderTrackAudio (id, {}, 0, project.tempo.secondsAt (end), 4.0, out, error))
+    {
+        say ("The track couldn't be frozen. " + error, true);
+        return;
+    }
     const auto path = out.getFullPathName().toStdString();
     apply ("Freeze", [id, path] (Project& p) { if (auto* x = p.track (id)) { x->frozen = true; x->frozenFile = path; } });
-    say ("Frozen: it plays as audio and its plug-ins are unloaded. Unfreeze to change it.", false, true);
+    say ("Frozen: it plays as audio and its plug-ins are unloaded, their states kept. Unfreeze to change it.", false, true);
+}
+
+void Controller::refreezeMissing()
+{
+    for (auto& t : project.tracks)
+    {
+        if (! t.frozen || (! t.frozenFile.empty() && File (String (t.frozenFile)).existsAsFile())) continue;
+        Tick end = 0;
+        for (auto& c : t.clips()) end = std::max (end, c.end());
+        const auto out = recordingsFolder().getNonexistentChildFile (String (t.name) + " frozen", ".wav");
+        String error;
+        const Id id = t.id;
+        if (renderTrackAudio (id, {}, 0, project.tempo.secondsAt (end), 4.0, out, error))
+        {
+            if (auto* x = project.track (id)) x->frozenFile = out.getFullPathName().toStdString();
+            syncEngine();
+        }
+        else say ("The track couldn't be frozen again. " + error, true);
+    }
+}
+
+void Controller::bounceInPlace (const std::set<Id>& chosen)
+{
+    // By track: each track's clips rendered together, from the first one's start.
+    std::map<Id, std::set<Id>> byTrack;
+    for (auto cid : chosen)
+    {
+        const Track* owner = nullptr;
+        if (project.clip (cid, &owner) && owner) byTrack[owner->id].insert (cid);
+    }
+    if (byTrack.empty()) return;
+    struct Made { Id track; Tick start; double seconds; std::string file, name; double rate; };
+    std::vector<Made> made;
+    for (auto& [tid, clips] : byTrack)
+    {
+        const auto* t = project.track (tid);
+        if (! t) continue;
+        if (t->frozen) { say ("Unfreeze " + String (t->name) + " to bounce its clips: its plug-ins are unloaded.", true); return; }
+        Tick from = std::numeric_limits<Tick>::max(), to = 0;
+        for (auto cid : clips) if (auto* c = project.clip (cid)) { from = std::min (from, c->start); to = std::max (to, c->end()); }
+        const double start = project.tempo.secondsAt (from), end = project.tempo.secondsAt (to);
+        const auto out = recordingsFolder().getNonexistentChildFile (String (t->name) + " bounce", ".wav");
+        String error;
+        if (! renderTrackAudio (tid, clips, start, end, 4.0, out, error)) { say ("The clips couldn't be bounced. " + error, true); return; }
+        // Its tail kept to where it goes quiet, never shorter than the clips.
+        double seconds = end - start, rate = engine.sampleRate();
+        {
+            AudioFormatManager fm;
+            fm.registerBasicFormats();
+            if (std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (out)); r)
+            {
+                rate = r->sampleRate;
+                AudioBuffer<float> b ((int) r->numChannels, (int) r->lengthInSamples);
+                r->read (&b, 0, b.getNumSamples(), 0, true, true);
+                int last = 0;
+                for (int i = b.getNumSamples(); --i >= 0;)
+                {
+                    bool loud = false;
+                    for (int ch = 0; ch < b.getNumChannels(); ++ch) loud |= std::abs (b.getSample (ch, i)) > 1.0e-4f;
+                    if (loud) { last = i + 1; break; }
+                }
+                seconds = jmax (seconds, (double) last / rate);
+            }
+        }
+        made.push_back ({ tid, from, seconds, out.getFullPathName().toStdString(), t->name + " Bounce", rate });
+    }
+    std::set<Id> newClips;
+    apply ("Bounce in Place", [&] (Project& p)
+    {
+        for (auto& m : made)
+        {
+            const auto* src = p.track (m.track);
+            if (! src) continue;
+            const Track source = *src;
+            const Id nt = edit::addTrack (p, TrackKind::Track, m.name, m.track, source.parent);
+            if (auto* t = p.track (nt))
+            {
+                t->volumeDb = source.volumeDb;
+                t->pan = source.pan;
+                t->output = source.output;
+                t->sends = source.sends;
+                t->colour = source.colour;
+            }
+            Clip c;
+            c.kind = Clip::Kind::Audio;
+            c.name = m.name;
+            c.start = m.start;
+            c.length = std::max<Tick> (1, p.tempo.tickAt (p.tempo.secondsAt (m.start) + m.seconds) - m.start);
+            c.audio.file = m.file;
+            c.audio.sourceLength = m.seconds;
+            c.audio.fileSampleRate = m.rate;
+            c.audio.fileChannels = 2;
+            newClips.insert (edit::addClip (p, nt, c));
+            for (auto cid : byTrack[m.track]) if (auto* x = p.clip (cid)) x->muted = true;
+        }
+    });
+    selectedClips = newClips;
+    if (! newClips.empty()) selectedClip = *newClips.begin();
+    say ("Bounced to audio on a new track under each, through its plug-ins; the clips are muted, not gone.", false, true);
 }
 
 void Controller::chooseTrack (Id id, const ModifierKeys& mods, const std::vector<Id>& order)
@@ -1672,9 +1791,7 @@ void Controller::captureAudio (double seconds)
     int first = 0;
     while (first < audio.getNumSamples() && std::abs (audio.getSample (0, first)) < 1.0e-3f && std::abs (audio.getSample (1, first)) < 1.0e-3f) ++first;
     const auto f = recordingsFolder().getNonexistentChildFile (String (t->name) + " Capture", ".wav");
-    WavAudioFormat wav;
-    std::unique_ptr<OutputStream> os (f.createOutputStream().release());
-    auto w = os ? wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (engine.sampleRate()).withNumChannels (2).withBitsPerSample (24)) : nullptr;
+    auto w = audiofile::floatWav (f, engine.sampleRate(), 2);   // decision 0079
     if (! w) { say ("The captured audio couldn't be saved.", true); return; }
     w->writeFromAudioSampleBuffer (audio, first, audio.getNumSamples() - first);
     w.reset();

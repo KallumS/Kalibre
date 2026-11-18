@@ -60,6 +60,8 @@ public:
     // The threads besides the audio thread (0 when off or on one core).
     int workers() const { return workerCount.load(); }
     static int coresToUse();
+    // How late the output is in the current plan (what reaches it), or -1 with no plan.
+    int outputLatency() const;
 
     // The audio device's workgroup, for the workers to join (device thread).
     void setWorkgroup (juce::AudioWorkgroup);

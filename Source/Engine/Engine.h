@@ -154,6 +154,11 @@ public:
     bool render (const Project&, const juce::File& folder, const juce::File& out, const RenderOptions&,
                  std::function<bool (float)> progress, juce::String& error);
 
+    // One track, through its own plug-ins, into a 32-bit float WAV (freeze and bounce,
+    // decision 0080). The others' plug-ins stay loaded but aren't played.
+    bool renderTrack (const Project&, Id track, const juce::File& folder, const juce::File& out,
+                      double start, double end, double tail, juce::String& error);
+
     // Offline effects on one audio clip: its audio through a chain, into a new file.
     bool renderOfflineFx (const Clip&, const juce::File& source, const juce::File& out, juce::String& error);
 
@@ -194,6 +199,7 @@ private:
     std::map<Id, Node::Ptr> deviceNodes;          // the playing versions' devices, by device id
     std::map<Id, juce::AudioPluginInstance*> araOwner;   // the instance each ARA session was started on
     bool rendering = false;   // exporting: the Cue track is left out (decision 0051)
+    Id renderOnlyTrack = 0;   // rendering one track alone (decision 0080)
     std::map<Id, std::unique_ptr<AraSession>> araSessions;
     std::set<Id> araTracks;
     Node::Ptr audioIn, audioOut, midiIn, metronomeNode;

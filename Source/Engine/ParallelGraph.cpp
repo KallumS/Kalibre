@@ -67,7 +67,7 @@ struct ParallelGraph::Plan
     };
 
     double rate = 0;
-    int block = 0, version = 0;
+    int block = 0, version = 0, latency = -1;
     std::vector<Item> items;
     std::vector<Line> lines;
     std::vector<int> roots;
@@ -379,14 +379,38 @@ void ParallelGraph::buildPlan (int version)
         from[(size_t) d->second].insert (s->second);
         to[(size_t) s->second].insert (d->second);
     }
+    // Rendering offline, what can't reach the output can't be heard: it isn't played.
+    std::vector<bool> keep (count, true);
+    if (isNonRealtime())
+    {
+        std::fill (keep.begin(), keep.end(), false);
+        std::vector<int> stack;
+        for (size_t i = 0; i < count; ++i)
+            if (auto* io = dynamic_cast<IOProc*> (all[i]->getProcessor()); io && io->getType() == IOProc::audioOutputNode) { keep[i] = true; stack.push_back ((int) i); }
+        while (! stack.empty())
+        {
+            const int i = stack.back();
+            stack.pop_back();
+            for (int s : from[(size_t) i]) if (! keep[(size_t) s]) { keep[(size_t) s] = true; stack.push_back (s); }
+        }
+        for (size_t i = 0; i < count; ++i)
+            if (! keep[i])
+            {
+                for (int nx : to[i]) from[(size_t) nx].erase ((int) i);
+                for (int pr : from[i]) to[(size_t) pr].erase ((int) i);
+                to[i].clear();
+                from[i].clear();
+            }
+    }
     std::vector<int> order, waiting (count);
     for (size_t i = 0; i < count; ++i) waiting[i] = (int) from[i].size();
-    for (size_t i = 0; i < count; ++i) if (waiting[i] == 0) order.push_back ((int) i);
+    for (size_t i = 0; i < count; ++i) if (waiting[i] == 0 && keep[i]) order.push_back ((int) i);
     for (size_t k = 0; k < order.size(); ++k)
         for (int nx : to[(size_t) order[k]])
             if (--waiting[(size_t) nx] == 0) order.push_back (nx);
-    if (order.size() != count) { install (nullptr); return; }   // a loop: JUCE's graph plays it
-    std::vector<int> position (count);
+    const auto kept = (size_t) std::count (keep.begin(), keep.end(), true);
+    if (order.size() != kept) { install (nullptr); return; }   // a loop: JUCE's graph plays it
+    std::vector<int> position (count, -1);
     for (size_t k = 0; k < order.size(); ++k) position[(size_t) order[k]] = (int) k;
 
     // How late each node's output is, as JUCE's graph counts it.
@@ -399,8 +423,8 @@ void ParallelGraph::buildPlan (int version)
         total[(size_t) i] = m + all[(size_t) i]->getProcessor()->getLatencySamples();
     }
 
-    plan->items.resize (count);
-    for (size_t k = 0; k < count; ++k)
+    plan->items.resize (order.size());
+    for (size_t k = 0; k < order.size(); ++k)
     {
         const int i = order[k];
         auto* node = all[(size_t) i];
@@ -433,7 +457,7 @@ void ParallelGraph::buildPlan (int version)
     for (auto& c : connections)
     {
         auto s = indexOf.find (c.source.nodeID.uid), d = indexOf.find (c.destination.nodeID.uid);
-        if (s == indexOf.end() || d == indexOf.end()) continue;
+        if (s == indexOf.end() || d == indexOf.end() || ! keep[(size_t) s->second] || ! keep[(size_t) d->second]) continue;
         auto& dst = plan->items[(size_t) position[(size_t) d->second]];
         const int src = position[(size_t) s->second];
         if (c.destination.isMIDI())
@@ -461,7 +485,7 @@ void ParallelGraph::buildPlan (int version)
     if (runsAlone)
     {
         int last = -1;
-        for (size_t k = 0; k < count; ++k)
+        for (size_t k = 0; k < plan->items.size(); ++k)
         {
             auto& it = plan->items[k];
             if (it.kind != Plan::Processor || ! runsAlone (*it.proc)) continue;
@@ -473,15 +497,23 @@ void ParallelGraph::buildPlan (int version)
             last = (int) k;
         }
     }
-    for (size_t k = 0; k < count; ++k) if (plan->items[k].indegree == 0) plan->roots.push_back ((int) k);
-    plan->pending = std::make_unique<std::atomic<int>[]> (count);
-    plan->slots = std::make_unique<std::atomic<int>[]> (count + 1);
+    for (size_t k = 0; k < plan->items.size(); ++k) if (plan->items[k].indegree == 0) plan->roots.push_back ((int) k);
+    plan->pending = std::make_unique<std::atomic<int>[]> (plan->items.size());
+    plan->slots = std::make_unique<std::atomic<int>[]> (plan->items.size() + 1);
+    for (size_t k = 0; k < plan->items.size(); ++k)
+        if (plan->items[k].kind == Plan::AudioOut) plan->latency = inLatency[(size_t) order[k]];
     plan->out.setSize (jmax (1, getTotalNumOutputChannels()), block);
     // Rendering offline, JUCE's graph has nothing to let go of mid-render, and handing a
     // block to it would lose what the plan's delay lines hold.
     plan->handover = ! isNonRealtime();
     install (std::move (plan));
     if (parallel.load()) startWorkers();
+}
+
+int ParallelGraph::outputLatency() const
+{
+    auto* p = owned.get();
+    return p != nullptr && p == current.load() ? p->latency : -1;
 }
 
 String ParallelGraph::describePlan() const

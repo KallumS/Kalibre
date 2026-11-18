@@ -230,7 +230,19 @@ public:
     void newVersion (Id track);
     // Chooses version `index` (0-3) on each of these tracks that has it (decision 0050).
     void chooseVersion (const std::vector<Id>& tracks, int index);
-    void freeze (Id track, bool);   // render the track with its plug-ins into audio, and unload them
+    // Freeze (decision 0080): the track rendered, quietly, through its own plug-ins to a
+    // 32-bit float WAV, and its plug-ins unloaded with their states kept. Unfreezing
+    // deletes the render and loads them again as they were.
+    void freeze (Id track, bool);
+    // Bounce in Place (decision 0080): the clips rendered through their track's plug-ins
+    // onto a new audio track under it, made like it; the clips muted. One undo step.
+    void bounceInPlace (const std::set<Id>& clips);
+    // The track alone through its own plug-ins at unity (its clips, or just `onlyClips`), from
+    // `start` to `end` seconds and `tail` more, into a 32-bit float WAV. Nothing else is unloaded.
+    bool renderTrackAudio (Id track, const std::set<Id>& onlyClips, double start, double end, double tail,
+                           const juce::File& out, juce::String& error);
+    // After Undo or Redo: a frozen track whose render was deleted by Unfreeze is rendered again.
+    void refreezeMissing();
     Id newMidiClip (Id track, Tick start, Tick length);
     void deleteSelection();
     void duplicateSelection();

@@ -134,6 +134,7 @@ add_library(KalibreApp STATIC
     Source/Engine/Warp.cpp
     Source/Engine/Engine.cpp
     Source/Engine/ParallelGraph.cpp
+    Source/Engine/AudioFiles.cpp
     Source/Engine/AraHost.cpp
     Source/Engine/SyncDevices.cpp
     Source/App/Theme.cpp
