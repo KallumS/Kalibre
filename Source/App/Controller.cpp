@@ -98,15 +98,22 @@ void Controller::syncEngine()
     engine.setCountIn (project.metronome.countIn ? project.tempo.secondsAt (project.tempo.barStart (project.metronome.countInBars)) : 0.0);
 }
 
-void Controller::apply (const String& label, std::function<void (Project&)> change)
+bool Controller::apply (const String& label, std::function<void (Project&)> change)
 {
     storeDeviceStates();
     Project before = project;
     change (project);
+    // Never more than 1000 tracks (0088): the whole change is refused.
+    if (edit::overTrackLimit (project) && project.tracks.size() > before.tracks.size())
+    {
+        project = std::move (before);
+        refuseTooManyTracks();
+        return false;
+    }
     // Linked clips and grouped tracks follow (decision 0037).
     song::propagateLinks (before, project);
     song::propagateGroups (song::mixOf (before), project);
-    if (project == before) return;
+    if (project == before) return true;
     history.push (before, label.toStdString());
     dirty = true;
     // Choices that point at things no longer there are let go.
@@ -119,6 +126,13 @@ void Controller::apply (const String& label, std::function<void (Project&)> chan
     if (! project.track (focusTrack)) focusTrack = project.tracks.empty() ? 0 : project.tracks.front().id;
     syncEngine();
     sendChangeMessage();
+    return true;
+}
+
+void Controller::refuseTooManyTracks()
+{
+    say (edit::tooManyTracks, true);
+    refusedAt = Time::getMillisecondCounter();
 }
 
 std::map<Id, int> Controller::deviceStates() const
@@ -229,6 +243,8 @@ bool Controller::redo()
 
 void Controller::say (const String& m, bool warning, bool canUndo)
 {
+    // What a refused command would have said next doesn't cover the refusal (0088).
+    if (refusedAt != 0 && Time::getMillisecondCounter() - refusedAt < 250) return;
     message = m;
     messageIsWarning = warning;
     messageCanUndo = canUndo;
@@ -958,6 +974,7 @@ bool Controller::open (const File& f)
     std::string error;
     auto loaded = file::load (f.loadFileAsString().toStdString(), &error);
     if (! loaded) { say (String (error), true); return false; }
+    if (edit::overTrackLimit (*loaded)) { refuseTooManyTracks(); return false; }   // 0088
     engine.stop();
     project = std::move (*loaded);
     refileEffects (project, engine.plugins());
@@ -1216,13 +1233,13 @@ Id Controller::addTrack (TrackKind kind, const String& name)
                : kind == TrackKind::Cue ? String ("Cue")
                : kind == TrackKind::Return ? String ("Return " + String::charToString ((juce_wchar) ('A' + (int) std::count_if (project.tracks.begin(), project.tracks.end(), [] (const Track& t) { return t.kind == TrackKind::Return; }))))
                                            : String ("Track " + String ((int) project.tracks.size() + 1));
-    apply ("Add Track", [&] (Project& p)
+    if (! apply ("Add Track", [&] (Project& p)
     {
         made = edit::addTrack (p, kind, label.toStdString(), kind == TrackKind::Return ? 0 : after,
                                kind == TrackKind::Return ? 0 : parent);
         auto& colours = theme::trackColours();
         if (auto* t = p.track (made); t && ! t->isCue()) t->colour = colours[(int) p.tracks.size() % colours.size()].getARGB();
-    });
+    })) return 0;
     if (made) { selectedTracks = { made }; focusOn (made); }
     if (kind == TrackKind::Summing)
         say ("A Summing track records what the master plays. Arm it and record: the mix goes onto it from where recording starts.");
@@ -2166,6 +2183,13 @@ void Controller::runScript (const File& f)
     Project before = project;
     const auto r = script::run (project, f.loadFileAsString().toStdString(), f.getFileName().toStdString(), ctx);
     if (! r.ok) { say (f.getFileNameWithoutExtension() + ": " + String (r.error), true); return; }
+    if (edit::overTrackLimit (project) && project.tracks.size() > before.tracks.size())
+    {
+        project = std::move (before);
+        refuseTooManyTracks();
+        sendChangeMessage();
+        return;
+    }
     selectedClip = r.after.selectedClip;
     selectedNotes = r.after.selectedNotes;
     if (r.changed)

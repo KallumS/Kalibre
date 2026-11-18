@@ -25,6 +25,11 @@ namespace kal::edit
 
 // Adds a track after `after` (0: at the end), inside `parent` (0: top level).
 Id addTrack (Project&, TrackKind, const std::string& name, Id after = 0, Id parent = 0);
+// At most this many tracks (folders, returns and Summing tracks count; the master and
+// the Cue track don't): whatever would make more is refused as a whole (decision 0088).
+inline constexpr int maxTracks = 1000;
+inline constexpr const char* tooManyTracks = "Unable to add more than 1000 tracks";
+inline bool overTrackLimit (const Project& p) { return (int) p.tracks.size() > maxTracks; }
 // The Cue track (decision 0051): there's one at most; returns it if it's there already.
 Id addCue (Project&);
 

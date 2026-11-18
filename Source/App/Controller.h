@@ -74,7 +74,10 @@ public:
 
     //==========================================================================
     // Changes.
-    void apply (const juce::String& label, std::function<void (Project&)> change);
+    // False when refused (more than 1000 tracks, decision 0088): nothing changed.
+    bool apply (const juce::String& label, std::function<void (Project&)> change);
+    void refuseTooManyTracks();
+    juce::uint32 refusedAt = 0;
     // The project changed in a way the engine needs to hear about but that
     // isn't an undo step (a fader being dragged): sync and repaint.
     void refresh();

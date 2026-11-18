@@ -129,6 +129,7 @@ bool Controller::newFromTemplate (const File& f)
     std::string error;
     auto loaded = file::load (f.loadFileAsString().toStdString(), &error);
     if (! loaded) { say (String (error), true); return false; }
+    if (edit::overTrackLimit (*loaded)) { refuseTooManyTracks(); return false; }   // 0088
     engine.stop();
     project = std::move (*loaded);
     refileEffects (project, engine.plugins());
@@ -176,7 +177,7 @@ bool Controller::importXml (const File& f)
     if (! audio) { say ("The XML has no audio in it.", true); return false; }
     std::map<String, String> filePaths;
     int clips = 0;
-    apply ("Import XML", [&] (Project& p)
+    const bool imported = apply ("Import XML", [&] (Project& p)
     {
         int index = 0;
         for (auto* track : audio->getChildWithTagNameIterator ("track"))
@@ -215,6 +216,7 @@ bool Controller::importXml (const File& f)
             }
         }
     });
+    if (! imported) return false;
     say ("Imported " + String (clips) + " clips from " + f.getFileName() + ".", false, true);
     return clips > 0;
 }
@@ -317,7 +319,7 @@ bool Controller::importMusicXml (const File& f)
     for (auto& t : project.tracks) if (! t.clips().empty()) empty = false;
     const Tick at = empty ? 0 : project.tempo.barStart (project.tempo.barAt (cursor));
     std::vector<Id> made;
-    apply ("Import MusicXML", [&] (Project& p)
+    const bool done = apply ("Import MusicXML", [&] (Project& p)
     {
         if (empty)
         {
@@ -337,6 +339,7 @@ bool Controller::importMusicXml (const File& f)
             made.push_back (t);
         }
     });
+    if (! done) return false;
     if (! made.empty()) selectTracks (made);
     say ("Imported " + String ((int) made.size()) + (made.size() == 1 ? " part" : " parts") + " from " + f.getFileName()
          + ", each on a track of its own. Add an instrument to hear them" + (empty ? String (". The score's tempo, time signatures and key came too.") : String (".")), false, true);
@@ -579,6 +582,7 @@ bool Controller::importDawProject (const File& f)
         fixDevices (t);
     }
     fixDevices (p.master);
+    if (edit::overTrackLimit (p)) { refuseTooManyTracks(); return false; }   // 0088
 
     engine.stop();
     project = std::move (p);

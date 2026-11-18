@@ -1838,3 +1838,34 @@ TEST ("fix note timings and volume: with a track delay, each note's own delay ma
     CHECK (err[err.size() / 2] <= 3);
     CHECK (c.project.clip (clip)->midi.events.empty());
 }
+
+TEST ("tracks: at most 1000; the 1001st is refused with a message, whatever tried to make it (0088)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    for (int i = 0; i < 999; ++i) edit::addTrack (c.project, TrackKind::Track, "T" + std::to_string (i));
+    c.refresh();
+    const auto steps = c.history.size();
+    CHECK (c.addTrack (TrackKind::Track) != 0);                 // the 1000th
+    CHECK_EQ (c.project.tracks.size(), size_t (1000));
+    CHECK_EQ (c.addTrack (TrackKind::Folder), Id (0));           // the 1001st
+    CHECK_EQ (c.project.tracks.size(), size_t (1000));
+    CHECK_EQ (c.message, String ("Unable to add more than 1000 tracks"));
+    CHECK (c.messageIsWarning);
+    CHECK_EQ (c.history.size(), steps + 1);                       // nothing to undo for it
+    // A command that makes several (here the Note Splitter's New Tracks), all or nothing.
+    const Id clipTrack = c.project.tracks.front().id;
+    const Id dev = edit::addDevice (c.project, clipTrack, noteSplitterRef(), DeviceRole::MidiFx);
+    c.refresh();
+    c.makeSplitterTracks (dev);
+    CHECK_EQ (c.project.tracks.size(), size_t (1000));
+    CHECK_EQ (c.message, String ("Unable to add more than 1000 tracks"));
+    // A script too.
+    const auto script = folder().getChildFile ("add-a-track.lua");
+    script.replaceWithText ("kalibre.addTrack (\"One Too Many\")\n");
+    c.runScript (script);
+    CHECK_EQ (c.project.tracks.size(), size_t (1000));
+    CHECK_EQ (c.message, String ("Unable to add more than 1000 tracks"));
+}
