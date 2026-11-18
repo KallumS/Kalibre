@@ -64,3 +64,5 @@ the rack's layout. Not yet confirmed on the Mac: the native scaling and
 clipping, and the swipes; they need the Mac and real plug-ins. A plug-in
 that measures the mouse in screen coordinates may misplace its own pop-up
 menus while shown smaller.
+
+Widened by 0069: what a plug-in sends, learned by opening it in the scan, files MIDI effects (Riffer) right.

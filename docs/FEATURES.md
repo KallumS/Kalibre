@@ -14,8 +14,17 @@ Every feature asked for, then the list of basic DAW features
 | Feature | Status | Where, and notes |
 | --- | --- | --- |
 | Apple silicon Mac app | Yes, on CI | Built for arm64 on every push, with the tests passing on macOS; download Actions > Build > Kalibre-macOS. Used by the user since 16 November: the first scan crashed it (fixed, 0047), and their reports since are fixed (0049, 0056) |
-| Hosts AU, VST3 and CLAP | Yes, on the Mac | AU and VST3 through JUCE; CLAP through Kalibre's own host (0021). Kalibre menu > Scan for Plug-ins. Each plug-in is scanned in a helper: one that crashes, hangs or won't open is turned off and the scan carries on (0047). Tried on the Mac: the first scan crashed Kalibre, which led to 0047 |
-| Plug-in Manager | Yes | Kalibre > Plug-in Manager… (or View): every plug-in and every one turned off, with why; search, sort, scan again, turn off and on, show in Finder. Its own window (0002 amended). Tested (0047) |
+| Hosts AU, VST3 and CLAP | Yes, on the Mac | AU and VST3 through JUCE; CLAP through Kalibre's own host (0021). Kalibre > Plug-in Manager > Scan for New Plug-ins. Each plug-in is scanned in a helper: one that crashes, hangs or won't open is turned off and the scan carries on (0047). Tried on the Mac: the first scan crashed Kalibre, which led to 0047 |
+| Plug-in Manager | Yes | Kalibre > Plug-in Manager…: every plug-in and every one turned off, with why; search, sort, scan for new ones, scan again, turn off and on, show in Finder; right-click > File As MIDI Effect, Instrument or Audio Effect. Its own window (0002 amended). Tested (0047, 0069) |
+| MIDI effects filed right | Yes, Riffer to confirm on the Mac | The scan opens each plug-in in the helper: what sends MIDI and no sound is a MIDI effect; an instrument that sends MIDI (Riffer, Scaler) is listed under MIDI Effects too; File As by hand. Plug-ins scanned before need Scan for New Plug-ins once; tested (0069) |
+| The message line | Yes | Smaller, no Dismiss: a message until things move on, then what's chosen (notes: pitch, velocity, length) or what the pointer is over (clips: length, notes); tested (0070) |
+| Top bar | Yes | Right-click to hide any of its items; Grid for the arrangement (1/1 to 1/64, triplets); Follow: click scrolls, Shift-click turns pages; CPU shown as the highest of every 2 s (1 or 5, right-click); tested (0070) |
+| Chords | Yes | The top bar's Chord is what's played on a MIDI keyboard; the chord lane shows clips' chords after right-click > Detect Chords (several clips at once); tested (0071) |
+| Loop to clips | Yes | Right-click clips > Set the Loop to the Clip(s); tested (0071) |
+| Articulation Manager | Yes | File > Articulation Manager…: import Cubase expression maps, Logic articulation sets and Reaticulate banks into a library; use one on a track; the piano roll's Velocity ▾ > Articulation Map chooses too; tested (0072) |
+| Crash reports and backups | Yes, to see on the Mac | A crash writes a report (what, the plug-in playing, the stack), told of on the next start, Help > Show Crash Reports; a backup every 15 minutes while it has changed, File > Open a Backup, the newest 48 kept; tested (0073) |
+| Plug-in sandboxing | Not yet | A plug-in that crashes while playing still takes Kalibre down (scanning is already safe, 0047). Running plug-ins in helpers is a big change with costs: see the session log of 18 November |
+| Using all the Mac's cores | Not yet | The audio runs on one thread: every track's plug-ins one after another. Spreading tracks across the cores is planned; see the session log of 18 November |
 | Everything in one window | Yes | 0002. Small questions appear over the window, inside it. Settings may have their own window (amended 16 November; the Plug-in Manager) |
 | App icon | Yes | A K with a calibrated stem and a yellow arm (0048) |
 | Quitting ends the program | Yes, not yet confirmed on the Mac | A watchdog ends it five seconds after shutdown starts, so a plug-in or driver can't keep it running (0049) |
@@ -49,7 +58,7 @@ Every feature asked for, then the list of basic DAW features
 | X/Y pad: four plug-ins or four samples | Yes | Add > Kalibre > X/Y Morph; tested with samples (0018) |
 | Plug-in delay compensation | Yes | Tested by rendering clicks (0016) |
 | Track delay (e.g. -125 ms) | Yes | Track menu > Track Delay…; tested (0011) |
-| Articulation maps with a delay per articulation | Yes | Track > Articulation Maps; the piano roll's articulation lane; tested (0013) |
+| Articulation maps with a delay per articulation | Yes | Track > Articulation Maps; the piano roll's Velocity ▾ > Articulation Map; the articulation lane; imported maps (0072); tested (0013) |
 | Deactivate plug-ins, keeping their state | Yes | The power switch; tested (0010) |
 | Folders in folders, summing, with plug-ins | Yes | Tested (0005) |
 | Retrospective recording, MIDI and audio | Yes | Transport > Capture MIDI / Capture Audio; tested (0017) |
@@ -72,8 +81,8 @@ Every feature asked for, then the list of basic DAW features
 | 7. Automation | Yes | Lanes, breakpoints, curves, Read/Touch/Latch/Write/Trim (Trim keeps the shape, moved by the hand), last touched, tempo automation, mix moves written, copy and paste, mute and send lanes played (0038); tested |
 | 8. Instruments | Yes | Any AU/VST3/CLAP instrument; Kalibre Synth and Kalibre Sampler (0039); the X/Y morph; tested |
 | 9. Plug-in hosting | Yes | Scanning in a helper, so a crashing plug-in is turned off instead of closing Kalibre; the Plug-in Manager (0047). Search, bypass, remove, reorder, state, latency, last touched, MIDI learn. Presets (saved per plug-in, the plug-in's own programs, a browser tab) and A/B compare, each undoable (0039) |
-| 10. Audio engine | Yes | Device, rate, buffer, inputs and outputs, offline rendering, PDC. CPU per track in the mixer, the whole load as a percentage in the top bar (0038) |
-| 11. Projects | Yes | New, open, save, autosave, a JSON format that survives versions. Templates, Collect All Files and Save, Relink Missing Files, archives (0041); tested |
+| 10. Audio engine | Yes | Device, rate, buffer, inputs and outputs, offline rendering, PDC. CPU per track in the mixer, the whole load as a percentage in the top bar (0038, 0070). One audio thread: not yet spread across cores |
+| 11. Projects | Yes | New, open, save, autosave, backups every 15 minutes (0073), a JSON format that survives versions. Templates, Collect All Files and Save, Relink Missing Files, archives (0041); tested |
 | 12. Export | Yes | Mix and tracks as WAV, AIFF, FLAC or MP3 (320 kb/s), 16/24/32-bit, dither, normalise, loudness targets, MIDI. Song Details written into WAV and MP3; Export Several at Once (0041); tested. FLAC and AIFF carry no tags |
 | 13. Sync and control | Yes | MIDI clock in and out, Song Position, MTC out and chased in, MMC out and in, Ableton Link, Mackie Control, HUI, OSC, the Mac's network MIDI from the Studio tab (0034, 0035, 0043). Not yet tried with real gear |
 | 14. Metering | Yes | Peak and RMS meters, loudness, true peak and correlation (0033); spectrum, oscilloscope, phase scope and tuner in the Meters tab (0044) |

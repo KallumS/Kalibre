@@ -70,3 +70,8 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0066. The family's JSFX as devices](0066-the-familys-jsfx-as-devices.md)
 - [0067. Instant Virtual Instrument, built in](0067-instant-virtual-instrument-built-in.md)
 - [0068. The family's ReaScripts as devices](0068-the-familys-reascripts-as-devices.md)
+- [0069. Plug-ins filed by what they send; scanning in the Plug-in Manager](0069-plug-ins-filed-by-what-they-send.md)
+- [0070. The message line tells what's chosen; the top bar chosen by right-click](0070-the-message-line-and-the-top-bar.md)
+- [0071. The chord at the top is what's played; clips' chords when asked; loop to clips](0071-chords-when-asked.md)
+- [0072. The Articulation Manager: maps imported, chosen in the piano roll](0072-articulation-manager.md)
+- [0073. Crash reports and backups every 15 minutes](0073-crash-reports-and-backups.md)

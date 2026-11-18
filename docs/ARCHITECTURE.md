@@ -30,7 +30,8 @@
 | `Core/AutoCc.*` | AutoCC's engine, ported from the JSFX: a clip's notes to its CC curves; instrument names to its families (0060). |
 | `Core/Hui.*` | The HUI protocol (0043). |
 | `Core/Xml.*`, `Core/MusicXml.*` | A small XML reader and writer (Miderator's), and MusicXML in and out (0057). |
-| `Core/ProjectFile.*` | `.kalibre` files: JSON with nlohmann/json. |
+| `Core/ProjectFile.*` | `.kalibre` files: JSON with nlohmann/json; the articulation library. |
+| `Core/Articulations.*` | Cubase, Logic and Reaticulate articulation maps read (0072). |
 | `Source/Script/LuaHost.*` | The `kalibre` Lua API (0019). |
 | `Source/Engine/` | JUCE's audio side. |
 | `Engine/Engine.*` | The audio graph built from the project, plug-in instances kept across changes, the transport and loop, rendering (0016). |
@@ -45,6 +46,7 @@
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
 | `Engine/Editors.h` | Opening and closing plug-ins' windows, telling the plug-in first (0056). |
 | `Engine/LoudnessMatch.h` | Match Loudness: output held to the input's short-term loudness (0056). |
+| `Engine/CrashContext.h` | The plug-in the audio thread is in, for the crash report (0073). |
 | `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050), and on a track armed for MIDI catches what its instrument is played (`MidiTap`, 0064). |
 | `Engine/BuiltinInstruments.*`, `HardwareInsert.*` | Kalibre Synth and Sampler (0039); the hardware insert and the interface's channels it shares (0040). |
 | `Engine/JsfxDevice.*` | The family's JSFX as devices, run by ysfx (0066). |
@@ -60,7 +62,9 @@
 | `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |
 | `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
 | `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
-| `App/PluginManagerView.*` | The Plug-in Manager and its window (0047). |
+| `App/PluginManagerView.*` | The Plug-in Manager and its window (0047); File As (0069). |
+| `App/ArticulationManagerView.*` | The Articulation Manager and its window (0072). |
+| `App/CrashReports.*` | The crash handler and its reports (0073). |
 | `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045). |
 | `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md). |
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
@@ -105,5 +109,9 @@ loop wraps inside the block, and runs the graph.
 - The engine's "no jump" position is `noJump` (-1e9), not -1: positions below zero are real (a count-in). With -1, live playback jumped back to -1 s every block.
 - A note's chance, velocity range and timing are rolled on the audio thread as each note-on comes up (`playback::roll`); a late one waits in `TrackSource::waiting`, a fixed list, emptied on a jump or stop (0061).
 - What the clip launcher plays (`Track::launch`) isn't saved and survives Undo.
+- A looped clip's content is its loop, from 0 (`patterns::windowOf`): editors write there, not from the offset. Loop Its Content (`edit::loopContent`) moves a MIDI clip's content to offset 0 first.
+- The arrangement snaps with `arrangeSnap` (the top bar's Grid), the editors with `snapTick` (the lower zone's) (0070).
+- A plug-in's role is `PluginManager::roleOf` (the user's filing, what the scan learned, then the description), never the static `roleFor` alone (0069).
+- The crash handler may only use calls safe in a signal handler: no allocation, no JUCE (0073).
 - Lua is compiled as C++ (0068): include its headers plainly, never inside `extern "C"`, or nothing links.
 - The family's scripts in `Engines/` are copied unchanged: what Kalibre needs differently goes in its own stand-ins (`Engines/tools/sb_place.lua`, `mc_place.lua`) or the host, and a fix to a script goes to its repo first.
