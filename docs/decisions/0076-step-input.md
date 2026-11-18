@@ -30,5 +30,9 @@ that length: 1 = 1/128, 2 = 1/64, 3 = 1/32, 4 = 1/16, 5 = 1/8, 6 = 1/4,
 ## Consequences
 
 Tested: the lengths, dotted and triplet; a chord written on its last key's
-release, at the cursor; drums; off, keys are only heard. No rests yet (move
-the cursor, or Rest in notation).
+release, at the cursor; drums; off, keys are only heard.
+
+Rests (asked 18 November, later): the - key (or the keypad's) leaves a rest
+as long as the length chosen, the cursor moving on and the clip growing to
+hold it; 9 or 0 just before makes that rest dotted or a triplet, the notes'
+length left as it was. Tested.

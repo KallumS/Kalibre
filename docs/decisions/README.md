@@ -82,3 +82,7 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0078. The audio on every performance core](0078-every-core.md)
 - [0079. Kalibre's own audio is 32-bit float WAV](0079-32-bit-float-wav.md)
 - [0080. Freeze, quietly; Bounce in Place](0080-freeze-and-bounce-in-place.md)
+- [0081. The audio engine's document: 64-bit mix points, neutral operations](0081-the-audio-engines-document.md)
+- [0082. Each articulation's delay, and each note's](0082-articulation-and-note-delays.md)
+- [0083. The Note Splitter](0083-note-splitter.md)
+- [0084. DAWproject automation and warping](0084-dawproject-automation-and-warping.md)

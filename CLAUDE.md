@@ -35,6 +35,7 @@ xvfb-run -a ./build/KalibreRender_artefacts/Debug/KalibreRender renders 1
 
 - **No JUCE in `Source/Core`.**
 - **The audio thread doesn't allocate or lock**: data goes through `Swap`.
+- **Where signals meet, sum at 64 bits** (0081); what should leave sound untouched is proved by a cancellation test (`Tests/App/TestNeutral.cpp`). Don't change a test to make Kalibre pass it.
   The graph's nodes play on several threads at once (0078): nothing a
   processor touches may be shared with another node, unless it `runsAlone`.
 - **A gesture is one undo step**: views show a drag and call `Controller::apply` once.

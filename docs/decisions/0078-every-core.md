@@ -62,3 +62,5 @@ needs one core, and the CPU figure is still how much of each buffer's time
 the audio takes (now with the tracks side by side). Plug-ins that aren't
 safe to run beside other instances on other threads would show here first;
 Use Every Core turns it off.
+
+Since 0081 the plan plays with Use Every Core off too, on the audio thread alone, so every mix point sums at 64 bits either way.

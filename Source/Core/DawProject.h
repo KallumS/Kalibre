@@ -13,7 +13,8 @@
     plug-ins on each channel. Kalibre's own devices carry their state in the
     file; another program's plug-ins are matched by name, and their state is
     kept in a side file only Kalibre reads (`kalibre/`), as a .vstpreset
-    isn't what JUCE saves. Not yet: automation, warping, takes, versions.
+    isn't what JUCE saves. Automation and warping too (decision 0084). Not
+    yet: takes, versions.
 
     No JUCE in here.
 */

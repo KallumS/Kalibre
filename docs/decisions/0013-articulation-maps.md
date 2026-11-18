@@ -13,3 +13,5 @@ A project holds articulation maps; a track uses one. Each articulation has a key
 Maps are edited from Track > Articulation Maps.
 
 Widened by 0072: maps imported from Cubase, Logic and Reaticulate, with further outputs; chosen from the piano roll's Velocity menu and the Articulation Manager.
+
+Widened by 0082: each articulation's delay set in the Articulation Manager, kept in the library; each note's own delay too.

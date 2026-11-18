@@ -25,6 +25,7 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/NoteSplit.*` | The Note Splitter's rule: a chord's notes, top to bottom, an output each (0083). |
 | `Core/Ideas.*` | Good Idea's engine (Lua, `Engines/good-idea/`, embedded by `cmake/EmbedLua.cmake`): drum grooves and motifs for the Random buttons (0062). |
 | `Core/Controllers.*` | The MIDI controllers' standard names (0060). |
 | `Core/AutoCc.*` | AutoCC's engine, ported from the JSFX: a clip's notes to its CC curves; instrument names to its families (0060). |
@@ -55,6 +56,8 @@
 | `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050), and on a track armed for MIDI catches what its instrument is played (`MidiTap`, 0064). |
 | `Engine/BuiltinInstruments.*`, `HardwareInsert.*` | Kalibre Synth and Sampler (0039); the hardware insert and the interface's channels it shares (0040). |
 | `Engine/JsfxDevice.*` | The family's JSFX as devices, run by ysfx (0066). |
+| `Engine/NoteSplitter.*` | The Note Splitter device, and its outputs' nodes into other tracks' Sources (0083). |
+| `Engine/PanLaw.h` | Constant power, sine curves, exactly 0 dB in the middle (0081). |
 | `Engine/HostedProcessor.*` | A plain JUCE `AudioProcessor` compiled into Kalibre as a device: parameters passed on, its window inside the device's (0067). |
 | `Engine/LuaTool/` | The family's ReaScripts as devices (0068): `ImGuiLua` (ReaImGui on Dear ImGui), `ToolSession` (a script's Lua, `reaper` and `host`), `LuaTool` (the processor, the window); `GfxTool` (gfx, for Orchestration Helper). |
 | `Engine/Mp3Writer.*` | MP3 export through Shine (0041). |
@@ -67,6 +70,7 @@
 | `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |
 | `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
 | `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
+| `App/NoteSplitterEditor.*` | The Note Splitter's panel: its outputs and their tracks (0083). |
 | `App/PluginManagerView.*` | The Plug-in Manager and its window (0047); File As (0069). |
 | `App/ArticulationManagerView.*` | The Articulation Manager and its window (0072). |
 | `App/CrashReports.*` | The crash handler and its reports (0073). |
@@ -87,6 +91,10 @@
                                                                                   └─► Sends ─► returns    │
     master ─► Cue track's effects and fader (live only, never exported, 0051) ─► out  ◄──────────────────┘
        └─► a Summing track's recorder (0052)
+    MIDI effects ─► Note Splitter ─► its outputs ─► other tracks' Sources, as MIDI played in (0083)
+
+Processing is 32-bit float; every ─┴► and ─┐ above, where signals meet, is
+summed at 64 bits and rounded once (0081).
 
 When the project changes, the controller calls `Engine::sync`: instances
 still wanted are kept, new ones made, deactivated ones dropped; the graph is
@@ -99,6 +107,11 @@ performance core, each as soon as what feeds it is done (0078).
 
 - No JUCE in `Source/Core`.
 - The audio thread doesn't allocate or lock: data arrives whole through `Swap`.
+- Where signals meet, they are added at 64 bits and rounded to float once
+  (0081): the plan's mix points, a track's clips, the Container. Anything new
+  that mixes does the same; a neutrality test (`TestNeutral.cpp`) says so.
+- A bypassed plug-in is never called: `TimedPlugin` passes the sound on,
+  delayed by its latency (0081). Its own bypass parameter isn't used.
 - A gesture is one `Controller::apply` (one undo step).
 - A track's devices stay MIDI effects, instruments, audio effects (`edit::normaliseChain`).
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).
