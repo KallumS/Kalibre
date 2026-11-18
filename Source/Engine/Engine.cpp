@@ -6,6 +6,7 @@
 #include "HardwareInsert.h"
 #include "Surround.h"
 #include "Mp3Writer.h"
+#include "NoteSplitter.h"
 
 namespace kal
 {
@@ -670,6 +671,13 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         // The node's own number too: a device replaced by another under the same id is rewired.
         for (auto& d : t->devices) if (d.active && wantedDevices.count (d.id)) newShape << (int64) d.id << "#" << (int64) deviceNodes[d.id]->nodeID.uid << (int) d.role << (d.bypassed ? "b" : "") << "<" << (int64) d.sidechainFrom << ",";
         newShape << "]{";
+        // The Note Splitter's outputs (decision 0083).
+        for (auto& d : t->devices)
+            if (! d.midiTo.empty() && d.active && wantedDevices.count (d.id))
+            {
+                newShape << "split" << (int64) d.id;
+                for (auto to : d.midiTo) newShape << ">" << (int64) to;
+            }
         for (auto& s : t->sends) newShape << (int64) s.target << (s.preFader ? "p" : "") << ",";
         newShape << "}";
     }
@@ -832,9 +840,51 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 it = nodes.sends.erase (it);
             }
         }
+        // The Note Splitter's outputs (decision 0083): each a node reading what the
+        // splitter sent it, into a track's MIDI input. Wired last, so a route that
+        // would feed back into its own splitter is seen, and left out.
+        std::set<std::pair<Id, int>> keepSplits;
+        for (auto* t : all)
+            for (auto& d : t->devices)
+            {
+                if (! d.active || d.midiTo.empty() || ! wantedDevices.count (d.id)) continue;
+                auto* timed = dynamic_cast<TimedPlugin*> (deviceNodes[d.id]->getProcessor());
+                auto* splitter = timed ? dynamic_cast<NoteSplitterProcessor*> (&timed->plugin()) : nullptr;
+                if (! splitter) continue;
+                for (int k = 0; k < (int) d.midiTo.size(); ++k)
+                {
+                    const auto target = tracks.find (d.midiTo[(size_t) k]);
+                    if (d.midiTo[(size_t) k] == 0 || d.midiTo[(size_t) k] == t->id || target == tracks.end() || ! target->second.source) continue;
+                    const auto to = target->second.source->nodeID, from = deviceNodes[d.id]->nodeID;
+                    if (graph.isAnInputTo (to, from)) continue;
+                    auto& node = splitNodes[{ d.id, k }];
+                    if (! node) node = graph.addNode (std::make_unique<NoteSplitOutput>(), {}, Kind::none);
+                    if (auto* o = dynamic_cast<NoteSplitOutput*> (node->getProcessor())) o->set (splitter, k);
+                    connectMidi (from, node->nodeID);
+                    connectMidi (node->nodeID, to);
+                    keepSplits.insert ({ d.id, k });
+                }
+            }
+        for (auto it = splitNodes.begin(); it != splitNodes.end();)
+        {
+            if (keepSplits.count (it->first)) { ++it; continue; }
+            bury (it->second);
+            it = splitNodes.erase (it);
+        }
         if (only == 0) connectAudio (metronomeNode->nodeID, audioOut->nodeID);
         graph.rebuild();
     }
+
+    // Each Note Splitter knows its device and how many outputs it has (decision 0083).
+    for (auto* t : all)
+        for (auto& d : t->devices)
+            if (d.active && wantedDevices.count (d.id))
+                if (auto* timed = dynamic_cast<TimedPlugin*> (deviceNodes[d.id]->getProcessor()))
+                    if (auto* splitter = dynamic_cast<NoteSplitterProcessor*> (&timed->plugin()))
+                    {
+                        splitter->outputCount = jmax (1, (int) d.midiTo.size());
+                        splitter->deviceId = d.id;
+                    }
 
     // The master reaches a Summing track's recorder this long after the song
     // position it belongs to: the graph's delay, less the Cue track's after it.

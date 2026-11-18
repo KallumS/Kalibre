@@ -1616,3 +1616,76 @@ TEST ("multi-core: playing live through an audio device, the plan plays the bloc
     CHECK (engine.audioGraph().blocksByPlan.load() > 30);
     CHECK (peak (live, 0).second > 0.5f);
 }
+
+#include "NoteSplitter.h"
+#include "NoteSplitterEditor.h"
+
+TEST ("note splitter: a chord's notes, top to bottom, into four tracks' MIDI inputs, recorded there; the chord still plays on its own track (0083)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id chords = edit::addTrack (c.project, TrackKind::Track, "Chords");
+    const Id clip = edit::addMidiClip (c.project, chords, 0, PPQ * 4);
+    for (int pitch : { 48, 55, 64, 60 }) { Note n; n.start = PPQ / 2; n.length = PPQ; n.pitch = pitch; edit::addNote (c.project, clip, n); }
+    const Id dev = edit::addDevice (c.project, chords, noteSplitterRef(), DeviceRole::MidiFx);
+    CHECK_EQ (c.project.device (dev)->midiTo.size(), size_t (4));
+    std::vector<Id> voices;
+    for (const char* name : { "Violins I", "Violins II", "Violas", "Cellos" })
+    {
+        const Id v = edit::addTrack (c.project, TrackKind::Track, name);
+        c.project.track (v)->armed = true;
+        c.project.track (v)->armFor = ArmFor::MidiInput;
+        voices.push_back (v);
+    }
+    c.project.device (dev)->midiTo = voices;
+    // Kept in the song's file.
+    auto saved = file::load (file::save (c.project));
+    CHECK (saved.has_value());
+    if (saved) CHECK (saved->device (dev)->midiTo == voices);
+
+    c.focusTrack = chords;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 1.5);
+    c.stop();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    const int want[] { 64, 60, 55, 48 };
+    for (size_t i = 0; i < voices.size(); ++i)
+    {
+        const auto* t = c.project.track (voices[i]);
+        int got = -1, count = 0;
+        for (auto& cl : t->clips())
+            for (auto& n : cl.midi.notes) { got = n.pitch; ++count; }
+        if (count != 1 || got != want[i])
+            check::fail (__FILE__, __LINE__, t->name + ": " + std::to_string (count) + " notes, pitch " + std::to_string (got));
+    }
+    // Its panel: an output each, top note first; fewer and more, one undo step each;
+    // New Tracks makes a track for each output without one.
+    auto* splitter = dynamic_cast<NoteSplitterProcessor*> (engine.instance (dev));
+    CHECK (splitter != nullptr);
+    if (! splitter) return;
+    CHECK_EQ (NoteSplitterEditor::noteName (0, 4), String ("Top note"));
+    CHECK_EQ (NoteSplitterEditor::noteName (1, 4), String ("2nd note down"));
+    CHECK_EQ (NoteSplitterEditor::noteName (3, 4), String ("Bottom note"));
+    NoteSplitterEditor panel (*splitter, c);
+    const auto steps = c.history.size();
+    c.setSplitterOutputs (dev, 6);
+    CHECK_EQ (c.history.size(), steps + 1);
+    CHECK_EQ (c.project.device (dev)->midiTo.size(), size_t (6));
+    CHECK_EQ (splitter->outputCount.load(), 6);
+    const auto tracksBefore = c.project.tracks.size();
+    c.makeSplitterTracks (dev);
+    CHECK_EQ (c.project.tracks.size(), tracksBefore + 2);
+    const auto* made = c.project.track (c.project.device (dev)->midiTo[5]);
+    CHECK (made != nullptr);
+    if (made) CHECK_EQ (made->name, std::string ("Chords 6"));
+    CHECK (c.undo());
+    CHECK_EQ (c.project.tracks.size(), tracksBefore);
+}

@@ -285,6 +285,11 @@ public:
     // Devices.
     void addPlugin (Id track, const juce::PluginDescription&, std::optional<DeviceRole> as = {});
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
+    // The Note Splitter (decision 0083): how many outputs, the track each goes to,
+    // and a new track for each output without one. Each one undo step.
+    void setSplitterOutputs (Id device, int count);
+    void setSplitterTarget (Id device, int output, Id track);
+    void makeSplitterTracks (Id device);
     bool placeToolBlock (juce::AudioPluginInstance& from, const struct ToolBlock&);   // decision 0068
     void setDeviceActive (Id device, bool);
     void storeDeviceStates();   // every loaded plug-in's state into the project, before a save

@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "NoteSplitter.h"
 #include "AudioFiles.h"
 
 #include "AudioTools.h"
@@ -72,6 +73,7 @@ Controller::Controller (Engine& e) : engine (e)
     engine.syncDevices.configure (studio);
     engine.onDevicePluginChanged = [this] { dirty = true; };
     MorphProcessor::choosePlugin = nullptr;
+    NoteSplitterProcessor::makeEditor = nullptr;
     newProject();
     startTimerHz (30);
 }
@@ -1825,6 +1827,46 @@ void Controller::addBuiltIn (Id track, const PluginRef& ref, DeviceRole role)
     apply ("Add " + String (ref.name), [&] (Project& p) { edit::addDevice (p, track, ref, role); });
     zoneTab = ZoneTab::Devices;
     sendChangeMessage();
+}
+
+void Controller::setSplitterOutputs (Id device, int count)
+{
+    count = jlimit (1, NoteSplit::maxOutputs, count);
+    apply ("Note Splitter Outputs", [&] (Project& p) { if (auto* d = p.device (device)) d->midiTo.resize ((size_t) count, 0); });
+}
+
+void Controller::setSplitterTarget (Id device, int output, Id track)
+{
+    apply ("Note Splitter Output", [&] (Project& p)
+    {
+        if (auto* d = p.device (device); d && output >= 0 && output < (int) d->midiTo.size()) d->midiTo[(size_t) output] = track;
+    });
+}
+
+void Controller::makeSplitterTracks (Id device)
+{
+    Track* owner = nullptr;
+    if (! project.device (device, &owner) || ! owner) return;
+    const Id own = owner->id;
+    int made = 0;
+    apply ("New Tracks for the Note Splitter", [&] (Project& p)
+    {
+        Track* o = nullptr;
+        auto* d = p.device (device, &o);
+        if (! d || ! o) return;
+        const std::string base = o->name;
+        const Id parent = o->parent;
+        Id after = own;
+        for (size_t k = 0; k < d->midiTo.size(); ++k)
+        {
+            if (p.track (d->midiTo[k])) { after = d->midiTo[k]; continue; }
+            const Id t = edit::addTrack (p, TrackKind::Track, base + " " + std::to_string (k + 1), after, parent);
+            if (auto* dd = p.device (device)) dd->midiTo[k] = t;
+            after = t;
+            ++made;
+        }
+    });
+    if (made > 0) say ("Made " + String (made) + (made == 1 ? " track" : " tracks") + " for the Note Splitter's outputs. Give each an instrument.", false, true);
 }
 
 void Controller::setDeviceActive (Id device, bool active)

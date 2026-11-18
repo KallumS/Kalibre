@@ -760,6 +760,7 @@ Id addDevice (Project& p, Id trackId, const PluginRef& plugin, DeviceRole role, 
     d.id = p.newId();
     d.plugin = plugin;
     d.role = role;
+    if (plugin.format == "Kalibre" && plugin.identifier == "note-splitter") d.midiTo.assign (4, 0);   // four outputs to begin with (0083)
     if (position < 0 || position > static_cast<int> (t->devices.size()))
         t->devices.push_back (d);
     else

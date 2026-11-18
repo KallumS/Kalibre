@@ -121,6 +121,7 @@ add_library(KalibreApp STATIC
     Source/Engine/ContainerProcessor.cpp
     Source/Engine/JsfxDevice.cpp
     Source/Engine/HostedProcessor.cpp
+    Source/Engine/NoteSplitter.cpp
     Source/Engine/LuaTool/LuaTool.cpp
     Source/Engine/LuaTool/ToolSession.cpp
     Source/Engine/LuaTool/ImGuiLua.cpp
@@ -148,6 +149,7 @@ add_library(KalibreApp STATIC
     Source/App/MetersView.cpp
     Source/App/PluginManagerView.cpp
     Source/App/ArticulationManagerView.cpp
+    Source/App/NoteSplitterEditor.cpp
     Source/App/CrashReports.cpp
     Source/App/VideoView.cpp
     Source/App/Keys.cpp
