@@ -1326,6 +1326,30 @@ TEST ("articulation manager: maps imported into the library, used on a track fro
     bool both = false;
     for (auto& r : view.shownRows()) both |= r.map.name == "Violins" && r.inLibrary && r.inSong;
     CHECK (both);
+
+    // Each imported articulation's own delay (0082): set in the manager, kept in the
+    // library for the next song and in this song's copy, one undo step.
+    const auto steps = c.history.size();
+    CHECK (c.setArticulationDelay ("Violins", { 0, 2 }, -80));
+    CHECK_EQ (c.history.size(), steps + 1);
+    for (auto& m : c.articulationLibrary())
+        if (m.name == "Violins")
+        {
+            CHECK_EQ (m.articulations[0].delayMs, -80.0);
+            CHECK_EQ (m.articulations[1].delayMs, 0.0);
+            CHECK_EQ (m.articulations[2].delayMs, -80.0);
+        }
+    if (const auto* song = c.project.articulationMap (c.project.track (t)->articulationMap))
+        CHECK_EQ (song->articulations[0].delayMs, -80.0);
+    // The manager shows it, and sets it from its own field.
+    view.refresh();
+    for (int i = 0; i < (int) view.shownRows().size(); ++i) if (view.shownRows()[(size_t) i].map.name == "Violins") view.choose (i);
+    view.chooseArticulation (1);
+    view.typeDelay ("25");
+    for (auto& m : c.articulationLibrary()) if (m.name == "Violins") CHECK_EQ (m.articulations[1].delayMs, 25.0);
+    CHECK (c.undo());
+    if (const auto* song = c.project.articulationMap (c.project.track (t)->articulationMap))
+        CHECK_EQ (song->articulations[1].delayMs, 0.0);
 }
 
 #include "CrashReports.h"

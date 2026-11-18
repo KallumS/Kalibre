@@ -413,6 +413,37 @@ void Controller::useArticulationMap (Id track, const ArticulationMap& map)
     });
 }
 
+bool Controller::setArticulationDelay (const std::string& name, const std::set<int>& which, double ms)
+{
+    ms = jlimit (-1000.0, 1000.0, ms);
+    bool found = false;
+    auto library = articulationLibrary();
+    bool inLibrary = false;
+    for (auto& m : library)
+        if (m.name == name)
+            for (int i : which)
+                if (i >= 0 && i < (int) m.articulations.size()) { m.articulations[(size_t) i].delayMs = ms; inLibrary = true; }
+    if (inLibrary) { saveArticulationLibrary (library); found = true; }
+    bool inSong = false;
+    for (auto& m : project.articulationMaps) inSong |= m.name == name;
+    if (inSong)
+    {
+        apply ("Articulation Delay", [&] (Project& p)
+        {
+            for (auto& m : p.articulationMaps)
+                if (m.name == name)
+                    for (int i : which)
+                        if (i >= 0 && i < (int) m.articulations.size()) m.articulations[(size_t) i].delayMs = ms;
+        });
+        found = true;
+    }
+    if (found)
+        say (String (which.size() == 1 ? "The articulation" : "The articulations") + " of " + String (name).quoted() + " now play "
+             + (ms == 0 ? String ("on time") : String (std::abs (ms), 0) + (ms < 0 ? " ms early" : " ms late")) + ".", false, inSong);
+    else sendChangeMessage();
+    return found;
+}
+
 //==============================================================================
 // DAWproject (decision 0077).
 bool Controller::exportDawProject (const File& f)

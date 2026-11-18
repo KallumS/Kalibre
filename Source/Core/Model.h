@@ -84,6 +84,9 @@ struct Note
     int chance = 100;          // %
     int velocityRange = 0;     // either side of its velocity
     double timingMs = 0;       // either side of its start
+    // Its own delay (decision 0082), ms, later or (negative) earlier: on top of the
+    // track's and its articulation's, for a note that speaks late in its library.
+    double delayMs = 0;
     // A pattern step played several times in its length (decision 0063): the
     // first of them says how many; the rest are 0, "a repeat of the one before".
     int repeat = 1;

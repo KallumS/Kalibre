@@ -59,7 +59,7 @@ Rolled roll (const MidiMessage& m, Dice& dice)
 
 double noteDelaySeconds (const Project& p, const Track& t, const Note& n)
 {
-    double ms = t.delayMs;
+    double ms = t.delayMs + n.delayMs;
     if (const auto* a = articulationOf (p, t, n)) ms += a->delayMs;
     return ms / 1000.0;
 }

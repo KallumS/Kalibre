@@ -64,7 +64,7 @@ private:
     // range, -4 random timing (decision 0061), 0-127 a controller, 128 pitch
     // bend, 129 channel pressure, 200-202 MPE.
     int laneKind = -1;
-    noteopt::Kind noteKind() const { return (noteopt::Kind) juce::jlimit (0, 3, -laneKind - 1); }
+    noteopt::Kind noteKind() const { const int k = juce::jlimit (0, 5, -laneKind - 1); return (noteopt::Kind) (k == 4 ? 0 : k); }
     Tick lastLaneTick = -1;
     void laneMenu();
     void drawLaneValue (const juce::MouseEvent&);

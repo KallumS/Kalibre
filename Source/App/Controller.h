@@ -125,6 +125,9 @@ public:
     int importArticulationMaps (const juce::Array<juce::File>&);
     // The map on the track, copied into the song first if it isn't there. One undo step.
     void useArticulationMap (Id track, const ArticulationMap&);
+    // Articulations' own delays (decision 0082), set in the Articulation Manager: in the
+    // library's map of that name and the song's (one undo step). False if none was found.
+    bool setArticulationDelay (const std::string& map, const std::set<int>& articulations, double ms);
     void showArticulationManager() { if (onShowArticulationManager) onShowArticulationManager(); }
     std::function<void()> onShowArticulationManager;     // the window sets this
     // What the pointer is over, told by the arrangement and the piano roll.

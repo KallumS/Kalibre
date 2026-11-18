@@ -35,6 +35,8 @@ public:
     };
     const std::vector<Row>& shownRows() const { return rows; }
     void choose (int row);
+    void chooseArticulation (int row) { arts.selectRow (row); }
+    void typeDelay (const juce::String& ms) { delayField.setText (ms, juce::dontSendNotification); applyDelay(); }   // tests
 
 private:
     Controller& c;
@@ -52,11 +54,17 @@ private:
         explicit Arts (ArticulationManagerView& o) : owner (o) {}
         int getNumRows() override;
         void paintListBoxItem (int row, juce::Graphics&, int w, int h, bool selected) override;
+        void selectedRowsChanged (int) override { owner.articulationsChosen(); }
     } artsModel { *this };
     juce::ListBox maps, arts;
     theme::HouseButton importButton { juce::String::fromUTF8 ("Import\xe2\x80\xa6"), "Read Cubase expression maps (.expressionmap), Logic articulation sets (.plist) or Reaticulate banks (.reabank) into the library." };
     theme::HouseButton useButton { "Use on Track", "Use the chosen map on the chosen track: its notes can then be given articulations in the piano roll." };
     theme::HouseButton removeButton { "Remove from Library", "Take the chosen maps out of the library. Songs that use them keep their own copies." };
+    // The chosen articulations' delay (decision 0082): later, or earlier when negative.
+    juce::Label delayLabel { {}, "Delay (ms):" };
+    juce::TextEditor delayField;
+    void articulationsChosen();
+    void applyDelay();
     std::unique_ptr<juce::FileChooser> chooser;
     std::vector<Row> rows;
     juce::Rectangle<int> infoArea;
