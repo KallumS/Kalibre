@@ -74,23 +74,46 @@ bool Controller::fixNoteTimingsAndVolume (Id clipId, const NoteFixOptions& o)
     }
     const double from = first - 0.25;
 
-    // Rendered quietly, as Freeze would (the instruments as they are, nothing unloaded), then read.
-    const auto render = File::getSpecialLocation (File::tempDirectory).getNonexistentChildFile ("Kalibre note fix", ".wav");
-    String error;
+    // Rendered quietly, as Freeze would (the instruments as they are, nothing unloaded),
+    // read and deleted. Twice (decision 0090): as written, for the timing (a library's
+    // delay depends on how hard a note is played); and for the volume, every note at
+    // velocity 80 with the clip's controllers left out (a few neutral ones set at its
+    // start), so a dip written with CC7, a swell in CC1 or a soft velocity isn't taken
+    // for a sample that's too quiet. Both are changes to the copy rendered, never to the
+    // song: nothing needs putting back.
     say (String ("Listening to ") + String (owner->name) + ui::u8 ("\xe2\x80\xa6"));
-    if (! renderTrackAudio (trackId, { clipId }, from, last + 0.1, 1.5, render, error, true))
-    {
-        render.deleteFile();
-        say ("The track couldn't be rendered to fix its notes. " + error, true);
-        return false;
-    }
-    std::vector<float> mono;
     double rate = engine.sampleRate();
+    auto listen = [&] (bool even, std::vector<float>& mono) -> bool
     {
+        const auto render = File::getSpecialLocation (File::tempDirectory).getNonexistentChildFile ("Kalibre note fix", ".wav");
+        String error;
+        auto evenOut = [clipId] (Project& p)
+        {
+            auto* c = p.clip (clipId);
+            if (! c) return;
+            for (auto& n : c->midi.notes) n.velocity = 80;
+            std::set<int> channels;
+            for (auto& n : c->midi.notes) channels.insert (n.channel & 15);
+            std::erase_if (c->midi.events, [] (const MidiEvent& e)
+            {
+                return e.type == EventType::Controller || e.type == EventType::ChannelPressure || e.type == EventType::PolyPressure;
+            });
+            // An instrument keeps the last value it was sent: these set every note's level alike.
+            const Tick at = std::max<Tick> (0, c->offset);
+            for (int ch : channels)
+                for (auto [number, value] : { std::pair { 1, 80 }, { 7, 100 }, { 11, 127 } })
+                    c->midi.events.push_back ({ at, EventType::Controller, ch, number, value });
+            std::stable_sort (c->midi.events.begin(), c->midi.events.end(), [] (const MidiEvent& x, const MidiEvent& y) { return x.tick < y.tick; });
+        };
+        if (! renderTrackAudio (trackId, { clipId }, from, last + 0.1, 1.5, render, error, true, even ? std::function<void (Project&)> (evenOut) : nullptr))
+        {
+            render.deleteFile();
+            say ("The track couldn't be rendered to fix its notes. " + error, true);
+            return false;
+        }
         AudioFormatManager fm;
         fm.registerBasicFormats();
-        std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (render));
-        if (r)
+        if (std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (render)); r)
         {
             rate = r->sampleRate;
             AudioBuffer<float> b ((int) r->numChannels, (int) r->lengthInSamples);
@@ -98,14 +121,19 @@ bool Controller::fixNoteTimingsAndVolume (Id clipId, const NoteFixOptions& o)
             mono.resize ((size_t) b.getNumSamples());
             for (int i = 0; i < b.getNumSamples(); ++i)
             {
-                float s = 0;
-                for (int ch = 0; ch < b.getNumChannels(); ++ch) s += b.getSample (ch, i);
-                mono[(size_t) i] = s / (float) jmax (1, b.getNumChannels());
+                float v = 0;
+                for (int ch = 0; ch < b.getNumChannels(); ++ch) v += b.getSample (ch, i);
+                mono[(size_t) i] = v / (float) jmax (1, b.getNumChannels());
             }
         }
-    }
-    render.deleteFile();   // nothing is left behind
-    if (mono.empty()) { say ("The track's render couldn't be read.", true); return false; }
+        render.deleteFile();   // nothing is left behind
+        if (mono.empty()) { say ("The track's render couldn't be read.", true); return false; }
+        return true;
+    };
+    const bool wantTiming = o.timing != NoteFixOptions::Timing::Off, wantVolume = o.volume != NoteFixOptions::Volume::Off;
+    std::vector<float> asWritten, evened;
+    if (wantTiming && ! listen (false, asWritten)) return false;
+    if (wantVolume && ! listen (true, evened)) return false;
 
     // The notes as the fixer sees them: in the render's seconds.
     auto ccInForce = [&] (int number, int channel, Tick contentTick) -> int
@@ -132,22 +160,42 @@ bool Controller::fixNoteTimingsAndVolume (Id clipId, const NoteFixOptions& o)
     }
     notefix::Options ao;
     ao.alignToAttack = o.toAttack;
-    const auto analysis = notefix::analyse (mono, rate, in, ao);
     notefix::PlanOptions po;
-    po.timing = o.timing == NoteFixOptions::Timing::Off ? notefix::PlanOptions::Timing::Off : notefix::PlanOptions::Timing::EachNote;
-    po.volume = o.volume == NoteFixOptions::Volume::Off ? notefix::PlanOptions::Volume::Off : notefix::PlanOptions::Volume::EachNote;
-    const auto fixes = notefix::plan (analysis, in, po);
+    // Timing from the render as written.
+    notefix::Analysis timingAnalysis;
+    std::vector<notefix::NoteFix> timingFixes (in.size());
+    if (wantTiming)
+    {
+        timingAnalysis = notefix::analyse (asWritten, rate, in, ao);
+        po.volume = notefix::PlanOptions::Volume::Off;
+        timingFixes = notefix::plan (timingAnalysis, in, po);
+    }
+    // Volume from the evened render: every note at 80, no controllers.
+    notefix::Analysis volumeAnalysis;
+    std::vector<notefix::NoteFix> volumeFixes (in.size());
+    if (wantVolume)
+    {
+        auto even = in;
+        for (auto& x : even) { x.velocity = 80; x.cc1 = -1; }
+        volumeAnalysis = notefix::analyse (evened, rate, even, ao);
+        po.volume = notefix::PlanOptions::Volume::EachNote;
+        po.timing = notefix::PlanOptions::Timing::Off;
+        volumeFixes = notefix::plan (volumeAnalysis, even, po);
+    }
+    const auto& analysis = wantTiming ? timingAnalysis : volumeAnalysis;   // for what the message line says
 
     // Each note: the middle of what every pass of it found.
     struct Found { std::vector<double> shift, gain; bool solo = true; int chord = -1; };
     std::map<Id, Found> byNote;
     for (size_t i = 0; i < plays.size(); ++i)
     {
-        const auto& m = analysis.notes[i];
-        if (! m.found) continue;
+        const bool timed = wantTiming && timingAnalysis.notes[i].found;
+        const bool levelled = wantVolume && volumeAnalysis.notes[i].found;
+        if (! timed && ! levelled) continue;
+        const auto& m = levelled ? volumeAnalysis.notes[i] : timingAnalysis.notes[i];
         auto& f = byNote[plays[i].note];
-        f.shift.push_back (fixes[i].shiftMs);
-        f.gain.push_back (fixes[i].gainDb);
+        if (timed) f.shift.push_back (timingFixes[i].shiftMs);
+        if (levelled) f.gain.push_back (volumeFixes[i].gainDb);
         // Sounding alone or as a chord, its level can be set with a controller; under or
         // over another note (legato), the controller would move that note too.
         if (m.overlapped && m.chord < 0) f.solo = false;
@@ -158,7 +206,8 @@ bool Controller::fixNoteTimingsAndVolume (Id clipId, const NoteFixOptions& o)
         say ("No notes were found in the render (is there an instrument on the track, and does it make sound?). Nothing was changed.", true);
         return false;
     }
-    const double dbPerVelocity = std::isfinite (analysis.dbPerVelocity) ? analysis.dbPerVelocity : 0.25;
+    // dB a velocity step: only the render as written has different velocities to fit it from.
+    const double dbPerVelocity = std::isfinite (timingAnalysis.dbPerVelocity) ? timingAnalysis.dbPerVelocity : 0.25;
     const bool moveNotes = o.timing == NoteFixOptions::Timing::MoveNotes && clip->loopLength == 0;
     const int ccNumber = o.volume == NoteFixOptions::Volume::Cc11 ? 11 : 7;
     const bool byController = o.volume == NoteFixOptions::Volume::Cc7 || o.volume == NoteFixOptions::Volume::Cc11;
@@ -186,7 +235,7 @@ bool Controller::fixNoteTimingsAndVolume (Id clipId, const NoteFixOptions& o)
         // the written place, so fixing again changes nothing.
         std::map<Id, double> shift;
         for (auto& [id, f] : byNote)
-            if (const auto* n = find (id)) shift[id] = median (f.shift) - playback::noteDelaySeconds (project, *owner, *n) * 1000.0;
+            if (const auto* n = find (id); n && ! f.shift.empty()) shift[id] = median (f.shift) - playback::noteDelaySeconds (project, *owner, *n) * 1000.0;
         if (o.timing != NoteFixOptions::Timing::Off)
         {
             Tick earliest = std::numeric_limits<Tick>::max();
@@ -296,7 +345,8 @@ bool Controller::fixNoteTimingsAndVolume (Id clipId, const NoteFixOptions& o)
 
     String said = "Fixed " + trackName + ": the notes were late by " + String (roundToInt (analysis.medianDelayMs)) + " ms in the middle, "
                 + String (roundToInt (analysis.spreadMs)) + " ms from earliest to latest";
-    if (std::isfinite (analysis.loudnessSpreadDb) && analysis.loudnessSpreadDb > 0) said << ", their loudness " << String (analysis.loudnessSpreadDb, 1) << " dB apart";
+    if (wantVolume && std::isfinite (volumeAnalysis.loudnessSpreadDb) && volumeAnalysis.loudnessSpreadDb > 0)
+        said << ", their samples' loudness " << String (volumeAnalysis.loudnessSpreadDb, 1) << " dB apart (heard at one velocity, the clip's controllers left out)";
     said << ". ";
     if (o.timing != NoteFixOptions::Timing::Off)
         said << String (moved) << (moveNotes ? " moved" : " given their own delay (Note Delay), still on the grid") << "; ";

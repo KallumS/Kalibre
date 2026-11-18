@@ -1869,3 +1869,47 @@ TEST ("tracks: at most 1000; the 1001st is refused with a message, whatever trie
     CHECK_EQ (c.project.tracks.size(), size_t (1000));
     CHECK_EQ (c.message, String ("Unable to add more than 1000 tracks"));
 }
+
+TEST ("fix note timings and volume: the clip's velocities and controllers don't sway what it hears; a dip written with CC7 is kept (0090)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Id t = 0;
+    const Id clip = sloppyLine (c, t);
+    auto* cl = c.project.clip (clip);
+    // The second note (D, a clean key) played quieter on purpose: CC7 50 for it, back to 100 after.
+    const Tick second = cl->midi.notes[1].start;
+    cl->midi.events.push_back ({ second - 10, EventType::Controller, 0, 7, 50 });
+    cl->midi.events.push_back ({ second + PPQ / 4, EventType::Controller, 0, 7, 100 });
+    c.refresh();
+    std::map<Id, int> velocities;
+    for (auto& n : cl->midi.notes) velocities[n.id] = n.velocity;
+    CHECK (c.fixNoteTimingsAndVolume (clip, {}));
+    cl = c.project.clip (clip);
+    // Velocities as they were (but the first note's: pulled earlier, it's sent before the
+    // clip begins, where no CC7 can go before it, so it is levelled by velocity, 0085).
+    for (auto& n : cl->midi.notes) if (&n != &cl->midi.notes.front()) CHECK_EQ (n.velocity, velocities[n.id]);
+    // The quiet note keeps its quiet level; the faulty keys are still found and evened out.
+    auto ccFor = [&] (const Note& n)
+    {
+        int v = -1;
+        Tick at = -1;
+        for (auto& e : cl->midi.events) if (e.type == EventType::Controller && e.number == 7 && e.tick <= n.start && e.tick >= at) { v = e.value; at = e.tick; }
+        return v;
+    };
+    const auto& d = cl->midi.notes[1];
+    CHECK_EQ (d.pitch, 62);
+    CHECK (std::abs (ccFor (d) - 50) <= 3);
+    for (auto& n : cl->midi.notes)
+    {
+        if (&n == &cl->midi.notes.front()) continue;
+        if (n.pitch == 64 || n.pitch == 71) CHECK (ccFor (n) < 90);
+        if (n.pitch == 67) CHECK (ccFor (n) > 110);
+    }
+    // And the timing as before.
+    std::vector<double> err;
+    for (auto& n : cl->midi.notes) err.push_back (std::abs (n.delayMs + sloppyOnsetMs (n.pitch, n.velocity)));
+    std::sort (err.begin(), err.end());
+    CHECK (err[err.size() / 2] <= 3);
+}

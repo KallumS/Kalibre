@@ -250,7 +250,8 @@ public:
     // The track alone through its own plug-ins at unity (its clips, or just `onlyClips`), from
     // `start` to `end` seconds and `tail` more, into a 32-bit float WAV. Nothing else is unloaded.
     bool renderTrackAudio (Id track, const std::set<Id>& onlyClips, double start, double end, double tail,
-                           const juce::File& out, juce::String& error, bool instrumentsOnly = false);
+                           const juce::File& out, juce::String& error, bool instrumentsOnly = false,
+                           std::function<void (Project&)> adjust = {});   // changes to the copy rendered, never the song
 
     // Fix Note Timings and Volume (decision 0085): Note Position & Volume Fixer,
     // built in. The clip's track rendered quietly (its instruments, no effects),
