@@ -1,6 +1,6 @@
 # Chat history: building Kalibre (17 and 18 November 2026)
 
-The fourth part of the conversation: the user's feedback from testing on the Mac (MIDI effects filed right, the message line, the notation's playhead, the top bar, chords, looping to clips, articulation maps, looped clips, crash reports and backups), then DAWproject, step input, Select, Explode Chords, alias clips, the I/O button, and the audio on every core.
+The fourth part of the conversation: the user's feedback from testing on the Mac (MIDI effects filed right, the message line, the notation's playhead, the top bar, chords, looping to clips, articulation maps, looped clips, crash reports and backups), then DAWproject, step input, Select, Explode Chords, alias clips, the I/O button, the audio on every core, Bounce in Place, a quiet freeze and 32-bit float WAV.
 Kept so the reasons and the route aren't lost when the session's context is
 compacted. Your messages and Claude's replies are in full; each tool call (a
 command, a file written, a search) is listed in one line by what it did,
@@ -8,7 +8,7 @@ without its output. Private details (an email address) and the harness's
 internal reminders are removed, as are the automatic "background task
 finished" notices. Messages you sent while Claude was working are marked so.
 
-5 messages from you, 86 replies, 375 tool calls.
+7 messages from you, 117 replies, 427 tool calls.
 
 ## You (2026-11-17 12:11)
 
@@ -954,3 +954,256 @@ Backing up the chat. First, how the export script is used.
 The transcript is there. Exporting it.
 
 - *Bash*: python3 -I tools/export-chat.py /root/.claude/projects/-home-user-Kalibre/1aab3ac5-b25e-5729-8448-cdb6c9c5a69e.jsonl docs/sessions/2026-1...
+
+## Claude (2026-11-18 13:38)
+
+Exported 956 lines, no email in it. Now checking the README and other docs for what's out of date.
+
+- *Bash*: wc -l README.md && cat README.md | head -150
+
+## Claude (2026-11-18 13:38)
+
+README is behind on everything from these sessions. Finding other stale references across the docs.
+
+- *Bash*: grep -rn "Scan for Plug-ins\|Dismiss\|Duplicate Linked\|Unlink\b\|(or View)\|Kalibre menu\|chord sounding\|linked clips" --include=*.md -...
+
+## Claude (2026-11-18 13:38)
+
+Now the edits: README, INSTALL-MAC, the 0015 pointer, FEATURES' arrangement row, CLAUDE.md's rules, and fresh screenshots.
+
+- *Bash*: cat docs/INSTALL-MAC.txt; sed -n 1,10p docs/decisions/0015-scale-and-chords.md | tail -3
+- *Bash*: python3 - <<'EOF' def sub(p,a,b,cnt=1):     s=open(p).read()     if a not in s: raise SystemExit("missing in "+p+": "+a[:70])     s=s.rep...
+
+## Claude (2026-11-18 13:40)
+
+The README edit stopped at the first change (line breaks differ); the earlier files were updated. Checking the exact text and retrying the rest.
+
+- *Bash*: sed -n 16,19p README.md | cat -A | cut -c1-100
+- *Bash*: sed -n 20,21p README.md | cat -A | cut -c1-100
+- *Bash*: python3 -c " s=open('README.md').read() a='''- A **plug-in scanner** that looks at each plug-in in a helper, so one that   crashes is tur...
+
+## Claude (2026-11-18 13:40)
+
+It matches now; rerunning just the README and CLAUDE.md edits.
+
+- *Bash*: cat > /tmp/claude-0/-home-user-Kalibre/1aab3ac5-b25e-5729-8448-cdb6c9c5a69e/scratchpad/readme.py <<'EOF' def sub(p,a,b,cnt=1):     s=open...
+
+## Claude (2026-11-18 13:40)
+
+Most applied; the "Get it" paragraph wraps differently. Checking it.
+
+- *Bash*: grep -n -A2 "right-click it and choose" README.md
+- *Bash*: python3 - <<'EOF' def sub(p,a,b,cnt=1):     s=open(p).read()     if a not in s: raise SystemExit("missing in "+p+": "+repr(a[:120]))     ...
+- *Read*: /tmp/claude-0/-home-user-Kalibre/1aab3ac5-b25e-5729-8448-cdb6c9c5a69e/scratchpad/top-io.png
+
+## Claude (2026-11-18 13:40)
+
+The render's sample message still says "stays until dismissed". Fixing that text in the demo song, then re-rendering.
+
+- *Bash*: grep -rn "stays until dismissed" Tests tools Source | head
+- *Bash*: sed -i '119s|This is the message line: it stays until dismissed, and can undo what it describes.|This is the message line: what just happ...
+
+## Claude (2026-11-18 13:41)
+
+The ThreadSanitizer build finished. Running the multi-core and engine tests under it.
+
+- *Bash*: cat /tmp/claude-0/-home-user-Kalibre/1aab3ac5-b25e-5729-8448-cdb6c9c5a69e/tasks/bq5uhq4sx.output; ls build-tsan/KalibreAppTests_artefacts...
+
+## Claude (2026-11-18 13:42)
+
+No races reported in the three multi-core tests. That build started before my last few edits, so I'm bringing it up to date and also running the engine tests under it.
+
+- *Bash*: cmake --build build-tsan --target KalibreAppTests 2>&1 | tail -1; for t in "multi-core" "engine:"; do TSAN_OPTIONS="halt_on_error=0 repor...
+
+## Claude (2026-11-18 13:42)
+
+No races found: 0 ThreadSanitizer warnings across the 3 multi-core tests and 8 engine tests. Recording that in the docs, then committing everything.
+
+- *Bash*: python3 - <<'EOF' def sub(p,a,b,cnt=1):     s=open(p).read()     if a not in s: raise SystemExit("missing in "+p+": "+repr(a[:80]))     s...
+
+## Claude (2026-11-18 13:42)
+
+Pushed. Checking the Mac builds since the `unistd.h` fix.
+
+- *mcp__github__actions_list*: list_workflow_runs
+
+## Claude (2026-11-18 13:42)
+
+The Mac build passed for the commit before multi-core, so there's a working `.dmg` with everything up to DAWproject. The multi-core builds are running now; scheduling a check.
+
+- *mcp__claude-code-remote__send_later*: 25
+- *TaskUpdate*: 21
+
+## Claude (2026-11-18 13:43)
+
+I've backed up the chat and updated the docs, and both are pushed to GitHub.
+
+**Chat backup:** the whole of this session (17–18 November) is in `docs/sessions/2026-11-18-chat-history.md`, with your email address removed.
+
+**Docs updated:**
+- **README:** now describes everything from these sessions: every core, MIDI effects filed right, crash reports and backups, the message line and top bar, step input, Select and Explode Chords, DAWproject, articulation imports, alias clips and the I/O button. It has two new screenshots: the top bar with Grid, the message line and the I/O buttons; and the Articulation Manager.
+- **Install notes (`INSTALL-MAC.txt`):** scanning is now in the Plug-in Manager. They also mention one extra scan after updating, Use Every Core, and where crash reports and backups are.
+- **Decision records:** ten new ones, 0069 to 0078. Five older records (0013, 0015, 0025, 0037, 0058) now point to the newer ones that change them.
+- **`CLAUDE.md`:** gained a rule for future work: with the audio on several cores at once, Kalibre's own audio parts mustn't share data with each other.
+- **Features list:** updated for everything in these sessions.
+- **Session log:** what was built, the test results, and what's still to try.
+- **Screenshot tool:** its sample message no longer says "stays until dismissed".
+
+**Thread check:** the special build that catches threads clashing over data reported nothing across the 11 multi-core and engine tests. That result is now written into the docs.
+
+**Mac app:** the last fully finished Mac build passed. Its `.dmg` (Actions > Build > Kalibre-macOS) has everything up to and including DAWproject, step input, Select and the I/O button. The builds that add multi-core are still running. I'll check them in about 25 minutes, fix anything that fails, and tell you when that `.dmg` is ready.
+
+**Still to try on your Mac:**
+- Riffer under MIDI Effects (after one more scan)
+- step input with your keyboard
+- a DAWproject going into and out of Bitwig, Studio One or Cubase
+- the CPU figure with several heavy tracks playing on every core
+
+- *ReadNotifications*: 
+
+## Claude (2026-11-18 13:43)
+
+This was my earlier reminder, and the build it checks has passed. That Mac build includes the `unistd.h` test fix and succeeded, so a `.dmg` with everything from your first two requests is ready under Actions > Build > Kalibre-macOS (run 85).
+
+It doesn't include multi-core yet. Those Mac builds are still running, and I'll check them at 14:08 UTC and let you know when that `.dmg` is ready.
+
+## You (2026-11-18 13:46)
+
+Do we have a bounce-in-place for clips on the timeline? If not, can we add that. Can we also ensure all bounced audio and any audio being used internally is 32bit float WAV, however the user will still be able to export audio in different formats as usual. Can we also ensure there is a freeze feature for tracks that will quietly render the track to audio while unloading the instruments and effects - tracks can be unfrozen to delete the render and restore the plugin states
+
+## Claude (2026-11-18 13:46)
+
+Checking what already exists: freeze, any bounce, and how Kalibre writes audio internally.
+
+- *Bash*: grep -rn -i "bounce" Source | head; grep -rn "withBitsPerSample\|createWriterFor\|bitsPerSample\|WavAudioFormat\|FlacAudioFormat" Source ...
+
+## Claude (2026-11-18 13:46)
+
+Bounce doesn't exist; freeze does. Internal audio is written at mixed bit depths, and I need to check whether JUCE's 32-bit WAV is float or integer.
+
+- *Bash*: F=build/_deps/juce-src/modules/juce_audio_formats; grep -n "withSampleFormat\|SampleFormat\|floatingPoint\|usesFloatingPointData" $F/form...
+
+## Claude (2026-11-18 13:46)
+
+JUCE's 32-bit WAV is already float, so only the 24-bit writers need changing. Reading how freeze works now.
+
+- *Bash*: grep -n "void Controller::freeze" -A60 Source/App/*.cpp | head -90; sed -n 1665,1690p Source/App/Controller.cpp; sed -n 165,190p Source/E...
+- *Bash*: grep -n "Id Controller::importFile\|bool Controller::importFile\|void Controller::importFile" -A40 Source/App/*.cpp | head -60; grep -n "...
+- *TaskCreate*: Recordings, captures, offline fx, edits, freeze, bounce; imports converted; exports unchanged
+- *TaskCreate*: Render one track without reloading others; unfreeze deletes file, restores states; undo re-renders
+- *TaskCreate*: Right-click clips > Bounce in Place: rendered through the track's plug-ins onto a new audio track
+- *Bash*: sed -n 1046,1110p Source/App/Controller.cpp
+
+## Claude (2026-11-18 13:47)
+
+Writing a shared 32-bit float WAV helper first, then checking how a render finishes so freeze and bounce can render one track without disturbing the rest.
+
+- *Bash*: sed -n 1150,1230p Source/Engine/Engine.cpp
+
+## Claude (2026-11-18 13:47)
+
+Writing the 32-bit float WAV helper and switching every internal writer to it.
+
+- *Bash*: cat > Source/Engine/AudioFiles.h <<'EOF' /*     AudioFiles - the one format Kalibre keeps audio in (decision 0079):     32-bit floating-p...
+- *Bash*: python3 - <<'EOF' def sub(p,a,b,cnt=1):     s=open(p).read()     if a not in s: raise SystemExit("missing in "+p+": "+repr(a[:90]))     s...
+
+## Claude (2026-11-18 13:48)
+
+Every internal writer now uses it; only exports keep the user's choice. Now converting imported audio.
+
+- *Bash*: python3 - <<'EOF' def sub(p,a,b,cnt=1):     s=open(p).read()     if a not in s: raise SystemExit("missing in "+p+": "+repr(a[:90]))     s...
+- *Bash*: sed -i '1076s/f.getFileNameWithoutExtension()/original.getFileNameWithoutExtension()/' Source/App/Controller.cpp && sed -n 1076p Source/A...
+- *Bash*: python3 - <<'EOF' def sub(p,a,b,cnt=1):     s=open(p).read()     if a not in s: raise SystemExit("missing in "+p+": "+repr(a[:90]))     s...
+
+## Claude (2026-11-18 13:48)
+
+Now the engine side: a way to render one track through its own plug-ins without unloading anyone else's.
+
+- *Bash*: python3 - <<'EOF' def sub(p,a,b,cnt=1):     s=open(p).read()     if a not in s: raise SystemExit("missing in "+p+": "+repr(a[:90]))     s...
+
+## Claude (2026-11-18 13:50)
+
+One gap in the pruning: a kept node could still list a pruned node as its successor. Fixing.
+
+- *Bash*: python3 - <<'EOF' p='Source/Engine/ParallelGraph.cpp' s=open(p).read() a='''                for (int nx : to[i]) from[(size_t) nx].erase ...
+
+## Claude (2026-11-18 13:51)
+
+All 76 still pass. Now rewriting freeze to use it, making unfreeze delete the render, and adding Bounce in Place.
+
+- *Bash*: grep -n "bool Controller::undo\|bool Controller::redo" -A14 Source/App/Controller.cpp | head -34; grep -n "void freeze" Source/App/Contro...
+- *Bash*: python3 - <<'EOF' def sub(p,a,b,cnt=1):     s=open(p).read()     if a not in s: raise SystemExit("missing in "+p+": "+repr(a[:90]))     s...
+
+## Claude (2026-11-18 13:53)
+
+Builds. Checking the existing freeze test before adding new ones.
+
+- *Bash*: sed -n "$(grep -n 'freezing a track renders' Tests/App/TestEngine.cpp | cut -d: -f1),+27p" Tests/App/TestEngine.cpp; grep -rn "freeze (" ...
+
+## Claude (2026-11-18 13:53)
+
+Adding tests for the quiet freeze, unfreeze, bounce, and float WAV everywhere.
+
+- *Bash*: grep -n '#include "Controller.h"\|#include "AudioFiles.h"' Tests/App/TestEngine.cpp | head -2; cat >> Tests/App/TestEngine.cpp <<'EOF'  #...
+
+## Claude (2026-11-18 13:54)
+
+All new tests pass first time. Running the full suite, then committing.
+
+- *Bash*: timeout 1500 xvfb-run -a -s "-screen 0 1600x1000x24" ./build/KalibreAppTests_artefacts/Debug/KalibreAppTests 2>&1 | grep -E "FAIL|passed|...
+- *TaskUpdate*: 22
+- *TaskUpdate*: 23
+- *TaskUpdate*: 24
+
+## Claude (2026-11-18 13:54)
+
+Pushed (79 app tests pass). Now the docs.
+
+- *Bash*: cd /home/user/Kalibre/docs/decisions && cat > 0079-32-bit-float-wav.md <<'EOF' # 0079. Kalibre's own audio is 32-bit float WAV  ## Contex...
+
+## Claude (2026-11-18 13:55)
+
+Docs pushed. Checking the Mac builds for multi-core.
+
+- *mcp__github__actions_list*: list_workflow_runs
+
+## Claude (2026-11-18 13:55)
+
+Multi-core passed on the Mac (run 87). Run 88 only changed docs yet failed, which suggests a flaky test. Checking.
+
+- *mcp__github__get_job_logs*: KallumS
+- *mcp__github__actions_list*: list_workflow_jobs
+
+## Claude (2026-11-18 13:55)
+
+Run 88 wasn't a test failure: its Mac job was cancelled before it started, with no runner free, while the Linux tests passed. My check at 14:08 UTC looks at whichever commit is newest, so it will cover these changes.
+
+- *ReadNotifications*: 
+- *ToolSearch*: select:mcp__github__actions_list,mcp__github__get_job_logs
+- *mcp__github__actions_list*: list_workflow_runs
+
+## Claude (2026-11-18 14:13)
+
+The Mac build passed for the newest commit, so the `.dmg` with everything is ready: Actions > Build > Kalibre-macOS (run 91, or run 90 just before it, which also passed).
+
+It has all the changes so far, including:
+- multi-core playback
+- Bounce in Place
+- Freeze that no longer reloads other tracks' plug-ins, with Unfreeze deleting the render
+- 32-bit float WAV for all audio Kalibre records, renders or imports
+
+Two runs in between (88 and 89) show as failed only because their Mac job was cancelled, not because anything broke. I checked 88, whose Mac job never got a machine to run on, while its Linux tests passed.
+
+Things worth trying on your Mac:
+- **Several heavy tracks:** play them and watch whether the CPU reading drops. If anything sounds wrong, switch off **Use Every Core** in the Audio tab and tell me which plug-in.
+- **Bounce in Place:** right-click a MIDI clip and choose it. A new audio track appears under its track, and the original clip is muted, not deleted.
+- **Freeze and Unfreeze:** freeze a track with a heavy instrument, then unfreeze it. Its settings should come back exactly as they were.
+- **Riffer:** do one more Scan for New Plug-ins in the Plug-in Manager, then check it's under MIDI Effects.
+
+## You (2026-11-18 17:01)
+
+Thanks, update the chat log and docs on the repo as I'm about the compact
+
+## Claude (2026-11-18 17:01)
+
+- *Bash*: git pull -q --ff-only 2>&1 | tail -1; python3 -I tools/export-chat.py /root/.claude/projects/-home-user-Kalibre/1aab3ac5-b25e-5729-8448-c...
