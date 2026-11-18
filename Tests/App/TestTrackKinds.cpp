@@ -1227,6 +1227,7 @@ TEST ("articulation manager: maps imported into the library, used on a track fro
 #include "CrashReports.h"
 #include "CrashContext.h"
 #include <sys/wait.h>
+#include <unistd.h>
 #include <csignal>
 
 TEST ("crash reports: a crash writes what went wrong and the plug-in that was playing, then ends as before (0073)")
