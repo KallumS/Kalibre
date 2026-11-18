@@ -97,9 +97,10 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
     smoothedL.setTargetValue (panL);
     smoothedR.setTargetValue (panR);
 
-    // Volume automation, sample by sample, when the Source has drawn this block's curve.
+    // Volume and pan automation, sample by sample, when the Source has drawn this block's curves.
     const int curve = volumeCurveSamples.exchange (0);
     const bool perSample = curve == n && ! std::isnan (autoVol) && audible && automatedMute.load() != 1;
+    const bool panPerSample = panCurveSamples.exchange (0) == n && ! std::isnan (autoPan);
     const float sign = phaseInvert ? -1.0f : 1.0f;
 
     auto* l = b.getWritePointer (0);
@@ -110,10 +111,25 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
         float a = l[i], c = r[i];
         if (mono) a = c = (a + c) * 0.5f;
         const float g = perSample ? sign * Decibels::decibelsToGain (volumeCurve[(size_t) i], -100.0f) : smoothedGain.getNextValue();
-        l[i] = a * g * smoothedL.getNextValue();
-        r[i] = c * g * smoothedR.getNextValue();
+        if (panPerSample)
+        {
+            const auto [gl, gr] = panGains (panCurve[(size_t) i]);
+            l[i] = a * g * gl;
+            r[i] = c * g * gr;
+        }
+        else
+        {
+            l[i] = a * g * smoothedL.getNextValue();
+            r[i] = c * g * smoothedR.getNextValue();
+        }
         pl = jmax (pl, std::abs (l[i]));
         pr = jmax (pr, std::abs (r[i]));
+    }
+    if (panPerSample)
+    {
+        const auto [gl, gr] = panGains (panCurve[(size_t) n - 1]);
+        smoothedL.setCurrentAndTargetValue (gl);
+        smoothedR.setCurrentAndTargetValue (gr);
     }
     if (perSample)
     {
@@ -500,6 +516,17 @@ void TrackSource::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
                 curve[(size_t) i] = (float) (edit::valueAtTicks (d->volume, d->tempo.ticksAt (s), 0.9) * 66.0 - 60.0);
             }
             d->fader->volumeCurveSamples = n;
+        }
+        if (d->readAutomation && d->hasPan && d->fader && n <= (int) d->fader->panCurve.size())
+        {
+            auto& curve = d->fader->panCurve;
+            for (int i = 0; i < n; ++i)
+            {
+                const double s = clock.wrapAt >= 0 && i >= clock.wrapAt ? clock.wrapTo + (i - clock.wrapAt) / clock.rate
+                                                                       : clock.start + i / clock.rate;
+                curve[(size_t) i] = (float) jlimit (-1.0, 1.0, edit::valueAtTicks (d->pan, d->tempo.ticksAt (s), 0.5) * 2.0 - 1.0);
+            }
+            d->fader->panCurveSamples = n;
         }
         if (clock.wrapAt >= 0)
         {

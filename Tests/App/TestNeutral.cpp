@@ -550,3 +550,32 @@ TEST ("not neutral: consolidating audio clips makes a new file, normalised, the 
     CHECK (c.undo());
     CHECK_EQ (c.project.track (t)->clips().size(), size_t (2));
 }
+
+TEST ("neutral: pan automation is followed sample by sample")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    AudioBuffer<float> dc (2, 96000);
+    for (int ch = 0; ch < 2; ++ch) FloatVectorOperations::fill (dc.getWritePointer (ch), 0.5f, dc.getNumSamples());
+    Id t = 0;
+    auto p = oneTrack (write (dc, 32, "dc-pan"), &t);
+    p.track (t)->clips().front().length = PPQ * 4;
+    p.track (t)->clips().front().audio.sourceLength = 2.0;
+    // From fully left to fully right over the first second (the lane runs 0-1 over -1..1).
+    AutomationLane lane;
+    lane.id = p.newId();
+    lane.target.kind = AutoTarget::Kind::Pan;
+    lane.points = { { 0, 0.0 }, { PPQ * 2, 1.0 } };
+    p.track (t)->automation.push_back (lane);
+    const auto out = render (engine, p, 2.0);
+    double worst = 0;
+    for (int i = 1; i < 48000; ++i)
+    {
+        const double pan = -1.0 + 2.0 * i / 48000.0;
+        const double angle = (pan + 1) * MathConstants<double>::pi / 4;
+        worst = std::max (worst, std::abs (out.getSample (0, i) - 0.5 * std::sqrt (2.0) * std::cos (angle)));
+        worst = std::max (worst, std::abs (out.getSample (1, i) - 0.5 * std::sqrt (2.0) * std::sin (angle)));
+    }
+    CHECK (worst < 1.0e-4);
+    CHECK (std::abs (out.getSample (0, 60000)) < 1.0e-6f);   // held fully right after
+}

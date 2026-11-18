@@ -80,6 +80,8 @@ public:
     // the track's Source, which plays before the fader, and used once.
     std::vector<float> volumeCurve;
     std::atomic<int> volumeCurveSamples { 0 };
+    std::vector<float> panCurve;               // the same for the pan lane, -1..1
+    std::atomic<int> panCurveSamples { 0 };
     std::atomic<float> automatedPan { std::numeric_limits<float>::quiet_NaN() };
     std::atomic<bool> audible { true }, phaseInvert { false }, mono { false };
     std::atomic<int> automatedMute { -1 };          // -1: not automated; 0 or 1 from a mute lane
@@ -124,6 +126,8 @@ public:
         volumeCurveSamples = 0;
         fresh = true;
         volumeCurve.assign ((size_t) juce::jmax (block, 8192), 0.0f);
+        panCurve.assign ((size_t) juce::jmax (block, 8192), 0.0f);
+        panCurveSamples = 0;
         smoothedGain.reset (rate, 0.02);
         for (auto& sp : speaker) sp.reset (rate, 0.02);
         loudnessMeter.prepare (rate);
