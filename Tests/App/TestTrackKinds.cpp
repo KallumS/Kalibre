@@ -1689,3 +1689,151 @@ TEST ("note splitter: a chord's notes, top to bottom, into four tracks' MIDI inp
     CHECK (c.undo());
     CHECK_EQ (c.project.tracks.size(), tracksBefore);
 }
+
+namespace
+{
+// The sloppy test library's own numbers (MorphProcessor.cpp's SloppyTest).
+double sloppyHash (int n)
+{
+    uint32 x = (uint32) n ^ 0x9e3779b9u;
+    x *= 0x85ebca6bu; x ^= x >> 13; x *= 0xc2b2ae35u; x ^= x >> 16;
+    return x / 4294967296.0;
+}
+double sloppyOnsetMs (int p, int v)
+{
+    const double tau = std::acos (1 - 2 * std::pow (10.0, -12.0 / 20)) / MathConstants<double>::pi;
+    return 45 + 70 * sloppyHash (p * 7 + 1) + (127 - v) * 0.12 + tau * (12 + 30 * sloppyHash (p * 13 + 5));
+}
+
+Id sloppyLine (Controller& c, Id& track)
+{
+    c.project = Project();
+    track = edit::addTrack (c.project, TrackKind::Track, "Violins");
+    edit::addDevice (c.project, track, PluginRef { "Kalibre", "test-sloppy", "Sloppy Library" }, DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (c.project, track, PPQ * 4, PPQ * 12);
+    const int line[] { 60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60, 64, 67, 72, 67, 64 };
+    for (int i = 0; i < 20; ++i)
+    {
+        Note n;
+        n.start = (Tick) i * PPQ / 2;
+        n.length = PPQ / 4;
+        n.pitch = line[i];
+        n.velocity = (int[]) { 70, 90, 110 }[i % 3];
+        edit::addNote (c.project, clip, n);
+    }
+    c.refresh();
+    return clip;
+}
+} // namespace
+
+TEST ("fix note timings and volume: the track rendered quietly, each note given the delay that puts its sound on the grid, the loud and quiet keys evened out with CC7; one undo step (0085)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Id t = 0;
+    const Id clip = sloppyLine (c, t);
+    const auto before = c.project;
+    const auto steps = c.history.size();
+    const auto temps = File::getSpecialLocation (File::tempDirectory).findChildFiles (File::findFiles, false, "Kalibre note fix*").size();
+    CHECK (c.fixNoteTimingsAndVolume (clip, {}));
+    CHECK_EQ (c.history.size(), steps + 1);
+    CHECK_EQ (File::getSpecialLocation (File::tempDirectory).findChildFiles (File::findFiles, false, "Kalibre note fix*").size(), temps);   // the render is gone
+    CHECK (c.message.contains ("Fixed"));
+    const auto* cl = c.project.clip (clip);
+    std::vector<double> err;
+    for (auto& n : cl->midi.notes)
+    {
+        CHECK_EQ (n.start % (PPQ / 2), Tick (0));   // still on the grid
+        err.push_back (std::abs (n.delayMs + sloppyOnsetMs (n.pitch, n.velocity)));
+    }
+    std::sort (err.begin(), err.end());
+    CHECK (err[err.size() / 2] <= 3);
+    CHECK (err.back() <= 12);
+    // CC7 before each note: the loud keys (64, 71) turned down, the quiet one (67) up.
+    auto ccBefore = [&] (const Note& n)
+    {
+        int v = -1;
+        for (auto& e : cl->midi.events) if (e.type == EventType::Controller && e.number == 7 && e.tick <= n.start) v = e.value;
+        return v;
+    };
+    for (auto& n : cl->midi.notes)
+    {
+        if (&n == &cl->midi.notes.front()) continue;   // sent before the clip begins: by velocity
+        const int v = ccBefore (n);
+        CHECK (v > 0);
+        if (n.pitch == 64 || n.pitch == 71) CHECK (v < 90);
+        if (n.pitch == 67) CHECK (v > 110);
+    }
+    // Again: little left to fix.
+    auto delays = [&] { std::map<Id, double> d; for (auto& n : c.project.clip (clip)->midi.notes) d[n.id] = n.delayMs; return d; };
+    const auto once = delays();
+    CHECK (c.fixNoteTimingsAndVolume (clip, {}));
+    std::vector<double> change;
+    for (auto& [id, d] : delays()) change.push_back (std::abs (d - once.at (id)));
+    std::sort (change.begin(), change.end());
+    CHECK (change[change.size() / 2] <= 2);
+    CHECK (c.undo());
+    CHECK (c.undo());
+    CHECK (c.project.clip (clip)->midi == before.clip (clip)->midi);
+}
+
+TEST ("fix note timings and volume: moving the notes instead, and velocity for the volume (0085)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Id t = 0;
+    const Id clip = sloppyLine (c, t);
+    Controller::NoteFixOptions o;
+    o.timing = Controller::NoteFixOptions::Timing::MoveNotes;
+    o.volume = Controller::NoteFixOptions::Volume::Velocity;
+    CHECK (c.fixNoteTimingsAndVolume (clip, o));
+    const auto* cl = c.project.clip (clip);
+    // The first note moved before the clip's old start: the clip starts earlier.
+    CHECK (cl->start < PPQ * 4);
+    // Each sound now heard on the grid it was written on (velocity moves a sample's delay a little).
+    std::vector<double> err;
+    const auto order = cl->midi.notes;
+    for (size_t i = 0; i < order.size(); ++i)
+    {
+        const auto& n = order[i];
+        CHECK_EQ (n.delayMs, 0.0);
+        const double heardMs = c.project.tempo.secondsAt (cl->start - cl->offset + n.start) * 1000 + sloppyOnsetMs (n.pitch, n.velocity);
+        double nearest = 1e9;
+        for (int k = 0; k < 20; ++k) nearest = std::min (nearest, std::abs (heardMs - c.project.tempo.secondsAt (PPQ * 4 + k * PPQ / 2) * 1000));
+        err.push_back (nearest);
+    }
+    std::sort (err.begin(), err.end());
+    CHECK (err[err.size() / 2] <= 5);
+    // Velocities changed for the faulty keys: 64 softer, 67 harder than they were.
+    bool softer = false, harder = false;
+    for (auto& n : cl->midi.notes)
+    {
+        const int was = (int[]) { 70, 90, 110 }[(n.start - cl->midi.notes.front().start + PPQ / 4) / (PPQ / 2) % 3];
+        (void) was;
+        if (n.pitch == 64 && n.velocity < 60) softer = true;    // 64 was played at 110, 70, 70, 90
+        if (n.pitch == 67 && n.velocity > 95) harder = true;    // 67 at 90, 90, 90, 70
+    }
+    CHECK (softer && harder);
+    CHECK (cl->midi.events.empty());
+}
+
+TEST ("fix note timings and volume: with a track delay, each note's own delay makes up the rest (0085)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Id t = 0;
+    const Id clip = sloppyLine (c, t);
+    c.project.track (t)->delayMs = -50;
+    c.refresh();
+    Controller::NoteFixOptions o;
+    o.volume = Controller::NoteFixOptions::Volume::Off;
+    CHECK (c.fixNoteTimingsAndVolume (clip, o));
+    std::vector<double> err;
+    for (auto& n : c.project.clip (clip)->midi.notes) err.push_back (std::abs (-50 + n.delayMs + sloppyOnsetMs (n.pitch, n.velocity)));
+    std::sort (err.begin(), err.end());
+    CHECK (err[err.size() / 2] <= 3);
+    CHECK (c.project.clip (clip)->midi.events.empty());
+}

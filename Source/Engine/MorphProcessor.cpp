@@ -1,4 +1,5 @@
 #include "NoteSplitter.h"
+#include <array>
 #include "MorphProcessor.h"
 #include "JsfxDevice.h"
 #include "LuaTool/LuaTool.h"
@@ -186,6 +187,95 @@ public:
 
 namespace
 {
+// For the tests: a sloppily edited sample library (decision 0085), Note
+// Position & Volume Fixer's made-up one. Each note sounds late by its own
+// amount (by key and velocity), its attack rising over a while; keys 64, 67
+// and 71 too loud or too quiet. CC7 is channel volume on the General MIDI
+// curve, 100 to begin with.
+class SloppyTest : public AudioPluginInstance
+{
+public:
+    SloppyTest() : AudioPluginInstance (BusesProperties().withOutput ("Out", AudioChannelSet::stereo())) {}
+    static double hash (int n)
+    {
+        uint32 x = (uint32) n ^ 0x9e3779b9u;
+        x *= 0x85ebca6bu; x ^= x >> 13; x *= 0xc2b2ae35u; x ^= x >> 16;
+        return x / 4294967296.0;
+    }
+    static double delayMs (int p, int v) { return 45 + 70 * hash (p * 7 + 1) + (127 - v) * 0.12; }
+    static double attackMs (int p) { return 12 + 30 * hash (p * 13 + 5); }
+    static double gainDb (int p, int v) { return -34 + 0.25 * v - 0.08 * (p - 60) + (p == 64 ? 5.0 : p == 67 ? -4.0 : p == 71 ? 3.5 : 0.0); }
+
+    const String getName() const override { return "Sloppy Library Test"; }
+    void fillInPluginDescription (PluginDescription& d) const override { d.name = getName(); d.pluginFormatName = "Kalibre"; d.isInstrument = true; }
+    void prepareToPlay (double r, int) override { rate = r; for (auto& v : voices) v = {}; cc7 = 100; }
+    void releaseResources() override {}
+    void processBlock (AudioBuffer<float>& b, MidiBuffer& midi) override
+    {
+        b.clear();
+        auto it = midi.begin();
+        for (int i = 0; i < b.getNumSamples(); ++i)
+        {
+            for (; it != midi.end() && (*it).samplePosition <= i; ++it)
+            {
+                const auto m = (*it).getMessage();
+                if (m.isNoteOn())
+                {
+                    for (auto& v : voices)
+                        if (! v.on) { v = { true, m.getNoteNumber(), m.getVelocity(), 0, -1 }; break; }
+                }
+                else if (m.isNoteOff())
+                {
+                    for (auto& v : voices) if (v.on && v.pitch == m.getNoteNumber() && v.off < 0) v.off = v.age;
+                }
+                else if (m.isController() && m.getControllerNumber() == 7) cc7 = m.getControllerValue();
+                else if (m.isAllNotesOff() || m.isAllSoundOff()) for (auto& v : voices) v = {};
+            }
+            double out = 0;
+            for (auto& v : voices)
+            {
+                if (! v.on) continue;
+                const double t = (v.age - delayMs (v.pitch, v.vel) / 1000 * rate) / rate;
+                ++v.age;
+                if (t < 0) continue;
+                const double A = attackMs (v.pitch) / 1000;
+                double env = t < A ? 0.5 * (1 - std::cos (MathConstants<double>::pi * t / A)) : std::exp (-(t - A) * 0.6);
+                if (v.off >= 0)
+                {
+                    const double tr = (double) (v.age - v.off) / rate;
+                    env *= std::exp (-tr * 12);
+                    if (tr > 0.8) { v.on = false; continue; }
+                }
+                const double f0 = 440 * std::pow (2.0, (v.pitch - 69) / 12.0);
+                double s = 0;
+                for (int h = 1; h <= 6 && h * f0 <= rate * 0.45; ++h) s += std::sin (MathConstants<double>::twoPi * h * f0 * t + hash (v.pitch * 31 + h) * 6.283) / h;
+                out += std::pow (10.0, gainDb (v.pitch, v.vel) / 20) * env * s * 0.5;
+            }
+            out *= std::pow (cc7 / 127.0, 2.0);
+            b.setSample (0, i, (float) out);
+            b.setSample (1, i, (float) out);
+        }
+    }
+    double getTailLengthSeconds() const override { return 1; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return false; }
+    bool hasEditor() const override { return false; }
+    AudioProcessorEditor* createEditor() override { return nullptr; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const String&) override {}
+    void getStateInformation (MemoryBlock&) override {}
+    void setStateInformation (const void*, int) override {}
+
+private:
+    struct Voice { bool on = false; int pitch = 0, vel = 0; int64 age = 0, off = -1; };
+    std::array<Voice, 32> voices {};
+    double rate = 48000;
+    int cc7 = 100;
+};
+
 // For the tests: a free-running arpeggiator (decision 0064). Whatever comes
 // in is dropped; out comes a C5 every quarter of a second, a tenth long.
 class ArpTest : public AudioPluginInstance
@@ -229,6 +319,7 @@ private:
 std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginManager& pm)
 {
     if (ref.identifier == "test-arp") return std::make_unique<ArpTest>();
+    if (ref.identifier == "test-sloppy") return std::make_unique<SloppyTest>();
     if (ref.identifier == "note-splitter") return std::make_unique<NoteSplitterProcessor>();   // decision 0083
     if (auto j = makeJsfx (ref)) return j;   // the family's JSFX (decision 0066)
     if (ref.identifier == "instant-virtual-instrument") return makeInstantVirtualInstrument();   // decision 0067

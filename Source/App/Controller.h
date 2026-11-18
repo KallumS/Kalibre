@@ -247,7 +247,21 @@ public:
     // The track alone through its own plug-ins at unity (its clips, or just `onlyClips`), from
     // `start` to `end` seconds and `tail` more, into a 32-bit float WAV. Nothing else is unloaded.
     bool renderTrackAudio (Id track, const std::set<Id>& onlyClips, double start, double end, double tail,
-                           const juce::File& out, juce::String& error);
+                           const juce::File& out, juce::String& error, bool instrumentsOnly = false);
+
+    // Fix Note Timings and Volume (decision 0085): Note Position & Volume Fixer,
+    // built in. The clip's track rendered quietly (its instruments, no effects),
+    // each note found in the render, the render deleted, and each note moved so
+    // its sound lands where it's written and turned up or down to match the
+    // other notes of its articulation. One undo step.
+    struct NoteFixOptions
+    {
+        enum class Timing { NoteDelay, MoveNotes, Off } timing = Timing::NoteDelay;
+        enum class Volume { Cc7, Cc11, Velocity, Off } volume = Volume::Cc7;
+        bool toAttack = true;   // line up the attack; false: the very start of the sound
+    };
+    bool fixNoteTimingsAndVolume (Id clip, const NoteFixOptions&);
+    NoteFixOptions lastNoteFix;   // what the dialog chose last
     // After Undo or Redo: a frozen track whose render was deleted by Unfreeze is rendered again.
     void refreezeMissing();
     Id newMidiClip (Id track, Tick start, Tick length);

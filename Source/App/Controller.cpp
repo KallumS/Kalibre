@@ -1261,7 +1261,7 @@ void Controller::folderFromSelection()
 }
 
 bool Controller::renderTrackAudio (Id id, const std::set<Id>& onlyClips, double start, double end, double tail,
-                                   const File& out, String& error)
+                                   const File& out, String& error, bool instrumentsOnly)
 {
     storeDeviceStates();
     // The whole song, so no other plug-in is unloaded; only this track goes out, at unity.
@@ -1281,6 +1281,9 @@ bool Controller::renderTrackAudio (Id id, const std::set<Id>& onlyClips, double 
     if (! onlyClips.empty())
         t->clips().erase (std::remove_if (t->clips().begin(), t->clips().end(), [&] (const Clip& c) { return onlyClips.count (c.id) == 0; }), t->clips().end());
     copy.metronome.on = false;
+    // Only what the instruments play: effects (a reverb) bypassed, their delay kept.
+    if (instrumentsOnly)
+        for (auto& d : t->devices) if (d.role == DeviceRole::AudioFx) d.bypassed = true;
     const bool ok = engine.renderTrack (copy, id, projectFolder(), out, start, end, tail, error);
     syncEngine();
     return ok;

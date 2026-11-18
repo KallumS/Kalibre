@@ -382,6 +382,39 @@ String TrackHeader::routingWords (const Track& t) const
 
 // The track panel's own menu, under the tracks: a new one goes at the end,
 // outside any folder.
+// Fix Note Timings and Volume (decision 0085): how, then the track is rendered quietly and its notes fixed.
+AlertWindow* Arrange::fixNotesDialog (const Controller::NoteFixOptions& o)
+{
+    auto* w = new AlertWindow ("Fix Note Timings and Volume",
+                               "Kalibre renders the track quietly, finds where each note is really heard and how loud, deletes the render, "
+                               "and fixes the notes so each lands where it's written and matches the others of its articulation.",
+                               MessageBoxIconType::NoIcon);
+    w->addComboBox ("timing", { "Give Each Note Its Own Delay (It Stays on the Grid)", "Move the Notes", "Leave the Timing Alone" }, "Timing");
+    w->addComboBox ("volume", { "CC7 (Volume)", "CC11 (Expression)", "Velocity", "Leave the Volume Alone" }, "Volume");
+    w->addComboBox ("align", { "The Attack", "The Very Start of the Sound" }, "Line Up");
+    w->getComboBoxComponent ("timing")->setSelectedItemIndex ((int) o.timing, dontSendNotification);
+    w->getComboBoxComponent ("volume")->setSelectedItemIndex ((int) o.volume, dontSendNotification);
+    w->getComboBoxComponent ("align")->setSelectedItemIndex (o.toAttack ? 0 : 1, dontSendNotification);
+    w->addButton ("Fix", 1, KeyPress (KeyPress::returnKey));
+    w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+    return w;
+}
+
+void Arrange::fixNotes (Id clip)
+{
+    auto* w = fixNotesDialog (c.lastNoteFix);
+    ui::present (w, ModalCallbackFunction::create ([this, w, clip] (int ok)
+    {
+        if (ok != 1) return;
+        Controller::NoteFixOptions chosen;
+        chosen.timing = (Controller::NoteFixOptions::Timing) jmax (0, w->getComboBoxComponent ("timing")->getSelectedItemIndex());
+        chosen.volume = (Controller::NoteFixOptions::Volume) jmax (0, w->getComboBoxComponent ("volume")->getSelectedItemIndex());
+        chosen.toAttack = w->getComboBoxComponent ("align")->getSelectedItemIndex() != 1;
+        c.lastNoteFix = chosen;
+        c.fixNoteTimingsAndVolume (clip, chosen);
+    }), true);
+}
+
 void Arrange::trackPanelMenu()
 {
     auto add = [this] (TrackKind k) { return [this, k] { c.focusTrack = 0; c.addTrack (k); }; };
@@ -1710,6 +1743,8 @@ void Arrange::clipMenu (Id id)
                    + String (c.project.tempo.formatBarBeat (c.project.loop.end)) + ", and on.", false, true);
         });
         m.addItem ("Explode Chords to Tracks", midi, false, [this, chosen] { c.explodeChords (chosen); });
+        if (clip->isMidi())
+            m.addItem (ui::u8 ("Fix Note Timings and Volume\xe2\x80\xa6"), [this, id] { fixNotes (id); });
         m.addItem ("Bounce in Place", [this, chosen] { c.bounceInPlace (chosen); });
         m.addItem ("Detect Chords", midi, midi && allDetected, [this, chosen, on = ! (midi && allDetected)]
         {

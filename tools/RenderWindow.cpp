@@ -13,6 +13,7 @@
 #include "LuaTool/LuaTool.h"
 #include "NoteSplitter.h"
 #include "PianoRoll.h"
+#include "Arrange.h"
 #include "ArticulationManagerView.h"
 
 using namespace juce;
@@ -328,6 +329,19 @@ int main (int argc, char** argv)
             for (auto id : to) if (id) edit::removeTrack (c.project, id);
             edit::removeTrack (c.project, st);
             c.refresh();
+        }
+        // Fix Note Timings and Volume's question (decision 0085).
+        {
+            std::unique_ptr<AlertWindow> w (Arrange::fixNotesDialog ({}));
+            w->setVisible (true);
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            auto image = w->createComponentSnapshot (w->getLocalBounds(), true, scale);
+            PNGImageFormat png;
+            const auto f = out.getChildFile ("27-fix-note-timings-and-volume.png");
+            f.deleteFile();
+            FileOutputStream s (f);
+            png.writeImageToStream (image, s);
+            std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
         }
         // Each note's own delay in the piano roll's lane (decision 0082).
         {

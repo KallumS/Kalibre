@@ -143,6 +143,7 @@ add_library(KalibreApp STATIC
     Source/App/AudioEditing.cpp
     Source/App/Presets.cpp
     Source/App/ProjectFiles.cpp
+    Source/App/NoteFixing.cpp
     Source/App/SampleEditor.cpp
     Source/App/LauncherView.cpp
     Source/App/OfflineFxView.cpp
