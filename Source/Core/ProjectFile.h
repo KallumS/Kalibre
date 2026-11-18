@@ -25,4 +25,8 @@ std::string save (const Project&);
 // Nothing when the text isn't a Kalibre project. `error` says why.
 std::optional<Project> load (const std::string& text, std::string* error = nullptr);
 
+// Articulation maps alone, for the Articulation Manager's library (decision 0072).
+std::string saveMaps (const std::vector<ArticulationMap>&);
+std::vector<ArticulationMap> loadMaps (const std::string& text);
+
 } // namespace kal::file

@@ -179,6 +179,17 @@ CompiledTrack compile (const Project& p, const Track& t)
                             out.midi.push_back (message (pre, 1, 0x90 | channel, art->keyswitch, art->keyswitchVelocity));
                             out.midi.push_back (message (pre + 0.0005, 0, 0x80 | channel, art->keyswitch, 0));
                         }
+                        // An imported map's further outputs: more keys held together, controllers, programs (0072).
+                        for (const auto& o : art->more)
+                        {
+                            if (o.kind == ArtOutput::Program) out.midi.push_back (message (pre, 1, 0xC0 | channel, o.number & 127, 0, 2));
+                            else if (o.kind == ArtOutput::Controller) out.midi.push_back (message (pre, 1, 0xB0 | channel, o.number & 127, o.value & 127));
+                            else
+                            {
+                                out.midi.push_back (message (pre, 1, 0x90 | channel, o.number & 127, std::clamp (o.value, 1, 127)));
+                                out.midi.push_back (message (pre + 0.0005, 0, 0x80 | channel, o.number & 127, 0));
+                            }
+                        }
                     }
                     if (t.mpe)
                     {

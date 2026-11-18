@@ -145,6 +145,7 @@ add_library(KalibreApp STATIC
     Source/App/OfflineFxView.cpp
     Source/App/MetersView.cpp
     Source/App/PluginManagerView.cpp
+    Source/App/ArticulationManagerView.cpp
     Source/App/VideoView.cpp
     Source/App/Keys.cpp
     Source/App/KeysPanel.cpp
@@ -248,12 +249,12 @@ if(KALIBRE_BUILD_TESTS)
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp
     Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
-    target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1)
+    target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1 KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(KalibreAppTests PRIVATE KalibreApp juce::juce_recommended_config_flags)
     add_test(NAME App COMMAND KalibreAppTests)
 
     juce_add_console_app(KalibreRender PRODUCT_NAME "Kalibre Render")
     target_sources(KalibreRender PRIVATE tools/RenderWindow.cpp)
-    target_compile_definitions(KalibreRender PRIVATE JUCE_STANDALONE_APPLICATION=1)
+    target_compile_definitions(KalibreRender PRIVATE JUCE_STANDALONE_APPLICATION=1 KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(KalibreRender PRIVATE KalibreApp juce::juce_recommended_config_flags)
 endif()

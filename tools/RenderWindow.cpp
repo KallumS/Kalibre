@@ -246,6 +246,27 @@ int main (int argc, char** argv)
             png.writeImageToStream (image, s);
             std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
         }
+        // The Articulation Manager's window (decision 0072): Note Position Fixer's test maps imported.
+        {
+            c.articulationFolder = File::getSpecialLocation (File::tempDirectory).getChildFile ("KalibreRender-articulations");
+            c.articulationFolder.deleteRecursively();
+            const File fixtures = File (KALIBRE_SOURCE_DIR).getChildFile ("Tests/fixtures/articulations");
+            c.importArticulationMaps ({ fixtures.getChildFile ("Test Strings.expressionmap"), fixtures.getChildFile ("Test Strings.reabank"),
+                                        fixtures.getChildFile ("Test Strings.plist") });
+            ArticulationManagerView manager (c);
+            manager.setSize (900, 420);
+            manager.refresh();
+            manager.choose (3);
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            auto image = manager.createComponentSnapshot (manager.getLocalBounds(), true, scale);
+            PNGImageFormat png;
+            const auto f = out.getChildFile ("24-articulation-manager.png");
+            f.deleteFile();
+            FileOutputStream s (f);
+            png.writeImageToStream (image, s);
+            std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+            c.dismiss();
+        }
         song::backToArrangement (c.project);
         // The Container (decision 0055): three plug-ins, one on a band, one on the sides.
         {

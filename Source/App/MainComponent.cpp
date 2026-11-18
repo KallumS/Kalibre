@@ -49,6 +49,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
     setTitle ("Kalibre");
     registerKeys();
     c.onShowPluginManager = [this] { showPluginManager(); };
+    c.onShowArticulationManager = [this] { showArticulationManager(); };
     c.addChangeListener (this);
     setSize (1440, 900);
 }
@@ -57,7 +58,9 @@ MainComponent::~MainComponent()
 {
     c.keys.all().clear();   // their actions point at this window
     c.onShowPluginManager = nullptr;
+    c.onShowArticulationManager = nullptr;
     pluginWindow.reset();
+    articulationWindow.reset();
     c.removeChangeListener (this);
     if (auto* s = settingsStore().getUserSettings())
     {
@@ -102,6 +105,18 @@ void MainComponent::showPluginManager()
     if (auto* view = dynamic_cast<PluginManagerView*> (pluginWindow->getContentComponent())) view->refresh();
     pluginWindow->setVisible (true);
     pluginWindow->toFront (true);
+}
+
+void MainComponent::showArticulationManager()
+{
+    if (! articulationWindow)
+    {
+        articulationWindow = std::make_unique<ArticulationManagerWindow> (c);
+        if (auto* top = getTopLevelComponent()) articulationWindow->centreAroundComponent (top, articulationWindow->getWidth(), articulationWindow->getHeight());
+    }
+    if (auto* view = dynamic_cast<ArticulationManagerView*> (articulationWindow->getContentComponent())) view->refresh();
+    articulationWindow->setVisible (true);
+    articulationWindow->toFront (true);
 }
 
 void MainComponent::setTextSize (float s)

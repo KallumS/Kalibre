@@ -40,6 +40,7 @@ public:
     void mouseUp (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
+    juce::PopupMenu articulationMenu();   // the Velocity menu's Articulation Map (0072)
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     void mouseMagnify (const juce::MouseEvent&, float) override;
     bool keyPressed (const juce::KeyPress&) override;

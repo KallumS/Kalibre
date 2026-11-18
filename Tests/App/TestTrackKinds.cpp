@@ -1170,3 +1170,56 @@ TEST ("top bar: right-click hides what isn't wanted; the Grid is the arrangement
     MessageManager::getInstance()->runDispatchLoopUntil (60);
     CHECK (follow->getButtonText() == "Follow: Page");
 }
+
+#include "ArticulationManagerView.h"
+
+TEST ("articulation manager: maps imported into the library, used on a track from the piano roll's menu, one undo step (0072)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    c.articulationFolder = folder().getChildFile ("articulation-library");
+    c.articulationFolder.deleteRecursively();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Violins");
+    c.focusTrack = t;
+    c.refresh();
+
+    const File fixtures = File (KALIBRE_SOURCE_DIR).getChildFile ("Tests/fixtures/articulations");
+    Array<File> files { fixtures.getChildFile ("Test Strings.expressionmap"), fixtures.getChildFile ("Test Strings.reabank"), fixtures.getChildFile ("Test Strings.plist") };
+    CHECK_EQ (c.importArticulationMaps (files), 4);
+    CHECK (c.message.contains ("Imported"));
+    const auto library = c.articulationLibrary();
+    CHECK_EQ (library.size(), size_t (4));
+    // Imported again: replaced, not doubled.
+    c.importArticulationMaps ({ fixtures.getChildFile ("Test Strings.plist") });
+    CHECK_EQ (c.articulationLibrary().size(), size_t (4));
+
+    ArticulationManagerView view (c);
+    view.setSize (900, 500);
+    CHECK_EQ (view.shownRows().size(), size_t (4));
+
+    // From the piano roll's Velocity menu: the library's maps are there.
+    PianoRoll roll (c);
+    roll.setSize (900, 500);
+    auto menu = roll.articulationMenu();
+    bool listed = false;
+    for (PopupMenu::MenuItemIterator it (menu); it.next();) listed |= it.getItem().text == "Violins";
+    CHECK (listed);
+
+    const auto before = c.history.size();
+    ArticulationMap violins;
+    for (auto& m : library) if (m.name == "Violins") violins = m;
+    c.useArticulationMap (t, violins);
+    CHECK_EQ (c.history.size(), before + 1);
+    const auto* map = c.project.articulationMap (c.project.track (t)->articulationMap);
+    CHECK (map != nullptr);
+    if (map) CHECK_EQ (map->name, std::string ("Violins"));
+    // Used again: the song's copy, not a second one.
+    c.useArticulationMap (t, violins);
+    CHECK_EQ (c.project.articulationMaps.size(), size_t (1));
+    view.refresh();
+    bool both = false;
+    for (auto& r : view.shownRows()) both |= r.map.name == "Violins" && r.inLibrary && r.inSong;
+    CHECK (both);
+}

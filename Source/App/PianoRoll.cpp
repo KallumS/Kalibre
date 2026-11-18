@@ -647,7 +647,47 @@ void PianoRoll::laneMenu()
         laneKind = saved;
         m.addItem (name, true, laneKind == k, [this, k] { laneKind = k; repaint(); });
     }
+    // The track's articulation map (decision 0072): with one, the articulation lane shows above.
+    m.addSeparator();
+    m.addSubMenu ("Articulation Map", articulationMenu());
     m.showMenuAsync (PopupMenu::Options());
+}
+
+PopupMenu PianoRoll::articulationMenu()
+{
+    PopupMenu maps;
+    const auto* t = const_cast<Controller&> (c).focus();
+    const Id track = c.focusTrack;
+    const bool can = t && t->holdsClips();
+    maps.addItem ("None", can, t && t->articulationMap == 0, [this, track]
+    {
+        c.apply ("Articulation Map", [track] (Project& p) { if (auto* x = p.track (track)) x->articulationMap = 0; });
+        resized();
+    });
+    StringArray inSong;
+    for (auto& map : c.project.articulationMaps)
+    {
+        inSong.add (String (map.name));
+        maps.addItem (String (map.name), can, t && t->articulationMap == map.id, [this, track, map]
+        {
+            c.useArticulationMap (track, map);
+            resized();
+        });
+    }
+    bool header = false;
+    for (auto& map : c.articulationLibrary())
+    {
+        if (inSong.contains (String (map.name))) continue;
+        if (! header) { maps.addSectionHeader ("From the Library"); header = true; }
+        maps.addItem (String (map.name), can, false, [this, track, map]
+        {
+            c.useArticulationMap (track, map);
+            resized();
+        });
+    }
+    maps.addSeparator();
+    maps.addItem (ui::u8 ("Articulation Manager\xe2\x80\xa6"), [this] { c.showArticulationManager(); });
+    return maps;
 }
 
 void PianoRoll::drawLaneValue (const MouseEvent& e)

@@ -5,6 +5,7 @@
 */
 
 #include "Controller.h"
+#include "Articulations.h"
 #include "MusicXml.h"
 #include "Theme.h"
 
@@ -338,6 +339,76 @@ bool Controller::importMusicXml (const File& f)
     say ("Imported " + String ((int) made.size()) + (made.size() == 1 ? " part" : " parts") + " from " + f.getFileName()
          + ", each on a track of its own. Add an instrument to hear them" + (empty ? String (". The score's tempo, time signatures and key came too.") : String (".")), false, true);
     return true;
+}
+
+//==============================================================================
+// Articulation maps (decision 0072).
+File Controller::articulationLibraryFile() const
+{
+    const auto folder = articulationFolder != File() ? articulationFolder : engine.plugins().listFile().getParentDirectory();
+    return folder.getChildFile ("Articulation Maps.json");
+}
+
+std::vector<ArticulationMap> Controller::articulationLibrary() const
+{
+    return articulations::loadLibrary (articulationLibraryFile().loadFileAsString().toStdString());
+}
+
+void Controller::saveArticulationLibrary (const std::vector<ArticulationMap>& maps)
+{
+    const auto f = articulationLibraryFile();
+    f.getParentDirectory().createDirectory();
+    const auto part = f.getSiblingFile (f.getFileName() + ".part");
+    if (part.replaceWithText (String (articulations::saveLibrary (maps))) && part.moveFileTo (f)) return;
+    say ("The articulation maps couldn't be saved to " + f.getFullPathName() + ".", true);
+}
+
+int Controller::importArticulationMaps (const Array<File>& files)
+{
+    auto library = articulationLibrary();
+    int read = 0;
+    StringArray names, problems;
+    for (auto& f : files)
+    {
+        const auto r = articulations::import (f.loadFileAsString().toStdString(), f.getFileName().toStdString());
+        if (! r.error.empty()) { problems.add (f.getFileName() + ": " + String (r.error)); continue; }
+        for (auto m : r.maps)
+        {
+            if (m.name.empty()) m.name = f.getFileNameWithoutExtension().toStdString();
+            m.id = 0;
+            library.erase (std::remove_if (library.begin(), library.end(), [&m] (const ArticulationMap& x) { return x.name == m.name; }), library.end());
+            library.push_back (m);
+            names.add (String (m.name) + " (" + String ((int) m.articulations.size()) + ")");
+            ++read;
+        }
+    }
+    std::sort (library.begin(), library.end(), [] (const ArticulationMap& a, const ArticulationMap& b) { return String (a.name).compareNatural (String (b.name)) < 0; });
+    if (read > 0) saveArticulationLibrary (library);
+    if (read > 0)
+        say ("Imported " + names.joinIntoString (", ") + ". Choose one for a track from the piano roll's Velocity menu"
+             + (problems.isEmpty() ? String (".") : ". Not read: " + problems.joinIntoString ("; ")), ! problems.isEmpty());
+    else if (! problems.isEmpty())
+        say ("Nothing was imported. " + problems.joinIntoString ("; "), true);
+    return read;
+}
+
+void Controller::useArticulationMap (Id track, const ArticulationMap& map)
+{
+    apply ("Articulation Map", [&] (Project& p)
+    {
+        auto* t = p.track (track);
+        if (! t) return;
+        Id id = 0;
+        for (auto& m : p.articulationMaps)
+            if (m.name == map.name && m.articulations == map.articulations) id = m.id;
+        if (id == 0)
+        {
+            auto copy = map;
+            copy.id = id = p.newId();
+            p.articulationMaps.push_back (copy);
+        }
+        t->articulationMap = id;
+    });
 }
 
 } // namespace kal

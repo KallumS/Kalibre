@@ -97,6 +97,19 @@ public:
     void showPluginManager() { if (onShowPluginManager) onShowPluginManager(); }
     std::function<void()> onShowPluginManager;     // the window sets this
     void dismiss();
+
+    // Articulation maps (decision 0072): a library kept between songs, read
+    // from Cubase, Logic or Reaticulate maps in the Articulation Manager.
+    juce::File articulationFolder;             // empty: beside the plug-in list (tests set it)
+    juce::File articulationLibraryFile() const;
+    std::vector<ArticulationMap> articulationLibrary() const;
+    void saveArticulationLibrary (const std::vector<ArticulationMap>&);
+    // Each file's maps into the library (one of the same name replaced); says what came in.
+    int importArticulationMaps (const juce::Array<juce::File>&);
+    // The map on the track, copied into the song first if it isn't there. One undo step.
+    void useArticulationMap (Id track, const ArticulationMap&);
+    void showArticulationManager() { if (onShowArticulationManager) onShowArticulationManager(); }
+    std::function<void()> onShowArticulationManager;     // the window sets this
     // What the pointer is over, told by the arrangement and the piano roll.
     Id hoveredClip = 0, hoveredNote = 0;
     void hover (Id clip, Id note = 0) { hoveredClip = clip; hoveredNote = note; }

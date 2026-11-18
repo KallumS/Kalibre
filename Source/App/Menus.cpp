@@ -109,6 +109,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                     if (r > 0) c.saveTemplate (w->getTextEditorContents ("name").trim(), r == 2);
                 }), true);
             }));
+            m.addItem (item (ui::u8 ("Articulation Manager\xe2\x80\xa6"), [this] { showArticulationManager(); }));
             m.addItem (item ("Collect All Files and Save", [this] { if (! c.file.existsAsFile()) saveFile ([this] { c.collectAndSave(); }); else c.collectAndSave(); }));
             m.addItem (item (ui::u8 ("Relink Missing Files\xe2\x80\xa6"), [this]
             {

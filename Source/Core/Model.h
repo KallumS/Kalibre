@@ -369,6 +369,17 @@ struct Modulator
 //==============================================================================
 // Articulations (decision 0013)
 
+// One more thing an articulation sends (an imported map's second keyswitch, decision 0072).
+struct ArtOutput
+{
+    enum Kind { Note, Controller, Program };
+    int kind = Note;
+    int number = 0;     // the key, the controller, or the program
+    int value = 127;    // the key's velocity, or the controller's value
+
+    bool operator== (const ArtOutput&) const = default;
+};
+
 struct Articulation
 {
     std::string name;            // "Staccato"
@@ -379,6 +390,7 @@ struct Articulation
     int channel = -1;            // send the note on this channel instead, or -1
     double delayMs = 0;          // play this articulation earlier (negative) or later
     std::uint32_t colour = 0;
+    std::vector<ArtOutput> more;  // sent too, with the above (VSL's maps choose with two to four keys)
 
     bool operator== (const Articulation&) const = default;
 };
