@@ -107,6 +107,7 @@ public:
     void setStepInput (bool on);
     void stepKey (int pitch, int velocity, bool on);
     bool stepDigit (int digit);     // false when step input is off
+    bool stepRest();                // the - key: a rest as long as the length chosen
     void sayStepInput();
 
     // Choose the chosen clip's notes by what they are (decision 0075); `only`, one editor's.

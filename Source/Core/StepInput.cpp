@@ -46,6 +46,15 @@ void StepInput::digit (int d)
     dottedNext = tripletNext = false;
 }
 
+Tick StepInput::rest()
+{
+    Tick t = dottedNext || tripletNext ? valueOf (value) : length();
+    if (dottedNext) t = t * 3 / 2;
+    if (tripletNext) t = t * 2 / 3;
+    dottedNext = tripletNext = false;
+    return std::max<Tick> (1, t);
+}
+
 Tick StepInput::length() const
 {
     Tick t = valueOf (value);

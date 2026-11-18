@@ -249,7 +249,7 @@ void Controller::setStepInput (bool on)
 void Controller::sayStepInput()
 {
     say ("Step input: hold keys on a MIDI keyboard, press 1 to 8 for the length (1 = 1/128, 4 = 1/16, 6 = 1/4, 8 = 1/1; 9 then a number: dotted; "
-         "0 then a number: triplet), let go to write them. Now " + String (stepper.lengthName()) + ".");
+         "0 then a number: triplet), let go to write them; - for a rest that long. Now " + String (stepper.lengthName()) + ".");
 }
 
 bool Controller::stepDigit (int d)
@@ -257,6 +257,27 @@ bool Controller::stepDigit (int d)
     if (! stepInput) return false;
     stepper.digit (d);
     sayStepInput();
+    return true;
+}
+
+bool Controller::stepRest()
+{
+    if (! stepInput) return false;
+    const Tick len = stepper.rest();
+    const Tick to = cursor + len;
+    // The chosen clip grows to hold the rest, so what's written next lands in it.
+    const auto* cl = clip();
+    if (cl && cl->isMidi() && cl->loopLength == 0 && to > cl->end())
+    {
+        const Id cid = selectedClip;
+        apply ("Step Input Rest", [&] (Project& p)
+        {
+            if (auto* c = p.clip (cid))
+                c->length = std::max (c->length, p.tempo.barStart (p.tempo.barAt (to - 1) + 1) - c->start);
+        });
+    }
+    locate (to);
+    say ("Rest. Step input: now " + String (stepper.lengthName()) + "; - for another rest.");
     return true;
 }
 

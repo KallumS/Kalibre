@@ -1497,13 +1497,32 @@ TEST ("step input: keys from a MIDI keyboard, a number for the length, written a
     bool drum = false;
     for (auto& n : cl->midi.notes) drum |= n.pitch == 36 && n.from == NoteFrom::Drums && n.length == PPQ * 4;
     CHECK (drum);
+    // A rest: the - key, as long as the length chosen; the cursor moves on, nothing written,
+    // and the clip grows to hold it.
+    const auto notesBefore = c.project.clip (clip)->midi.notes.size();
+    c.locate (PPQ * 8 - PPQ);
+    c.stepDigit (6);
+    CHECK (c.stepRest());
+    CHECK_EQ (c.cursor, Tick (PPQ * 8));
+    c.stepDigit (9);
+    CHECK (c.stepRest());                            // a dotted 1/4
+    CHECK_EQ (c.cursor, Tick (PPQ * 8 + PPQ * 3 / 2));
+    CHECK_EQ (c.project.clip (clip)->length, Tick (PPQ * 12));
+    engine.playIn (MidiMessage::noteOn (1, 72, (uint8) 100));
+    engine.playIn (MidiMessage::noteOff (1, 72));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), notesBefore + 1);
+    bool after = false;
+    for (auto& n : c.project.clip (clip)->midi.notes) after |= n.pitch == 72 && n.start == PPQ * 8 + PPQ * 3 / 2 && n.length == PPQ;
+    CHECK (after);
     // Off: keys are only heard.
     c.setStepInput (false);
     engine.playIn (MidiMessage::noteOn (1, 70, (uint8) 100));
     engine.playIn (MidiMessage::noteOff (1, 70));
     MessageManager::getInstance()->runDispatchLoopUntil (50);
-    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), size_t (3));
+    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), notesBefore + 1);
     CHECK (! c.stepDigit (4));
+    CHECK (! c.stepRest());
 }
 
 TEST ("dawproject: a song exported with its audio and Kalibre's own devices, and opened again as a new song (0077)")
