@@ -1294,3 +1294,34 @@ TEST ("backups: one while it has changed, none when it hasn't; the newest 48 kep
     for (auto& t : c.project.tracks) later |= t.name == "Later";
     CHECK (! later);
 }
+
+#include "Arrange.h"
+
+TEST ("track headers: an I/O button beside M, S and R says where the track listens and plays to (0074)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    const Id ret = edit::addTrack (c.project, TrackKind::Return, "Reverb");
+    c.project.track (t)->output = ret;
+    c.refresh();
+    Arrange arrange (c);
+    arrange.setSize (1200, 600);
+    c.refresh();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    std::function<Button* (Component&)> find = [&] (Component& p) -> Button*
+    {
+        for (auto* ch : p.getChildren())
+        {
+            if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText() == "I/O" && b->isVisible()
+                && b->getTooltip().contains ("Reverb")) return b;
+            if (auto* f = find (*ch)) return f;
+        }
+        return nullptr;
+    };
+    auto* io = find (arrange);
+    CHECK (io != nullptr);
+    if (io) CHECK (io->getTooltip().contains ("every keyboard"));
+}

@@ -395,6 +395,12 @@ Id duplicateLinked (Project& p, Id clipId)
     return copy;
 }
 
+void makeAlias (Project& p, const std::set<Id>& clips)
+{
+    for (auto id : clips)
+        if (auto* c = p.clip (id); c && c->link == 0) c->link = p.newId();
+}
+
 void unlink (Project& p, Id clipId)
 {
     if (auto* c = p.clip (clipId)) c->link = 0;

@@ -58,6 +58,9 @@ void rippleRemove (Project&, const std::set<Id>& clips);
 // Links
 Id duplicateLinked (Project&, Id clip);
 void unlink (Project&, Id clip);
+// Makes each clip an alias (decision 0074): linked with itself for now, so its
+// duplicates are linked with it. Clips already aliases are left as they are.
+void makeAlias (Project&, const std::set<Id>& clips);
 // The loop range set to span the clips, from the first one's start to the last one's end, and turned on (0071).
 bool loopToClips (Project&, const std::set<Id>& clips);
 // Show the clips' chords in the chord lane, or stop (0071).

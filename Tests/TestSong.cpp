@@ -260,3 +260,32 @@ TEST ("song: the loop set to clips spans them; chords are shown only for clips t
     song::detectChords (p, { a }, false);
     CHECK (harmony::chordsAlong (p, 0, p.endTick(), true).empty());
 }
+
+TEST ("song: an alias clip's duplicates are aliases too; an edit to one is made to all (0074)")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    const Id a = edit::addMidiClip (p, t, 0, PPQ * 4);
+    Note n; n.start = 0; n.length = PPQ; n.pitch = 60;
+    edit::addNote (p, a, n);
+    song::makeAlias (p, { a });
+    CHECK (p.clip (a)->link != 0);
+    const Id link = p.clip (a)->link;
+    song::makeAlias (p, { a });
+    CHECK_EQ (p.clip (a)->link, link);      // left as it was
+    const Id b = edit::duplicateClip (p, a);
+    const Id c2 = edit::duplicateClip (p, b);
+    CHECK_EQ (p.clip (b)->link, link);
+    CHECK_EQ (p.clip (c2)->link, link);
+    const auto before = p;
+    n.start = PPQ * 2; n.pitch = 67;
+    edit::addNote (p, c2, n);
+    song::propagateLinks (before, p);
+    CHECK_EQ (p.clip (a)->midi.notes.size(), size_t (2));
+    CHECK_EQ (p.clip (b)->midi.notes.size(), size_t (2));
+    song::unlink (p, b);
+    const auto before2 = p;
+    edit::addNote (p, b, n);
+    song::propagateLinks (before2, p);
+    CHECK_EQ (p.clip (a)->midi.notes.size(), size_t (2));
+}

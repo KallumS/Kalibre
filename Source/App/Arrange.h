@@ -46,6 +46,7 @@ private:
     Arrange& arrange;
     Controller& c;
     theme::HouseButton version { "1", "This track's versions: choose one, or make a new one." };
+    theme::HouseButton io { "I/O", "Where the track listens, and where it plays to." };
     theme::HouseButton mute { "M", "Mute.", true };
     theme::HouseButton solo { "S", "Solo.", true };
     // Which button pressed it: a click arms for audio, a right-click for MIDI,
@@ -63,6 +64,9 @@ private:
     int depth = 0;
     bool dragging = false;
     void versionMenu();
+public:
+    void routingMenu();
+    juce::String routingWords (const Track&) const;
 };
 
 class Arrange : public juce::Component,
