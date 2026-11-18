@@ -1271,7 +1271,8 @@ TEST ("top bar: right-click hides what isn't wanted; the Grid is the arrangement
     CHECK (c.followPlayback && ! c.followPages);
     c.followPages = true;      // as a Shift-click leaves it
     bar.resized();
-    MessageManager::getInstance()->runDispatchLoopUntil (60);
+    // The bar's timer shows it; a busy machine (the Mac on CI) can take longer than a few ticks.
+    for (int i = 0; i < 50 && follow->getButtonText() != "Follow: Page"; ++i) MessageManager::getInstance()->runDispatchLoopUntil (20);
     CHECK (follow->getButtonText() == "Follow: Page");
 }
 
