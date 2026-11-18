@@ -1,7 +1,10 @@
 #include "DawProject.h"
 
 #include "AudioTools.h"
+#include "Edit.h"
 #include "Xml.h"
+
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -59,6 +62,7 @@ struct Writer
     std::map<Id, std::string> volumeOf, panOf, muteOf;
     std::map<std::pair<Id, Id>, std::string> sendOf;          // (track, return) -> the send's volume
     std::map<std::pair<Id, int>, std::string> paramOf;        // (device, parameter) -> its id
+    nlohmann::json curves = nlohmann::json::object();         // Points id -> the lane's own points, where it bends
     Written out;
     std::set<std::string> usedAudio;
 
@@ -273,11 +277,34 @@ struct Writer
                 }
             }
             if (target.empty()) continue;
-            xml::Writer::Attributes pa { { "id", id() } };
+            const auto pointsId = id();
+            xml::Writer::Attributes pa { { "id", pointsId } };
             if (! boolean) pa.insert (pa.begin(), { "unit", unit });
             w.open ("Points", pa);
             w.empty ("Target", { { "parameter", target } });
-            for (auto& pt : l.points)
+            // A bent segment (0087): short straight pieces along the bend, every 32nd note or so.
+            std::vector<AutoPoint> drawn;
+            bool bends = false;
+            for (size_t i = 0; i < l.points.size(); ++i)
+            {
+                const auto& a = l.points[i];
+                drawn.push_back ({ a.tick, a.value, 0, a.step });
+                if (boolean || a.step || std::abs (a.curve) < 1e-6 || i + 1 >= l.points.size()) continue;
+                const Tick span = l.points[i + 1].tick - a.tick;
+                const int pieces = std::clamp ((int) (span / (PPQ / 8)), 4, 32);
+                for (int k = 1; k < pieces && span > pieces; ++k)
+                {
+                    const Tick at = a.tick + span * k / pieces;
+                    drawn.push_back ({ at, edit::valueAt (l, at, a.value), 0, false });
+                }
+                bends = true;
+            }
+            if (bends)
+            {
+                auto& keep = curves[pointsId] = nlohmann::json::array();
+                for (auto& pt : l.points) keep.push_back ({ pt.tick, pt.value, pt.curve, pt.step });
+            }
+            for (auto& pt : drawn)
             {
                 if (boolean) { w.empty ("BoolPoint", { { "time", beats (pt.tick) }, { "value", pt.value >= 0.5 ? "true" : "false" } }); continue; }
                 // Volume and send lanes run over -60..+6 dB; written as gain.
@@ -359,6 +386,7 @@ Written write (const Project& p, const std::string& appVersion)
     w.empty ("Scenes");
     w.close();
     wr.out.projectXml = w.str();
+    if (! wr.curves.empty()) wr.out.kalibreAutomation = nlohmann::json { { "curves", wr.curves } }.dump (1);
 
     xml::Writer meta { "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" };
     meta.open ("MetaData");
@@ -404,6 +432,7 @@ struct Reader
     bool seconds = false;
     // What each parameter's id is, for automation (0084): the track it's on, and what it moves.
     std::map<std::string, std::pair<Id, AutoTarget>> parameter;
+    nlohmann::json curves;   // Kalibre's own note of its curves, by Points id (0087)
 
     Tick toTick (double v, bool inSeconds) const
     {
@@ -687,6 +716,14 @@ struct Reader
             }
             lane.points.push_back (pt);
         }
+        // Written by Kalibre with bends: the points as they were, curves and all.
+        if (curves.is_object() && curves.contains (pts.attr ("id")))
+        {
+            lane.points.clear();
+            for (auto& q : curves[pts.attr ("id")])
+                if (q.is_array() && q.size() == 4)
+                    lane.points.push_back ({ q[0].get<Tick>(), q[1].get<double>(), q[2].get<double>(), q[3].get<bool>() });
+        }
         if (lane.points.empty()) return;
         std::stable_sort (lane.points.begin(), lane.points.end(), [] (const AutoPoint& a, const AutoPoint& b) { return a.tick < b.tick; });
         t->automation.push_back (lane);
@@ -694,9 +731,14 @@ struct Reader
 };
 } // namespace
 
-Read read (const std::string& text, const std::string& metadata)
+Read read (const std::string& text, const std::string& metadata, const std::string& kalibreAutomation)
 {
     Reader rd;
+    if (! kalibreAutomation.empty())
+    {
+        auto j = nlohmann::json::parse (kalibreAutomation, nullptr, false);
+        if (! j.is_discarded() && j.contains ("curves")) rd.curves = j["curves"];
+    }
     auto parsed = xml::parse (text);
     if (! parsed.root || parsed.root->name != "Project")
     {

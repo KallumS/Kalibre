@@ -310,3 +310,30 @@ TEST ("dawproject: automation (volume, pan, mute, sends, plug-ins' parameters, t
     for (Tick t : { Tick (0), Tick (PPQ), Tick (PPQ * 2) })
         CHECK (std::abs (audiotools::sourceSecondsAt (cb.audio, t) - audiotools::sourceSecondsAt (b.audio, t)) < 1.0e-6);
 }
+
+TEST ("dawproject: automation curves go out as points other programs follow, and come back to Kalibre as the curves they were (0087)")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Pad");
+    AutomationLane l;
+    l.id = p.newId();
+    l.target.kind = AutoTarget::Kind::Pan;
+    l.points = { { 0, 0.0, 0.6 }, { PPQ * 4, 1.0, -0.4 }, { PPQ * 8, 0.2 } };
+    p.track (t)->automation.push_back (l);
+    const auto w = dawproject::write (p, "1.0");
+    CHECK (! w.kalibreAutomation.empty());
+    // Another program: the bend drawn as straight pieces close to it.
+    auto r = dawproject::read (w.projectXml, w.metadataXml);
+    const auto* pad = named (r.project, "Pad");
+    CHECK (pad && ! pad->automation.empty());
+    if (! pad || pad->automation.empty()) return;
+    const auto& got = pad->automation.front();
+    CHECK (got.points.size() > 6);
+    for (Tick at : { PPQ, PPQ * 2, PPQ * 3, PPQ * 5, PPQ * 7 })
+        CHECK (std::abs (edit::valueAt (got, at, 0) - edit::valueAt (l, at, 0)) < 0.02);
+    // Kalibre, with its own note of them: exactly as they were.
+    r = dawproject::read (w.projectXml, w.metadataXml, w.kalibreAutomation);
+    pad = named (r.project, "Pad");
+    CHECK (pad && ! pad->automation.empty());
+    if (pad && ! pad->automation.empty()) CHECK (pad->automation.front().points == l.points);
+}

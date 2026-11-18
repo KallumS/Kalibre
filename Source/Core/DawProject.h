@@ -35,7 +35,12 @@ struct Written
     std::string projectXml, metadataXml;
     std::vector<std::pair<std::string, std::string>> audio;    // path in the zip -> the clip's file as the project has it
     std::vector<std::pair<std::string, std::string>> states;   // path in the zip -> a device's state (base64, as saved)
+    // Automation curves (decision 0087): DAWproject's points are straight or held, so a
+    // bent segment goes out as short straight pieces; the curves as they were go in
+    // this side file (kalibre/automation.json), for Kalibre to read back. Empty: none.
+    std::string kalibreAutomation;
 };
+inline constexpr const char* kalibreAutomationPath = "kalibre/automation.json";
 
 Written write (const Project&, const std::string& appVersion);
 
@@ -50,6 +55,7 @@ struct Read
 };
 
 // `metadataXml` may be empty.
-Read read (const std::string& projectXml, const std::string& metadataXml = {});
+// `kalibreAutomation`: the side file's text when the zip has one.
+Read read (const std::string& projectXml, const std::string& metadataXml = {}, const std::string& kalibreAutomation = {});
 
 } // namespace kal::dawproject

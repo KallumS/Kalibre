@@ -467,6 +467,11 @@ bool Controller::exportDawProject (const File& f)
         if (src.existsAsFile()) zip.addFile (src, 0, path);
         else ++missing;
     }
+    if (! w.kalibreAutomation.empty())
+    {
+        MemoryBlock m (w.kalibreAutomation.data(), w.kalibreAutomation.size());
+        zip.addEntry (new MemoryInputStream (m, true), 9, dawproject::kalibreAutomationPath, Time::getCurrentTime());
+    }
     for (auto& [path, state] : w.states)
     {
         MemoryBlock m;
@@ -483,8 +488,8 @@ bool Controller::exportDawProject (const File& f)
         }
     }
     if (! part.moveFileTo (f)) { say ("The DAWproject couldn't be written to " + f.getFullPathName() + ".", true); return false; }
-    say ("Exported " + f.getFileName() + ": the tracks, mix, tempo, markers, clips and audio. Plug-ins go by name; "
-         "automation, warping and other programs' plug-in settings aren't carried yet"
+    say ("Exported " + f.getFileName() + ": the tracks, mix, tempo, markers, clips, audio, automation and warping. Plug-ins go by name; "
+         "other programs' plug-in settings aren't carried yet"
          + (missing > 0 ? ". " + String (missing) + " audio files were missing and left out." : String (".")), missing > 0);
     return true;
 }
@@ -505,7 +510,7 @@ bool Controller::importDawProject (const File& f)
     };
     const auto xml = entryText ("project.xml");
     if (xml.empty()) { say (f.getFileName() + " isn't a DAWproject: it has no project.xml.", true); return false; }
-    auto r = dawproject::read (xml, entryText ("metadata.xml"));
+    auto r = dawproject::read (xml, entryText ("metadata.xml"), entryText (dawproject::kalibreAutomationPath));
     if (! r.ok) { say (String (r.error), true); return false; }
     auto& p = r.project;
 
