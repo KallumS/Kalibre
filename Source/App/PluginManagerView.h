@@ -6,6 +6,8 @@
     wouldn't open while being scanned, and those turned off by hand. Search,
     sort by any column, show only the ones turned off; scan for new ones, scan
     the chosen ones again, turn them off or on, show their files in the Finder.
+    Right-click files the chosen ones as MIDI effects, instruments or audio
+    effects (decision 0069).
 */
 
 #pragma once
@@ -32,6 +34,7 @@ public:
         bool on = true;
         PluginManager::Reason reason = PluginManager::Reason::Crashed;
         juce::String detail;
+        juce::PluginDescription desc;   // empty for a file turned off before it was read
     };
     const std::vector<Row>& shownRows() const { return rows; }
 
@@ -54,6 +57,7 @@ private:
     std::vector<int> columnEdges (int width) const;
     std::vector<const Row*> chosen() const;
     void updateButtons();
+    void showFileAsMenu();
 
     int getNumRows() override { return (int) rows.size(); }
     void paintListBoxItem (int row, juce::Graphics&, int w, int h, bool selected) override;

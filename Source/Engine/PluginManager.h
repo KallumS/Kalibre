@@ -26,6 +26,7 @@
 #include <functional>
 #include <map>
 #include <mutex>
+#include <optional>
 
 namespace kal
 {
@@ -73,7 +74,29 @@ public:
 
     static PluginRef refFor (const juce::PluginDescription&);
     static bool descriptionFor (const PluginRef&, juce::PluginDescription&);
+    // What a plug-in's description says it is, before anything Kalibre has learned.
     static DeviceRole roleFor (const juce::PluginDescription&);
+
+    // What the helper found when it opened the plug-in: whether it sends
+    // MIDI, and its audio channels. Instruments like Riffer are MIDI
+    // generators: they send MIDI and are listed as MIDI effects too.
+    struct Traits
+    {
+        bool known = false;          // opened; false when it couldn't be
+        bool sendsMidi = false, midiEffect = false;
+        int audioIns = 0, audioOuts = 0;
+    };
+    Traits traitsOf (const juce::PluginDescription&) const;
+    bool sendsMidi (const juce::PluginDescription& d) const { return traitsOf (d).sendsMidi; }
+    // The role Kalibre files a plug-in under: the user's choice, else what
+    // the helper learned, else its description.
+    DeviceRole roleOf (const juce::PluginDescription&) const;
+    // File a plug-in under a role by hand, or (nullopt) as Kalibre would.
+    void fileAs (const juce::PluginDescription&, std::optional<DeviceRole>);
+    bool filedByHand (const juce::PluginDescription&) const;
+    // Plug-ins scanned before Kalibre learned their traits: Scan looks at them again.
+    int needingAnotherLook() const;
+    void setTraits (const juce::PluginDescription&, Traits);   // tests
 
     void save();
     juce::File listFile() const { return file; }
@@ -96,6 +119,8 @@ private:
     juce::KnownPluginList list;
     juce::File file;
     std::map<juce::String, Blocked> reasons;      // by file; only blacklisted files
+    std::map<juce::String, Traits> traits;        // by description's identifier string
+    std::map<juce::String, DeviceRole> filed;     // by hand, by identifier string
     juce::CriticalSection saveLock;
 
     struct Item { juce::String format, file, name; };
@@ -106,6 +131,7 @@ private:
         Reason reason = Reason::Crashed;
         juce::String detail;
         std::vector<juce::PluginDescription> types;
+        std::vector<Traits> traits;
     };
     class Worker;
     std::unique_ptr<Worker> worker;
@@ -122,6 +148,7 @@ private:
     void finish (bool cancelled);
     void timerCallback() override;
     void loadFrom (const juce::XmlElement&);
+    bool lacksTraits (const juce::String& file) const;
     void importPedal();
 };
 

@@ -1728,7 +1728,7 @@ void Arrange::clipMenu (Id id)
                         }
                     });
                 });
-        if (offline.getNumItems() == 0) offline.addItem ("Scan for plug-ins first (Kalibre menu)", false, false, [] {});
+        if (offline.getNumItems() == 0) offline.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
         PopupMenu fxMenu;
         fxMenu.addSubMenu ("Add", offline);
         for (size_t i = 0; i < clip->offlineFx.chain.size(); ++i)

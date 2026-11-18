@@ -620,7 +620,7 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
         PopupMenu m;
         for (auto& d : c.engine.plugins().known().getTypes())
             m.addItem (d.name + " (" + d.pluginFormatName + ")", [chosen, d] { chosen (PluginManager::refFor (d)); });
-        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre menu)", false, false, [] {});
+        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
         m.showMenuAsync (PopupMenu::Options());
     };
     // The Container takes audio effects (decision 0055).
@@ -629,11 +629,11 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
         PopupMenu m;
         std::map<String, PopupMenu> byMaker;
         for (auto& d : c.engine.plugins().known().getTypes())
-            if (PluginManager::roleFor (d) == DeviceRole::AudioFx)
+            if (c.engine.plugins().roleOf (d) == DeviceRole::AudioFx)
                 byMaker[d.manufacturerName.isEmpty() ? String ("Other") : d.manufacturerName]
                     .addItem (d.name + "  (" + d.pluginFormatName + ")", [chosen, d] { chosen (PluginManager::refFor (d)); });
         for (auto& [maker, sub] : byMaker) m.addSubMenu (maker, sub);
-        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre menu)", false, false, [] {});
+        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
         m.showMenuAsync (PopupMenu::Options());
     };
     c.addChangeListener (this);
@@ -701,9 +701,13 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     std::map<String, PopupMenu> byMaker[3];
     for (auto& d : types)
     {
-        const auto role = PluginManager::roleFor (d);
-        auto& menu = byMaker[(int) role][d.manufacturerName.isEmpty() ? String ("Other") : d.manufacturerName];
-        menu.addItem (d.name + "  (" + d.pluginFormatName + ")", [&c, track, d] { c.addPlugin (track, d); });
+        const auto role = c.engine.plugins().roleOf (d);
+        const auto maker = d.manufacturerName.isEmpty() ? String ("Other") : d.manufacturerName;
+        byMaker[(int) role][maker].addItem (d.name + "  (" + d.pluginFormatName + ")", [&c, track, d] { c.addPlugin (track, d); });
+        // An instrument that sends MIDI (Riffer, Scaler) is a MIDI effect too: listed there as well (0069).
+        if (role == DeviceRole::Instrument && c.engine.plugins().sendsMidi (d))
+            byMaker[0][maker].addItem (d.name + "  (" + d.pluginFormatName + ")",
+                                       [&c, track, d] { c.addPlugin (track, d, DeviceRole::MidiFx); });
     }
     for (auto& [maker, menu] : byMaker[0]) midi.addSubMenu (maker, menu);
     for (auto& [maker, menu] : byMaker[1]) instruments.addSubMenu (maker, menu);
@@ -716,9 +720,8 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();
     kalibre.addItem ("Container (Plug-ins on a Band, the Mid or the Sides)", [&c, track] { c.addBuiltIn (track, containerRef(), DeviceRole::AudioFx); });
-    // The family's JSFX, built in (decision 0066).
+    // The family's JSFX, built in (decision 0066), with Kalibre's own devices (0069).
     kalibre.addSeparator();
-    kalibre.addSectionHeader ("KallumS");
     for (auto& s : jsfxDevices())
     {
         const char* kinds[] { "MIDI Effect", "Instrument", "Effect" };
@@ -736,7 +739,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     if (types.isEmpty())
     {
         m.addSeparator();
-        m.addItem ("No plug-ins found yet. Scan for Plug-ins", [&c] { c.scanPlugins(); });
+        m.addItem (ui::u8 ("No plug-ins found yet. Plug-in Manager\xe2\x80\xa6"), [&c] { c.showPluginManager(); });
     }
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (target));
 }

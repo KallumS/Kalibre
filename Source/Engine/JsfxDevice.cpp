@@ -35,7 +35,7 @@ PluginRef instantVirtualInstrumentRef()
     r.format = "Kalibre";
     r.identifier = "instant-virtual-instrument";
     r.name = "Instant Virtual Instrument";
-    r.manufacturer = "KallumS";
+    r.manufacturer = "Kalibre";
     r.isInstrument = true;
     return r;
 }
@@ -46,7 +46,7 @@ PluginRef jsfxRef (const JsfxSpec& s)
     r.format = "Kalibre";
     r.identifier = std::string ("jsfx:") + s.id;
     r.name = s.name;
-    r.manufacturer = "KallumS";
+    r.manufacturer = "Kalibre";
     r.isInstrument = s.role == DeviceRole::Instrument;
     return r;
 }
@@ -191,7 +191,7 @@ public:
     {
         d.name = d.descriptiveName = spec.name;
         d.pluginFormatName = "Kalibre";
-        d.manufacturerName = "KallumS";
+        d.manufacturerName = "Kalibre";
         d.fileOrIdentifier = String ("jsfx:") + spec.id;
         d.isInstrument = spec.role == DeviceRole::Instrument;
         d.numInputChannels = getTotalNumInputChannels();

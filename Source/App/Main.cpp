@@ -67,7 +67,10 @@ public:
        #endif
         if (error.isNotEmpty()) controller->say ("The audio device didn't start: " + error + " Choose one under Audio in the browser.", true);
         else if (plugins->known().getNumTypes() == 0)
-            controller->say ("Welcome. Kalibre hasn't looked for your plug-ins yet: choose Scan for Plug-ins from the Kalibre menu.");
+            controller->say ("Welcome. Kalibre hasn't looked for your plug-ins yet: choose Plug-in Manager from the Kalibre menu and click Scan for New Plug-ins.");
+        else if (plugins->needingAnotherLook() > 0)
+            controller->say ("Kalibre now opens each plug-in as it scans, to learn which send MIDI (Riffer, Scaler) and file them as MIDI effects. "
+                             "Choose Plug-in Manager from the Kalibre menu and click Scan for New Plug-ins: it looks at yours again.");
         else if (! plugins->blocked().empty())
         {
             // Left by the old scanner, which crashed with the plug-in (decision 0047).

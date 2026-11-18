@@ -120,6 +120,22 @@ void PluginManager::loadFrom (const XmlElement& xml)
             }
             if (b.file.isNotEmpty()) reasons[b.file] = b;
         }
+    traits.clear();
+    if (auto* t = xml.getChildByName ("KALIBRE_TRAITS"))
+        for (auto* e : t->getChildIterator())
+        {
+            Traits x;
+            x.known = e->getBoolAttribute ("known");
+            x.sendsMidi = e->getBoolAttribute ("sendsMidi");
+            x.midiEffect = e->getBoolAttribute ("midiEffect");
+            x.audioIns = e->getIntAttribute ("audioIns");
+            x.audioOuts = e->getIntAttribute ("audioOuts");
+            traits[e->getStringAttribute ("id")] = x;
+        }
+    filed.clear();
+    if (auto* f = xml.getChildByName ("KALIBRE_FILED"))
+        for (auto* e : f->getChildIterator())
+            filed[e->getStringAttribute ("id")] = (DeviceRole) jlimit (0, 2, e->getIntAttribute ("role"));
 }
 
 void PluginManager::save()
@@ -138,6 +154,24 @@ void PluginManager::save()
         e->setAttribute ("detail", b.detail);
         for (auto& d : b.types)
             if (auto t = d.createXml()) e->addChildElement (t.release());
+    }
+    auto* t = xml->createNewChildElement ("KALIBRE_TRAITS");
+    for (auto& [id, x] : traits)
+    {
+        auto* e = t->createNewChildElement ("PLUGIN");
+        e->setAttribute ("id", id);
+        e->setAttribute ("known", x.known);
+        e->setAttribute ("sendsMidi", x.sendsMidi);
+        e->setAttribute ("midiEffect", x.midiEffect);
+        e->setAttribute ("audioIns", x.audioIns);
+        e->setAttribute ("audioOuts", x.audioOuts);
+    }
+    auto* f = xml->createNewChildElement ("KALIBRE_FILED");
+    for (auto& [id, role] : filed)
+    {
+        auto* e = f->createNewChildElement ("PLUGIN");
+        e->setAttribute ("id", id);
+        e->setAttribute ("role", (int) role);
     }
     // Written beside and moved over, so a crash mid-write can't lose the list.
     const auto temp = file.getSiblingFile (file.getFileName() + ".part");
@@ -297,7 +331,15 @@ public:
                 for (auto* e : xml->getChildWithTagNameIterator ("PLUGIN"))
                 {
                     PluginDescription d;
-                    if (d.loadFromXml (*e)) r.types.push_back (d);
+                    if (! d.loadFromXml (*e)) continue;
+                    r.types.push_back (d);
+                    Traits t;
+                    t.known = e->getBoolAttribute ("kalibreKnown");
+                    t.sendsMidi = e->getBoolAttribute ("kalibreSendsMidi");
+                    t.midiEffect = e->getBoolAttribute ("kalibreMidiEffect");
+                    t.audioIns = e->getIntAttribute ("kalibreAudioIns");
+                    t.audioOuts = e->getIntAttribute ("kalibreAudioOuts");
+                    r.traits.push_back (t);
                 }
                 r.ok = ! r.types.empty();
                 r.reason = Reason::WouldNotOpen;
@@ -344,6 +386,11 @@ int PluginManager::runWorker (int argc, char* argv[])
     AudioPluginFormatManager fm;
     addFormats (fm);
     XmlElement xml ("KALIBRE_SCAN");
+    auto writeOut = [&]
+    {
+        const auto part = out.getSiblingFile (out.getFileName() + ".part");
+        if (! (xml.writeTo (part) && part.moveFileTo (out))) { say ("couldn't write " + out.getFullPathName()); std::_Exit (3); }
+    };
     bool known = false;
     for (auto* f : fm.getFormats())
         if (f->getName() == format)
@@ -354,14 +401,37 @@ int PluginManager::runWorker (int argc, char* argv[])
             for (auto* d : found)
                 if (auto e = d->createXml()) xml.addChildElement (e.release());
             say ("found " + String (found.size()));
+            // Written now, so a plug-in that crashes as it's opened below is
+            // still listed, as it was before Kalibre opened them.
+            writeOut();
+            // Then each is opened, to learn what its description doesn't say:
+            // whether it sends MIDI (Riffer, an instrument that only sends
+            // MIDI, is a MIDI effect), and its real channels (a VST3's
+            // description has none, decision 0058).
+            int i = 0;
+            for (auto* d : found)
+            {
+                auto* e = xml.getChildElement (i++);
+                if (e == nullptr) break;
+                String error;
+                auto p = fm.createPluginInstance (*d, 48000.0, 512, error);
+                if (! p) { say ("couldn't open " + d->name + " to learn more: " + error); continue; }
+                e->setAttribute ("kalibreKnown", true);
+                e->setAttribute ("kalibreSendsMidi", p->producesMidi());
+                e->setAttribute ("kalibreMidiEffect", p->isMidiEffect());
+                e->setAttribute ("kalibreAudioIns", p->getTotalNumInputChannels());
+                e->setAttribute ("kalibreAudioOuts", p->getTotalNumOutputChannels());
+                say (d->name + (p->producesMidi() ? " sends MIDI" : " sends no MIDI") + ", "
+                     + String (p->getTotalNumInputChannels()) + " in, " + String (p->getTotalNumOutputChannels()) + " out");
+                writeOut();
+            }
         }
     if (! known)
     {
         say ("no format called " + format);
         xml.setAttribute ("error", "Kalibre has no format called " + format);
     }
-    const auto part = out.getSiblingFile (out.getFileName() + ".part");
-    if (! (xml.writeTo (part) && part.moveFileTo (out))) { say ("couldn't write " + out.getFullPathName()); std::_Exit (3); }
+    writeOut();
     // Gone at once: some plug-ins crash or hang as they're unloaded, and
     // what they held has been written down.
     std::_Exit (0);
@@ -377,7 +447,9 @@ void PluginManager::scan (Progress progress)
         if (! format->canScanForPlugins()) continue;
         for (auto& id : format->searchPathsForPlugins (format->getDefaultLocationsToSearch(), true, false))
         {
-            if (isBlocked (id) || list.isListingUpToDate (id, *format)) continue;
+            if (isBlocked (id)) continue;
+            // Up to date, and looked at since Kalibre learned what plug-ins send (0069).
+            if (list.isListingUpToDate (id, *format) && ! lacksTraits (id)) continue;
             items.push_back ({ format->getName(), id, nameFor (format, id) });
         }
     }
@@ -426,7 +498,12 @@ void PluginManager::apply (const Result& r)
     removeTypesOf (list, r.item.file);
     if (r.ok)
     {
-        for (auto& d : r.types) list.addType (d);
+        for (size_t i = 0; i < r.types.size(); ++i)
+        {
+            list.addType (r.types[i]);
+            // Even one that couldn't be opened is marked, so it isn't scanned again and again.
+            traits[r.types[i].createIdentifierString()] = i < r.traits.size() ? r.traits[i] : Traits {};
+        }
         reasons.erase (r.item.file);
         list.removeFromBlacklist (r.item.file);
         found += (int) r.types.size();
@@ -515,6 +592,51 @@ bool PluginManager::descriptionFor (const PluginRef& r, PluginDescription& d)
     d.uniqueId = d.deprecatedUid = r.uid;
     d.isInstrument = r.isInstrument;
     return ! r.identifier.empty();
+}
+
+bool PluginManager::lacksTraits (const String& file) const
+{
+    for (auto& d : list.getTypes())
+        if (d.fileOrIdentifier == file && traits.count (d.createIdentifierString()) == 0) return true;
+    return false;
+}
+
+int PluginManager::needingAnotherLook() const
+{
+    int n = 0;
+    for (auto& d : list.getTypes())
+        if (d.pluginFormatName != "Kalibre" && traits.count (d.createIdentifierString()) == 0) ++n;
+    return n;
+}
+
+PluginManager::Traits PluginManager::traitsOf (const PluginDescription& d) const
+{
+    auto it = traits.find (d.createIdentifierString());
+    return it == traits.end() ? Traits {} : it->second;
+}
+
+void PluginManager::setTraits (const PluginDescription& d, Traits t) { traits[d.createIdentifierString()] = t; }
+
+bool PluginManager::filedByHand (const PluginDescription& d) const { return filed.count (d.createIdentifierString()) > 0; }
+
+void PluginManager::fileAs (const PluginDescription& d, std::optional<DeviceRole> role)
+{
+    if (role) filed[d.createIdentifierString()] = *role;
+    else filed.erase (d.createIdentifierString());
+    save();
+}
+
+DeviceRole PluginManager::roleOf (const PluginDescription& d) const
+{
+    if (auto it = filed.find (d.createIdentifierString()); it != filed.end()) return it->second;
+    const auto t = traitsOf (d);
+    if (t.known)
+    {
+        // A MIDI effect by its own say, or something that sends MIDI and no sound.
+        if (t.midiEffect || (t.sendsMidi && t.audioOuts == 0)) return DeviceRole::MidiFx;
+        if (! d.isInstrument && t.audioIns == 0 && t.audioOuts == 0) return DeviceRole::MidiFx;
+    }
+    return roleFor (d);
 }
 
 DeviceRole PluginManager::roleFor (const PluginDescription& d)

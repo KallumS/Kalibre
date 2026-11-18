@@ -23,7 +23,7 @@
 namespace kal
 {
 // VST3 effects once filed as MIDI effects, put right on opening (decision 0058).
-void refileEffects (Project&);
+void refileEffects (Project&, const PluginManager&);
 
 
 enum class EditorKind { PianoRoll, Drums, Steps, Euclid, Notation };
@@ -203,7 +203,7 @@ public:
 
     //==========================================================================
     // Devices.
-    void addPlugin (Id track, const juce::PluginDescription&);
+    void addPlugin (Id track, const juce::PluginDescription&, std::optional<DeviceRole> as = {});
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
     bool placeToolBlock (juce::AudioPluginInstance& from, const struct ToolBlock&);   // decision 0068
     void setDeviceActive (Id device, bool);

@@ -11,10 +11,14 @@ const float columnShares[] { 0.24f, 0.15f, 0.07f, 0.09f, 0.19f, 0.26f };
 
 String formatName (const String& f) { return f == "AudioUnit" ? String ("AU") : f; }
 
-String kindOf (const PluginDescription& d)
+String kindOf (const PluginManager& pm, const PluginDescription& d)
 {
     const char* role[] { "MIDI Effect", "Instrument", "Effect" };
-    return role[(int) PluginManager::roleFor (d)];
+    String k = role[(int) pm.roleOf (d)];
+    // An instrument that sends MIDI is listed with the MIDI effects too (0069).
+    if (pm.roleOf (d) == DeviceRole::Instrument && pm.sendsMidi (d)) k << ", Sends MIDI";
+    if (pm.filedByHand (d)) k << " (by you)";
+    return k;
 }
 
 String status (const PluginManagerView::Row& r) { return r.on ? String ("On") : PluginManager::describe (r.reason); }
@@ -112,13 +116,13 @@ void PluginManagerView::refresh()
     auto& pm = c.engine.plugins();
     std::vector<Row> all;
     for (auto& d : pm.known().getTypes())
-        all.push_back ({ d.name, d.manufacturerName, formatName (d.pluginFormatName), kindOf (d), d.fileOrIdentifier, true, {}, {} });
+        all.push_back ({ d.name, d.manufacturerName, formatName (d.pluginFormatName), kindOf (pm, d), d.fileOrIdentifier, true, {}, {}, d });
     for (auto& b : pm.blocked())
     {
         if (! b.types.empty())
         {
             for (auto& d : b.types)
-                all.push_back ({ d.name, d.manufacturerName, formatName (d.pluginFormatName), kindOf (d), b.file, false, b.reason, b.detail });
+                all.push_back ({ d.name, d.manufacturerName, formatName (d.pluginFormatName), kindOf (pm, d), b.file, false, b.reason, b.detail, d });
             continue;
         }
         // A file's name, or what an Audio Unit's identifier says it is.
@@ -210,12 +214,50 @@ void PluginManagerView::selectedRowsChanged (int)
 // does both); Option-click adds the row to what was chosen (decision 0053).
 void PluginManagerView::listBoxItemClicked (int row, const MouseEvent& e)
 {
+    if (e.mods.isPopupMenu() && row >= 0 && row < (int) rows.size())
+    {
+        if (! list.isRowSelected (row)) list.selectRow (row);
+        showFileAsMenu();
+        return;
+    }
     if (! e.mods.isAltDown() || row < 0) return;
     auto s = selectionBefore;
     // Shift-Option-click takes it out.
     if (e.mods.isShiftDown()) s.removeRange ({ row, row + 1 });
     else s.addRange ({ row, row + 1 });
     list.setSelectedRows (s);
+}
+
+// Right-click: file the chosen plug-ins under MIDI Effects, Instruments or
+// Audio Effects, whatever they say they are (0069). Riffer, an instrument
+// that only sends MIDI, can be filed as a MIDI effect.
+void PluginManagerView::showFileAsMenu()
+{
+    std::vector<PluginDescription> ds;
+    for (auto* r : chosen())
+        if (r->desc.name.isNotEmpty()) ds.push_back (r->desc);
+    if (ds.empty()) return;
+    auto& pm = c.engine.plugins();
+    auto fileAs = [this, ds] (std::optional<DeviceRole> role)
+    {
+        for (auto& d : ds) c.engine.plugins().fileAs (d, role);
+        refresh();
+        c.sendChangeMessage();
+    };
+    PopupMenu m;
+    m.addSectionHeader (ds.size() == 1 ? "File " + ds.front().name + " As" : "File " + String ((int) ds.size()) + " Plug-ins As");
+    const char* names[] { "MIDI Effect", "Instrument", "Audio Effect" };
+    for (int i = 0; i < 3; ++i)
+    {
+        bool all = true;
+        for (auto& d : ds) all &= pm.filedByHand (d) && pm.roleOf (d) == (DeviceRole) i;
+        m.addItem (names[i], true, all, [fileAs, i] { fileAs ((DeviceRole) i); });
+    }
+    m.addSeparator();
+    bool anyByHand = false;
+    for (auto& d : ds) anyByHand |= pm.filedByHand (d);
+    m.addItem ("As Kalibre Finds It", anyByHand, false, [fileAs] { fileAs (std::nullopt); });
+    m.showMenuAsync (PopupMenu::Options().withMousePosition());
 }
 
 String PluginManagerView::getNameForRow (int row)

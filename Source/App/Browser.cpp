@@ -36,7 +36,7 @@ struct Browser::PluginList : public ListBoxModel
         g.setColour (theme::textSecondary);
         g.setFont (theme::font (theme::smallPoints));
         const char* role[] { "MIDI effect", "Instrument", "Effect" };
-        g.drawText (d.manufacturerName + " " + ui::u8 ("\xc2\xb7") + " " + role[(int) PluginManager::roleFor (d)], 8, h * 3 / 5, w - 70, h * 2 / 5, Justification::topLeft, true);
+        g.drawText (d.manufacturerName + " " + ui::u8 ("\xc2\xb7") + " " + role[(int) c.engine.plugins().roleOf (d)], 8, h * 3 / 5, w - 70, h * 2 / 5, Justification::topLeft, true);
         g.drawText (d.pluginFormatName, w - 60, 0, 52, h, Justification::centredRight, false);
     }
 
