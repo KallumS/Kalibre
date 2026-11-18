@@ -11,3 +11,5 @@ The project's scale is chosen at the top (ScaleView's 18 roots and 16 scales, `S
 ## Consequences
 
 Tracks named drums, percussion or kit, and notes on channel 10, are left out.
+
+Amended by 0071: the chord at the top is only what's played on a MIDI keyboard; the chord lane shows the chords of clips asked for with Detect Chords.

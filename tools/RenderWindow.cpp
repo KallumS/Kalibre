@@ -116,7 +116,7 @@ int main (int argc, char** argv)
         MainComponent window (c);
         window.setTextSize (1.0f);
         window.setSize (1440, 900);
-        c.say ("This is the message line: it stays until dismissed, and can undo what it describes.", false, true);
+        c.say ("This is the message line: what just happened, with Undo; then what is chosen, or what the pointer is over.", false, true);
 
         auto shoot = [&] (const String& name)
         {

@@ -35,6 +35,8 @@ xvfb-run -a ./build/KalibreRender_artefacts/Debug/KalibreRender renders 1
 
 - **No JUCE in `Source/Core`.**
 - **The audio thread doesn't allocate or lock**: data goes through `Swap`.
+  The graph's nodes play on several threads at once (0078): nothing a
+  processor touches may be shared with another node, unless it `runsAlone`.
 - **A gesture is one undo step**: views show a drag and call `Controller::apply` once.
 - **Every colour from `Theme.h`**, every word 7:1, greys R < G < B, the accent only for "on", red never for words.
 - **Nothing important at the bottom of the window**; messages in the message line, which stays until dismissed.
