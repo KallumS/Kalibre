@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include "CrashContext.h"
 #include "LoudnessMatch.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -36,6 +37,7 @@ public:
     explicit TimedPlugin (std::unique_ptr<juce::AudioPluginInstance> p)
         : AudioPluginInstance (busesOf (*p)), inner (std::move (p))
     {
+        crashName = inner->getName().toStdString();
         setLatencySamples (inner->getLatencySamples());
     }
 
@@ -90,7 +92,13 @@ public:
         {
             const juce::ScopedLock lock (inner->getCallbackLock());
             if (inner->isSuspended()) { audio.clear(); midi.clear(); }
-            else inner->processBlock (audio, midi);
+            else
+            {
+                // Named for the crash report while it runs (decision 0073).
+                crashcontext::audioPlugin.store (crashName.c_str(), std::memory_order_relaxed);
+                inner->processBlock (audio, midi);
+                crashcontext::audioPlugin.store (nullptr, std::memory_order_relaxed);
+            }
         }
         if (t != nullptr) t->caught (midi, true);
         if (matching || match.appliedDb.load() != 0.0f) match.apply (audio, audio.getNumSamples(), matching);
@@ -132,6 +140,7 @@ public:
 
 private:
     std::unique_ptr<juce::AudioPluginInstance> inner;
+    std::string crashName;
 
     static BusesProperties busesOf (const juce::AudioProcessor& p)
     {

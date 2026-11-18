@@ -738,6 +738,58 @@ void Controller::autosave()
     autosaveFile().replaceWithText (String (file::save (project)));
 }
 
+File Controller::backupsFolder() const
+{
+    if (file.existsAsFile()) return file.getParentDirectory().getChildFile ("Backups");
+    const auto root = backupsRoot != File() ? backupsRoot : scriptsFolder().getParentDirectory().getChildFile ("Backups");
+    return root.getChildFile ("Untitled");
+}
+
+Array<File> Controller::backups() const
+{
+    const auto stem = file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Untitled");
+    auto found = backupsFolder().findChildFiles (File::findFiles, false, stem + " *.kalibre");
+    // Newest first: by when each was written, then by name ("... (2)" came after).
+    std::sort (found.begin(), found.end(), [] (const File& a, const File& b)
+    {
+        const auto ta = a.getLastModificationTime(), tb = b.getLastModificationTime();
+        if (ta != tb) return ta > tb;
+        if (a.getFileName().length() != b.getFileName().length()) return a.getFileName().length() > b.getFileName().length();
+        return a.getFileName() > b.getFileName();
+    });
+    return found;
+}
+
+bool Controller::backup()
+{
+    if (project.tracks.empty()) return false;
+    storeDeviceStates();
+    const String text (file::save (project));
+    if (text == lastBackupText) return false;
+    auto folder = backupsFolder();
+    folder.createDirectory();
+    const auto stem = file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Untitled");
+    // Named by when it was made.
+    const auto f = folder.getNonexistentChildFile (stem + " " + Time::getCurrentTime().formatted ("%Y-%m-%d %H.%M.%S"), ".kalibre", false);
+    if (! f.replaceWithText (text)) return false;
+    lastBackupText = text;
+    auto all = backups();
+    for (int i = backupsKept; i < all.size(); ++i) all.getReference (i).deleteFile();
+    return true;
+}
+
+bool Controller::openBackup (const File& f)
+{
+    const auto keep = file;
+    if (! open (f)) return false;
+    // It's this song as it was: saved where the song is, not over the backup.
+    file = keep;
+    dirty = true;
+    syncEngine();
+    say ("Opened the backup from " + f.getLastModificationTime().toString (true, true, false) + ". Save to keep it.");
+    return true;
+}
+
 File Controller::recordingsFolder() const
 {
     auto f = projectFolder().getChildFile ("Audio");
@@ -1787,6 +1839,13 @@ void Controller::timerCallback()
     {
         lastAutosave = now;
         autosave();
+    }
+    // A backup every 15 minutes, while it has changed (decision 0073).
+    if (lastBackup == 0) lastBackup = now;
+    if (now - lastBackup > (uint32) backupMinutes * 60000 && ! wasRecording)
+    {
+        lastBackup = now;
+        if (dirty) backup();
     }
     // Follow playback: the cursor stays where Play started; the view follows the playhead.
     static bool lastPlaying = false;

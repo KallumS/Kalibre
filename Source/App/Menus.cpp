@@ -6,6 +6,7 @@
 #include "Song.h"
 #include "Surround.h"
 #include "MainComponent.h"
+#include "CrashReports.h"
 
 namespace kal
 {
@@ -88,6 +89,23 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                     if (c.open (f)) { c.file = keep; c.dirty = true; c.say ("Opened the autosave from " + f.getLastModificationTime().toString (true, true, false) + ". Save to keep it."); }
                 });
             }));
+            // Backups (decision 0073): every 15 minutes while it has changed.
+            PopupMenu backups;
+            const auto found = c.backups();
+            for (int i = 0; i < jmin (12, found.size()); ++i)
+            {
+                const auto f = found[i];
+                backups.addItem (item (f.getLastModificationTime().toString (true, true, false), [this, f] { checkSaved ([this, f] { c.openBackup (f); }); }));
+            }
+            if (found.isEmpty()) backups.addItem (item ("No backups yet: one is made every 15 minutes while there are changes", [] {}, {}, false));
+            backups.addSeparator();
+            backups.addItem (item ("Show Backups in Finder", [this]
+            {
+                auto folder = c.backupsFolder();
+                folder.createDirectory();
+                folder.revealToUser();
+            }));
+            m.addSubMenu ("Open a Backup", backups);
             // Templates (decision 0041).
             PopupMenu templates;
             for (auto& f : c.templatesFolder().findChildFiles (File::findFiles, false, "*.kalibre"))
@@ -491,6 +509,12 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         case 7:   // Help
         {
             m.addItem (item ("Keys", [this] { showBrowser (Browser::Tab::Keys); }));
+            m.addItem (item ("Show Crash Reports", []
+            {
+                auto f = crash::folder();
+                f.createDirectory();
+                f.revealToUser();
+            }));
             m.addItem (item ("Kalibre on GitHub", [] { URL ("https://github.com/KallumS/Kalibre").launchInDefaultBrowser(); }));
             break;
         }

@@ -146,6 +146,7 @@ add_library(KalibreApp STATIC
     Source/App/MetersView.cpp
     Source/App/PluginManagerView.cpp
     Source/App/ArticulationManagerView.cpp
+    Source/App/CrashReports.cpp
     Source/App/VideoView.cpp
     Source/App/Keys.cpp
     Source/App/KeysPanel.cpp

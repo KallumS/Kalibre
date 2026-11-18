@@ -150,6 +150,15 @@ public:
     juce::File projectFolder() const;
     juce::File autosaveFile() const;   // a copy every few minutes, never over the project itself
     void autosave();
+    // Backups (decision 0073): every 15 minutes while it has changed, a copy
+    // of its own, dated, in the project folder's Backups (or Kalibre's own,
+    // for a song not yet saved); the newest 48 kept.
+    juce::File backupsFolder() const;
+    juce::File backupsRoot;                    // empty: Application Support/Kalibre/Backups (tests set it)
+    juce::Array<juce::File> backups() const;   // newest first
+    bool backup();                             // false when nothing changed since the last
+    bool openBackup (const juce::File&);       // as this song, unsaved
+    static constexpr int backupMinutes = 15, backupsKept = 48;
     juce::File recordingsFolder() const;
     bool importFile (const juce::File&, Id track, Tick at);   // audio, MIDI
     bool importVideo (const juce::File&, Tick at);           // the picture, and its sound on a track (decision 0046)
@@ -311,7 +320,8 @@ public:
 private:
     std::vector<double> taps;
     bool wasRecording = false;
-    juce::uint32 lastAutosave = 0;
+    juce::uint32 lastAutosave = 0, lastBackup = 0;
+    juce::String lastBackupText;
     double recordFromSeconds = 0;
     struct Writing { Id track = 0, lane = 0; Tick lastTick = 0; bool on = false; Project before; double trimFrom = -1; Tick trimStart = 0; };
     void finishWriting();

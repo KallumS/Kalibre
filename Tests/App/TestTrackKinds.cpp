@@ -1223,3 +1223,74 @@ TEST ("articulation manager: maps imported into the library, used on a track fro
     for (auto& r : view.shownRows()) both |= r.map.name == "Violins" && r.inLibrary && r.inSong;
     CHECK (both);
 }
+
+#include "CrashReports.h"
+#include "CrashContext.h"
+#include <sys/wait.h>
+#include <csignal>
+
+TEST ("crash reports: a crash writes what went wrong and the plug-in that was playing, then ends as before (0073)")
+{
+    const auto reports = folder().getChildFile ("crash-reports");
+    reports.deleteRecursively();
+    reports.createDirectory();
+    const auto before = Time::getCurrentTime() - RelativeTime::seconds (2);
+    const pid_t child = fork();
+    if (child == 0)
+    {
+        crash::install (reports, "test");
+        crashcontext::audioPlugin.store ("Riffer");
+        std::raise (SIGSEGV);
+        _exit (0);   // never reached
+    }
+    int status = 0;
+    waitpid (child, &status, 0);
+    CHECK (WIFSIGNALED (status) && WTERMSIG (status) == SIGSEGV);   // it still ends as a crash
+    const auto found = crash::since (reports, before);
+    CHECK_EQ (found.size(), 1);
+    if (found.isEmpty()) return;
+    CHECK_EQ (crash::summary (found.getFirst()), String ("a bad memory access, in Riffer"));
+    CHECK (found.getFirst().loadFileAsString().contains ("Where, the newest call first"));
+    CHECK (crash::since (reports, Time::getCurrentTime() + RelativeTime::seconds (5)).isEmpty());
+}
+
+TEST ("backups: one while it has changed, none when it hasn't; the newest 48 kept; opened as the song, unsaved (0073)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    c.backupsRoot = folder().getChildFile ("backups");
+    c.backupsRoot.deleteRecursively();
+    edit::addTrack (c.project, TrackKind::Track, "Piano");
+    c.refresh();
+    CHECK (c.backup());
+    CHECK (! c.backup());                     // nothing changed since
+    CHECK_EQ (c.backups().size(), 1);
+    for (int i = 0; i < 50; ++i)
+    {
+        edit::addTrack (c.project, TrackKind::Track, "More " + std::to_string (i));
+        CHECK (c.backup());
+    }
+    CHECK_EQ (c.backups().size(), Controller::backupsKept);
+    const auto newest = c.backups().getFirst();
+    CHECK (newest.loadFileAsString().contains ("More 49"));
+
+    // A saved song's backups go beside it, in Backups.
+    const auto song = folder().getChildFile ("backup-song").getChildFile ("Song.kalibre");
+    song.getParentDirectory().deleteRecursively();
+    song.getParentDirectory().createDirectory();
+    CHECK (song.replaceWithText (String (file::save (c.project))));
+    c.file = song;
+    edit::addTrack (c.project, TrackKind::Track, "Strings");
+    CHECK (c.backup());
+    CHECK (song.getParentDirectory().getChildFile ("Backups").isDirectory());
+    const auto b = c.backups().getFirst();
+    edit::addTrack (c.project, TrackKind::Track, "Later");
+    CHECK (c.openBackup (b));
+    CHECK (c.file == song);                   // saved over the song, not the backup
+    CHECK (c.dirty);
+    bool later = false;
+    for (auto& t : c.project.tracks) later |= t.name == "Later";
+    CHECK (! later);
+}
