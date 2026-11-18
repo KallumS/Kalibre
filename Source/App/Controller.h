@@ -183,6 +183,10 @@ public:
     // a score (.musicxml, .xml or zipped .mxl) in, a track for each part.
     bool exportMusicXml (const juce::File&);
     bool importMusicXml (const juce::File&);
+    // DAWproject (decision 0077): the song as a .dawproject for Bitwig, Studio One,
+    // Cubase and others, its audio inside; and one opened as a new song.
+    bool exportDawProject (const juce::File&);
+    bool importDawProject (const juce::File&);
     bool exportAudio (const juce::File&, const Engine::RenderOptions&, bool stems);
 
     // A project's files (decision 0041; ProjectFiles.cpp).

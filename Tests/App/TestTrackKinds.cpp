@@ -1400,3 +1400,48 @@ TEST ("step input: keys from a MIDI keyboard, a number for the length, written a
     CHECK_EQ (c.project.clip (clip)->midi.notes.size(), size_t (3));
     CHECK (! c.stepDigit (4));
 }
+
+TEST ("dawproject: a song exported with its audio and Kalibre's own devices, and opened again as a new song (0077)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Drums");
+    edit::addClip (c.project, t, audioClip (clickFile (0.5), 0, PPQ * 4));
+    const Id synthTrack = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    edit::addDevice (c.project, synthTrack, synthRef(), DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (c.project, synthTrack, 0, PPQ * 4);
+    Note n; n.pitch = 64; n.length = PPQ; edit::addNote (c.project, clip, n);
+    c.refresh();
+    c.storeDeviceStates();
+    const auto stateBefore = c.project.track (synthTrack)->devices.front().state;
+    CHECK (! stateBefore.empty());
+
+    const auto f = folder().getChildFile ("song.dawproject");
+    f.deleteFile();
+    folder().getChildFile ("song Audio").deleteRecursively();
+    CHECK (c.exportDawProject (f));
+    CHECK (f.existsAsFile());
+    {
+        ZipFile zip (f);
+        CHECK (zip.getEntry ("project.xml") != nullptr);
+        CHECK (zip.getEntry ("metadata.xml") != nullptr);
+        bool audio = false;
+        for (int i = 0; i < zip.getNumEntries(); ++i) audio |= zip.getEntry (i)->filename.startsWith ("audio/");
+        CHECK (audio);
+    }
+    c.project = Project();
+    CHECK (c.importDawProject (f));
+    CHECK_EQ (c.project.tracks.size(), size_t (2));
+    if (c.project.tracks.size() != 2) return;
+    const auto& drums = c.project.tracks[0];
+    CHECK_EQ (drums.clips().size(), size_t (1));
+    if (! drums.clips().empty()) CHECK (File (String (drums.clips()[0].audio.file)).existsAsFile());
+    const auto& keys = c.project.tracks[1];
+    CHECK_EQ (keys.devices.size(), size_t (1));
+    if (! keys.devices.empty()) CHECK_EQ (keys.devices[0].state, stateBefore);
+    CHECK_EQ (keys.clips().size(), size_t (1));
+    CHECK (c.file == File());
+    CHECK (c.dirty);
+}

@@ -6,6 +6,7 @@
 
 #include "Controller.h"
 #include "Articulations.h"
+#include "DawProject.h"
 #include "MusicXml.h"
 #include "Theme.h"
 
@@ -409,6 +410,157 @@ void Controller::useArticulationMap (Id track, const ArticulationMap& map)
         }
         t->articulationMap = id;
     });
+}
+
+//==============================================================================
+// DAWproject (decision 0077).
+bool Controller::exportDawProject (const File& f)
+{
+    storeDeviceStates();
+    const auto w = dawproject::write (project, KALIBRE_VERSION);
+    ZipFile::Builder zip;
+    auto text = [&zip] (const std::string& s, const String& path)
+    {
+        zip.addEntry (new MemoryInputStream (MemoryBlock (s.data(), s.size()), true), 9, path, Time::getCurrentTime());
+    };
+    text (w.projectXml, "project.xml");
+    text (w.metadataXml, "metadata.xml");
+    int missing = 0;
+    for (auto& [path, file] : w.audio)
+    {
+        Clip probe;
+        probe.kind = Clip::Kind::Audio;
+        probe.audio.file = file;
+        const auto src = fileOf (probe, false);
+        if (src.existsAsFile()) zip.addFile (src, 0, path);
+        else ++missing;
+    }
+    for (auto& [path, state] : w.states)
+    {
+        MemoryBlock m;
+        if (m.fromBase64Encoding (state)) zip.addEntry (new MemoryInputStream (m, true), 9, path, Time::getCurrentTime());
+    }
+    const auto part = f.getSiblingFile (f.getFileName() + ".part");
+    part.deleteFile();
+    {
+        FileOutputStream out (part);
+        if (! out.openedOk() || ! zip.writeToStream (out, nullptr))
+        {
+            say ("The DAWproject couldn't be written to " + f.getFullPathName() + ".", true);
+            return false;
+        }
+    }
+    if (! part.moveFileTo (f)) { say ("The DAWproject couldn't be written to " + f.getFullPathName() + ".", true); return false; }
+    say ("Exported " + f.getFileName() + ": the tracks, mix, tempo, markers, clips and audio. Plug-ins go by name; "
+         "automation, warping and other programs' plug-in settings aren't carried yet"
+         + (missing > 0 ? ". " + String (missing) + " audio files were missing and left out." : String (".")), missing > 0);
+    return true;
+}
+
+bool Controller::importDawProject (const File& f)
+{
+    ZipFile zip (f);
+    auto entryText = [&zip] (const String& name) -> std::string
+    {
+        if (auto* e = zip.getEntry (name))
+            if (std::unique_ptr<InputStream> in (zip.createStreamForEntry (*e)); in)
+            {
+                MemoryBlock m;
+                in->readIntoMemoryBlock (m);
+                return m.toString().toStdString();
+            }
+        return {};
+    };
+    const auto xml = entryText ("project.xml");
+    if (xml.empty()) { say (f.getFileName() + " isn't a DAWproject: it has no project.xml.", true); return false; }
+    auto r = dawproject::read (xml, entryText ("metadata.xml"));
+    if (! r.ok) { say (String (r.error), true); return false; }
+    auto& p = r.project;
+
+    // The audio, out of the zip beside it.
+    const auto audioFolder = f.getSiblingFile (f.getFileNameWithoutExtension() + " Audio");
+    std::map<std::string, std::string> extracted;
+    auto fixAudio = [&] (Clip& c)
+    {
+        if (c.isMidi() || c.audio.file.empty()) return;
+        if (auto it = extracted.find (c.audio.file); it != extracted.end()) { c.audio.file = it->second; return; }
+        if (auto* e = zip.getEntry (String (c.audio.file)))
+        {
+            audioFolder.createDirectory();
+            const auto dest = audioFolder.getChildFile (File::createLegalFileName (String (c.audio.file).fromLastOccurrenceOf ("/", false, false)));
+            if (std::unique_ptr<InputStream> in (zip.createStreamForEntry (*e)); in)
+            {
+                dest.deleteFile();
+                FileOutputStream out (dest);
+                if (out.openedOk()) out.writeFromInputStream (*in, -1);
+            }
+            extracted[c.audio.file] = dest.getFullPathName().toStdString();
+            c.audio.file = dest.getFullPathName().toStdString();
+        }
+    };
+    // Plug-ins by name, as this Mac has them; Kalibre's own states from the file.
+    const auto known = engine.plugins().known().getTypes();
+    int unmatched = 0;
+    auto fixDevices = [&] (Track& t)
+    {
+        for (auto& d : t.devices)
+        {
+            auto readState = [&] (const std::string& path)
+            {
+                if (auto* e = zip.getEntry (String (path)))
+                    if (std::unique_ptr<InputStream> in (zip.createStreamForEntry (*e)); in)
+                    {
+                        MemoryBlock m;
+                        in->readIntoMemoryBlock (m);
+                        d.state = m.toBase64Encoding().toStdString();
+                    }
+            };
+            if (auto it = r.states.find (d.id); it != r.states.end()) readState (it->second);
+            if (auto it = r.kalibreStates.find (d.id); it != r.kalibreStates.end()) readState (it->second);
+            if (d.plugin.format == "Kalibre") continue;
+            const PluginDescription* best = nullptr;
+            for (auto& desc : known)
+            {
+                if (! desc.name.equalsIgnoreCase (String (d.plugin.name))) continue;
+                if (desc.pluginFormatName == String (d.plugin.format)) { best = &desc; break; }
+                if (! best) best = &desc;
+            }
+            if (best) d.plugin = PluginManager::refFor (*best);
+            else ++unmatched;
+        }
+    };
+    for (auto& t : p.tracks)
+    {
+        for (auto& c : t.clips()) fixAudio (c);
+        fixDevices (t);
+    }
+    fixDevices (p.master);
+
+    engine.stop();
+    project = std::move (p);
+    refileEffects (project, engine.plugins());
+    history.clear();
+    file = File();
+    dirty = true;
+    focusTrack = project.tracks.empty() ? 0 : project.tracks.front().id;
+    selectedTracks.clear();
+    if (focusTrack) selectedTracks.push_back (focusTrack);
+    selectedClip = 0;
+    selectedClips.clear();
+    selectedNotes.clear();
+    cursor = 0;
+    syncEngine();
+    String msg = "Opened " + f.getFileName() + " as a new song (save it to keep it).";
+    if (unmatched > 0) msg << " " << unmatched << (unmatched == 1 ? " plug-in isn't" : " plug-ins aren't") << " on this Mac.";
+    if (! r.leftOut.empty())
+    {
+        StringArray left;
+        for (auto& s : r.leftOut) left.add (String (s));
+        msg << " Not carried: " << left.joinIntoString ("; ") << ".";
+    }
+    say (msg, unmatched > 0);
+    sendChangeMessage();
+    return true;
 }
 
 } // namespace kal

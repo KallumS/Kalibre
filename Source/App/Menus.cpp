@@ -157,6 +157,15 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                     if (fc.getResult().existsAsFile()) c.importMusicXml (fc.getResult());
                 });
             }));
+            m.addItem (item (ui::u8 ("Open a DAWproject\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Open a song from Bitwig, Studio One, Cubase or another program, as a new song",
+                                                         File::getSpecialLocation (File::userDocumentsDirectory), "*.dawproject");
+                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult().existsAsFile()) checkSaved ([this, f = fc.getResult()] { c.importDawProject (f); });
+                });
+            }));
             m.addItem (item (ui::u8 ("Import Video\xe2\x80\xa6"), [this]
             {
                 chooser = std::make_unique<FileChooser> ("Import a video", File::getSpecialLocation (File::userMoviesDirectory), "*.mov;*.mp4;*.m4v");
@@ -181,6 +190,15 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this] (const FileChooser& fc)
                 {
                     if (fc.getResult() != File()) c.exportMusicXml (fc.getResult().withFileExtension (".musicxml"));
+                });
+            }));
+            m.addItem (item (ui::u8 ("Export a DAWproject\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Export the song as a DAWproject, for Bitwig, Studio One, Cubase and others",
+                                                         c.projectFolder().getChildFile ((c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Song")) + ".dawproject"), "*.dawproject");
+                chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult() != File()) c.exportDawProject (fc.getResult().withFileExtension (".dawproject"));
                 });
             }));
             m.addItem (item (ui::u8 ("Export Several at Once\xe2\x80\xa6"), [this] { exportBatch(); }));
