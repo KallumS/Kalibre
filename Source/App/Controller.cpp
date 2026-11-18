@@ -232,6 +232,40 @@ void Controller::say (const String& m, bool warning, bool canUndo)
     sendChangeMessage();
 }
 
+void Controller::selectNotes (noteselect::What what, std::optional<NoteFrom> only)
+{
+    const auto* cl = clip();
+    if (! cl || ! cl->isMidi()) { say ("Choose a MIDI clip first."); return; }
+    selectedNotes = noteselect::choose (*cl, project.tempo, what, only);
+    static const char* names[] { "roots", "thirds", "fifths", "sevenths", "ninths", "elevenths", "thirteenths",
+                                 "notes on the beat", "notes off the beat", "notes along the bottom", "notes along the top" };
+    const int n = (int) selectedNotes.size();
+    if (n == 0) say (String ("There are no ") + names[(int) what] + " in this clip.");
+    else say ("Chose the " + String (names[(int) what]) + ": " + String (n) + (n == 1 ? " note." : " notes."));
+    sendChangeMessage();
+}
+
+void Controller::explodeChords (const std::set<Id>& clips)
+{
+    int tracks = 0;
+    std::vector<Id> first;
+    apply ("Explode Chords", [&] (Project& p)
+    {
+        for (auto id : clips)
+        {
+            const auto made = noteselect::explode (p, id);
+            tracks += (int) made.size();
+            if (first.empty()) first = made;
+        }
+    });
+    if (tracks == 0) { say ("There are no chords to explode: a clip needs notes played together."); return; }
+    selectedClip = 0;
+    selectedClips.clear();
+    selectedNotes.clear();
+    if (! first.empty()) focusOn (first.front());
+    say ("Exploded the chords into " + String (tracks) + " tracks, a voice each, top to bottom, with the track's plug-ins.", false, true);
+}
+
 String Controller::choiceKey() const
 {
     String k;

@@ -311,6 +311,20 @@ void DrumGrid::paint (Graphics& g)
             }
         }
     }
+    // Chosen hits (Select, decision 0075): ringed.
+    if (! c.selectedNotes.empty())
+    {
+        const auto w = patterns::windowOf (*clip);
+        g.setColour (theme::text);
+        for (auto& n : clip->midi.notes)
+        {
+            if (n.from != NoteFrom::Drums || ! c.selectedNotes.count (n.id) || grid.stepTicks <= 0) continue;
+            const int s = (int) (((n.start - w.from) / grid.stepTicks) % jmax (1, grid.steps));
+            for (int l = 0; l < lanes; ++l)
+                if (grid.lanes[(size_t) l].pitch == n.pitch)
+                    g.drawRoundedRectangle (Rectangle<float> ((float) area.getX() + (float) s * colW, (float) area.getY() + (float) l * rowH, colW, rowH).reduced (0.5f), 3.0f, 2.0f);
+        }
+    }
 }
 
 void DrumGrid::mouseDown (const MouseEvent& e)
@@ -482,6 +496,19 @@ void StepSequencer::paint (Graphics& g)
         auto cell = Rectangle<float> ((float) area.getX() + (float) i * w, (float) area.getY(), w, (float) area.getHeight()).reduced (2.0f);
         g.setColour (theme::sunken);
         g.fillRoundedRectangle (cell, 4.0f);
+        // A chosen step (Select, decision 0075): ringed.
+        if (! c.selectedNotes.empty() && seq.stepTicks > 0)
+        {
+            const auto win = patterns::windowOf (*clip);
+            for (auto& n : clip->midi.notes)
+                if (n.from == NoteFrom::Steps && c.selectedNotes.count (n.id)
+                    && (int) ((n.start - win.from) / seq.stepTicks) % jmax (1, (int) seq.steps.size()) == i)
+                {
+                    g.setColour (theme::text);
+                    g.drawRoundedRectangle (cell.expanded (1.0f), 4.0f, 2.0f);
+                    break;
+                }
+        }
         if (i == playing)
         {
             lightColumn (g, cell);

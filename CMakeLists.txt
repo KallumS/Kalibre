@@ -83,6 +83,7 @@ add_library(KalibreCore STATIC
     Source/Core/AutoCc.cpp
     Source/Core/Ideas.cpp
     Source/Core/Articulations.cpp
+    Source/Core/NoteSelect.cpp
     ${EMBEDDED_LUA_CPP}
     Source/Script/LuaHost.cpp)
 target_include_directories(KalibreCore PUBLIC Source/Core Source/Script ThirdParty)
@@ -121,7 +122,8 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestMpe.cpp
         Tests/TestAutoCc.cpp
         Tests/TestIdeas.cpp
-        Tests/TestArticulations.cpp)
+        Tests/TestArticulations.cpp
+        Tests/TestNoteSelect.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)

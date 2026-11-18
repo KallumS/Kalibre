@@ -50,6 +50,7 @@ private:
     theme::HouseButton snapButton { "Snap", "Snap to the grid. Hold Command while dragging to move freely.", true };
     theme::HouseButton quantise { "Quantise", "Move the chosen notes (or all of them) onto the grid. (Q)" };
     theme::HouseButton legato { "Legato", "Lengthen the chosen notes up to the next one." };
+    theme::HouseButton selectButton { juce::String::fromUTF8 ("Select \xe2\x96\xbe"), "Choose notes by what they are: the chords' roots, thirds or fifths, the notes on the beat, the top line." };
     theme::HouseButton ccLanes { ui::u8 ("CC Lanes\xe2\x80\xa6"), "Choose the controller lanes shown under the notes: modulation, expression, volume, any CC." };
     theme::HouseButton autoCc { "Auto", "Draw the CC lanes as AutoCC would play these notes." };
     void updateAuto();
@@ -74,6 +75,7 @@ private:
     EditorKind shownEditor = EditorKind::PianoRoll;
     void show();
     void gridMenu();
+    void selectMenu();
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
 };
 

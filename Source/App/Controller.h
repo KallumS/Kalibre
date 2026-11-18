@@ -15,6 +15,7 @@
 #include "Engine.h"
 #include "ControlSettings.h"
 #include "Patterns.h"
+#include "NoteSelect.h"
 #include "Song.h"
 #include "Keys.h"
 
@@ -97,6 +98,11 @@ public:
     void showPluginManager() { if (onShowPluginManager) onShowPluginManager(); }
     std::function<void()> onShowPluginManager;     // the window sets this
     void dismiss();
+
+    // Choose the chosen clip's notes by what they are (decision 0075); `only`, one editor's.
+    void selectNotes (noteselect::What, std::optional<NoteFrom> only = std::nullopt);
+    // Each voice of the clips' chords to a track of its own, one undo step (0075).
+    void explodeChords (const std::set<Id>& clips);
 
     // Articulation maps (decision 0072): a library kept between songs, read
     // from Cubase, Logic or Reaticulate maps in the Articulation Manager.

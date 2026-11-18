@@ -1325,3 +1325,29 @@ TEST ("track headers: an I/O button beside M, S and R says where the track liste
     CHECK (io != nullptr);
     if (io) CHECK (io->getTooltip().contains ("every keyboard"));
 }
+
+TEST ("select and explode: the Select menu's choices through the controller; Explode Chords one undo step (0075)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Piano");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    for (int pitch : { 48, 52, 55 }) { Note n; n.start = 0; n.length = PPQ * 4; n.pitch = pitch; edit::addNote (c.project, clip, n); }
+    c.refresh();
+    c.selectClip (clip);
+    c.selectNotes (noteselect::What::Third);
+    CHECK_EQ (c.selectedNotes.size(), size_t (1));
+    CHECK (c.message.contains ("thirds"));
+    c.selectNotes (noteselect::What::Seventh);
+    CHECK (c.selectedNotes.empty());
+    const auto tracksBefore = c.project.tracks.size();
+    const auto steps = c.history.size();
+    c.explodeChords ({ clip });
+    CHECK_EQ (c.project.tracks.size(), tracksBefore + 3);
+    CHECK_EQ (c.history.size(), steps + 1);
+    c.undo();
+    CHECK_EQ (c.project.tracks.size(), tracksBefore);
+    CHECK (c.project.clip (clip) != nullptr);
+}
