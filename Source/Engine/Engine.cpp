@@ -775,14 +775,16 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             // The master goes out through the Cue track when there is one, except
             // when exporting (decision 0051); the Cue track goes out.
             const bool toOut = t->isCue() || (t->kind == TrackKind::Master && cue == nullptr);
-            if (only != 0)
+            if (only != 0 && t->id == only)
             {
-                // Every other track is left unconnected: an offline plan doesn't play what can't be heard.
-                if (t->id == only) connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
+                // Rendering one track: it alone goes out. The rest are wired as ever, the
+                // master to nowhere, so an offline plan plays only what this track hears:
+                // a folder or return feeding one of its sidechains, and what feeds those.
+                connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
             }
             else if (toOut)
             {
-                if (! (t->isCue() && cue == nullptr))
+                if (only == 0 && ! (t->isCue() && cue == nullptr))
                     connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
             }
             else
@@ -813,7 +815,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             std::set<Id> keep;
             for (auto& s : t->sends)
             {
-                if (only != 0) break;
+                if (only != 0 && t->id == only) break;
                 if (! project.track (s.target) || ! edit::canRoute (project, t->id, s.target)) continue;
                 keep.insert (s.target);
                 auto& sendNode = nodes.sends[s.target];

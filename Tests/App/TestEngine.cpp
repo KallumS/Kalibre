@@ -1077,3 +1077,55 @@ TEST ("32-bit float: imported audio that isn't is copied into the song's Audio f
     CHECK (floatWav (rec));
     CHECK (readAll (rec).getSample (0, 1) > 1.4f);
 }
+
+TEST ("engine: a freeze and a bounce hear the sidechain from another track (0080)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const auto click = clickFile (0.5);
+    const Id kick = edit::addTrack (c.project, TrackKind::Track, "Kick");
+    edit::addClip (c.project, kick, audioClip (click, 0, PPQ * 4));
+    edit::addDevice (c.project, kick, PluginRef { "Kalibre", "test-latency:200", "Latency" }, DeviceRole::AudioFx);
+    c.project.track (kick)->volumeDb = -12;   // the kick's own level and pan don't change what the sidechain hears
+    const Id bass = edit::addTrack (c.project, TrackKind::Track, "Bass");
+    const Id silent = edit::addMidiClip (c.project, bass, 0, PPQ * 4);   // something to freeze and bounce
+    const Id dev = edit::addDevice (c.project, bass, PluginRef { "Kalibre", "test-sidechain", "Sidechain" }, DeviceRole::AudioFx);
+    c.project.device (dev)->sidechainFrom = kick;
+    c.refresh();
+    // The test device adds what its sidechain hears to its output: the kick, through the bass track.
+    c.freeze (bass, true);
+    CHECK (c.project.track (bass)->frozen);
+    auto clicks = clicksIn (File (c.project.track (bass)->frozenFile));
+    CHECK_EQ (clicks.size(), size_t (1));
+    if (! clicks.empty()) CHECK (std::abs (clicks.front() - 24000) <= 1);
+    c.freeze (bass, false);
+    c.bounceInPlace ({ silent });
+    const Track* bounced = nullptr;
+    for (auto& t : c.project.tracks) if (t.name == "Bass Bounce") bounced = &t;
+    CHECK (bounced != nullptr);
+    if (! bounced || bounced->clips().empty()) return;
+    clicks = clicksIn (File (bounced->clips().front().audio.file));
+    CHECK_EQ (clicks.size(), size_t (1));
+    CHECK (c.undo());
+
+    // From a folder (the drums' bus) and from a return fed by a send.
+    for (bool fromReturn : { false, true })
+    {
+        c.project = Project();
+        const Id bus = edit::addTrack (c.project, fromReturn ? TrackKind::Return : TrackKind::Folder, "Drum Bus");
+        const Id k = edit::addTrack (c.project, TrackKind::Track, "Kick", 0, fromReturn ? 0 : bus);
+        edit::addClip (c.project, k, audioClip (click, 0, PPQ * 4));
+        if (fromReturn) { CHECK (edit::addSend (c.project, k, bus, 0.0)); }
+        const Id b = edit::addTrack (c.project, TrackKind::Track, "Bass");
+        edit::addMidiClip (c.project, b, 0, PPQ * 4);
+        const Id d = edit::addDevice (c.project, b, PluginRef { "Kalibre", "test-sidechain", "Sidechain" }, DeviceRole::AudioFx);
+        c.project.device (d)->sidechainFrom = bus;
+        c.refresh();
+        c.freeze (b, true);
+        const auto heard = clicksIn (File (c.project.track (b)->frozenFile));
+        if (heard.size() != 1) check::fail (__FILE__, __LINE__, std::string ("from a ") + (fromReturn ? "return" : "folder") + ": " + std::to_string (heard.size()) + " clicks");
+        c.freeze (b, false);
+    }
+}
