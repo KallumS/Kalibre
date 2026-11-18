@@ -80,3 +80,5 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0076. Step input](0076-step-input.md)
 - [0077. DAWproject in and out](0077-dawproject.md)
 - [0078. The audio on every performance core](0078-every-core.md)
+- [0079. Kalibre's own audio is 32-bit float WAV](0079-32-bit-float-wav.md)
+- [0080. Freeze, quietly; Bounce in Place](0080-freeze-and-bounce-in-place.md)

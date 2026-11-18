@@ -97,6 +97,10 @@ grow and shrink with it.
 - **Sync**: MIDI clock and timecode out, clock and timecode in, Machine
   Control, Ableton Link, the Mac's network MIDI.
 - **Control surfaces**: Mackie Control (X-Touch, FaderPort...), HUI and OSC.
+- **Bounce in Place** for clips, and **Freeze** for tracks (quietly, nothing
+  else reloaded; Unfreeze deletes the render and brings the plug-ins back).
+  Everything Kalibre records or renders, and all audio brought in, kept as
+  **32-bit float WAV**; exports in any format.
 - **Audio tools**: normalise, strip silence, quantise audio to the grid, a
   sample editor with a spectrogram, **snap to zero crossings**.
 - **Sections** you move (Shift-drag one to any bar) and duplicate with all their music, ripple editing, **alias clips** (edit one, every copy follows),

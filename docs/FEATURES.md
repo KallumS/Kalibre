@@ -29,6 +29,9 @@ Every feature asked for, then the list of basic DAW features
 | Explode chords | Yes | Select ▾ or right-click clips > Explode Chords to Tracks: a track for each voice, with the track's plug-ins; tested (0075) |
 | Step input | Yes | Step Input on the editor bar (piano roll, notation, drums): hold keys, 1-8 for 1/128 to 1/1, 9 dotted, 0 triplet, let go; tested (0076) |
 | DAWproject | Yes, not yet tried with Bitwig, Studio One or Cubase | File > Open a DAWproject… / Export a DAWproject…: tracks, folders, returns, mix, sends, tempo, time signatures, markers, MIDI and audio clips, plug-ins by name; checked against the format's schema; tested. Automation, warping and other programs' plug-in settings not yet (0077) |
+| Bounce in Place | Yes | Right-click clips > Bounce in Place: through the track's plug-ins onto a new audio track under it, the clips muted; tested (0080) |
+| Freeze | Yes | Track menu > Freeze: rendered quietly (nothing else reloads), plug-ins unloaded with their states; Unfreeze deletes the render and loads them as they were; tested (0080) |
+| 32-bit float WAV inside | Yes | Recordings, captures, freezes, bounces, offline effects, edits, and audio brought in, all 32-bit float WAV; exports as chosen; tested (0079) |
 | Plug-in sandboxing | Not yet | A plug-in that crashes while playing still takes Kalibre down (scanning is already safe, 0047). Running plug-ins in helpers is a big change with costs: see the session log of 18 November |
 | Using all the Mac's cores | Yes, to feel on the Mac | Tracks' plug-ins play side by side on every performance core, the workers in the audio device's workgroup; the same sound, sample for sample; Use Every Core in the Audio tab; tested (0078) |
 | Everything in one window | Yes | 0002. Small questions appear over the window, inside it. Settings may have their own window (amended 16 November; the Plug-in Manager) |

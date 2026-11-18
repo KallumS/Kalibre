@@ -47,6 +47,7 @@
 | `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |
 | `Engine/Warp.*` | Audio in memory, and warping (0022). |
 | `Engine/ParallelGraph.*` | The graph played on every performance core: a plan made after each rebuild, nodes taken by the audio thread and workers as their inputs finish (0078). |
+| `Engine/AudioFiles.*` | 32-bit float WAV, the one format Kalibre keeps audio in (0079). |
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
 | `Engine/Editors.h` | Opening and closing plug-ins' windows, telling the plug-in first (0056). |
 | `Engine/LoudnessMatch.h` | Match Loudness: output held to the input's short-term loudness (0056). |
@@ -118,6 +119,8 @@ performance core, each as soon as what feeds it is done (0078).
 - The arrangement snaps with `arrangeSnap` (the top bar's Grid), the editors with `snapTick` (the lower zone's) (0070).
 - A plug-in's role is `PluginManager::roleOf` (the user's filing, what the scan learned, then the description), never the static `roleFor` alone (0069).
 - The crash handler may only use calls safe in a signal handler: no allocation, no JUCE (0073).
+- Audio Kalibre writes for itself goes through `audiofile::floatWav` (0079); audio brought in that isn't 32-bit float WAV is copied as one.
+- Rendering one track (`Engine::renderTrack`, freeze and bounce, 0080) wires only it out; an offline plan leaves out what can't reach the output.
 - The graph's nodes play on several threads at once (0078): a processor may not share state with another node unless it's marked `runsAlone`; anything per thread is `thread_local`. Rebuild the graph with `graph.rebuild()` on the message thread, so a plan is made.
 - Lua is compiled as C++ (0068): include its headers plainly, never inside `extern "C"`, or nothing links.
 - The family's scripts in `Engines/` are copied unchanged: what Kalibre needs differently goes in its own stand-ins (`Engines/tools/sb_place.lua`, `mc_place.lua`) or the host, and a fix to a script goes to its repo first.
