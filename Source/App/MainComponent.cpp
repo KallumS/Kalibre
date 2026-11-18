@@ -42,6 +42,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
         c.cpuEverySeconds = jlimit (1, 5, s->getIntValue ("cpuEverySeconds", 2));
         c.arrangeGrid = jmax<Tick> (PPQ / 32, (Tick) s->getIntValue ("arrangeGrid", PPQ / 4));
         c.followPages = s->getBoolValue ("followPages", false);
+        c.engine.setParallel (s->getBoolValue ("everyCore", true));   // decision 0078
         setTextSize ((float) s->getDoubleValue ("textSize", 1.0));
     }
     browser.setVisible (browserShown);
@@ -71,6 +72,7 @@ MainComponent::~MainComponent()
         s->setValue ("cpuEverySeconds", c.cpuEverySeconds);
         s->setValue ("arrangeGrid", (int) c.arrangeGrid);
         s->setValue ("followPages", c.followPages);
+        s->setValue ("everyCore", c.engine.isParallel());
         s->setValue ("textSize", (double) theme::scale());
         settingsStore().saveIfNeeded();
         settingsStore().closeFiles();

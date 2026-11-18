@@ -70,7 +70,7 @@ void handler (int sig, siginfo_t*, void*)
         put (fd, " quit unexpectedly: ");
         put (fd, describe (sig));
         put (fd, ".\n");
-        if (const char* plugin = crashcontext::audioPlugin.load (std::memory_order_relaxed))
+        if (const char* plugin = crashcontext::audioPlugin)
         {
             put (fd, "In the plug-in: ");
             put (fd, plugin);

@@ -133,6 +133,7 @@ add_library(KalibreApp STATIC
     Source/Engine/Mp3Writer.cpp
     Source/Engine/Warp.cpp
     Source/Engine/Engine.cpp
+    Source/Engine/ParallelGraph.cpp
     Source/Engine/AraHost.cpp
     Source/Engine/SyncDevices.cpp
     Source/App/Theme.cpp

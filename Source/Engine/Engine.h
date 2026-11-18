@@ -22,6 +22,7 @@
 #include "AraHost.h"
 #include "Loudness.h"
 #include "MidiLearn.h"
+#include "ParallelGraph.h"
 #include "PluginManager.h"
 #include "SyncDevices.h"
 #include "TrackProcessors.h"
@@ -60,6 +61,11 @@ public:
     // What Match Loudness is doing to a device's output now, in dB (decision 0056).
     float matchingDb (Id device) const;
     double cpu() { return deviceManager.getCpuUsage(); }
+    // Every performance core (decision 0078), or the audio thread alone.
+    void setParallel (bool on) { graph.setParallel (on); }
+    bool isParallel() const { return graph.isParallel(); }
+    int audioThreads() const { return graph.workers() + 1; }
+    ParallelGraph& audioGraph() { return graph; }   // tests
     int dropouts() const;
     void resetDropouts();
     Fader* fader (Id track) const;
@@ -167,7 +173,7 @@ private:
     std::mutex mappingLock;
     std::vector<MidiMapping> mappings;
     juce::AudioDeviceManager deviceManager;
-    juce::AudioProcessorGraph graph;
+    ParallelGraph graph;   // played on every performance core (decision 0078)
     juce::AudioProcessorPlayer player;
 
     using NodeID = juce::AudioProcessorGraph::NodeID;

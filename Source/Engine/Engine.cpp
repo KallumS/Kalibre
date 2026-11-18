@@ -15,6 +15,12 @@ Engine::Engine (PluginManager& pm) : pluginManager (pm)
 {
     syncInput = [this] (const String& device, const MidiMessage& m) { syncDevices.input (device, m); };
     graph.setPlayHead (this);
+    // The hardware insert shares the interface's bus: one at a time (decision 0078).
+    graph.runsAlone = [] (AudioProcessor& p)
+    {
+        if (auto* t = dynamic_cast<TimedPlugin*> (&p)) return dynamic_cast<HardwareInsert*> (&t->plugin()) != nullptr;
+        return dynamic_cast<HardwareInsert*> (&p) != nullptr;
+    };
     tempo.post (std::make_unique<TempoMap>());
     // The graph's own ends exist from the start, so a project can be synced
     // (and rendered) with no audio device at all. Its channels are set first:
@@ -68,6 +74,7 @@ void Engine::audioDeviceAboutToStart (AudioIODevice* device)
 {
     rate = device->getCurrentSampleRate();
     blockSize = device->getCurrentBufferSizeSamples();
+    graph.setWorkgroup (device->getWorkgroup());   // the workers are audio threads too (decision 0078)
     shared.clock.rate = rate;
     cache.setSampleRate (rate);
     player.audioDeviceAboutToStart (device);

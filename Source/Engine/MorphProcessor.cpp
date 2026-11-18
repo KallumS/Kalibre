@@ -123,6 +123,24 @@ public:
 private:
     float gain;
 };
+
+// A device that takes a fixed time each block, as a heavy plug-in does: the
+// tests see it played on several threads at once (decision 0078).
+class BusyTest : public LatencyTest
+{
+public:
+    explicit BusyTest (double ms) : LatencyTest (0), seconds (ms / 1000.0) {}
+    const String getName() const override { return "Busy Test"; }
+    void processBlock (AudioBuffer<float>& b, MidiBuffer& m) override
+    {
+        LatencyTest::processBlock (b, m);
+        const auto until = Time::getHighResolutionTicks() + Time::secondsToHighResolutionTicks (seconds);
+        while (Time::getHighResolutionTicks() < until) {}
+    }
+
+private:
+    double seconds;
+};
 } // namespace
 
 namespace
@@ -221,6 +239,8 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "hardware-insert") return std::make_unique<HardwareInsert>();
     if (String (ref.identifier).startsWith ("test-gain:"))
         return std::make_unique<GainTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getFloatValue());
+    if (String (ref.identifier).startsWith ("test-busy:"))
+        return std::make_unique<BusyTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getDoubleValue());
     if (String (ref.identifier).startsWith ("test-latency:"))
         return std::make_unique<LatencyTest> (String (ref.identifier).fromFirstOccurrenceOf (":", false, false).getIntValue());
     return nullptr;

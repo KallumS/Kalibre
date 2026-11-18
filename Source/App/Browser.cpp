@@ -186,6 +186,13 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl), keysPanel (ctrl.k
     pluginsTab.onClick = [this] { showTab (Tab::Plugins); };
     filesTab.onClick = [this] { showTab (Tab::Files); };
     audioTab.onClick = [this] { showTab (Tab::Audio); };
+    addChildComponent (cores);
+    cores.onClick = [this]
+    {
+        c.engine.setParallel (cores.getToggleState());
+        c.say (cores.getToggleState() ? "The tracks play on " + String (c.engine.audioThreads()) + " cores at once."
+                                      : String ("Everything plays on one core, one track after another."));
+    };
     studioTab.onClick = [this] { showTab (Tab::Studio); };
     presetsTab.onClick = [this] { showTab (Tab::Presets); };
     keysTab.onClick = [this] { showTab (Tab::Keys); };
@@ -299,6 +306,9 @@ void Browser::showTab (Tab t)
     fileBox.setVisible (t == Tab::Files);
     up.setVisible (t == Tab::Files);
     search.setVisible (t == Tab::Plugins || t == Tab::Files || t == Tab::Presets);
+    cores.setVisible (t == Tab::Audio);
+    cores.setToggleState (c.engine.isParallel(), dontSendNotification);
+    cores.setButtonText ("Use Every Core (" + String (ParallelGraph::coresToUse()) + ")");
     if (t == Tab::Audio && ! audio)
     {
         audio = std::make_unique<AudioDeviceSelectorComponent> (c.engine.devices(), 0, 16, 2, 16, true, true, true, false);
@@ -359,6 +369,11 @@ void Browser::resized()
     pluginBox.setBounds (r);
     fileBox.setBounds (r);
     presetBox.setBounds (r);
+    if (tab == Tab::Audio)
+    {
+        cores.setBounds (r.removeFromTop (theme::px (26)).withWidth (cores.idealWidth (theme::smallControl)));
+        r.removeFromTop (theme::px (6));
+    }
     if (audio) audio->setBounds (r);
 }
 

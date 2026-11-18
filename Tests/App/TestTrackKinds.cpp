@@ -1240,7 +1240,7 @@ TEST ("crash reports: a crash writes what went wrong and the plug-in that was pl
     if (child == 0)
     {
         crash::install (reports, "test");
-        crashcontext::audioPlugin.store ("Riffer");
+        crashcontext::audioPlugin = "Riffer";
         std::raise (SIGSEGV);
         _exit (0);   // never reached
     }

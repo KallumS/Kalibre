@@ -808,3 +808,109 @@ TEST ("lua tools: Insert at Cursor puts the block on the device's track at the p
     CHECK (c.undo());
     CHECK_EQ (c.project.tracks.size(), before);
 }
+
+#include "BuiltinInstruments.h"
+
+namespace
+{
+AudioBuffer<float> readAll (const File& f)
+{
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    AudioBuffer<float> b;
+    if (! r) return b;
+    b.setSize ((int) r->numChannels, (int) r->lengthInSamples);
+    r->read (&b, 0, b.getNumSamples(), 0, true, true);
+    return b;
+}
+
+PluginRef kalibre (const char* id) { PluginRef r; r.format = "Kalibre"; r.identifier = id; r.name = id; return r; }
+
+// A song with everything the graph has to line up: plug-ins of different
+// latencies on parallel paths, a folder, a return fed by sends, a sidechain,
+// an instrument playing notes, audio clips.
+Project busySong (const File& click, int tracks = 6, bool folders = true, bool sends = true)
+{
+    Project p;
+    const Id folder = edit::addTrack (p, TrackKind::Folder, "Band");
+    const Id ret = edit::addTrack (p, TrackKind::Return, "Room");
+    edit::addDevice (p, ret, kalibre ("test-latency:96"), DeviceRole::AudioFx);
+    for (int i = 0; i < tracks; ++i)
+    {
+        const Id t = edit::addTrack (p, TrackKind::Track, "Track " + std::to_string (i), 0, folders && i < 3 ? folder : 0);
+        edit::addClip (p, t, audioClip (click, (Tick) i * PPQ / 3, PPQ * 4));
+        edit::addDevice (p, t, kalibre (("test-latency:" + std::to_string (37 * i)).c_str()), DeviceRole::AudioFx);
+        edit::addDevice (p, t, kalibre (("test-gain:" + std::to_string (-i)).c_str()), DeviceRole::AudioFx);
+        if (sends) edit::addSend (p, t, ret, -6.0 - i);
+        p.track (t)->pan = (float) (i - 3) / 3.0f;
+    }
+    const Id keys = edit::addTrack (p, TrackKind::Track, "Keys");
+    edit::addDevice (p, keys, synthRef(), DeviceRole::Instrument);
+    edit::addDevice (p, keys, kalibre ("test-latency:211"), DeviceRole::AudioFx);
+    const Id clip = edit::addMidiClip (p, keys, 0, PPQ * 8);
+    for (int i = 0; i < 8; ++i) { Note n; n.start = (Tick) i * PPQ; n.length = PPQ / 2; n.pitch = 48 + i * 3; edit::addNote (p, clip, n); }
+    return p;
+}
+} // namespace
+
+TEST ("multi-core: a song played on every core comes out exactly as JUCE's own graph plays it, delay compensation and all (0078)")
+{
+    const auto click = clickFile (0.25);
+    const auto p = busySong (click);
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 3.0; o.tail = 0.5; o.dither = false; o.bitDepth = 32;
+    // Each from a fresh engine: an instrument's voices carry on from one render to the next.
+    auto render = [&] (bool parallel, const File& out)
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        engine.setParallel (parallel);
+        String error;
+        CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+        return engine.audioGraph().blocksByPlan.load();
+    };
+    const auto one = tempFolder().getChildFile ("graph-one-thread.wav");
+    const auto many = tempFolder().getChildFile ("graph-every-core.wav");
+    CHECK_EQ (render (false, one), 0);
+    CHECK (render (true, many) > 100);   // played by the plan, not JUCE's graph
+
+    const auto a = readAll (one), b = readAll (many);
+    CHECK_EQ (a.getNumSamples(), b.getNumSamples());
+    CHECK (a.getMagnitude (0, a.getNumSamples()) > 0.1f);   // there's something to compare
+    float worst = 0;
+    for (int ch = 0; ch < jmin (a.getNumChannels(), b.getNumChannels()); ++ch)
+        for (int i = 0; i < jmin (a.getNumSamples(), b.getNumSamples()); ++i)
+            worst = jmax (worst, std::abs (a.getSample (ch, i) - b.getSample (ch, i)));
+    CHECK (worst < 1.0e-5f);
+    if (worst >= 1.0e-5f) std::printf ("  largest difference %g\n", (double) worst);
+}
+
+TEST ("multi-core: heavy plug-ins on several tracks are played on several threads at once, and faster (0078)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    engine.setParallel (true);
+    if (engine.audioThreads() < 2) { std::printf ("  (one core here: nothing to spread)\n"); return; }
+    Project p;
+    for (int i = 0; i < 4; ++i)
+    {
+        const Id t = edit::addTrack (p, TrackKind::Track, "Heavy " + std::to_string (i));
+        edit::addDevice (p, t, kalibre ("test-busy:1"), DeviceRole::AudioFx);
+    }
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 1.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    String error;
+    auto timed = [&] (bool parallel)
+    {
+        engine.setParallel (parallel);
+        const auto start = Time::getMillisecondCounterHiRes();
+        CHECK (engine.render (p, tempFolder(), tempFolder().getChildFile ("busy.wav"), o, {}, error));
+        return Time::getMillisecondCounterHiRes() - start;
+    };
+    const double serial = timed (false);
+    const double spread = timed (true);
+    CHECK (engine.audioGraph().threadsInLastBlock.load() >= 2);
+    std::printf ("  %d threads; 4 x 1 ms a block: %.0f ms on one, %.0f ms on every core\n", engine.audioThreads(), serial, spread);
+    CHECK (spread < serial * 0.8);
+}

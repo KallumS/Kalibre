@@ -95,9 +95,9 @@ public:
             else
             {
                 // Named for the crash report while it runs (decision 0073).
-                crashcontext::audioPlugin.store (crashName.c_str(), std::memory_order_relaxed);
+                crashcontext::audioPlugin = crashName.c_str();
                 inner->processBlock (audio, midi);
-                crashcontext::audioPlugin.store (nullptr, std::memory_order_relaxed);
+                crashcontext::audioPlugin = nullptr;
             }
         }
         if (t != nullptr) t->caught (midi, true);
