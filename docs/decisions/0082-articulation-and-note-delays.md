@@ -26,3 +26,5 @@ delay, on top of its articulation's.
 Tested: the compiled note moves by all three delays; the delay is kept in
 the file; the manager sets the library's and the song's, one undo step;
 render 24 shows two delays, render 26 the Note Delay lane.
+
+Note Position Fixer was read later the same day: its fixes are now built in (0085), and they set each note's own delay.

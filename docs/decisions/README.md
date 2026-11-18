@@ -86,3 +86,6 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0082. Each articulation's delay, and each note's](0082-articulation-and-note-delays.md)
 - [0083. The Note Splitter](0083-note-splitter.md)
 - [0084. DAWproject automation and warping](0084-dawproject-automation-and-warping.md)
+- [0085. Fix Note Timings and Volume: Note Position & Volume Fixer, built in](0085-fix-note-timings-and-volume.md)
+- [0086. A switched-off plug-in keeps its delay](0086-a-switched-off-plug-in-keeps-its-delay.md)
+- [0087. DAWproject automation curves](0087-dawproject-automation-curves.md)

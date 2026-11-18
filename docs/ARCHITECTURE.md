@@ -25,6 +25,7 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/NoteFixer.*` | Note Position & Volume Fixer's engine: where each note is heard in a render, and how loud (0085). |
 | `Core/NoteSplit.*` | The Note Splitter's rule: a chord's notes, top to bottom, an output each (0083). |
 | `Core/Ideas.*` | Good Idea's engine (Lua, `Engines/good-idea/`, embedded by `cmake/EmbedLua.cmake`): drum grooves and motifs for the Random buttons (0062). |
 | `Core/Controllers.*` | The MIDI controllers' standard names (0060). |
@@ -66,7 +67,7 @@
 | `App/TopBar`, `Arrange`, `LowerZone`, `PianoRoll`, `PatternEditors`, `NotationView`, `DeviceRack`, `Mixer`, `Browser`, `Menus` | What they say. |
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
-| `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp` | More of the Controller: audio commands, presets and A/B, file commands. |
+| `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp`, `NoteFixing.cpp` | More of the Controller: audio commands, presets and A/B, file commands, Fix Note Timings and Volume (0085). |
 | `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |
 | `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
 | `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
@@ -111,7 +112,8 @@ performance core, each as soon as what feeds it is done (0078).
   (0081): the plan's mix points, a track's clips, the Container. Anything new
   that mixes does the same; a neutrality test (`TestNeutral.cpp`) says so.
 - A bypassed plug-in is never called: `TimedPlugin` passes the sound on,
-  delayed by its latency (0081). Its own bypass parameter isn't used.
+  delayed by its latency (0081). Its own bypass parameter isn't used. A
+  switched-off one is stood in for by a `HeldDelay` as long (0086).
 - A gesture is one `Controller::apply` (one undo step).
 - A track's devices stay MIDI effects, instruments, audio effects (`edit::normaliseChain`).
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).

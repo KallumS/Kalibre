@@ -27,6 +27,5 @@ Asked (18 November) to carry both.
 ## Consequences
 
 Tested: a song with every kind of lane and two warped clips written and
-read back, each point and marker the same. Automation curves (a lane's
-bend) aren't in DAWproject: they come back straight. Not yet tried with
+read back, each point and marker the same. Automation curves: 0087. Not yet tried with
 Bitwig, Studio One or Cubase themselves.

@@ -61,6 +61,10 @@ grow and shrink with it.
   out, automation and warping included.
 - **Note Splitter**: a chord's notes, top to bottom, each to another track's
   MIDI input, so one chord plays four string sections.
+- **Fix Note Timings and Volume** (right-click a MIDI clip): Note Position &
+  Volume Fixer built in. For sloppily edited orchestral libraries, it listens
+  to the track, finds where each note is really heard and how loud, and puts
+  each sound on the grid and evens out its level within its articulation.
 - **Arm for audio or MIDI**: click a track's arm button for audio (red),
   right-click for MIDI (blue), which records what its instrument is played,
   a free-running arpeggiator's notes included; Shift-click for both,
@@ -109,7 +113,7 @@ grow and shrink with it.
   wherever signals meet, so mixing, routing, unstretched clips, splits,
   bypassed effects, freezing and recording leave the sound exactly as it
   was, each proved by a cancellation test. Constant-power panning, 0 dB in
-  the middle; volume automation sample by sample; **Consolidate** for audio
+  the middle; volume and pan automation sample by sample; **Consolidate** for audio
   clips.
 - **Audio tools**: normalise, strip silence, quantise audio to the grid, a
   sample editor with a spectrogram, **snap to zero crossings**.
@@ -131,6 +135,7 @@ grow and shrink with it.
 ![The Plug-in Manager](docs/plugin-manager.png)
 ![The Articulation Manager: Cubase, Logic and Reaticulate maps imported, two articulations given delays](docs/articulation-manager.png)
 ![The Note Splitter: a chord's notes to Violins I, Violins II and Violas](docs/note-splitter.png)
+![Fix Note Timings and Volume: how to fix them](docs/fix-note-timings-and-volume.png)
 ![The top bar, its Grid, and the message line telling what's chosen; I/O on each track](docs/top-bar-and-io.png)
 ![The sample editor](docs/sample-editor.png)
 ![Kalibre Synth and Sampler](docs/synth-and-sampler.png)

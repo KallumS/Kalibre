@@ -90,4 +90,5 @@ core (identical, sample for sample).
 Signals mixed across several summing points can still differ in the last
 bit, as the document says. A plug-in that changes its latency while
 bypassed beyond what was allowed for when it was prepared is held back by
-that much at most. Pan automation is still once a block, smoothed.
+that much at most. Pan automation is followed sample by sample too (since
+18 November, late), and a switched-off plug-in keeps its delay (0086).

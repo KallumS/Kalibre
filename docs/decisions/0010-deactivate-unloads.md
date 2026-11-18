@@ -13,3 +13,5 @@ The power switch on a plug-in saves its state into the project and removes it fr
 Loading takes as long as opening the plug-in does.
 
 Bypass (0081) is the other way: the plug-in stays loaded and is taken out of the signal flow, its latency kept.
+
+Since 0086 its latency stays too: a delay stands in its place.
