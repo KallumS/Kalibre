@@ -13,7 +13,7 @@ Every feature asked for, then the list of basic DAW features
 
 | Feature | Status | Where, and notes |
 | --- | --- | --- |
-| Apple silicon Mac app | Yes, on CI | Built for arm64 on every push, with the tests passing on macOS; download Actions > Build > Kalibre-macOS. Used by the user since 16 November: the first scan crashed it (fixed, 0047), and their reports since are fixed (0049, 0056) |
+| Apple silicon Mac app | Yes, on CI | Built for arm64 on every push, with the tests passing on macOS; download Actions > Build > Kalibre-macOS. Used by the user since 16 November: the first scan crashed it (fixed, 0047), and their reports since are fixed (0049, 0056, and the seventeenth of November's, 0069-0073) |
 | Hosts AU, VST3 and CLAP | Yes, on the Mac | AU and VST3 through JUCE; CLAP through Kalibre's own host (0021). Kalibre > Plug-in Manager > Scan for New Plug-ins. Each plug-in is scanned in a helper: one that crashes, hangs or won't open is turned off and the scan carries on (0047). Tried on the Mac: the first scan crashed Kalibre, which led to 0047 |
 | Plug-in Manager | Yes | Kalibre > Plug-in Manager…: every plug-in and every one turned off, with why; search, sort, scan for new ones, scan again, turn off and on, show in Finder; right-click > File As MIDI Effect, Instrument or Audio Effect. Its own window (0002 amended). Tested (0047, 0069) |
 | MIDI effects filed right | Yes, Riffer to confirm on the Mac | The scan opens each plug-in in the helper: what sends MIDI and no sound is a MIDI effect; an instrument that sends MIDI (Riffer, Scaler) is listed under MIDI Effects too; File As by hand. Plug-ins scanned before need Scan for New Plug-ins once; tested (0069) |
