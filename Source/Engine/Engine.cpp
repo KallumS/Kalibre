@@ -258,6 +258,14 @@ void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
         }
     }
 
+    // Step input (decision 0076): the window writes the notes; they're still heard.
+    if (stepInputOn.load() && (m.isNoteOn() || m.isNoteOff()))
+    {
+        const int pitch = m.getNoteNumber(), velocity = m.getVelocity();
+        const bool on = m.isNoteOn();
+        MessageManager::callAsync ([this, pitch, velocity, on] { if (onStepKey) onStepKey (pitch, velocity, on); });
+    }
+
     auto queued = m;
     queued.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
     player.getMidiMessageCollector().addMessageToQueue (queued);

@@ -21,6 +21,8 @@ LowerZone::LowerZone (Controller& ctrl)
     }
     for (auto* b : { &gridButton, &snapButton, &quantise, &legato, &selectButton, &ccLanes, &autoCc }) addChildComponent (b);
     selectButton.onClick = [this] { selectMenu(); };
+    addChildComponent (stepButton);
+    stepButton.onClick = [this] { c.setStepInput (stepButton.getToggleState()); };
     ccLanes.onClick = [this] { CcLanes::lanesMenu (c, &ccLanes); };
     autoCc.onClick = [this] { c.autoCc(); };
     for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample, &launcher, &offline, &meters, &videoView })
@@ -60,6 +62,7 @@ void LowerZone::changeListenerCallback (ChangeBroadcaster*)
     if (c.zoneTab != shownTab || c.editor != shownEditor || audioChosen() != shownAudio || c.offlineClip != offline.shown()
         || videoTab.isVisible() == c.project.video.file.empty()) show();
     snapButton.setToggleState (c.snap, dontSendNotification);
+    stepButton.setToggleState (c.stepInput, dontSendNotification);
     updateAuto();
 }
 
@@ -103,6 +106,11 @@ void LowerZone::show()
     for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab, &gridButton, &snapButton, &quantise, &legato, &selectButton })
         b->setVisible (editing);
     const bool withLanes = editing && (c.editor == EditorKind::PianoRoll || c.editor == EditorKind::Notation);
+    // Step input in the piano roll, notation and drum grid (decision 0076); off elsewhere.
+    const bool stepping = editing && (withLanes || c.editor == EditorKind::Drums);
+    stepButton.setVisible (stepping);
+    if (! stepping && c.stepInput) c.setStepInput (false);
+    stepButton.setToggleState (c.stepInput, dontSendNotification);
     ccLanes.setVisible (withLanes);
     autoCc.setVisible (withLanes);
     updateAuto();
@@ -227,6 +235,7 @@ void LowerZone::resized()
         for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab }) place (*b);
         bar.removeFromLeft (theme::px (12));
         for (auto* b : { &gridButton, &snapButton, &quantise, &legato, &selectButton }) place (*b);
+        if (stepButton.isVisible()) place (stepButton);
         if (ccLanes.isVisible())
         {
             bar.removeFromLeft (theme::px (12));

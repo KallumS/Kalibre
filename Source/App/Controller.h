@@ -16,6 +16,7 @@
 #include "ControlSettings.h"
 #include "Patterns.h"
 #include "NoteSelect.h"
+#include "StepInput.h"
 #include "Song.h"
 #include "Keys.h"
 
@@ -98,6 +99,15 @@ public:
     void showPluginManager() { if (onShowPluginManager) onShowPluginManager(); }
     std::function<void()> onShowPluginManager;     // the window sets this
     void dismiss();
+
+    // Step input (decision 0076): keys held on a MIDI keyboard, a number for the
+    // length, written at the cursor as they're let go, the cursor moving on.
+    bool stepInput = false;
+    StepInput stepper;
+    void setStepInput (bool on);
+    void stepKey (int pitch, int velocity, bool on);
+    bool stepDigit (int digit);     // false when step input is off
+    void sayStepInput();
 
     // Choose the chosen clip's notes by what they are (decision 0075); `only`, one editor's.
     void selectNotes (noteselect::What, std::optional<NoteFrom> only = std::nullopt);

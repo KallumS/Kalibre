@@ -1351,3 +1351,52 @@ TEST ("select and explode: the Select menu's choices through the controller; Exp
     CHECK_EQ (c.project.tracks.size(), tracksBefore);
     CHECK (c.project.clip (clip) != nullptr);
 }
+
+TEST ("step input: keys from a MIDI keyboard, a number for the length, written at the cursor on letting go, the cursor moving on (0076)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Piano");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    c.focusTrack = t;
+    c.refresh();
+    c.selectClip (clip);
+    c.locate (PPQ);
+    c.setStepInput (true);
+    CHECK (c.message.contains ("1/16"));
+    CHECK (c.stepDigit (9));
+    CHECK (c.stepDigit (5));                       // a dotted 1/8
+    const auto steps = c.history.size();
+    engine.playIn (MidiMessage::noteOn (1, 60, (uint8) 100));
+    engine.playIn (MidiMessage::noteOn (1, 64, (uint8) 90));
+    engine.playIn (MidiMessage::noteOff (1, 60));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), size_t (0));   // one key still held
+    engine.playIn (MidiMessage::noteOff (1, 64));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    const auto& notes = c.project.clip (clip)->midi.notes;
+    CHECK_EQ (notes.size(), size_t (2));
+    for (auto& n : notes) { CHECK_EQ (n.start, Tick (PPQ)); CHECK_EQ (n.length, Tick (PPQ * 3 / 4)); }
+    CHECK_EQ (c.cursor, Tick (PPQ + PPQ * 3 / 4));
+    CHECK_EQ (c.history.size(), steps + 1);
+    // Past the clip's end it grows; in the drum grid the notes are the drums'.
+    c.editor = EditorKind::Drums;
+    c.stepDigit (8);
+    engine.playIn (MidiMessage::noteOn (10, 36, (uint8) 110));
+    engine.playIn (MidiMessage::noteOff (10, 36));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    const auto* cl = c.project.clip (clip);
+    CHECK_EQ (cl->length, Tick (PPQ * 8));
+    bool drum = false;
+    for (auto& n : cl->midi.notes) drum |= n.pitch == 36 && n.from == NoteFrom::Drums && n.length == PPQ * 4;
+    CHECK (drum);
+    // Off: keys are only heard.
+    c.setStepInput (false);
+    engine.playIn (MidiMessage::noteOn (1, 70, (uint8) 100));
+    engine.playIn (MidiMessage::noteOff (1, 70));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), size_t (3));
+    CHECK (! c.stepDigit (4));
+}

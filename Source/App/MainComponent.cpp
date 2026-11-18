@@ -180,6 +180,16 @@ void MainComponent::mouseDrag (const MouseEvent& e)
 //==============================================================================
 bool MainComponent::keyPressed (const KeyPress& k)
 {
+    // Step input takes the numbers while it's on (decision 0076).
+    if (c.stepInput && ! k.getModifiers().isCommandDown() && ! k.getModifiers().isCtrlDown() && ! k.getModifiers().isAltDown())
+    {
+        int digit = -1;
+        const auto ch = k.getTextCharacter();
+        if (ch >= '0' && ch <= '9') digit = (int) (ch - '0');
+        else if (k.getKeyCode() >= '0' && k.getKeyCode() <= '9') digit = k.getKeyCode() - '0';
+        else if (k.getKeyCode() >= KeyPress::numberPad0 && k.getKeyCode() <= KeyPress::numberPad9) digit = k.getKeyCode() - KeyPress::numberPad0;
+        if (digit >= 0 && c.stepDigit (digit)) return true;
+    }
     // Every key is the user's to change (decision 0045), in the browser's Keys tab.
     return c.keys.handle (KeyPress (k.getKeyCode(), k.getModifiers().withoutMouseButtons(), 0));
 }

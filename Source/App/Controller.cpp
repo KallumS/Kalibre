@@ -232,6 +232,77 @@ void Controller::say (const String& m, bool warning, bool canUndo)
     sendChangeMessage();
 }
 
+void Controller::setStepInput (bool on)
+{
+    stepInput = on;
+    stepper.reset();
+    engine.stepInputOn = on;
+    engine.onStepKey = [this] (int pitch, int velocity, bool down) { stepKey (pitch, velocity, down); };
+    if (on) sayStepInput();
+    else say ("Step input is off.");
+    sendChangeMessage();
+}
+
+void Controller::sayStepInput()
+{
+    say ("Step input: hold keys on a MIDI keyboard, press 1 to 8 for the length (1 = 1/128, 4 = 1/16, 6 = 1/4, 8 = 1/1; 9 then a number: dotted; "
+         "0 then a number: triplet), let go to write them. Now " + String (stepper.lengthName()) + ".");
+}
+
+bool Controller::stepDigit (int d)
+{
+    if (! stepInput) return false;
+    stepper.digit (d);
+    sayStepInput();
+    return true;
+}
+
+void Controller::stepKey (int pitch, int velocity, bool on)
+{
+    if (! stepInput) return;
+    if (on) { stepper.keyDown (pitch, velocity); return; }
+    auto notes = stepper.keyUp (pitch);
+    if (notes.empty()) return;
+    const Tick len = stepper.length();
+    const auto from = editor == EditorKind::Drums ? NoteFrom::Drums : NoteFrom::Roll;
+    const Tick at = cursor;
+    Id cid = clip() && clip()->isMidi() ? selectedClip : 0;
+    const Id track = focusTrack;
+    std::set<Id> made;
+    apply ("Step Input", [&] (Project& p)
+    {
+        auto* cl = p.clip (cid);
+        if (! cl)
+        {
+            // No clip chosen: a new one on the track, from the bar the cursor is in.
+            const auto* t = p.track (track);
+            if (! t || ! t->holdsClips()) return;
+            const int bar = p.tempo.barAt (at);
+            cid = edit::addMidiClip (p, track, p.tempo.barStart (bar), p.tempo.meterAtBar (bar).barTicks());
+            cl = p.clip (cid);
+            if (! cl) return;
+        }
+        Tick rel = at - (cl->start - cl->offset);
+        if (cl->loopLength > 0) rel = ((rel % cl->loopLength) + cl->loopLength) % cl->loopLength;
+        for (auto n : notes)
+        {
+            n.start = rel;
+            n.from = from;
+            made.insert (edit::addNote (p, cid, n));
+        }
+        // Past its end, the clip grows to the bar the notes end in.
+        if (cl->loopLength == 0 && rel + len > cl->offset + cl->length)
+        {
+            const Tick songEnd = cl->start - cl->offset + rel + len;
+            cl->length = std::max (cl->length, p.tempo.barStart (p.tempo.barAt (songEnd - 1) + 1) - cl->start);
+        }
+    });
+    if (made.empty()) { say ("Choose a track for step input to write into.", true); return; }
+    if (selectedClip != cid) { selectedClip = cid; selectedClips = { cid }; }
+    selectedNotes = made;
+    locate (at + len);
+}
+
 void Controller::selectNotes (noteselect::What what, std::optional<NoteFrom> only)
 {
     const auto* cl = clip();

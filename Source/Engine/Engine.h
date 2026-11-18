@@ -114,6 +114,9 @@ public:
 
     // MIDI learn (decision 0032).
     std::atomic<bool> learning { false };
+    // Step input (decision 0076): keys played in are told to the window too, as they're played.
+    std::atomic<bool> stepInputOn { false };
+    std::function<void (int pitch, int velocity, bool on)> onStepKey;
     void setMappings (std::vector<MidiMapping>);
     std::function<void (int channel, int controller)> onLearned;
     std::function<void (const MidiMapping&, double value)> onMapped;
