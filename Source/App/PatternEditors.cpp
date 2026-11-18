@@ -108,8 +108,10 @@ static int playingStep (Controller& c, Tick stepTicks, int steps)
     if (! clip || ! c.engine.isPlaying() || steps <= 0 || stepTicks <= 0) return -1;
     const Tick at = c.playhead();
     if (at < clip->start || at >= clip->end()) return -1;
-    Tick rel = at - clip->start;
-    if (clip->loopLength > 0) rel %= clip->loopLength;
+    // From the start of what the editors show: the clip's window (a loop from 0).
+    const auto w = patterns::windowOf (*clip);
+    Tick rel = at - clip->start + clip->offset - w.from;
+    if (clip->loopLength > 0) rel = (at - clip->start + clip->offset) % clip->loopLength;
     return (int) ((rel % (stepTicks * steps)) / stepTicks);
 }
 
@@ -148,7 +150,7 @@ void DrumGrid::timerCallback()
 
 int DrumGrid::stepsFor (const Clip& clip) const
 {
-    return jlimit (1, 64, (int) ((clip.loopLength > 0 ? clip.loopLength : clip.length) / jmax<Tick> (1, c.grid)));
+    return jlimit (1, 64, (int) (patterns::windowOf (clip).length / jmax<Tick> (1, c.grid)));
 }
 
 void DrumGrid::read()
@@ -161,7 +163,7 @@ void DrumGrid::read()
     grid.swing = clip->drumsFeel.swing;
     grid.gate = clip->drumsFeel.gate;
     grid.lanes = patterns::standardKit (grid.steps);
-    grid = patterns::readGrid (clip->midi, grid, clip->offset, NoteFrom::Drums);
+    grid = patterns::readGrid (clip->midi, grid, patterns::windowOf (*clip).from, NoteFrom::Drums);
     feel.set (clip->drumsFeel);
 }
 
@@ -175,7 +177,7 @@ void DrumGrid::write (const String& label)
         if (! clip) return;
         unsigned next = p.nextId;
         clip->drumsFeel = { g.swing, g.gate };
-        patterns::writeGrid (clip->midi, g, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Drums);
+        patterns::writeGrid (clip->midi, g, patterns::windowOf (*clip).from, patterns::windowOf (*clip).length, next, NoteFrom::Drums);
         p.nextId = std::max (p.nextId, (Id) next);
     };
     if (label.isEmpty()) { doWrite (c.project); c.refresh(); }
@@ -399,8 +401,8 @@ void StepSequencer::read()
 {
     const auto* clip = c.project.clip (c.selectedClip);
     if (! clip || ! clip->isMidi()) { seq = {}; return; }
-    const int count = jlimit (1, 64, (int) ((clip->loopLength > 0 ? clip->loopLength : clip->length) / jmax<Tick> (1, c.grid)));
-    seq = patterns::readSteps (clip->midi, c.grid, count, clip->offset, NoteFrom::Steps);
+    const int count = jlimit (1, 64, (int) (patterns::windowOf (*clip).length / jmax<Tick> (1, c.grid)));
+    seq = patterns::readSteps (clip->midi, c.grid, count, patterns::windowOf (*clip).from, NoteFrom::Steps);
     seq.swing = clip->stepsFeel.swing;
     gateSetting = clip->stepsFeel.gate;
     for (auto& s : seq.steps) if (! s.on) s.gate = gateSetting;
@@ -418,7 +420,7 @@ void StepSequencer::write (const String& label)
         if (! clip) return;
         unsigned next = p.nextId;
         clip->stepsFeel = { s.swing, gt };
-        patterns::writeSteps (clip->midi, s, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Steps);
+        patterns::writeSteps (clip->midi, s, patterns::windowOf (*clip).from, patterns::windowOf (*clip).length, next, NoteFrom::Steps);
         p.nextId = std::max (p.nextId, (Id) next);
     };
     if (label.isEmpty()) { doWrite (c.project); c.refresh(); }
@@ -745,7 +747,7 @@ void EuclidEditor::applyAll (const String& label)
         cl->euclidFeel = f;
         unsigned next = p.nextId;
         for (auto& one : grids)
-            patterns::writeGrid (cl->midi, one, cl->offset, cl->loopLength > 0 ? cl->loopLength : cl->length, next, NoteFrom::Euclid);
+            patterns::writeGrid (cl->midi, one, patterns::windowOf (*cl).from, patterns::windowOf (*cl).length, next, NoteFrom::Euclid);
         p.nextId = std::max (p.nextId, (Id) next);
     };
     if (label.isEmpty()) { doWrite (c.project); c.refresh(); }
@@ -762,7 +764,7 @@ void EuclidEditor::apply (Row& r)
         auto* clip = p.clip (id);
         if (! clip) return;
         unsigned next = p.nextId;
-        patterns::writeGrid (clip->midi, g, clip->offset, clip->loopLength > 0 ? clip->loopLength : clip->length, next, NoteFrom::Euclid);
+        patterns::writeGrid (clip->midi, g, patterns::windowOf (*clip).from, patterns::windowOf (*clip).length, next, NoteFrom::Euclid);
         p.nextId = std::max (p.nextId, (Id) next);
     });
 }

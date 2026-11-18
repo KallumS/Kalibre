@@ -29,9 +29,29 @@ NotationView::NotationView (Controller& ctrl) : c (ctrl), lanes (ctrl)
     };
     c.addChangeListener (this);
     changeListenerCallback (nullptr);
+    startTimerHz (30);
 }
 
 NotationView::~NotationView() { c.removeChangeListener (this); }
+
+// The playhead moves while playing, as in the piano roll; it never did here.
+void NotationView::timerCallback()
+{
+    if (c.engine.isPlaying() || shownPlayheadX >= 0) repaint();
+}
+
+float NotationView::playheadX() const
+{
+    const auto* clip = c.project.clip (c.selectedClip);
+    if (! c.engine.isPlaying() || ! clip || ! clip->isMidi() || tickX.empty()) return -1;
+    const Tick at = c.playhead();
+    if (at < clip->start || at >= clip->end()) return -1;
+    Tick t = at - clip->start + clip->offset;
+    // A looped clip's content comes round again (Loop Its Content).
+    if (clip->loopLength > 0) t = (at - clip->start + clip->offset) % clip->loopLength;
+    const float x = xOfClipTick (t);
+    return x > (float) getWidth() ? -1.0f : x;
+}
 
 void NotationView::changeListenerCallback (ChangeBroadcaster*)
 {
@@ -239,6 +259,13 @@ void NotationView::paint (Graphics& g)
     {
         g.setColour (theme::accent);
         g.fillRect (cx - 3, yOfStep (10), 2.0f, yOfStep (-2) - yOfStep (10));
+    }
+    // The playhead, while playing.
+    shownPlayheadX = playheadX();
+    if (shownPlayheadX >= 0)
+    {
+        g.setColour (theme::playhead);
+        g.fillRect (shownPlayheadX - 0.5f, 0.0f, 2.0f, (float) getHeight());
     }
 }
 

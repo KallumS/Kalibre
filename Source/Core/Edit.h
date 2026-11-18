@@ -71,6 +71,11 @@ void resizeClip (Project&, Id clip, Tick newStart, Tick newEnd);   // trims from
 Id splitClip (Project&, Id clip, Tick at, double fine = 0);
 Id duplicateClip (Project&, Id clip);                              // just after itself
 Id consolidateClips (Project&, const std::set<Id>& clips);         // MIDI clips on one track into one
+// Loop Its Content, or let it go: the clip doubles and repeats what it plays.
+// A MIDI clip's content is first moved to start where the clip does (its
+// offset made 0), so the loop is just what it played (a split's right half
+// looped silence before, and the editors wrote past the loop's end).
+void loopContent (Project&, Id clip);
 void sortClips (Track&);
 // Strip Silence (decision 0036): an audio clip becomes one clip for each
 // stretch of its file (seconds) that has sound, each in its place, with short fades.

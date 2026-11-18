@@ -369,6 +369,24 @@ bool moveClip (Project& p, Id clipId, Tick newStart, Id newTrack)
     return true;
 }
 
+void loopContent (Project& p, Id clipId)
+{
+    auto* c = p.clip (clipId);
+    if (! c || c->locked) return;
+    if (c->loopLength > 0) { c->loopLength = 0; return; }
+    if (c->isMidi() && c->offset != 0)
+    {
+        const Tick off = c->offset;
+        eraseIf (c->midi.notes, [off] (const Note& n) { return n.start < off; });
+        for (auto& n : c->midi.notes) n.start -= off;
+        eraseIf (c->midi.events, [off] (const MidiEvent& e) { return e.tick < off; });
+        for (auto& e : c->midi.events) e.tick -= off;
+        c->offset = 0;
+    }
+    c->loopLength = c->length + c->offset;
+    c->length *= 2;
+}
+
 void resizeClip (Project& p, Id clipId, Tick newStart, Tick newEnd)
 {
     Track* owner = nullptr;

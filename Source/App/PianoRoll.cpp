@@ -208,6 +208,23 @@ void PianoRoll::paint (Graphics& g)
             }
             if (moving && preview.action == roll::Action::CopyNotes) {}
         }
+        // A looped clip's repeats, faint: what plays again (Loop Its Content).
+        if (clip->loopLength > 0)
+        {
+            g.setColour (trackCol.withAlpha (0.3f));
+            for (Tick pass = clip->loopLength; pass < clip->offset + clip->length; pass += clip->loopLength)
+                for (auto& n : notes)
+                {
+                    if (n.start >= clip->loopLength) continue;
+                    const Tick a = pass + n.start;
+                    if (a >= clip->offset + clip->length) continue;
+                    const Tick b = std::min ({ a + n.length, pass + clip->loopLength, clip->offset + clip->length });
+                    g.fillRoundedRectangle (Rectangle<float> (xOf (a), yOf (n.pitch) + 1.0f, jmax (3.0f, xOf (b) - xOf (a) - 1.0f), rowHeight - 2.0f), 2.0f);
+                }
+            g.setColour (theme::edge);
+            for (Tick pass = clip->loopLength; pass < clip->offset + clip->length; pass += clip->loopLength)
+                g.fillRect (xOf (pass) - 0.5f, (float) area.getY(), 1.0f, (float) area.getHeight());
+        }
         // Copies being dragged: drawn where they'll land.
         if (preview.action == roll::Action::CopyNotes)
             for (auto& n : notes)
@@ -500,10 +517,14 @@ void PianoRoll::commit (const roll::Outcome& o)
         {
             Id made = 0;
             auto note = o.added;
+            // In a looped clip, a note drawn on a repeat goes into the loop, where it plays every time.
+            const auto* looped = c.project.clip (clip);
+            const Tick loop = looped ? looped->loopLength : 0;
+            if (loop > 0) note.start = ((note.start % loop) + loop) % loop;
             c.apply ("Add Note", [&] (Project& p) { made = edit::addNote (p, clip, note); });
             c.selectedNotes = { made };
             // A note drawn past the clip's end lengthens the clip.
-            if (auto* cl = c.clip())
+            if (auto* cl = c.clip(); cl && loop == 0)
                 if (note.end() > cl->offset + cl->length)
                 {
                     const Tick end = c.project.tempo.barStart (c.project.tempo.barAt (base() + note.end() - 1) + 1) - cl->start;

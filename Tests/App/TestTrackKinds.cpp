@@ -1042,3 +1042,39 @@ TEST ("arming for both records the sound coming in and the instrument's MIDI; fo
             if (! clip.midi.notes.empty()) CHECK_EQ (clip.midi.notes.front().pitch, 64);
         }
 }
+
+#include "NotationView.h"
+
+TEST ("notation: the playhead moves across the staff while playing, round a looped clip's repeats")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Flute");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    for (int i = 0; i < 4; ++i) { Note n; n.start = PPQ * i; n.length = PPQ; n.pitch = 72; edit::addNote (c.project, clip, n); }
+    c.refresh();
+    c.selectClip (clip);
+    NotationView view (c);
+    view.setSize (1000, 400);
+    bool on = false;
+    auto drawnAt = [&] (double beats)
+    {
+        // No audio device here: moved while stopped, then playing again.
+        engine.stop();
+        engine.locate (c.project.tempo.secondsAt ((Tick) (beats * PPQ)));
+        if (on) engine.play();
+        view.createComponentSnapshot (view.getLocalBounds());
+        return view.shownPlayheadX;
+    };
+    CHECK (drawnAt (1.0) < 0);                 // stopped: none
+    on = true;
+    const float a = drawnAt (1.0), b = drawnAt (2.5);
+    CHECK (a > 0);
+    CHECK (b > a);                             // it moves on
+    c.apply ("Loop Clip", [clip] (Project& p) { edit::loopContent (p, clip); });
+    const float again = drawnAt (5.0);         // the second pass, beat 1 again
+    CHECK (std::abs (again - a) < 1.0f);
+    engine.stop();
+}

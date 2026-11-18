@@ -2,6 +2,7 @@
 #include "Patterns.h"
 #include "ProjectFile.h"
 #include "Edit.h"
+#include "Playback.h"
 
 #include <cmath>
 
@@ -276,4 +277,48 @@ TEST ("feel: each editor's swing and gate are kept with the clip")
     CHECK (loaded && loaded->clip (c)->drumsFeel == p.clip (c)->drumsFeel);
     CHECK (loaded && loaded->clip (c)->stepsFeel == p.clip (c)->stepsFeel);
     CHECK (loaded && loaded->clip (c)->euclidFeel == p.clip (c)->euclidFeel);
+}
+
+TEST ("looped clips: Loop Its Content on a clip split from another loops what it plays, and the editors write into that loop")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    const Id left = edit::addMidiClip (p, t, 0, PPQ * 8);
+    Note n; n.start = PPQ * 5; n.length = PPQ / 2; n.pitch = 60;
+    edit::addNote (p, left, n);
+    const Id right = edit::splitClip (p, left, PPQ * 4);   // the right half starts 4 beats into its content
+    CHECK (p.clip (right)->offset == PPQ * 4);
+
+    edit::loopContent (p, right);
+    const auto* c = p.clip (right);
+    CHECK_EQ (c->offset, Tick (0));
+    CHECK_EQ (c->loopLength, Tick (PPQ * 4));
+    CHECK_EQ (c->length, Tick (PPQ * 8));
+    CHECK_EQ (c->midi.notes.size(), size_t (1));
+    CHECK_EQ (c->midi.notes.front().start, Tick (PPQ));       // where it played, still
+    const auto w = windowOf (*c);
+    CHECK_EQ (w.from, Tick (0));
+    CHECK_EQ (w.length, Tick (PPQ * 4));
+
+    // The step sequencer's notes, written into the window, play on both passes.
+    StepSequence s = readSteps (c->midi, PPQ, 4, w.from, NoteFrom::Steps);
+    s.steps[0].on = true;
+    s.steps[0].pitch = 64;
+    unsigned next = 1000;
+    writeSteps (p.clip (right)->midi, s, w.from, w.length, next, NoteFrom::Steps);
+    int plays = 0;
+    const auto compiled = playback::compile (p, *p.track (t));
+    for (auto& m : compiled.midi)
+        if ((m.bytes[0] & 0xF0) == 0x90 && m.bytes[1] == 64 && m.bytes[2] > 0) ++plays;
+    CHECK_EQ (plays, 2);
+
+    // Looped again, it's let go; a clip already looped with an offset (saved before) still has its window from 0.
+    edit::loopContent (p, right);
+    CHECK_EQ (p.clip (right)->loopLength, Tick (0));
+    Clip old; old.kind = Clip::Kind::Midi; old.offset = PPQ; old.loopLength = PPQ * 4; old.length = PPQ * 8;
+    CHECK_EQ (windowOf (old).from, Tick (0));
+    CHECK_EQ (windowOf (old).length, Tick (PPQ * 4));
+    Clip plain; plain.kind = Clip::Kind::Midi; plain.offset = PPQ; plain.length = PPQ * 2;
+    CHECK_EQ (windowOf (plain).from, Tick (PPQ));
+    CHECK_EQ (windowOf (plain).length, Tick (PPQ * 2));
 }

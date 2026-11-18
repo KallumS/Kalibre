@@ -1626,13 +1626,7 @@ void Arrange::clipMenu (Id id)
     m.addSeparator();
     m.addItem ("Loop Its Content", true, clip->loopLength > 0, [this, id]
     {
-        c.apply ("Loop Clip", [id] (Project& p)
-        {
-            auto* cl = p.clip (id);
-            if (! cl) return;
-            if (cl->loopLength > 0) cl->loopLength = 0;
-            else { cl->loopLength = cl->length + cl->offset; cl->length *= 2; }
-        });
+        c.apply ("Loop Clip", [id] (Project& p) { edit::loopContent (p, id); });
     });
     m.addItem ("Mute", true, clip->muted, [this, id] { c.apply ("Mute Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->muted = ! cl->muted; }); });
     m.addItem ("Lock", true, clip->locked, [this, id] { c.apply ("Lock Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->locked = ! cl->locked; }); });
