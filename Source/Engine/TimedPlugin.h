@@ -17,6 +17,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <array>
 #include <atomic>
 
 namespace kal
@@ -57,6 +58,21 @@ public:
     std::atomic<bool> matchLoudness { false };
     LoudnessMatch match;
 
+    // Its parameters' automation for this block (decision 0089), drawn by the track's
+    // Source, which plays before it: each value at every sample, and where a lane's
+    // point falls. The block is played in pieces, cut at every point and every 16
+    // samples along a ramp, each piece with the values at its start: plug-ins take
+    // a parameter's value once a call, so this is how a change lands on its sample.
+    struct AutoCurve { juce::AudioProcessorParameter* param = nullptr; std::vector<float> values; };
+    std::array<AutoCurve, 16> curves;
+    std::vector<std::uint8_t> breaks;
+    int curveCount = 0;
+    const void* curveOwner = nullptr;
+    std::uint32_t curveSerial = 0;
+    std::atomic<int> curveSamples { 0 };
+    int curveCapacity() const { return (int) breaks.size(); }
+    static constexpr int rampPiece = 16;
+
     // Kept in step when the plug-in's latency changes (the engine is told), message thread.
     void latencyChanged()
     {
@@ -83,6 +99,12 @@ public:
         setLatencySamples (inner->getLatencySamples());
         makeBypassDelay();
         match.prepare (rate, block);
+        const int most = juce::jmax (block, 8192);
+        for (auto& c : curves) c.values.assign ((size_t) most, 0.0f);
+        breaks.assign ((size_t) most, 0);
+        curveSamples = 0;
+        pieceMidi.ensureSize (8192);
+        joinedMidi.ensureSize (8192);
     }
     void releaseResources() override { inner->releaseResources(); }
 
@@ -101,7 +123,9 @@ public:
             {
                 // Named for the crash report while it runs (decision 0073).
                 crashcontext::audioPlugin = crashName.c_str();
-                inner->processBlock (audio, midi);
+                const int n = audio.getNumSamples();
+                if (curveSamples.exchange (0) == n && curveCount > 0 && n <= curveCapacity()) playInPieces (audio, midi);
+                else inner->processBlock (audio, midi);
                 crashcontext::audioPlugin = nullptr;
             }
         }
@@ -167,6 +191,36 @@ public:
     bool isBusesLayoutSupported (const BusesLayout& l) const override { return l == inner->getBusesLayout(); }
 
 private:
+    juce::MidiBuffer pieceMidi, joinedMidi;
+
+    // The block in pieces, each with its parameters' values at its start (0089).
+    void playInPieces (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi)
+    {
+        const int n = audio.getNumSamples();
+        joinedMidi.clear();
+        int from = 0;
+        while (from < n)
+        {
+            for (int k = 0; k < curveCount; ++k)
+            {
+                auto& c = curves[(size_t) k];
+                const float v = c.values[(size_t) from];
+                if (c.param && std::abs (c.param->getValue() - v) > 1.0e-7f) c.param->setValue (v);
+            }
+            int to = juce::jmin (n, from + rampPiece);
+            for (int i = from + 1; i < to; ++i) if (breaks[(size_t) i] != 0) { to = i; break; }
+            pieceMidi.clear();
+            for (const auto m : midi)
+                if (m.samplePosition >= from && m.samplePosition < to) pieceMidi.addEvent (m.data, m.numBytes, m.samplePosition - from);
+            juce::AudioBuffer<float> piece (audio.getArrayOfWritePointers(), audio.getNumChannels(), from, to - from);
+            inner->processBlock (piece, pieceMidi);
+            for (const auto m : pieceMidi) joinedMidi.addEvent (m.data, m.numBytes, m.samplePosition + from);
+            from = to;
+        }
+        midi.swapWith (joinedMidi);
+    }
+
+
     // The delay a bypassed plug-in keeps (its latency): made on the message thread,
     // swapped in whole; the one before is kept until the next is made.
     std::unique_ptr<juce::AudioBuffer<float>> bypassOwned, bypassRetired;

@@ -126,6 +126,24 @@ private:
     float gain;
 };
 
+// A gain with one parameter, read once at the start of each call as most
+// plug-ins read theirs: what sample-accurate automation is tested on (0089).
+class ParamGainTest : public LatencyTest
+{
+public:
+    ParamGainTest() : LatencyTest (0)
+    {
+        auto g = std::make_unique<AudioParameterFloat> (ParameterID { "gain", 1 }, "Gain", NormalisableRange<float> (0.0f, 1.0f), 1.0f);   // continuous, not in 0.01 steps
+        gain = g.get();
+        addHostedParameter (std::move (g));
+    }
+    const String getName() const override { return "Parameter Gain Test"; }
+    void processBlock (AudioBuffer<float>& b, MidiBuffer& m) override { LatencyTest::processBlock (b, m); b.applyGain (gain->get()); }
+
+private:
+    AudioParameterFloat* gain = nullptr;
+};
+
 // A device that takes a fixed time each block, as a heavy plug-in does: the
 // tests see it played on several threads at once (decision 0078).
 class BusyTest : public LatencyTest
@@ -320,6 +338,7 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
 {
     if (ref.identifier == "test-arp") return std::make_unique<ArpTest>();
     if (ref.identifier == "test-sloppy") return std::make_unique<SloppyTest>();
+    if (ref.identifier == "test-param-gain") return std::make_unique<ParamGainTest>();
     if (ref.identifier == "note-splitter") return std::make_unique<NoteSplitterProcessor>();   // decision 0083
     if (auto j = makeJsfx (ref)) return j;   // the family's JSFX (decision 0066)
     if (ref.identifier == "instant-virtual-instrument") return makeInstantVirtualInstrument();   // decision 0067

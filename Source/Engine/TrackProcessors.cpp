@@ -41,10 +41,13 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
     const float autoPan = automatedPan.load();
     const float db = std::isnan (autoVol) ? volumeDb.load() : autoVol;
     const float p = jlimit (-1.0f, 1.0f, std::isnan (autoPan) ? pan.load() : autoPan);
-    float gain = audible && automatedMute.load() != 1 ? Decibels::decibelsToGain (db, -100.0f) : 0.0f;
+    const auto fmt = (SurroundFormat) format.load();
+    const bool stereo = ! (fmt != SurroundFormat::Stereo && b.getNumChannels() >= surround::channels (fmt));
+    // A mute lane drawn sample by sample (0089): the fader's own level, cut on the very sample.
+    const bool mutePerSample = muteCurveSamples.exchange (0) == n && stereo && automatedMute.load() >= 0;
+    float gain = audible && (mutePerSample || automatedMute.load() != 1) ? Decibels::decibelsToGain (db, -100.0f) : 0.0f;
     if (phaseInvert) gain = -gain;
     lastGain = gain;
-    const auto fmt = (SurroundFormat) format.load();
     if (fresh || snap.exchange (false))
     {
         fresh = false;
@@ -99,7 +102,7 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
 
     // Volume and pan automation, sample by sample, when the Source has drawn this block's curves.
     const int curve = volumeCurveSamples.exchange (0);
-    const bool perSample = curve == n && ! std::isnan (autoVol) && audible && automatedMute.load() != 1;
+    const bool perSample = curve == n && ! std::isnan (autoVol) && audible && (mutePerSample || automatedMute.load() != 1);
     const bool panPerSample = panCurveSamples.exchange (0) == n && ! std::isnan (autoPan);
     const float sign = phaseInvert ? -1.0f : 1.0f;
 
@@ -110,7 +113,8 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
     {
         float a = l[i], c = r[i];
         if (mono) a = c = (a + c) * 0.5f;
-        const float g = perSample ? sign * Decibels::decibelsToGain (volumeCurve[(size_t) i], -100.0f) : smoothedGain.getNextValue();
+        float g = perSample ? sign * Decibels::decibelsToGain (volumeCurve[(size_t) i], -100.0f) : smoothedGain.getNextValue();
+        if (mutePerSample && muteCurve[(size_t) i] != 0) g = 0.0f;
         if (panPerSample)
         {
             const auto [gl, gr] = panGains (panCurve[(size_t) i]);
@@ -137,6 +141,7 @@ void Fader::processBlock (AudioBuffer<float>& b, MidiBuffer& m)
         smoothedGain.setCurrentAndTargetValue (end);
         lastGain = end;
     }
+    if (mutePerSample && muteCurve[(size_t) n - 1] != 0) lastGain = 0.0f;
     // The meters keep the highest since they were last read.
     float old = peakL.load();
     while (pl > old && ! peakL.compare_exchange_weak (old, pl)) {}
@@ -179,6 +184,7 @@ TrackSource::~TrackSource()
 void TrackSource::prepareToPlay (double rate, int block)
 {
     live.setSize (2, block);
+    blockTicks.assign ((size_t) jmax (block, 8192), 0.0);
     mixL.assign ((size_t) jmax (block, 8192), 0.0);
     mixR.assign ((size_t) jmax (block, 8192), 0.0);
     for (auto& r : runners) r.prepare (rate);
@@ -407,6 +413,77 @@ void TrackSource::playSegment (const Data& d, double from, double to, int offset
         }
 }
 
+// Every lane, sample by sample (decision 0089): the song's ticks at each sample
+// of the block, then each lane read at them, for the processors after this one
+// in the graph (the fader, the sends, the plug-ins) to use in this block.
+void TrackSource::drawAutomation (const Data& d, int n)
+{
+    if (! d.readAutomation || n > (int) blockTicks.size()) return;
+    if (! d.hasVolume && ! d.hasPan && ! d.hasMute && d.sends.empty() && d.params.empty()) return;
+    const auto& clock = shared.clock;
+    for (int i = 0; i < n; ++i)
+    {
+        const double s = clock.wrapAt >= 0 && i >= clock.wrapAt ? clock.wrapTo + (i - clock.wrapAt) / clock.rate
+                                                               : clock.start + i / clock.rate;
+        // To a millionth of a tick: a point that falls exactly on a sample isn't missed
+        // by the last bit of the seconds-to-ticks sums.
+        blockTicks[(size_t) i] = std::round (d.tempo.ticksAt (s) * 1.0e6) / 1.0e6;
+    }
+    auto* f = d.fader;
+    if (f && d.hasVolume && n <= (int) f->volumeCurve.size())
+    {
+        for (int i = 0; i < n; ++i) f->volumeCurve[(size_t) i] = (float) (edit::valueAtTicks (d.volume, blockTicks[(size_t) i], 0.9) * 66.0 - 60.0);
+        f->volumeCurveSamples = n;
+    }
+    if (f && d.hasPan && n <= (int) f->panCurve.size())
+    {
+        for (int i = 0; i < n; ++i) f->panCurve[(size_t) i] = (float) jlimit (-1.0, 1.0, edit::valueAtTicks (d.pan, blockTicks[(size_t) i], 0.5) * 2.0 - 1.0);
+        f->panCurveSamples = n;
+    }
+    if (f && d.hasMute && n <= (int) f->muteCurve.size())
+    {
+        for (int i = 0; i < n; ++i) f->muteCurve[(size_t) i] = edit::valueAtTicks (d.mute, blockTicks[(size_t) i], 0.0) >= 0.5 ? 1 : 0;
+        f->muteCurveSamples = n;
+    }
+    for (auto& [lane, send] : d.sends)
+        if (send && n <= (int) send->curve.size())
+        {
+            for (int i = 0; i < n; ++i) send->curve[(size_t) i] = (float) (edit::valueAtTicks (lane, blockTicks[(size_t) i], 0.9) * 66.0 - 60.0);
+            send->curveSamples = n;
+        }
+    // Plug-ins' parameters: each value at each sample, and where a point of the lane
+    // falls (the plug-in's block is cut there, so the change lands on that sample).
+    ++drawn;
+    for (auto& pl : d.params)
+    {
+        auto* host = pl.host;
+        if (! host || ! pl.param || n > host->curveCapacity()) continue;
+        if (host->curveOwner != this || host->curveSerial != drawn)
+        {
+            host->curveOwner = this;
+            host->curveSerial = drawn;
+            host->curveCount = 0;
+            std::fill (host->breaks.begin(), host->breaks.begin() + n, (std::uint8_t) 0);
+            if (clock.wrapAt > 0 && clock.wrapAt < n) host->breaks[(size_t) clock.wrapAt] = 1;
+        }
+        if (host->curveCount >= (int) host->curves.size()) continue;
+        auto& curve = host->curves[(size_t) host->curveCount++];
+        curve.param = pl.param;
+        const float now = pl.param->getValue();
+        for (int i = 0; i < n; ++i) curve.values[(size_t) i] = (float) edit::valueAtTicks (pl.lane, blockTicks[(size_t) i], now);
+        const auto& pts = pl.lane.points;
+        size_t next = 0;
+        for (int i = 1; i < n; ++i)
+        {
+            const double a = blockTicks[(size_t) i - 1], b = blockTicks[(size_t) i];
+            if (b < a) continue;   // the loop's wrap, already a break
+            while (next < pts.size() && (double) pts[next].tick <= a) ++next;
+            if (next < pts.size() && (double) pts[next].tick <= b) host->breaks[(size_t) i] = 1;
+        }
+    }
+    for (auto& pl : d.params) if (pl.host && pl.host->curveOwner == this && pl.host->curveSerial == drawn) pl.host->curveSamples = n;
+}
+
 void TrackSource::applyAutomation (const Data& d, double seconds)
 {
     const Tick tick = d.tempo.tickAt (seconds);
@@ -505,29 +582,7 @@ void TrackSource::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
     if (clock.playing && ! (d->summing && d->armed && clock.recording))
     {
         applyAutomation (*d, clock.start);
-        // The volume lane, for every sample of the block (the fader plays after this).
-        if (d->readAutomation && d->hasVolume && d->fader && n <= (int) d->fader->volumeCurve.size())
-        {
-            auto& curve = d->fader->volumeCurve;
-            for (int i = 0; i < n; ++i)
-            {
-                const double s = clock.wrapAt >= 0 && i >= clock.wrapAt ? clock.wrapTo + (i - clock.wrapAt) / clock.rate
-                                                                       : clock.start + i / clock.rate;
-                curve[(size_t) i] = (float) (edit::valueAtTicks (d->volume, d->tempo.ticksAt (s), 0.9) * 66.0 - 60.0);
-            }
-            d->fader->volumeCurveSamples = n;
-        }
-        if (d->readAutomation && d->hasPan && d->fader && n <= (int) d->fader->panCurve.size())
-        {
-            auto& curve = d->fader->panCurve;
-            for (int i = 0; i < n; ++i)
-            {
-                const double s = clock.wrapAt >= 0 && i >= clock.wrapAt ? clock.wrapTo + (i - clock.wrapAt) / clock.rate
-                                                                       : clock.start + i / clock.rate;
-                curve[(size_t) i] = (float) jlimit (-1.0, 1.0, edit::valueAtTicks (d->pan, d->tempo.ticksAt (s), 0.5) * 2.0 - 1.0);
-            }
-            d->fader->panCurveSamples = n;
-        }
+        drawAutomation (*d, n);
         if (clock.wrapAt >= 0)
         {
             playSegment (*d, clock.start, clock.start + clock.wrapAt / clock.rate, 0, clock.wrapAt, audio, midi);

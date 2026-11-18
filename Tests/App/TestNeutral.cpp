@@ -615,3 +615,99 @@ TEST ("a switched-off (unloaded) plug-in still delays as much as it did, so the 
     CHECK (engine.instance (dev) != nullptr);
     CHECK_EQ (render (engine, c.project, 1.0).getSample (0, 12000), 1.0f);
 }
+
+namespace
+{
+// The first sample at or after a tick, as the engine counts (the song at 120 BPM, 48 kHz).
+int sampleAt (const Project& p, Tick t) { return (int) std::ceil (p.tempo.secondsAt (t) * rate - 1e-6); }
+
+Project dcTrack (Id& t, const char* name)
+{
+    AudioBuffer<float> dc (2, 96000);
+    for (int ch = 0; ch < 2; ++ch) FloatVectorOperations::fill (dc.getWritePointer (ch), 0.5f, dc.getNumSamples());
+    auto p = oneTrack (write (dc, 32, name), &t);
+    p.track (t)->clips().front().length = PPQ * 4;
+    p.track (t)->clips().front().audio.sourceLength = 2.0;
+    return p;
+}
+} // namespace
+
+TEST ("sample accurate: a mute lane cuts on the very sample, wherever a block falls (0089)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Id t = 0;
+    auto p = dcTrack (t, "dc-mute");
+    const Tick at = PPQ + 7;   // a tick between samples, inside a block
+    AutomationLane lane;
+    lane.id = p.newId();
+    lane.target.kind = AutoTarget::Kind::Mute;
+    lane.points = { { 0, 0.0, 0, true }, { at, 1.0, 0, true } };
+    p.track (t)->automation.push_back (lane);
+    const auto out = render (engine, p, 2.0);
+    const int k = sampleAt (p, at);
+    CHECK (k % 512 != 0);
+    CHECK_EQ (out.getSample (0, k - 1), 0.5f);
+    CHECK_EQ (out.getSample (0, k), 0.0f);
+}
+
+TEST ("sample accurate: send levels follow their lane sample by sample (0089)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Id t = 0;
+    auto p = dcTrack (t, "dc-send");
+    const Id ret = edit::addTrack (p, TrackKind::Return, "Return");
+    p.track (ret)->pan = 0;
+    CHECK (edit::addSend (p, t, ret, 0.0));
+    p.track (t)->sends.back().preFader = true;
+    p.track (t)->volumeDb = -100;
+    AutomationLane lane;
+    lane.id = p.newId();
+    lane.target.kind = AutoTarget::Kind::SendLevel;
+    lane.target.send = ret;
+    lane.points = { { 0, 30.0 / 66.0 }, { PPQ * 2, 1.0 } };   // -30 dB to +6 dB over a second
+    p.track (t)->automation.push_back (lane);
+    const auto out = render (engine, p, 2.0);
+    double worstDb = 0;
+    for (int i = 1; i < 48000; ++i)
+    {
+        const double v = 30.0 / 66.0 + (1.0 - 30.0 / 66.0) * (i / 48000.0);
+        const double want = 0.5 * std::pow (10.0, (v * 66.0 - 60.0) / 20.0);
+        worstDb = std::max (worstDb, std::abs (20 * std::log10 (out.getSample (0, i) / want)));
+    }
+    CHECK (worstDb < 0.01);
+}
+
+TEST ("sample accurate: a plug-in's parameter changes on the very sample of a step, and closely along a ramp (0089)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Id t = 0;
+    auto p = dcTrack (t, "dc-param");
+    const Id dev = edit::addDevice (p, t, { "Kalibre", "test-param-gain", "Gain" }, DeviceRole::AudioFx);
+    const Tick at = PPQ + 7;
+    AutomationLane lane;
+    lane.id = p.newId();
+    lane.target.kind = AutoTarget::Kind::DeviceParam;
+    lane.target.device = dev;
+    lane.target.param = 0;
+    // A step down at an odd sample, then a ramp back up over the second half second.
+    lane.points = { { 0, 1.0, 0, true }, { at, 0.25 }, { PPQ * 3 / 2, 0.25 }, { PPQ * 2, 1.0 } };
+    p.track (t)->automation.push_back (lane);
+    const auto out = render (engine, p, 1.5);
+    const int k = sampleAt (p, at);
+    CHECK (k % 512 != 0);
+    CHECK_EQ (out.getSample (0, k - 1), 0.5f);
+    CHECK_EQ (out.getSample (0, k), 0.125f);
+    // Along the ramp, never further off than 16 samples of it (1/1600 of the way a sample).
+    const int r0 = sampleAt (p, PPQ * 3 / 2), r1 = sampleAt (p, PPQ * 2);
+    double worst = 0;
+    for (int i = r0; i < r1; ++i)
+    {
+        const double want = 0.5 * (0.25 + 0.75 * (double) (i - r0) / (r1 - r0));
+        worst = std::max (worst, std::abs (out.getSample (0, i) - want));
+    }
+    CHECK (worst <= 0.5 * 0.75 * 16.0 / (r1 - r0) + 1.0e-6);
+    CHECK_EQ (out.getSample (0, r1 + 100), 0.5f);
+}

@@ -1033,7 +1033,12 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                     const int index = lane.target.kind == AutoTarget::Kind::MorphX ? 0
                                     : lane.target.kind == AutoTarget::Kind::MorphY ? 1 : lane.target.param;
                     if (auto* p = inst->getParameters()[index])
-                        if (lane.points.size() > 1) data->params.push_back ({ lane, p });
+                        if (lane.points.size() > 1)
+                        {
+                            auto node = deviceNodes.find (lane.target.device);
+                            auto* host = node != deviceNodes.end() && node->second ? dynamic_cast<TimedPlugin*> (node->second->getProcessor()) : nullptr;
+                            data->params.push_back ({ lane, p, host });
+                        }
                     break;
                 }
                 case AutoTarget::Kind::Mute: data->hasMute = ! lane.points.empty(); data->mute = lane; break;

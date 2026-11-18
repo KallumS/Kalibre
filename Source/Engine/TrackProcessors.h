@@ -82,6 +82,8 @@ public:
     std::atomic<int> volumeCurveSamples { 0 };
     std::vector<float> panCurve;               // the same for the pan lane, -1..1
     std::atomic<int> panCurveSamples { 0 };
+    std::vector<std::uint8_t> muteCurve;       // and the mute lane, 1 muted (decision 0089)
+    std::atomic<int> muteCurveSamples { 0 };
     std::atomic<float> automatedPan { std::numeric_limits<float>::quiet_NaN() };
     std::atomic<bool> audible { true }, phaseInvert { false }, mono { false };
     std::atomic<int> automatedMute { -1 };          // -1: not automated; 0 or 1 from a mute lane
@@ -128,6 +130,8 @@ public:
         volumeCurve.assign ((size_t) juce::jmax (block, 8192), 0.0f);
         panCurve.assign ((size_t) juce::jmax (block, 8192), 0.0f);
         panCurveSamples = 0;
+        muteCurve.assign ((size_t) juce::jmax (block, 8192), 0);
+        muteCurveSamples = 0;
         smoothedGain.reset (rate, 0.02);
         for (auto& sp : speaker) sp.reset (rate, 0.02);
         loudnessMeter.prepare (rate);
@@ -218,9 +222,16 @@ public:
     std::atomic<bool> on { true };
     std::atomic<Fader*> follow { nullptr };   // in a surround mix, a post-fader send follows this fader's level
     std::atomic<bool> snap { false };          // the next block starts at the level set
+    std::vector<float> curve;                  // its lane, dB at every sample of the block (0089)
+    std::atomic<int> curveSamples { 0 };
 
     const juce::String getName() const override { return "Send"; }
-    void prepareToPlay (double, int) override { last = std::numeric_limits<float>::quiet_NaN(); }
+    void prepareToPlay (double, int block) override
+    {
+        last = std::numeric_limits<float>::quiet_NaN();
+        curve.assign ((size_t) juce::jmax (block, 8192), 0.0f);
+        curveSamples = 0;
+    }
     void releaseResources() override {}
     void processBlock (juce::AudioBuffer<float>& b, juce::MidiBuffer& m) override
     {
@@ -228,8 +239,21 @@ public:
         const float autoDb = automatedDb.load();
         const float db = std::isnan (autoDb) ? gainDb.load() : autoDb;
         if (snap.exchange (false)) last = std::numeric_limits<float>::quiet_NaN();
+        const float followed = follow.load() != nullptr ? std::abs (follow.load()->currentGain()) : 1.0f;
+        const int n = b.getNumSamples();
+        if (curveSamples.exchange (0) == n && ! std::isnan (autoDb) && n <= (int) curve.size())
+        {
+            // Its lane, sample by sample (0089).
+            for (int i = 0; i < n; ++i)
+            {
+                const float gi = on ? juce::Decibels::decibelsToGain (curve[(size_t) i], -100.0f) * followed : 0.0f;
+                for (int ch = 0; ch < b.getNumChannels(); ++ch) b.getWritePointer (ch)[i] *= gi;
+            }
+            last = on ? juce::Decibels::decibelsToGain (curve[(size_t) n - 1], -100.0f) * followed : 0.0f;
+            return;
+        }
         float g = on ? juce::Decibels::decibelsToGain (db, -100.0f) : 0.0f;
-        if (auto* f = follow.load()) g *= std::abs (f->currentGain());
+        g *= followed;
         if (std::isnan (last)) last = g;   // the first block starts where it is: no fade in from elsewhere
         if (last == g) { if (g != 1.0f) b.applyGain (g); }
         else b.applyGainRamp (0, b.getNumSamples(), last, g);
@@ -270,6 +294,7 @@ public:
     {
         AutomationLane lane;
         juce::AudioProcessorParameter* param = nullptr;
+        TimedPlugin* host = nullptr;   // the plug-in's wrapper, which cuts its blocks where the lane says (0089)
     };
 
     struct ModulatorRun
@@ -366,6 +391,9 @@ private:
     std::array<Id, 32> runnerIds {};
     juce::AudioBuffer<float> live;
     std::vector<double> mixL, mixR;   // the clips mixed at 64 bits, a block long
+    std::vector<double> blockTicks;   // the song's ticks at each sample of the block (0089)
+    std::uint32_t drawn = 0;
+    void drawAutomation (const Data&, int samples);
 
     std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> writer;
     juce::TimeSliceThread writerThread { "Kalibre recording" };
