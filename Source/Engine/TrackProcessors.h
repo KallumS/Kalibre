@@ -156,6 +156,58 @@ private:
 };
 
 //==============================================================================
+// Stands in for a switched-off plug-in (decision 0086): the sound delayed as
+// long as the plug-in delayed it, and saying so, so delay compensation still
+// lines everything up.
+class HeldDelay : public juce::AudioProcessor
+{
+public:
+    explicit HeldDelay (int samples)
+        : AudioProcessor (BusesProperties().withInput ("In", juce::AudioChannelSet::stereo()).withOutput ("Out", juce::AudioChannelSet::stereo())),
+          length (juce::jmax (0, samples))
+    {
+        setLatencySamples (length);
+    }
+    const int length;
+    const juce::String getName() const override { return "Switched-off Plug-in's Delay"; }
+    void prepareToPlay (double, int) override { ring.setSize (2, length + 1); ring.clear(); at = 0; }
+    void releaseResources() override {}
+    void processBlock (juce::AudioBuffer<float>& b, juce::MidiBuffer& m) override
+    {
+        m.clear();
+        const int size = ring.getNumSamples();
+        if (size < 2) return;
+        int w = at;
+        for (int i = 0; i < b.getNumSamples(); ++i)
+        {
+            for (int ch = 0; ch < juce::jmin (2, b.getNumChannels()); ++ch)
+            {
+                ring.setSample (ch, w, b.getSample (ch, i));
+                b.setSample (ch, i, ring.getSample (ch, (w + 1) % size));
+            }
+            w = (w + 1) % size;
+        }
+        at = w;
+    }
+    double getTailLengthSeconds() const override { return 0; }
+    bool acceptsMidi() const override { return false; }
+    bool producesMidi() const override { return false; }
+    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
+    bool hasEditor() const override { return false; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const juce::String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const juce::String&) override {}
+    void getStateInformation (juce::MemoryBlock&) override {}
+    void setStateInformation (const void*, int) override {}
+
+private:
+    juce::AudioBuffer<float> ring;
+    int at = 0;
+};
+
+//==============================================================================
 class SendGain : public juce::AudioProcessor
 {
 public:

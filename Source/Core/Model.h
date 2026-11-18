@@ -191,6 +191,8 @@ struct Device
     bool onB = false;          // B is the one loaded
     int stateVersion = 0;      // counts Kalibre's own changes to the state (a preset, A/B), for Undo
     bool matchLoudness = false; // kept as loud coming out as going in (decision 0056)
+    int offLatency = 0;        // switched off (unloaded): its delay, kept in its place so tracks stay lined up (decision 0086)
+    double offLatencyRate = 0; //   at this sample rate
     std::vector<Id> midiTo;    // the Note Splitter's outputs, a track's MIDI input each (0: none; decision 0083)
 
     bool operator== (const Device&) const = default;

@@ -204,7 +204,13 @@ private:
     std::map<VersionedId, Node::Ptr> allDevices;
     std::map<VersionedId, std::string> allKeys;   // what each node was made from, to notice a swap
     std::map<Id, Node::Ptr> deviceNodes;          // the playing versions' devices, by device id
-    std::map<std::pair<Id, int>, Node::Ptr> splitNodes;   // the Note Splitters' outputs, by (device, output) (decision 0083)
+    std::map<std::pair<Id, int>, Node::Ptr> splitNodes;
+    std::map<Id, Node::Ptr> heldDelays;   // switched-off effects' delays, by device (decision 0086)
+    int heldSamples (const Device& d) const
+    {
+        if (d.offLatency <= 0) return 0;
+        return d.offLatencyRate > 0 ? juce::roundToInt (d.offLatency * rate / d.offLatencyRate) : d.offLatency;
+    }   // the Note Splitters' outputs, by (device, output) (decision 0083)
     std::map<Id, juce::AudioPluginInstance*> araOwner;   // the instance each ARA session was started on
     bool rendering = false;   // exporting: the Cue track is left out (decision 0051)
     std::atomic<int> startedInputs { 0 };   // the input channels of the device last started

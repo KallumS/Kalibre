@@ -106,7 +106,8 @@ void sortNotes (MidiData&);
 Id addDevice (Project&, Id track, const PluginRef&, DeviceRole, int position = -1);
 void removeDevice (Project&, Id device);
 void moveDevice (Project&, Id device, int newIndex);
-void setDeviceActive (Project&, Id device, bool active, const std::string& stateIfUnloading = {});
+// Switched off, its latency (samples at `rate`) is kept, so a delay can stand in for it (decision 0086).
+void setDeviceActive (Project&, Id device, bool active, const std::string& stateIfUnloading = {}, int latency = 0, double rate = 0);
 void normaliseChain (Track&);
 
 //==============================================================================

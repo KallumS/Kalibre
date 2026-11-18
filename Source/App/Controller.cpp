@@ -1875,7 +1875,11 @@ void Controller::makeSplitterTracks (Id device)
 void Controller::setDeviceActive (Id device, bool active)
 {
     const auto state = active ? std::string() : engine.stateOf (device);
-    apply (active ? "Activate Plug-in" : "Deactivate Plug-in", [=] (Project& p) { edit::setDeviceActive (p, device, active, state); });
+    // Its delay stays where it was (0086), so switching it off doesn't pull its track early.
+    auto* inst = active ? nullptr : engine.instance (device);
+    const int latency = inst ? inst->getLatencySamples() : 0;
+    const double rate = engine.sampleRate();
+    apply (active ? "Activate Plug-in" : "Deactivate Plug-in", [=] (Project& p) { edit::setDeviceActive (p, device, active, state, latency, rate); });
     if (! active) say ("Deactivated: unloaded from memory and the processor. Its settings are kept for when it's switched back on.");
 }
 

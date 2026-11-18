@@ -670,6 +670,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                  << (t->armed ? "a" + String ((int) t->armFor) : String()) << (int) t->monitor << "/" << t->input.audioChannel << "[";
         // The node's own number too: a device replaced by another under the same id is rewired.
         for (auto& d : t->devices) if (d.active && wantedDevices.count (d.id)) newShape << (int64) d.id << "#" << (int64) deviceNodes[d.id]->nodeID.uid << (int) d.role << (d.bypassed ? "b" : "") << "<" << (int64) d.sidechainFrom << ",";
+        for (auto& d : t->devices) if (! d.active && d.role == DeviceRole::AudioFx && d.offLatency > 0) newShape << "off" << (int64) d.id << ":" << heldSamples (d) << ",";
         newShape << "]{";
         // The Note Splitter's outputs (decision 0083).
         for (auto& d : t->devices)
@@ -700,6 +701,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         };
 
         // Where sound going into a track goes: its first audio effect, or its fader.
+        std::set<Id> keepHeld;
         std::map<Id, NodeID> entry;
         std::map<Id, NodeID> preFader;
         for (auto* t : all)
@@ -707,7 +709,22 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             auto& nodes = tracks[t->id];
             std::vector<NodeID> fx;
             for (auto& d : t->devices)
+            {
                 if (d.active && d.role == DeviceRole::AudioFx && wantedDevices.count (d.id)) fx.push_back (deviceNodes[d.id]->nodeID);
+                // A switched-off effect's delay stands in its place (0086).
+                if (! d.active && d.role == DeviceRole::AudioFx && heldSamples (d) > 0)
+                {
+                    auto& held = heldDelays[d.id];
+                    auto* now = held ? dynamic_cast<HeldDelay*> (held->getProcessor()) : nullptr;
+                    if (! now || now->length != heldSamples (d))
+                    {
+                        if (held) bury (held);
+                        held = graph.addNode (std::make_unique<HeldDelay> (heldSamples (d)), {}, Kind::none);
+                    }
+                    keepHeld.insert (d.id);
+                    fx.push_back (held->nodeID);
+                }
+            }
             entry[t->id] = fx.empty() ? nodes.fader->nodeID : fx.front();
             for (size_t i = 0; i + 1 < fx.size(); ++i) connectAudio (fx[i], fx[i + 1]);
             if (! fx.empty()) connectAudio (fx.back(), nodes.fader->nodeID);
@@ -865,6 +882,12 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                     keepSplits.insert ({ d.id, k });
                 }
             }
+        for (auto it = heldDelays.begin(); it != heldDelays.end();)
+        {
+            if (keepHeld.count (it->first)) { ++it; continue; }
+            bury (it->second);
+            it = heldDelays.erase (it);
+        }
         for (auto it = splitNodes.begin(); it != splitNodes.end();)
         {
             if (keepSplits.count (it->first)) { ++it; continue; }

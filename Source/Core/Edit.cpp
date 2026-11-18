@@ -794,11 +794,12 @@ void moveDevice (Project& p, Id deviceId, int newIndex)
     normaliseChain (*owner);
 }
 
-void setDeviceActive (Project& p, Id deviceId, bool active, const std::string& state)
+void setDeviceActive (Project& p, Id deviceId, bool active, const std::string& state, int latency, double rate)
 {
     if (auto* d = p.device (deviceId))
     {
         if (! active && ! state.empty()) d->state = state;
+        if (! active) { d->offLatency = std::max (0, latency); d->offLatencyRate = rate; }
         d->active = active;
     }
 }

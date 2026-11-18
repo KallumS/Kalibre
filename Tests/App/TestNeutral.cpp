@@ -7,6 +7,7 @@
 #include "Engine.h"
 #include "JsfxDevice.h"
 #include "Playback.h"
+#include "ProjectFile.h"
 
 #include <random>
 
@@ -578,4 +579,39 @@ TEST ("neutral: pan automation is followed sample by sample")
     }
     CHECK (worst < 1.0e-4);
     CHECK (std::abs (out.getSample (0, 60000)) < 1.0e-6f);   // held fully right after
+}
+
+TEST ("a switched-off (unloaded) plug-in still delays as much as it did, so the tracks stay lined up (0086)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    AudioBuffer<float> click (2, 48000);
+    click.clear();
+    click.setSample (0, 12000, 0.5f);
+    click.setSample (1, 12000, 0.5f);
+    const auto clickFile = write (click, 32, "off-click");
+    c.project = Project();
+    const Id a = edit::addTrack (c.project, TrackKind::Track, "Dry");
+    const Id b = edit::addTrack (c.project, TrackKind::Track, "Switched Off");
+    c.project.track (a)->pan = c.project.track (b)->pan = 0;
+    edit::addClip (c.project, a, clipOf (clickFile, 0, PPQ * 2));
+    edit::addClip (c.project, b, clipOf (clickFile, 0, PPQ * 2));
+    const Id dev = edit::addDevice (c.project, b, { "Kalibre", "test-latency:300", "Latency" }, DeviceRole::AudioFx);
+    c.refresh();
+    c.setDeviceActive (dev, false);
+    CHECK (engine.instance (dev) == nullptr);              // unloaded
+    CHECK_EQ (c.project.device (dev)->offLatency, 300);   // its delay remembered
+    const auto out = render (engine, c.project, 1.0);
+    int clicks = 0;
+    for (int i = 0; i < out.getNumSamples(); ++i) if (std::abs (out.getSample (0, i)) > 0.1f) ++clicks;
+    CHECK_EQ (clicks, 1);
+    CHECK_EQ (out.getSample (0, 12000), 1.0f);
+    // Kept in the file; on again, the plug-in itself.
+    auto back = file::load (file::save (c.project));
+    CHECK (back.has_value());
+    if (back) CHECK_EQ (back->device (dev)->offLatency, 300);
+    c.setDeviceActive (dev, true);
+    CHECK (engine.instance (dev) != nullptr);
+    CHECK_EQ (render (engine, c.project, 1.0).getSample (0, 12000), 1.0f);
 }
