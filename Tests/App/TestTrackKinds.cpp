@@ -278,6 +278,110 @@ TEST ("summing: armed, it records the master from where recording starts, in tim
     CHECK_EQ (c.project.track (sum)->clips().size(), size_t (1));
 }
 
+TEST ("summing: recording the master at 32 bits is neutral: the take is the song's sound, sample for sample (0081)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    // A second of 24-bit noise, half a second into the song.
+    AudioBuffer<float> noise (2, 48000);
+    Random rng (5);
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < noise.getNumSamples(); ++i)
+            noise.setSample (ch, i, (float) std::round ((rng.nextFloat() * 1.8f - 0.9f) * 8388608.0f) / 8388608.0f);
+    const auto file = folder().getChildFile ("kinds-noise.wav");
+    file.deleteFile();
+    {
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (file.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (32));
+        w->writeFromAudioSampleBuffer (noise, 0, noise.getNumSamples());
+    }
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Noise");
+    auto clip = audioClip (file, PPQ, PPQ * 2);
+    clip.audio.sourceLength = 1.0;
+    edit::addClip (c.project, t, clip);
+    c.project.track (t)->pan = 0;
+    const Id sum = edit::addTrack (c.project, TrackKind::Summing, "Summing");
+    c.project.track (sum)->armed = true;
+    c.focusTrack = sum;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 2.0);
+    c.stop();
+
+    const auto* s = c.project.track (sum);
+    CHECK_EQ (s->clips().size(), size_t (1));
+    if (s->clips().empty()) return;
+    const auto& take = s->clips().front();
+    const auto recorded = read (File (String (take.audio.file)));
+    const int at = (int) std::llround ((take.audio.sourceStart + 0.5) * 48000);
+    float worst = recorded.getNumSamples() >= at + 48000 ? 0.0f : 1.0f;
+    for (int ch = 0; ch < 2 && worst == 0.0f; ++ch)
+        for (int i = 0; i < 48000; ++i)
+            worst = jmax (worst, std::abs (recorded.getSample (ch, at + i) - noise.getSample (ch, i)));
+    CHECK_EQ (worst, 0.0f);
+}
+
+TEST ("recording: what the interface sends is written as it came, sample for sample, at 32-bit float (0081)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Vocal");
+    c.project.track (t)->armed = true;
+    c.focusTrack = t;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    // A converter's 24-bit words, coming in for a second.
+    const int n = 512, blocks = 94;
+    AudioBuffer<float> sent (2, n * blocks), out (2, n);
+    Random rng (9);
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < sent.getNumSamples(); ++i)
+            sent.setSample (ch, i, (float) std::round ((rng.nextFloat() * 1.9f - 0.95f) * 8388608.0f) / 8388608.0f);
+    for (int b = 0; b < blocks; ++b)
+    {
+        const float* ins[] { sent.getReadPointer (0, b * n), sent.getReadPointer (1, b * n) };
+        float* outs[] { out.getWritePointer (0), out.getWritePointer (1) };
+        engine.audioDeviceIOCallbackWithContext (ins, 2, outs, 2, n, {});
+    }
+    c.stop();
+    const auto* tr = c.project.track (t);
+    CHECK_EQ (tr->clips().size(), size_t (1));
+    if (tr->clips().empty()) return;
+    const File taken (String (tr->clips().front().audio.file));
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (taken));
+    CHECK (r != nullptr);
+    if (! r) return;
+    CHECK_EQ ((int) r->bitsPerSample, 32);
+    CHECK (r->usesFloatingPointData);
+    const auto got = read (taken);
+    CHECK (got.getNumSamples() >= sent.getNumSamples() - 4 * n);
+    // Where the take begins in what was sent (recording starts with the next block).
+    int from = -1;
+    for (int d = 0; d < 4 * n && from < 0; ++d)
+        if (got.getSample (0, 0) == sent.getSample (0, d) && got.getSample (0, 1) == sent.getSample (0, d + 1)) from = d;
+    CHECK (from >= 0);
+    float worst = 0;
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i + from < sent.getNumSamples() && i < got.getNumSamples(); ++i)
+            worst = jmax (worst, std::abs (got.getSample (ch, i) - sent.getSample (ch, i + from)));
+    CHECK_EQ (worst, 0.0f);
+}
+
 TEST ("versions: choosing a number switches every chosen track that has it, and leaves the others")
 {
     PluginManager plugins;

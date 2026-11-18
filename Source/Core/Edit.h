@@ -121,6 +121,8 @@ bool addSend (Project&, Id from, Id to, double gainDb = -6.0);
 
 AutomationLane& laneFor (Track&, const AutoTarget&, double defaultValue);
 double valueAt (const AutomationLane&, Tick, double fallback);
+// Between ticks too: the audio thread follows a curve sample by sample.
+double valueAtTicks (const AutomationLane&, double ticks, double fallback);
 void addPoint (AutomationLane&, AutoPoint);
 void removePointsIn (AutomationLane&, Tick from, Tick to);
 // Writes a value at a tick as a performer would: Touch and Latch replace what

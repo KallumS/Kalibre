@@ -249,23 +249,35 @@ CompiledTrack compile (const Project& p, const Track& t)
         }
         else
         {
-            AudioRegion r;
-            r.clip = c.id;
-            // The edges' fine part puts them between ticks, on a zero crossing (decision 0054).
-            r.startSeconds = tempo.secondsAt (c.start) + c.audio.startFine + trackDelay;
-            r.endSeconds = tempo.secondsAt (c.end()) + c.audio.endFine + trackDelay;
             // A plain clip reads the file itself; a warped, reversed or transposed one
             // reads its own render, which starts where the clip's content starts.
             const bool plain = c.audio.warp == WarpMode::Off && ! c.audio.reversed && std::abs (c.audio.transpose) < 1e-6;
-            r.sourceSeconds = plain
-                                ? c.audio.sourceStart + (tempo.secondsAt (c.start) - tempo.secondsAt (c.start - c.offset))
-                                : tempo.secondsAt (c.start) - tempo.secondsAt (c.start - c.offset);
-            r.sourceSeconds += c.audio.startFine;
-            r.gain = std::pow (10.0, c.audio.gainDb / 20.0);
-            r.fadeIn = c.audio.fadeIn;
-            r.fadeOut = c.audio.fadeOut;
-            r.file = c.audio.renderedFile.empty() ? c.audio.file : c.audio.renderedFile;
-            out.audio.push_back (r);
+            // A looped clip plays its content again each pass: a region a pass.
+            const Tick contentStart = c.start - c.offset;
+            const Tick content = c.loopLength > 0 ? c.loopLength : std::numeric_limits<Tick>::max() / 4;
+            Tick base = contentStart;
+            if (c.loopLength > 0) base += (c.start - contentStart) / content * content;
+            for (; base < c.end(); base += content)
+            {
+                const Tick a = std::max (c.start, base), b = std::min (c.end(), c.loopLength > 0 ? base + content : c.end());
+                if (b <= a) continue;
+                AudioRegion r;
+                r.clip = c.id;
+                // The edges' fine part puts them between ticks, on a zero crossing (decision 0054).
+                const double startFine = a == c.start ? c.audio.startFine : 0.0;
+                const double endFine = b == c.end() ? c.audio.endFine : 0.0;
+                r.startSeconds = tempo.secondsAt (a) + startFine + trackDelay;
+                r.endSeconds = tempo.secondsAt (b) + endFine + trackDelay;
+                const double into = tempo.secondsAt (a) - tempo.secondsAt (base);
+                r.sourceSeconds = (plain ? c.audio.sourceStart + into : into) + startFine;
+                r.gain = std::pow (10.0, c.audio.gainDb / 20.0);
+                // Fades at the clip's own ends, not at every pass.
+                r.fadeIn = a == c.start ? c.audio.fadeIn : 0.0;
+                r.fadeOut = b == c.end() ? c.audio.fadeOut : 0.0;
+                r.file = c.audio.renderedFile.empty() ? c.audio.file : c.audio.renderedFile;
+                out.audio.push_back (r);
+                if (c.loopLength <= 0) break;
+            }
         }
     }
     std::stable_sort (out.midi.begin(), out.midi.end(), [] (const MidiMessage& a, const MidiMessage& b)

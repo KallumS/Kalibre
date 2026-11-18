@@ -1726,11 +1726,7 @@ void Arrange::clipMenu (Id id)
     });
     m.addItem ("Mute", true, clip->muted, [this, id] { c.apply ("Mute Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->muted = ! cl->muted; }); });
     m.addItem ("Lock", true, clip->locked, [this, id] { c.apply ("Lock Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->locked = ! cl->locked; }); });
-    m.addItem ("Consolidate the Chosen Clips", c.selectedClips.size() > 1, false, [this]
-    {
-        auto clips = c.selectedClips;
-        c.apply ("Consolidate", [clips] (Project& p) { edit::consolidateClips (p, clips); });
-    });
+    m.addItem ("Consolidate the Chosen Clips", ! c.selectedClips.empty(), false, [this] { c.consolidate (c.selectedClips); });
     if (! clip->isMidi())
     {
         PopupMenu warp, transpose, offline;

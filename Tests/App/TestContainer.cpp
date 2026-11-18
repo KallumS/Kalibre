@@ -207,3 +207,25 @@ TEST ("container: its plug-ins and settings come back from its state")
     CHECK (std::abs (back.c.slot (0).low->get() - 250.0f) < 1.0f);
     CHECK_EQ (back.c.slot (0).width->getIndex(), 1);
 }
+
+TEST ("container: a plug-in at 0 dB leaves the sound exactly as it was; its pan is the mixer's, constant power (0081)")
+{
+    Rig r;
+    r.add (0, "test-gain:0");
+    r.add (1, "test-gain:0");
+    auto noise = [] (int i) { const float v = (float) ((i * 7919) % 2001 - 1000) / 1024.0f; return std::pair<float, float> { v, -v * 0.5f }; };
+    const auto out = run (r.c, noise, 0.5);
+    float worst = 0;
+    for (int i = 0; i < out.getNumSamples(); ++i)
+    {
+        const auto [l, rr] = noise (i);
+        worst = jmax (worst, std::abs (out.getSample (0, i) - l), std::abs (out.getSample (1, i) - rr));
+    }
+    CHECK_EQ (worst, 0.0f);
+    // Fully left: +3 dB on the left, nothing on the right.
+    set (r.c.slot (1).pan, -1.0f);
+    auto tone = [] (int i) { return std::pair<float, float> { 0.5f * sine (i, 440), 0.5f * sine (i, 440) }; };
+    const auto panned = run (r.c, tone, 1.0);
+    CHECK (std::abs (Decibels::gainToDecibels (amount (panned, 0, 440) / 0.5f) - 3.0103f) < 0.05f);
+    CHECK (amount (panned, 1, 440) < 1.0e-6f);
+}

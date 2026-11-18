@@ -1310,6 +1310,65 @@ void Controller::refreezeMissing()
     }
 }
 
+void Controller::consolidate (const std::set<Id>& chosen)
+{
+    const Track* owner = nullptr;
+    int midi = 0, audio = 0;
+    Tick from = std::numeric_limits<Tick>::max(), to = 0;
+    std::string name;
+    for (auto cid : chosen)
+    {
+        const Track* o = nullptr;
+        const auto* c = project.clip (cid, &o);
+        if (! c) continue;
+        if (owner && o != owner) { say ("Choose clips on one track to consolidate.", true); return; }
+        owner = o;
+        (c->isMidi() ? midi : audio)++;
+        if (c->start < from) { from = c->start; name = c->name; }
+        to = std::max (to, c->end());
+    }
+    if (! owner) return;
+    if (midi > 0 && audio > 0) { say ("Choose only MIDI clips or only audio clips to consolidate.", true); return; }
+    if (midi > 0)
+    {
+        apply ("Consolidate", [&] (Project& p) { edit::consolidateClips (p, chosen); });
+        return;
+    }
+    if (owner->frozen) { say ("Unfreeze " + String (owner->name) + " to consolidate its clips.", true); return; }
+    const Id tid = owner->id;
+    if (name.empty()) name = owner->name;
+    const auto out = recordingsFolder().getNonexistentChildFile (String (name) + " consolidated", ".wav");
+    double peak = 1;
+    String error;
+    if (! engine.renderClips (project, tid, chosen, from, to, projectFolder(), out, peak, error))
+    {
+        say ("The clips couldn't be consolidated. " + error, true);
+        return;
+    }
+    const double seconds = project.tempo.secondsAt (to) - project.tempo.secondsAt (from);
+    const double rate = engine.sampleRate();
+    Id made = 0;
+    apply ("Consolidate", [&] (Project& p)
+    {
+        edit::removeClips (p, chosen);
+        Clip c;
+        c.kind = Clip::Kind::Audio;
+        c.name = name;
+        c.start = from;
+        c.length = std::max<Tick> (1, to - from);
+        c.audio.file = out.getFullPathName().toStdString();
+        c.audio.sourceLength = seconds;
+        c.audio.fileSampleRate = rate;
+        c.audio.fileChannels = 2;
+        c.audio.gainDb = 20.0 * std::log10 (peak);   // as loud as before
+        made = edit::addClip (p, tid, c);
+    });
+    selectedClip = made;
+    selectedClips = { made };
+    say ("Consolidated into one clip: a new file, normalised, the clip turned down by "
+         + String (-20.0 * std::log10 (peak), 1) + " dB to play as before.", false, true);
+}
+
 void Controller::bounceInPlace (const std::set<Id>& chosen)
 {
     // By track: each track's clips rendered together, from the first one's start.

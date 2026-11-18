@@ -237,6 +237,9 @@ public:
     // Bounce in Place (decision 0080): the clips rendered through their track's plug-ins
     // onto a new audio track under it, made like it; the clips muted. One undo step.
     void bounceInPlace (const std::set<Id>& clips);
+    // Clips on one track into one (decision 0081): MIDI clips' notes into one clip;
+    // audio clips into a new file, normalised, the clip's gain making up for it.
+    void consolidate (const std::set<Id>& clips);
     // The track alone through its own plug-ins at unity (its clips, or just `onlyClips`), from
     // `start` to `end` seconds and `tail` more, into a 32-bit float WAV. Nothing else is unloaded.
     bool renderTrackAudio (Id track, const std::set<Id>& onlyClips, double start, double end, double tail,

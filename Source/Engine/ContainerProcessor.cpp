@@ -1,6 +1,7 @@
 #include "ContainerProcessor.h"
 
 #include "Editors.h"
+#include "PanLaw.h"
 #include "PluginManager.h"
 #include "Theme.h"
 
@@ -288,14 +289,16 @@ void ContainerProcessor::processSlot (Slot& s, AudioBuffer<float>& x, int n, boo
     // What the plug-in changed, at its volume and pan, joins what passed by.
     const float g = Decibels::decibelsToGain (s.gainDb->get(), -60.0f);
     const float pan = s.pan->get();
-    const float gl = g * (pan > 0 ? 1.0f - pan : 1.0f), gr = g * (pan < 0 ? 1.0f + pan : 1.0f);
+    const auto [panL, panR] = panGains (pan);
+    const float gl = g * panL, gr = g * panR;
     for (int i = 0; i < n; ++i)
     {
         float yl = pl[i], yr = pr[i];
         if (width == Width::Mid)  { const float m = 0.5f * (yl + yr); yl = m; yr = m; }
         if (width == Width::Side) { const float sd = 0.5f * (yl + yr); yl = sd; yr = -sd; }
-        l[i] = hold (0, dl[i]) + gl * yl;
-        r[i] = hold (1, dr[i]) + gr * yr;
+        // Where the plug-in's sound meets what passed it by: added at 64 bits (0081).
+        l[i] = (float) ((double) hold (0, dl[i]) + (double) gl * (double) yl);
+        r[i] = (float) ((double) hold (1, dr[i]) + (double) gr * (double) yr);
         s.heldAt = (s.heldAt + 1) % size;
     }
 }

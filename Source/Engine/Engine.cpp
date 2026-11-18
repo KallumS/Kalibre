@@ -75,6 +75,7 @@ void Engine::audioDeviceAboutToStart (AudioIODevice* device)
 {
     rate = device->getCurrentSampleRate();
     blockSize = device->getCurrentBufferSizeSamples();
+    startedInputs = device->getActiveInputChannels().countNumberOfSetBits();
     graph.setWorkgroup (device->getWorkgroup());   // the workers are audio threads too (decision 0078)
     shared.clock.rate = rate;
     cache.setSampleRate (rate);
@@ -706,7 +707,8 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         }
 
         const int inputs = deviceManager.getCurrentAudioDevice()
-                             ? deviceManager.getCurrentAudioDevice()->getActiveInputChannels().countNumberOfSetBits() : 0;
+                             ? deviceManager.getCurrentAudioDevice()->getActiveInputChannels().countNumberOfSetBits()
+                             : startedInputs.load();   // a device started without the manager (the tests')
         for (auto* t : all)
         {
             auto& nodes = tracks[t->id];
@@ -1054,6 +1056,12 @@ bool Engine::render (const Project& project, const File& folder, const File& out
 
     const double renderRate = rate;
     const int block = 512;
+    // Every fader and send starts at its level, not faded from where the last play left it.
+    for (auto& [id, n] : tracks)
+    {
+        if (n.fader) if (auto* f = dynamic_cast<Fader*> (n.fader->getProcessor())) f->snap = true;
+        for (auto& [to, s] : n.sends) if (auto* g = dynamic_cast<SendGain*> (s->getProcessor())) g->snap = true;
+    }
     graph.setNonRealtime (true);
     graph.setPlayConfigDetails (0, outChannels, renderRate, block);
     graph.prepareToPlay (renderRate, block);
@@ -1173,7 +1181,35 @@ bool Engine::render (const Project& project, const File& folder, const File& out
         {
             if (! writeMp3 (out, result, renderRate, o.metadata, o.mp3Kbps, error)) cancelled = true;
         }
-        else writer->writeFromAudioSampleBuffer (result, 0, frames);
+        else if (writer->isFloatingPoint()) writer->writeFromAudioSampleBuffer (result, 0, frames);
+        else
+        {
+            // Whole words, each the nearest step of the file's word length (the audio
+            // engine's document: the least distortion a shorter word allows; JUCE's own
+            // conversion truncates, a step off for half the samples). A word as long
+            // as the source's, or longer, holds it exactly.
+            const int bits = jlimit (8, 32, writer->getBitsPerSample());
+            const double steps = std::ldexp (1.0, bits - 1);
+            const double low = -steps, high = steps - 1;
+            std::vector<std::vector<int>> words ((size_t) outChannels, std::vector<int> ((size_t) jmin (frames, 65536)));
+            std::vector<const int*> chans ((size_t) outChannels + 1, nullptr);
+            for (int from = 0; from < frames; from += 65536)
+            {
+                const int count = jmin (65536, frames - from);
+                for (int ch = 0; ch < outChannels; ++ch)
+                {
+                    const float* x = result.getReadPointer (ch, from);
+                    auto& w = words[(size_t) ch];
+                    for (int i = 0; i < count; ++i)
+                    {
+                        const double q = jlimit (low, high, std::round ((double) x[i] * steps));
+                        w[(size_t) i] = (int) ((long long) q * (1LL << (32 - bits)));
+                    }
+                    chans[(size_t) ch] = w.data();
+                }
+                writer->write (chans.data(), count);
+            }
+        }
     }
     writer.reset();
     if (cancelled) out.deleteFile();
@@ -1205,6 +1241,50 @@ bool Engine::renderTrack (const Project& project, Id track, const File& folder, 
     shape.clear();
     sync (project, liveTrack, folder);
     return ok;
+}
+
+bool Engine::renderClips (const Project& project, Id trackId, const std::set<Id>& chosen, Tick from, Tick to,
+                          const File& folder, const File& out, double& peak, String& error)
+{
+    const auto* original = project.track (trackId);
+    if (! original) { error = "The track isn't there."; return false; }
+    Track t = *original;
+    t.delayMs = 0;
+    std::erase_if (t.clips(), [&] (const Clip& c) { return ! chosen.count (c.id) || c.isMidi(); });
+    for (auto& c : t.clips()) c.muted = false;
+    const auto compiled = playback::compile (project, t);
+    const double start = project.tempo.secondsAt (from), end = project.tempo.secondsAt (to);
+    const auto first = (long long) std::llround (start * rate);
+    const int frames = (int) jmax<long long> (1, (long long) std::llround (end * rate) - first);
+    std::vector<double> l ((size_t) frames, 0.0), r ((size_t) frames, 0.0);
+    for (auto& region : compiled.audio)
+    {
+        const Clip* clip = nullptr;
+        for (auto& c : t.clips()) if (c.id == region.clip) clip = &c;
+        if (! clip) continue;
+        const auto& a = clip->audio;
+        const auto& name = a.renderedFile.empty() ? a.file : a.renderedFile;
+        const File f = File::isAbsolutePath (name) ? File (name) : folder.getChildFile (name);
+        auto plain = cache.file (f);
+        if (! plain) { error = "The audio of " + String (clip->name) + " couldn't be read."; return false; }
+        const bool warped = a.warp != WarpMode::Off || a.reversed || std::abs (a.transpose) > 1e-6;
+        const auto played = warped ? std::shared_ptr<const CachedAudio> (AudioCache::render (*plain, *clip, project.tempo, rate)) : plain;
+        mixRegion (region, played->buffer, rate, first, frames, l.data(), r.data());
+    }
+    peak = 0;
+    for (int i = 0; i < frames; ++i) peak = std::max ({ peak, std::abs (l[(size_t) i]), std::abs (r[(size_t) i]) });
+    const double scale = peak > 0 ? 1.0 / peak : 1.0;
+    AudioBuffer<float> b (2, frames);
+    for (int i = 0; i < frames; ++i)
+    {
+        b.setSample (0, i, (float) (l[(size_t) i] * scale));
+        b.setSample (1, i, (float) (r[(size_t) i] * scale));
+    }
+    out.deleteFile();
+    auto w = audiofile::floatWav (out, rate, 2);
+    if (! w || ! w->writeFromAudioSampleBuffer (b, 0, frames)) { error = "The file couldn't be written."; return false; }
+    if (peak <= 0) peak = 1;
+    return true;
 }
 
 bool Engine::renderOfflineFx (const Clip& clip, const File& source, const File& out, String& error)

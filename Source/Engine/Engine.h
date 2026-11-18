@@ -162,6 +162,13 @@ public:
     // Offline effects on one audio clip: its audio through a chain, into a new file.
     bool renderOfflineFx (const Clip&, const juce::File& source, const juce::File& out, juce::String& error);
 
+    // Consolidate (decision 0081): some of a track's audio clips, as they play (gain,
+    // fades, warping, loops; no plug-ins), mixed at 64 bits from `from` to `to` into a
+    // new 32-bit float WAV at the song's rate, normalised to 0 dBFS. `peak` is the
+    // level it was turned up from: the new clip's gain, so it plays as loud as before.
+    bool renderClips (const Project&, Id track, const std::set<Id>& clips, Tick from, Tick to,
+                      const juce::File& folder, const juce::File& out, double& peak, juce::String& error);
+
     Shared shared;
     AudioCache cache;
     SyncDevices syncDevices;   // MIDI clock, timecode, Link (decision 0034)
@@ -199,6 +206,7 @@ private:
     std::map<Id, Node::Ptr> deviceNodes;          // the playing versions' devices, by device id
     std::map<Id, juce::AudioPluginInstance*> araOwner;   // the instance each ARA session was started on
     bool rendering = false;   // exporting: the Cue track is left out (decision 0051)
+    std::atomic<int> startedInputs { 0 };   // the input channels of the device last started
     Id renderOnlyTrack = 0;   // rendering one track alone (decision 0080)
     std::map<Id, std::unique_ptr<AraSession>> araSessions;
     std::set<Id> araTracks;

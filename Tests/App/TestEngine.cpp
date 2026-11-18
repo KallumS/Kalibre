@@ -861,29 +861,43 @@ TEST ("multi-core: a song played on every core comes out exactly as JUCE's own g
     Engine::RenderOptions o;
     o.start = 0; o.end = 3.0; o.tail = 0.5; o.dither = false; o.bitDepth = 32;
     // Each from a fresh engine: an instrument's voices carry on from one render to the next.
-    auto render = [&] (bool parallel, const File& out)
+    // JUCE's own graph is the reference; Kalibre's plan plays on one thread (Use Every
+    // Core off) or on every core, summing at 64 bits either way (0081).
+    enum Way { Juce, OneThread, EveryCore };
+    auto render = [&] (Way way, const File& out)
     {
         PluginManager plugins;
         Engine engine (plugins);
-        engine.setParallel (parallel);
+        engine.setParallel (way == EveryCore);
+        engine.audioGraph().juceGraphOnly = way == Juce;
         String error;
         CHECK (engine.render (p, tempFolder(), out, o, {}, error));
         return engine.audioGraph().blocksByPlan.load();
     };
+    const auto juce = tempFolder().getChildFile ("graph-juce.wav");
     const auto one = tempFolder().getChildFile ("graph-one-thread.wav");
     const auto many = tempFolder().getChildFile ("graph-every-core.wav");
-    CHECK_EQ (render (false, one), 0);
-    CHECK (render (true, many) > 100);   // played by the plan, not JUCE's graph
+    CHECK_EQ (render (Juce, juce), 0);
+    CHECK (render (OneThread, one) > 100);   // played by the plan, not JUCE's graph
+    CHECK (render (EveryCore, many) > 100);
 
-    const auto a = readAll (one), b = readAll (many);
-    CHECK_EQ (a.getNumSamples(), b.getNumSamples());
-    CHECK (a.getMagnitude (0, a.getNumSamples()) > 0.1f);   // there's something to compare
-    float worst = 0;
-    for (int ch = 0; ch < jmin (a.getNumChannels(), b.getNumChannels()); ++ch)
-        for (int i = 0; i < jmin (a.getNumSamples(), b.getNumSamples()); ++i)
-            worst = jmax (worst, std::abs (a.getSample (ch, i) - b.getSample (ch, i)));
+    auto largest = [] (const AudioBuffer<float>& a, const AudioBuffer<float>& b)
+    {
+        CHECK_EQ (a.getNumSamples(), b.getNumSamples());
+        float worst = 0;
+        for (int ch = 0; ch < jmin (a.getNumChannels(), b.getNumChannels()); ++ch)
+            for (int i = 0; i < jmin (a.getNumSamples(), b.getNumSamples()); ++i)
+                worst = jmax (worst, std::abs (a.getSample (ch, i) - b.getSample (ch, i)));
+        return worst;
+    };
+    const auto r = readAll (juce), a = readAll (one), b = readAll (many);
+    CHECK (r.getMagnitude (0, r.getNumSamples()) > 0.1f);   // there's something to compare
+    // Lined up as JUCE lines it up; only the sums' last bits differ (theirs are 32-bit).
+    const float worst = largest (r, a);
     CHECK (worst < 1.0e-5f);
     if (worst >= 1.0e-5f) std::printf ("  largest difference %g\n", (double) worst);
+    // One thread or every core: the same, sample for sample.
+    CHECK_EQ (largest (a, b), 0.0f);
 }
 
 TEST ("multi-core: heavy plug-ins on several tracks are played on several threads at once, and faster (0078)")

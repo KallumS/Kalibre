@@ -57,8 +57,12 @@ public:
     std::atomic<bool> matchLoudness { false };
     LoudnessMatch match;
 
-    // Kept in step when the plug-in's latency changes (the engine is told).
-    void latencyChanged() { setLatencySamples (inner->getLatencySamples()); }
+    // Kept in step when the plug-in's latency changes (the engine is told), message thread.
+    void latencyChanged()
+    {
+        setLatencySamples (inner->getLatencySamples());
+        makeBypassDelay();
+    }
 
     //==========================================================================
     const juce::String getName() const override { return inner->getName(); }
@@ -77,6 +81,7 @@ public:
         inner->setRateAndBufferSizeDetails (rate, block);
         inner->prepareToPlay (rate, block);
         setLatencySamples (inner->getLatencySamples());
+        makeBypassDelay();
         match.prepare (rate, block);
     }
     void releaseResources() override { inner->releaseResources(); }
@@ -105,15 +110,38 @@ public:
         busyTicks.fetch_add (juce::Time::getHighResolutionTicks() - start, std::memory_order_relaxed);
     }
 
+    // Bypassed, the plug-in is out of the signal flow (the audio engine's document):
+    // it isn't called, its own bypass isn't trusted, and what comes in goes out
+    // unchanged, MIDI too; only held back as long as the plug-in would hold it,
+    // so delay compensation still lines everything up.
     void processBlockBypassed (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
     {
         if (parked.load (std::memory_order_relaxed)) { audio.clear(); midi.clear(); return; }
         if (auto* t = tap.load (std::memory_order_relaxed)) t->caught (midi, false);   // bypassed: what it would have played
-        const juce::ScopedLock lock (inner->getCallbackLock());
-        inner->processBlockBypassed (audio, midi);
+        const int n = audio.getNumSamples();
+        const int passing = juce::jmin (getMainBusNumInputChannels(), getMainBusNumOutputChannels(), audio.getNumChannels());
+        for (int ch = passing; ch < audio.getNumChannels(); ++ch) audio.clear (ch, 0, n);
+        auto* ring = bypassRing.load (std::memory_order_acquire);
+        const int delay = getLatencySamples();
+        if (delay <= 0 || ring == nullptr || passing == 0) return;
+        const int size = ring->getNumSamples();
+        const int d = juce::jmin (delay, size - 1);
+        for (int ch = 0; ch < juce::jmin (passing, ring->getNumChannels()); ++ch)
+        {
+            auto* x = audio.getWritePointer (ch);
+            auto* r = ring->getWritePointer (ch);
+            int w = bypassAt;
+            for (int i = 0; i < n; ++i)
+            {
+                r[w] = x[i];
+                x[i] = r[(w - d + size) % size];
+                if (++w == size) w = 0;
+            }
+        }
+        bypassAt = (bypassAt + n) % size;
     }
 
-    juce::AudioProcessorParameter* getBypassParameter() const override { return inner->getBypassParameter(); }
+    juce::AudioProcessorParameter* getBypassParameter() const override { return nullptr; }
     void setPlayHead (juce::AudioPlayHead* h) override { AudioPluginInstance::setPlayHead (h); inner->setPlayHead (h); }
     void setNonRealtime (bool offline) noexcept override { AudioPluginInstance::setNonRealtime (offline); inner->setNonRealtime (offline); }
 
@@ -139,6 +167,24 @@ public:
     bool isBusesLayoutSupported (const BusesLayout& l) const override { return l == inner->getBusesLayout(); }
 
 private:
+    // The delay a bypassed plug-in keeps (its latency): made on the message thread,
+    // swapped in whole; the one before is kept until the next is made.
+    std::unique_ptr<juce::AudioBuffer<float>> bypassOwned, bypassRetired;
+    std::atomic<juce::AudioBuffer<float>*> bypassRing { nullptr };
+    int bypassAt = 0;
+    void makeBypassDelay()
+    {
+        const int want = getLatencySamples() + 1;
+        const int chans = juce::jmax (1, getMainBusNumInputChannels());
+        if (want <= 1 || (bypassOwned && bypassOwned->getNumSamples() >= want && bypassOwned->getNumChannels() >= chans)) return;
+        auto next = std::make_unique<juce::AudioBuffer<float>> (chans, juce::nextPowerOfTwo (want));
+        next->clear();
+        bypassRing.store (next.get(), std::memory_order_release);
+        bypassRetired = std::move (bypassOwned);
+        bypassOwned = std::move (next);
+    }
+
+
     std::unique_ptr<juce::AudioPluginInstance> inner;
     std::string crashName;
 

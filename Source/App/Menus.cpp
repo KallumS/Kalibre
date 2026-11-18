@@ -259,7 +259,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                     c.apply ("Transpose", [=] (Project& pr) { edit::transpose (pr, cid, ids, s); });
                 }));
             m.addSubMenu ("Transpose", transpose, c.selectedClip != 0);
-            m.addItem (item ("Consolidate the Chosen Clips", [this] { auto clips = c.selectedClips; c.apply ("Consolidate", [clips] (Project& pr) { edit::consolidateClips (pr, clips); }); }, {}, c.selectedClips.size() > 1));
+            m.addItem (item ("Consolidate the Chosen Clips", [this] { c.consolidate (c.selectedClips); }, {}, ! c.selectedClips.empty()));
             m.addSeparator();
             // The song's shape (decision 0037).
             m.addItem (item ("Ripple Editing", [this] { c.ripple = ! c.ripple; c.say (c.ripple ? "Ripple editing is on: deleting a clip pulls the later clips on its track back." : "Ripple editing is off."); }, {}, true, c.ripple));

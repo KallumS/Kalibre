@@ -88,6 +88,33 @@ double AudioCache::sourceSecondsAt (const AudioData& a, Tick t)
     return audiotools::sourceSecondsAt (a, t);
 }
 
+std::optional<double> AudioCache::unstretchedStart (const Clip& clip, const TempoMap& tempo, double rate)
+{
+    const auto& a = clip.audio;
+    const Tick contentStart = clip.start - clip.offset;
+    const Tick contentLength = clip.loopLength > 0 ? clip.loopLength : clip.offset + clip.length;
+    const double t0 = tempo.secondsAt (contentStart);
+    // How far the file is ahead of the song, at a moment of the clip's content.
+    auto lead = [&] (Tick t)
+    {
+        const double s = sourceSecondsAt (a, t);
+        const double song = tempo.secondsAt (contentStart + t) - t0;
+        return (s < 0 ? a.sourceStart + song : s) - song;
+    };
+    // Where either can bend: the ends, the markers, the tempo's changes; and halfway between.
+    std::vector<Tick> at { 0, contentLength };
+    for (auto& m : a.markers) if (m.tick > 0 && m.tick < contentLength) at.push_back (m.tick);
+    for (auto& tp : tempo.tempos()) if (tp.tick > contentStart && tp.tick < contentStart + contentLength) at.push_back (tp.tick - contentStart);
+    std::sort (at.begin(), at.end());
+    at.erase (std::unique (at.begin(), at.end()), at.end());
+    const size_t ends = at.size();
+    for (size_t i = 0; i + 1 < ends; ++i) at.push_back ((at[i] + at[i + 1]) / 2);
+    const double first = lead (0);
+    for (Tick t : at)
+        if (std::abs (lead (t) - first) * rate > 0.01) return std::nullopt;
+    return first;
+}
+
 std::shared_ptr<CachedAudio> AudioCache::render (const CachedAudio& src, const Clip& clip, const TempoMap& tempo, double rate)
 {
     auto out = std::make_shared<CachedAudio>();
@@ -112,6 +139,27 @@ std::shared_ptr<CachedAudio> AudioCache::render (const CachedAudio& src, const C
         const double s = sourceSecondsAt (a, (Tick) std::llround (ticks));
         return (s < 0 ? a.sourceStart + frame / rate : s) * rate;
     };
+
+    // At its own tempo the clip plays unstretched in every warp mode (the audio
+    // engine's document): the file's own samples, copied, never through a
+    // stretcher, so a clip whose tempo is the song's is neutral, and is again
+    // whenever the tempo comes back to it.
+    if (std::abs (a.transpose) < 1e-9)
+        if (const auto start = unstretchedStart (clip, tempo, rate))
+        {
+            const auto first = (long long) std::llround (*start * rate);
+            for (int c = 0; c < 2; ++c)
+            {
+                const auto* s = source.getReadPointer (c);
+                auto* o = out->buffer.getWritePointer (c);
+                for (int i = 0; i < frames; ++i)
+                {
+                    const long long p = first + i;
+                    if (p >= 0 && p < srcFrames) o[i] = s[p];
+                }
+            }
+            return out;
+        }
 
     switch (a.warp)
     {
