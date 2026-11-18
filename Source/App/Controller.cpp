@@ -748,15 +748,9 @@ File Controller::backupsFolder() const
 Array<File> Controller::backups() const
 {
     const auto stem = file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Untitled");
-    auto found = backupsFolder().findChildFiles (File::findFiles, false, stem + " *.kalibre");
-    // Newest first: by when each was written, then by name ("... (2)" came after).
-    std::sort (found.begin(), found.end(), [] (const File& a, const File& b)
-    {
-        const auto ta = a.getLastModificationTime(), tb = b.getLastModificationTime();
-        if (ta != tb) return ta > tb;
-        if (a.getFileName().length() != b.getFileName().length()) return a.getFileName().length() > b.getFileName().length();
-        return a.getFileName() > b.getFileName();
-    });
+    auto found = backupsFolder().findChildFiles (File::findFiles, false, stem + " 2???-??-?? *.kalibre");
+    // Newest first: their names are when they were made, to the millisecond.
+    std::sort (found.begin(), found.end(), [] (const File& a, const File& b) { return a.getFileName() > b.getFileName(); });
     return found;
 }
 
@@ -769,8 +763,11 @@ bool Controller::backup()
     auto folder = backupsFolder();
     folder.createDirectory();
     const auto stem = file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Untitled");
-    // Named by when it was made.
-    const auto f = folder.getNonexistentChildFile (stem + " " + Time::getCurrentTime().formatted ("%Y-%m-%d %H.%M.%S"), ".kalibre", false);
+    // Named by when it was made, so they sort by name; never two the same.
+    auto when = Time::getCurrentTime();
+    auto nameAt = [&] (Time t) { return folder.getChildFile (stem + " " + t.formatted ("%Y-%m-%d %H.%M.%S.") + String (t.getMilliseconds()).paddedLeft ('0', 3) + ".kalibre"); };
+    while (nameAt (when).exists()) when += RelativeTime::milliseconds (1);
+    const auto f = nameAt (when);
     if (! f.replaceWithText (text)) return false;
     lastBackupText = text;
     auto all = backups();
