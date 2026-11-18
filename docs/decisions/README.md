@@ -75,3 +75,7 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0071. The chord at the top is what's played; clips' chords when asked; loop to clips](0071-chords-when-asked.md)
 - [0072. The Articulation Manager: maps imported, chosen in the piano roll](0072-articulation-manager.md)
 - [0073. Crash reports and backups every 15 minutes](0073-crash-reports-and-backups.md)
+- [0074. Alias clips; the I/O button on track headers](0074-alias-clips-and-the-io-button.md)
+- [0075. Select notes by what they are; Explode Chords](0075-select-and-explode.md)
+- [0076. Step input](0076-step-input.md)
+- [0077. DAWproject in and out](0077-dawproject.md)

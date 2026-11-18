@@ -23,6 +23,12 @@ Every feature asked for, then the list of basic DAW features
 | Loop to clips | Yes | Right-click clips > Set the Loop to the Clip(s); tested (0071) |
 | Articulation Manager | Yes | File > Articulation Manager…: import Cubase expression maps, Logic articulation sets and Reaticulate banks into a library; use one on a track; the piano roll's Velocity ▾ > Articulation Map chooses too; tested (0072) |
 | Crash reports and backups | Yes, to see on the Mac | A crash writes a report (what, the plug-in playing, the stack), told of on the next start, Help > Show Crash Reports; a backup every 15 minutes while it has changed, File > Open a Backup, the newest 48 kept; tested (0073) |
+| Alias clips | Yes | Right-click clips > Create Alias Clip: its duplicates are edited together; a chain on each; Make Independent; tested (0074) |
+| I/O on track headers | Yes | The I/O button beside M, S, R: audio and MIDI in, channel, MPE, monitoring, out, sends; tested (0074) |
+| Select notes | Yes | Select ▾ on the editor bar: each chord's roots, 3rds to 13ths; every beat or off beat; the bottom or top notes; beats in the pattern editors; tested (0075) |
+| Explode chords | Yes | Select ▾ or right-click clips > Explode Chords to Tracks: a track for each voice, with the track's plug-ins; tested (0075) |
+| Step input | Yes | Step Input on the editor bar (piano roll, notation, drums): hold keys, 1-8 for 1/128 to 1/1, 9 dotted, 0 triplet, let go; tested (0076) |
+| DAWproject | Yes, not yet tried with Bitwig, Studio One or Cubase | File > Open a DAWproject… / Export a DAWproject…: tracks, folders, returns, mix, sends, tempo, time signatures, markers, MIDI and audio clips, plug-ins by name; checked against the format's schema; tested. Automation, warping and other programs' plug-in settings not yet (0077) |
 | Plug-in sandboxing | Not yet | A plug-in that crashes while playing still takes Kalibre down (scanning is already safe, 0047). Running plug-ins in helpers is a big change with costs: see the session log of 18 November |
 | Using all the Mac's cores | Not yet | The audio runs on one thread: every track's plug-ins one after another. Spreading tracks across the cores is planned; see the session log of 18 November |
 | Everything in one window | Yes | 0002. Small questions appear over the window, inside it. Settings may have their own window (amended 16 November; the Plug-in Manager) |
@@ -87,4 +93,4 @@ Every feature asked for, then the list of basic DAW features
 | 13. Sync and control | Yes | MIDI clock in and out, Song Position, MTC out and chased in, MMC out and in, Ableton Link, Mackie Control, HUI, OSC, the Mac's network MIDI from the Studio tab (0034, 0035, 0043). Not yet tried with real gear |
 | 14. Metering | Yes | Peak and RMS meters, loudness, true peak and correlation (0033); spectrum, oscilloscope, phase scope and tuner in the Meters tab (0044) |
 | 15. Workflow | Yes | Keys for everything, every one changeable (the browser's Keys tab), workspaces (View > Workspaces) (0045), undo history, context menus, drag and drop, Text Size |
-| 16. Collaboration | Partly | Audio and MIDI import/export, MusicXML in and out (0057), stems, Final Cut XML out and in, archives (0041). AAF and OMF aren't written: they need the AAF SDK's binary container; XML carries the clips to Resolve, Premiere and Logic |
+| 16. Collaboration | Partly | Audio and MIDI import/export, MusicXML in and out (0057), DAWproject in and out (0077), stems, Final Cut XML out and in, archives (0041). AAF and OMF aren't written: they need the AAF SDK's binary container; XML carries the clips to Resolve, Premiere and Logic |

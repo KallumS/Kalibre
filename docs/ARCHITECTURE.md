@@ -32,6 +32,9 @@
 | `Core/Xml.*`, `Core/MusicXml.*` | A small XML reader and writer (Miderator's), and MusicXML in and out (0057). |
 | `Core/ProjectFile.*` | `.kalibre` files: JSON with nlohmann/json; the articulation library. |
 | `Core/Articulations.*` | Cubase, Logic and Reaticulate articulation maps read (0072). |
+| `Core/NoteSelect.*` | Notes chosen by chord degree, beat and line; Explode Chords (0075). |
+| `Core/StepInput.*` | Step input's keys and lengths (0076). |
+| `Core/DawProject.*` | DAWproject's XML, in and out; the zip is the window's (0077). |
 | `Source/Script/LuaHost.*` | The `kalibre` Lua API (0019). |
 | `Source/Engine/` | JUCE's audio side. |
 | `Engine/Engine.*` | The audio graph built from the project, plug-in instances kept across changes, the transport and loop, rendering (0016). |
