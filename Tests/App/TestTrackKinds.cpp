@@ -1446,3 +1446,26 @@ TEST ("dawproject: a song exported with its audio and Kalibre's own devices, and
     CHECK (c.file == File());
     CHECK (c.dirty);
 }
+
+TEST ("multi-core: playing live through an audio device, the plan plays the blocks once JUCE's graph has had its one, and the sound is there (0078)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    engine.setParallel (true);
+    FakeDevice device;
+    Project p;
+    for (int i = 0; i < 3; ++i)
+    {
+        const Id t = edit::addTrack (p, TrackKind::Track, "Click " + std::to_string (i));
+        edit::addClip (p, t, audioClip (clickFile (0.25), 0, PPQ * 4));
+        edit::addDevice (p, t, gain (-6.0f * (float) i), DeviceRole::AudioFx);
+        p.track (t)->pan = 0;
+    }
+    startLive (engine, device, p);
+    engine.locate (0);
+    engine.play();
+    const auto live = playLive (engine, 0.5);
+    engine.stop();
+    CHECK (engine.audioGraph().blocksByPlan.load() > 30);
+    CHECK (peak (live, 0).second > 0.5f);
+}

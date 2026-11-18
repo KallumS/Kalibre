@@ -79,6 +79,8 @@ private:
     std::atomic<int> busy { 0 };
     std::unique_ptr<Plan> owned;                 // the plan `current` points to (message thread)
     std::atomic<bool> needsPlan { false }, prepared { false };
+    // Counts every prepare and release: a plan is used only with the settings it was made for.
+    std::atomic<int> settingsVersion { 0 };
     juce::String signature;
 
     class Worker;
@@ -95,7 +97,8 @@ private:
     juce::AudioWorkgroup workgroup;
     std::atomic<int> workgroupVersion { 0 };
 
-    void buildPlan();
+    void refresh();            // JUCE's graph rebuilt (its nodes prepared), then a plan made
+    void buildPlan (int version);
     void install (std::unique_ptr<Plan>);
     void startWorkers();
     void stopWorkers();

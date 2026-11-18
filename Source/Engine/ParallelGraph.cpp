@@ -67,7 +67,7 @@ struct ParallelGraph::Plan
     };
 
     double rate = 0;
-    int block = 0;
+    int block = 0, version = 0;
     std::vector<Item> items;
     std::vector<Line> lines;
     std::vector<int> roots;
@@ -286,8 +286,16 @@ void ParallelGraph::setWorkgroup (AudioWorkgroup wg)
 //==============================================================================
 void ParallelGraph::rebuild()
 {
-    AudioProcessorGraph::rebuild();
-    if (MessageManager::existsAndIsCurrentThread()) buildPlan();
+    if (MessageManager::existsAndIsCurrentThread()) refresh();
+    else AudioProcessorGraph::rebuild();
+}
+
+void ParallelGraph::refresh()
+{
+    // The version first: a prepare from the device's thread after this makes the plan stale.
+    const int version = settingsVersion.load();
+    AudioProcessorGraph::rebuild();   // every node prepared for the current settings
+    buildPlan (version);
 }
 
 void ParallelGraph::prepareToPlay (double rate, int block)
@@ -299,14 +307,16 @@ void ParallelGraph::prepareToPlay (double rate, int block)
         // From the device's thread, when no block is being played: just stop using it.
         current.store (nullptr);
     }
+    settingsVersion.fetch_add (1);
     AudioProcessorGraph::prepareToPlay (rate, block);
     prepared = true;
     needsPlan = true;
-    if (MessageManager::existsAndIsCurrentThread()) buildPlan();
+    if (MessageManager::existsAndIsCurrentThread()) refresh();
 }
 
 void ParallelGraph::releaseResources()
 {
+    settingsVersion.fetch_add (1);
     prepared = false;
     if (MessageManager::existsAndIsCurrentThread()) install (nullptr);
     else current.store (nullptr);
@@ -317,11 +327,7 @@ void ParallelGraph::timerCallback()
 {
     // JUCE rebuilds by itself too (a node added without asking): keep up.
     if (! prepared.load()) return;
-    if (needsPlan.load() || currentSignature() != signature)
-    {
-        AudioProcessorGraph::rebuild();   // every node prepared for the current settings
-        buildPlan();
-    }
+    if (needsPlan.load() || currentSignature() != signature) refresh();
 }
 
 String ParallelGraph::currentSignature()
@@ -345,7 +351,7 @@ void ParallelGraph::install (std::unique_ptr<Plan> next)
     owned = std::move (next);
 }
 
-void ParallelGraph::buildPlan()
+void ParallelGraph::buildPlan (int version)
 {
     needsPlan = false;
     signature = currentSignature();
@@ -356,6 +362,7 @@ void ParallelGraph::buildPlan()
     auto plan = std::make_unique<Plan>();
     plan->rate = rate;
     plan->block = block;
+    plan->version = version;
     const auto& nodes = getNodes();
     const auto connections = getConnections();
 
@@ -512,7 +519,7 @@ void ParallelGraph::processBlock (AudioBuffer<float>& buffer, MidiBuffer& midi)
     busy.store (1);
     Plan* p = current.load();
     if (p == nullptr || ! parallel.load() || n > p->block || n <= 0 || p->rate != getSampleRate()
-        || p->handover.exchange (false))
+        || p->block != getBlockSize() || p->version != settingsVersion.load() || p->handover.exchange (false))
     {
         // JUCE's graph plays this one (and after a new plan, lets go of old nodes).
         busy.store (0);
