@@ -113,7 +113,7 @@ grow and shrink with it.
   wherever signals meet, so mixing, routing, unstretched clips, splits,
   bypassed effects, freezing and recording leave the sound exactly as it
   was, each proved by a cancellation test. Constant-power panning, 0 dB in
-  the middle; volume and pan automation sample by sample; **Consolidate** for audio
+  the middle; every automation lane sample accurate; **Consolidate** for audio
   clips.
 - **Audio tools**: normalise, strip silence, quantise audio to the grid, a
   sample editor with a spectrogram, **snap to zero crossings**.

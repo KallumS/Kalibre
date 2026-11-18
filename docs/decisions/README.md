@@ -89,3 +89,6 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0085. Fix Note Timings and Volume: Note Position & Volume Fixer, built in](0085-fix-note-timings-and-volume.md)
 - [0086. A switched-off plug-in keeps its delay](0086-a-switched-off-plug-in-keeps-its-delay.md)
 - [0087. DAWproject automation curves](0087-dawproject-automation-curves.md)
+- [0088. At most 1000 tracks](0088-at-most-1000-tracks.md)
+- [0089. Every automation lane sample accurate](0089-sample-accurate-automation.md)
+- [0090. Fix Note Timings and Volume hears the samples, not the clip's dynamics](0090-the-fixer-hears-the-samples.md)

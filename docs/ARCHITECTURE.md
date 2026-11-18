@@ -114,6 +114,12 @@ performance core, each as soon as what feeds it is done (0078).
 - A bypassed plug-in is never called: `TimedPlugin` passes the sound on,
   delayed by its latency (0081). Its own bypass parameter isn't used. A
   switched-off one is stood in for by a `HeldDelay` as long (0086).
+- Automation is drawn sample by sample by the track's Source, which plays
+  before everything it moves (0089). A plug-in's block is cut into pieces at
+  its lanes' points by `TimedPlugin`; anything that adds automation reads the
+  Source's `blockTicks`, never once a block.
+- At most 1000 tracks, checked in `Controller::apply` (0088): a change that
+  adds tracks some other way (a script, opening a file) checks too.
 - A gesture is one `Controller::apply` (one undo step).
 - A track's devices stay MIDI effects, instruments, audio effects (`edit::normaliseChain`).
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).
