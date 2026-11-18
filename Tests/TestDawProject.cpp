@@ -203,3 +203,110 @@ TEST ("dawproject: Bitwig's way of writing it: nested lanes, notes in a clip's l
     }
     CHECK (! dawproject::read ("<NotAProject/>").ok);
 }
+
+#include "AudioTools.h"
+
+TEST ("dawproject: automation (volume, pan, mute, sends, plug-ins' parameters, the master) and warping, written and read back (0084)")
+{
+    Project p;
+    p.tempo.setTempoAt (0, 120);
+    const Id keys = edit::addTrack (p, TrackKind::Track, "Keys");
+    const Id verb = edit::addTrack (p, TrackKind::Return, "Reverb");
+    edit::addSend (p, keys, verb, -12.0);
+    const Id synth = edit::addDevice (p, keys, PluginRef { "Kalibre", "synth", "Kalibre Synth" }, DeviceRole::Instrument);
+    auto lane = [&] (Track& t, AutoTarget target, std::vector<AutoPoint> pts)
+    {
+        AutomationLane l;
+        l.id = p.newId();
+        l.target = target;
+        l.points = std::move (pts);
+        t.automation.push_back (l);
+    };
+    AutoTarget vol; vol.kind = AutoTarget::Kind::Volume;
+    AutoTarget pan; pan.kind = AutoTarget::Kind::Pan;
+    AutoTarget mute; mute.kind = AutoTarget::Kind::Mute;
+    AutoTarget send; send.kind = AutoTarget::Kind::SendLevel; send.send = verb;
+    AutoTarget param; param.kind = AutoTarget::Kind::DeviceParam; param.device = synth; param.param = 3; param.paramName = "Cutoff";
+    lane (*p.track (keys), vol, { { 0, 0.9 }, { PPQ * 4, 0.5 }, { PPQ * 8, 0.75, 0, true } });
+    lane (*p.track (keys), pan, { { 0, 0.5 }, { PPQ * 2, 0.0 } });
+    lane (*p.track (keys), mute, { { 0, 0.0, 0, true }, { PPQ * 6, 1.0, 0, true } });
+    lane (*p.track (keys), send, { { 0, 0.3 }, { PPQ * 4, 0.6 } });
+    lane (*p.track (keys), param, { { PPQ, 0.2 }, { PPQ * 3, 0.8 } });
+    lane (p.master, vol, { { 0, 0.8 }, { PPQ * 16, 0.6 } });
+
+    // Warped audio: by markers, and by the file's own tempo alone.
+    const Id vox = edit::addTrack (p, TrackKind::Track, "Vocal");
+    Clip a;
+    a.kind = Clip::Kind::Audio;
+    a.start = PPQ * 4;
+    a.length = PPQ * 4;
+    a.offset = PPQ;
+    a.audio.file = "Audio/vox.wav";
+    a.audio.sourceLength = 3.0;
+    a.audio.warp = WarpMode::Spectral;
+    a.audio.markers = { { 0.0, 0 }, { 1.0, PPQ * 2 }, { 2.5, PPQ * 5 } };
+    edit::addClip (p, vox, a);
+    Clip b = a;
+    b.start = PPQ * 12;
+    b.offset = 0;
+    b.audio.markers.clear();
+    b.audio.warp = WarpMode::Repitch;
+    b.audio.sourceBpm = 100;
+    b.audio.sourceStart = 0.5;
+    b.loopLength = PPQ * 2;
+    b.length = PPQ * 4;
+    edit::addClip (p, vox, b);
+
+    const auto w = dawproject::write (p, "1.0");
+    CHECK (w.projectXml.find ("<Points") != std::string::npos);
+    CHECK (w.projectXml.find ("<Warps") != std::string::npos);
+    const auto r = dawproject::read (w.projectXml, w.metadataXml);
+    CHECK (r.ok);
+    for (auto& s : r.leftOut) CHECK (s.find ("automation") == std::string::npos && s.find ("warping") == std::string::npos);
+    const auto& q = r.project;
+    const auto* k = named (q, "Keys");
+    const auto* rv = named (q, "Reverb");
+    CHECK (k && rv);
+    if (! k || ! rv) return;
+    auto find = [] (const Track& t, AutoTarget::Kind kind) -> const AutomationLane*
+    {
+        for (auto& l : t.automation) if (l.target.kind == kind) return &l;
+        return nullptr;
+    };
+    auto same = [] (const AutomationLane* l, std::vector<AutoPoint> want)
+    {
+        if (! l || l->points.size() != want.size()) return false;
+        for (size_t i = 0; i < want.size(); ++i)
+            if (l->points[i].tick != want[i].tick || std::abs (l->points[i].value - want[i].value) > 1.0e-4 || l->points[i].step != want[i].step) return false;
+        return true;
+    };
+    CHECK (same (find (*k, AutoTarget::Kind::Volume), { { 0, 0.9 }, { PPQ * 4, 0.5 }, { PPQ * 8, 0.75, 0, true } }));
+    CHECK (same (find (*k, AutoTarget::Kind::Pan), { { 0, 0.5 }, { PPQ * 2, 0.0 } }));
+    CHECK (same (find (*k, AutoTarget::Kind::Mute), { { 0, 0.0, 0, true }, { PPQ * 6, 1.0, 0, true } }));
+    const auto* s = find (*k, AutoTarget::Kind::SendLevel);
+    CHECK (same (s, { { 0, 0.3 }, { PPQ * 4, 0.6 } }));
+    if (s) CHECK_EQ (s->target.send, rv->id);
+    const auto* pl = find (*k, AutoTarget::Kind::DeviceParam);
+    CHECK (same (pl, { { PPQ, 0.2 }, { PPQ * 3, 0.8 } }));
+    if (pl && ! k->devices.empty())
+    {
+        CHECK_EQ (pl->target.device, k->devices[0].id);
+        CHECK_EQ (pl->target.param, 3);
+        CHECK_EQ (pl->target.paramName, std::string ("Cutoff"));
+    }
+    CHECK (same (find (q.master, AutoTarget::Kind::Volume), { { 0, 0.8 }, { PPQ * 16, 0.6 } }));
+
+    const auto* v = named (q, "Vocal");
+    CHECK (v != nullptr);
+    if (! v || v->clips().size() != 2) { CHECK (false); return; }
+    const auto& ca = v->clips()[0];
+    CHECK_EQ (ca.audio.warp, WarpMode::Spectral);
+    CHECK_EQ (ca.offset, Tick (PPQ));
+    CHECK (ca.audio.markers == a.audio.markers);
+    const auto& cb = v->clips()[1];
+    CHECK_EQ (cb.audio.warp, WarpMode::Repitch);
+    CHECK_EQ (cb.loopLength, Tick (PPQ * 2));
+    // The same moment of the file at each end of the content.
+    for (Tick t : { Tick (0), Tick (PPQ), Tick (PPQ * 2) })
+        CHECK (std::abs (audiotools::sourceSecondsAt (cb.audio, t) - audiotools::sourceSecondsAt (b.audio, t)) < 1.0e-6);
+}
