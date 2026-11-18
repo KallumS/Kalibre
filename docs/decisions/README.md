@@ -79,3 +79,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0075. Select notes by what they are; Explode Chords](0075-select-and-explode.md)
 - [0076. Step input](0076-step-input.md)
 - [0077. DAWproject in and out](0077-dawproject.md)
+- [0078. The audio on every performance core](0078-every-core.md)

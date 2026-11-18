@@ -46,6 +46,7 @@
 | `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |
 | `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |
 | `Engine/Warp.*` | Audio in memory, and warping (0022). |
+| `Engine/ParallelGraph.*` | The graph played on every performance core: a plan made after each rebuild, nodes taken by the audio thread and workers as their inputs finish (0078). |
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
 | `Engine/Editors.h` | Opening and closing plug-ins' windows, telling the plug-in first (0056). |
 | `Engine/LoudnessMatch.h` | Match Loudness: output held to the input's short-term loudness (0056). |
@@ -90,7 +91,8 @@ When the project changes, the controller calls `Engine::sync`: instances
 still wanted are kept, new ones made, deactivated ones dropped; the graph is
 rewired only when its shape changed; each Source gets new playback lists
 through `Swap`. The audio callback moves the transport, works out where the
-loop wraps inside the block, and runs the graph.
+loop wraps inside the block, and runs the graph: its nodes on every
+performance core, each as soon as what feeds it is done (0078).
 
 ## Rules that are easy to break
 
@@ -116,5 +118,6 @@ loop wraps inside the block, and runs the graph.
 - The arrangement snaps with `arrangeSnap` (the top bar's Grid), the editors with `snapTick` (the lower zone's) (0070).
 - A plug-in's role is `PluginManager::roleOf` (the user's filing, what the scan learned, then the description), never the static `roleFor` alone (0069).
 - The crash handler may only use calls safe in a signal handler: no allocation, no JUCE (0073).
+- The graph's nodes play on several threads at once (0078): a processor may not share state with another node unless it's marked `runsAlone`; anything per thread is `thread_local`. Rebuild the graph with `graph.rebuild()` on the message thread, so a plan is made.
 - Lua is compiled as C++ (0068): include its headers plainly, never inside `extern "C"`, or nothing links.
 - The family's scripts in `Engines/` are copied unchanged: what Kalibre needs differently goes in its own stand-ins (`Engines/tools/sb_place.lua`, `mc_place.lua`) or the host, and a fix to a script goes to its repo first.

@@ -30,7 +30,7 @@ Every feature asked for, then the list of basic DAW features
 | Step input | Yes | Step Input on the editor bar (piano roll, notation, drums): hold keys, 1-8 for 1/128 to 1/1, 9 dotted, 0 triplet, let go; tested (0076) |
 | DAWproject | Yes, not yet tried with Bitwig, Studio One or Cubase | File > Open a DAWproject… / Export a DAWproject…: tracks, folders, returns, mix, sends, tempo, time signatures, markers, MIDI and audio clips, plug-ins by name; checked against the format's schema; tested. Automation, warping and other programs' plug-in settings not yet (0077) |
 | Plug-in sandboxing | Not yet | A plug-in that crashes while playing still takes Kalibre down (scanning is already safe, 0047). Running plug-ins in helpers is a big change with costs: see the session log of 18 November |
-| Using all the Mac's cores | Not yet | The audio runs on one thread: every track's plug-ins one after another. Spreading tracks across the cores is planned; see the session log of 18 November |
+| Using all the Mac's cores | Yes, to feel on the Mac | Tracks' plug-ins play side by side on every performance core, the workers in the audio device's workgroup; the same sound, sample for sample; Use Every Core in the Audio tab; tested (0078) |
 | Everything in one window | Yes | 0002. Small questions appear over the window, inside it. Settings may have their own window (amended 16 November; the Plug-in Manager) |
 | App icon | Yes | A K with a calibrated stem and a yellow arm (0048) |
 | Quitting ends the program | Yes, not yet confirmed on the Mac | A watchdog ends it five seconds after shutdown starts, so a plug-in or driver can't keep it running (0049) |
@@ -87,7 +87,7 @@ Every feature asked for, then the list of basic DAW features
 | 7. Automation | Yes | Lanes, breakpoints, curves, Read/Touch/Latch/Write/Trim (Trim keeps the shape, moved by the hand), last touched, tempo automation, mix moves written, copy and paste, mute and send lanes played (0038); tested |
 | 8. Instruments | Yes | Any AU/VST3/CLAP instrument; Kalibre Synth and Kalibre Sampler (0039); the X/Y morph; tested |
 | 9. Plug-in hosting | Yes | Scanning in a helper, so a crashing plug-in is turned off instead of closing Kalibre; the Plug-in Manager (0047). Search, bypass, remove, reorder, state, latency, last touched, MIDI learn. Presets (saved per plug-in, the plug-in's own programs, a browser tab) and A/B compare, each undoable (0039) |
-| 10. Audio engine | Yes | Device, rate, buffer, inputs and outputs, offline rendering, PDC. CPU per track in the mixer, the whole load as a percentage in the top bar (0038, 0070). One audio thread: not yet spread across cores |
+| 10. Audio engine | Yes | Device, rate, buffer, inputs and outputs, offline rendering, PDC. CPU per track in the mixer, the whole load as a percentage in the top bar (0038, 0070). Every performance core (0078) |
 | 11. Projects | Yes | New, open, save, autosave, backups every 15 minutes (0073), a JSON format that survives versions. Templates, Collect All Files and Save, Relink Missing Files, archives (0041); tested |
 | 12. Export | Yes | Mix and tracks as WAV, AIFF, FLAC or MP3 (320 kb/s), 16/24/32-bit, dither, normalise, loudness targets, MIDI. Song Details written into WAV and MP3; Export Several at Once (0041); tested. FLAC and AIFF carry no tags |
 | 13. Sync and control | Yes | MIDI clock in and out, Song Position, MTC out and chased in, MMC out and in, Ableton Link, Mackie Control, HUI, OSC, the Mac's network MIDI from the Studio tab (0034, 0035, 0043). Not yet tried with real gear |
