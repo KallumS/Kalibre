@@ -10,7 +10,7 @@ std::unique_ptr<juce::AudioPluginInstance> makeInstantVirtualInstrument()
     juce::PluginDescription d;
     d.name = d.descriptiveName = "Instant Virtual Instrument";
     d.pluginFormatName = "Kalibre";
-    d.manufacturerName = "KallumS";
+    d.manufacturerName = "Kalibre";
     d.fileOrIdentifier = "instant-virtual-instrument";
     d.isInstrument = true;
     d.numInputChannels = 0;

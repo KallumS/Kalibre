@@ -37,7 +37,7 @@ PluginRef luaToolRef (const LuaToolSpec& s)
     r.format = "Kalibre";
     r.identifier = std::string ("tool:") + s.id;
     r.name = s.name;
-    r.manufacturer = "KallumS";
+    r.manufacturer = "Kalibre";
     return r;
 }
 
@@ -49,7 +49,7 @@ std::unique_ptr<AudioPluginInstance> makeLuaTool (const PluginRef& ref)
         PluginDescription d;
         d.name = d.descriptiveName = s.name;
         d.pluginFormatName = "Kalibre";
-        d.manufacturerName = "KallumS";
+        d.manufacturerName = "Kalibre";
         d.fileOrIdentifier = ref.identifier;
         d.category = "MIDI Effect";
         d.numInputChannels = d.numOutputChannels = 2;

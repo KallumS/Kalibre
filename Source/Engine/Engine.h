@@ -22,6 +22,7 @@
 #include "AraHost.h"
 #include "Loudness.h"
 #include "MidiLearn.h"
+#include "ParallelGraph.h"
 #include "PluginManager.h"
 #include "SyncDevices.h"
 #include "TrackProcessors.h"
@@ -60,6 +61,11 @@ public:
     // What Match Loudness is doing to a device's output now, in dB (decision 0056).
     float matchingDb (Id device) const;
     double cpu() { return deviceManager.getCpuUsage(); }
+    // Every performance core (decision 0078), or the audio thread alone.
+    void setParallel (bool on) { graph.setParallel (on); }
+    bool isParallel() const { return graph.isParallel(); }
+    int audioThreads() const { return graph.workers() + 1; }
+    ParallelGraph& audioGraph() { return graph; }   // tests
     int dropouts() const;
     void resetDropouts();
     Fader* fader (Id track) const;
@@ -114,6 +120,9 @@ public:
 
     // MIDI learn (decision 0032).
     std::atomic<bool> learning { false };
+    // Step input (decision 0076): keys played in are told to the window too, as they're played.
+    std::atomic<bool> stepInputOn { false };
+    std::function<void (int pitch, int velocity, bool on)> onStepKey;
     void setMappings (std::vector<MidiMapping>);
     std::function<void (int channel, int controller)> onLearned;
     std::function<void (const MidiMapping&, double value)> onMapped;
@@ -145,6 +154,11 @@ public:
     bool render (const Project&, const juce::File& folder, const juce::File& out, const RenderOptions&,
                  std::function<bool (float)> progress, juce::String& error);
 
+    // One track, through its own plug-ins, into a 32-bit float WAV (freeze and bounce,
+    // decision 0080). The others' plug-ins stay loaded but aren't played.
+    bool renderTrack (const Project&, Id track, const juce::File& folder, const juce::File& out,
+                      double start, double end, double tail, juce::String& error);
+
     // Offline effects on one audio clip: its audio through a chain, into a new file.
     bool renderOfflineFx (const Clip&, const juce::File& source, const juce::File& out, juce::String& error);
 
@@ -164,7 +178,7 @@ private:
     std::mutex mappingLock;
     std::vector<MidiMapping> mappings;
     juce::AudioDeviceManager deviceManager;
-    juce::AudioProcessorGraph graph;
+    ParallelGraph graph;   // played on every performance core (decision 0078)
     juce::AudioProcessorPlayer player;
 
     using NodeID = juce::AudioProcessorGraph::NodeID;
@@ -185,6 +199,7 @@ private:
     std::map<Id, Node::Ptr> deviceNodes;          // the playing versions' devices, by device id
     std::map<Id, juce::AudioPluginInstance*> araOwner;   // the instance each ARA session was started on
     bool rendering = false;   // exporting: the Cue track is left out (decision 0051)
+    Id renderOnlyTrack = 0;   // rendering one track alone (decision 0080)
     std::map<Id, std::unique_ptr<AraSession>> araSessions;
     std::set<Id> araTracks;
     Node::Ptr audioIn, audioOut, midiIn, metronomeNode;

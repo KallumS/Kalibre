@@ -91,6 +91,9 @@ public:
 
     // "5.2.240" (bar.beat.tick, from 1)
     std::string formatBarBeat (Tick) const;
+    // A length in words, as a musician says it: "1/8", "3/16", "1 beat",
+    // "4 bars", "2 bars 1 beat" (bars and beats by the meter at `start`).
+    std::string describeLength (Tick start, Tick length) const;
     // "1:02.345"
     static std::string formatMinutes (double seconds);
     // "00:01:02:08" at a frame rate

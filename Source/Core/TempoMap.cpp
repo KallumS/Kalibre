@@ -240,6 +240,31 @@ std::string TempoMap::formatBarBeat (Tick tick) const
     return buf;
 }
 
+std::string TempoMap::describeLength (Tick start, Tick length) const
+{
+    if (length <= 0) return "0";
+    const auto& m = meterAt (start);
+    const Tick whole = PPQ * 4;
+    auto fraction = [whole] (Tick t) -> std::string
+    {
+        Tick a = t, b = whole;
+        while (b != 0) { const Tick r = a % b; a = b; b = r; }
+        const Tick num = t / a, den = whole / a;
+        if (den > 128) return std::to_string (t) + " ticks";
+        return std::to_string (num) + "/" + std::to_string (den);
+    };
+    auto plural = [] (Tick n, const char* one) { return std::to_string (n) + " " + one + (n == 1 ? "" : "s"); };
+    const Tick bar = m.barTicks();
+    if (length < bar)
+        return fraction (length);
+    const Tick beat = whole / std::max (1, m.denominator);
+    const Tick bars = length / bar, beats = (length % bar) / beat, rest = length % bar % beat;
+    std::string s = plural (bars, "bar");
+    if (beats > 0) s += " " + plural (beats, "beat");
+    if (rest > 0) s += " " + fraction (rest);
+    return s;
+}
+
 std::string TempoMap::formatMinutes (double seconds)
 {
     const bool negative = seconds < 0;

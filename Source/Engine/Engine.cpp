@@ -1,6 +1,7 @@
 #include "Engine.h"
 
 #include "Edit.h"
+#include "AudioFiles.h"
 #include "TimedPlugin.h"
 #include "HardwareInsert.h"
 #include "Surround.h"
@@ -15,6 +16,12 @@ Engine::Engine (PluginManager& pm) : pluginManager (pm)
 {
     syncInput = [this] (const String& device, const MidiMessage& m) { syncDevices.input (device, m); };
     graph.setPlayHead (this);
+    // The hardware insert shares the interface's bus: one at a time (decision 0078).
+    graph.runsAlone = [] (AudioProcessor& p)
+    {
+        if (auto* t = dynamic_cast<TimedPlugin*> (&p)) return dynamic_cast<HardwareInsert*> (&t->plugin()) != nullptr;
+        return dynamic_cast<HardwareInsert*> (&p) != nullptr;
+    };
     tempo.post (std::make_unique<TempoMap>());
     // The graph's own ends exist from the start, so a project can be synced
     // (and rendered) with no audio device at all. Its channels are set first:
@@ -68,6 +75,7 @@ void Engine::audioDeviceAboutToStart (AudioIODevice* device)
 {
     rate = device->getCurrentSampleRate();
     blockSize = device->getCurrentBufferSizeSamples();
+    graph.setWorkgroup (device->getWorkgroup());   // the workers are audio threads too (decision 0078)
     shared.clock.rate = rate;
     cache.setSampleRate (rate);
     player.audioDeviceAboutToStart (device);
@@ -256,6 +264,14 @@ void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
             MessageManager::callAsync ([this, map, value] { if (onMapped) onMapped (map, value); });
             return;
         }
+    }
+
+    // Step input (decision 0076): the window writes the notes; they're still heard.
+    if (stepInputOn.load() && (m.isNoteOn() || m.isNoteOff()))
+    {
+        const int pitch = m.getNoteNumber(), velocity = m.getVelocity();
+        const bool on = m.isNoteOn();
+        MessageManager::callAsync ([this, pitch, velocity, on] { if (onStepKey) onStepKey (pitch, velocity, on); });
     }
 
     auto queued = m;
@@ -640,7 +656,9 @@ void Engine::sync (const Project& project, Id live, const File& folder)
     String newShape;
     const int busChannels = surround::channels (project.surround);
     const bool surroundMix = busChannels > 2;
-    newShape << "fmt" << busChannels << "/" << graph.getTotalNumOutputChannels() << (cue ? "cue" : "") << ";";
+    // Rendering one track (freeze, bounce, decision 0080): only it goes out, straight from its fader.
+    const Id only = rendering ? renderOnlyTrack : 0;
+    newShape << "fmt" << busChannels << "/" << graph.getTotalNumOutputChannels() << (cue ? "cue" : "") << "only" << (int64) only << ";";
     for (auto* t : all)
     {
         if (t->sourceDevice != 0)
@@ -755,7 +773,12 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             // The master goes out through the Cue track when there is one, except
             // when exporting (decision 0051); the Cue track goes out.
             const bool toOut = t->isCue() || (t->kind == TrackKind::Master && cue == nullptr);
-            if (toOut)
+            if (only != 0)
+            {
+                // Every other track is left unconnected: an offline plan doesn't play what can't be heard.
+                if (t->id == only) connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
+            }
+            else if (toOut)
             {
                 if (! (t->isCue() && cue == nullptr))
                     connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
@@ -788,6 +811,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             std::set<Id> keep;
             for (auto& s : t->sends)
             {
+                if (only != 0) break;
                 if (! project.track (s.target) || ! edit::canRoute (project, t->id, s.target)) continue;
                 keep.insert (s.target);
                 auto& sendNode = nodes.sends[s.target];
@@ -804,7 +828,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 it = nodes.sends.erase (it);
             }
         }
-        connectAudio (metronomeNode->nodeID, audioOut->nodeID);
+        if (only == 0) connectAudio (metronomeNode->nodeID, audioOut->nodeID);
         graph.rebuild();
     }
 
@@ -1075,7 +1099,9 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     // The whole render is kept so it can be normalised and dithered at the end.
     const double total = (o.end - o.start) + o.tail;
     const auto frames = (int) std::ceil (total * renderRate);
-    const int latency = graph.getLatencySamples();
+    // How late the output is: the plan's count (what can be heard), else JUCE's graph's.
+    int latency = graph.outputLatency();
+    if (latency < 0) latency = graph.getLatencySamples();
     AudioBuffer<float> result (outChannels, frames);
     result.clear();
     AudioBuffer<float> buf (outChannels, block);
@@ -1163,6 +1189,24 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     return ! cancelled;
 }
 
+bool Engine::renderTrack (const Project& project, Id track, const File& folder, const File& out,
+                          double start, double end, double tail, String& error)
+{
+    renderOnlyTrack = track;
+    RenderOptions o;
+    o.start = start;
+    o.end = end;
+    o.tail = tail;
+    o.bitDepth = 32;           // 32-bit float WAV (decision 0079)
+    o.dither = false;
+    o.format = "wav";
+    const bool ok = render (project, folder, out, o, {}, error);
+    renderOnlyTrack = 0;
+    shape.clear();
+    sync (project, liveTrack, folder);
+    return ok;
+}
+
 bool Engine::renderOfflineFx (const Clip& clip, const File& source, const File& out, String& error)
 {
     auto audio = cache.file (source);
@@ -1207,11 +1251,7 @@ bool Engine::renderOfflineFx (const Clip& clip, const File& source, const File& 
                 for (int ch = 0; ch < 2; ++ch) result.setSample (ch, at, buf.getSample (ch, i));
         }
     }
-    out.deleteFile();
-    WavAudioFormat wav;
-    std::unique_ptr<OutputStream> stream (out.createOutputStream().release());
-    auto writer = stream ? wav.createWriterFor (stream, AudioFormatWriterOptions().withSampleRate (rate).withNumChannels (2).withBitsPerSample (32))
-                         : nullptr;
+    auto writer = audiofile::floatWav (out, rate, 2);   // decision 0079
     if (! writer) { error = "The file couldn't be written."; return false; }
     writer->writeFromAudioSampleBuffer (result, 0, result.getNumSamples());
     return true;

@@ -1042,3 +1042,430 @@ TEST ("arming for both records the sound coming in and the instrument's MIDI; fo
             if (! clip.midi.notes.empty()) CHECK_EQ (clip.midi.notes.front().pitch, 64);
         }
 }
+
+#include "NotationView.h"
+
+TEST ("notation: the playhead moves across the staff while playing, round a looped clip's repeats")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Flute");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    for (int i = 0; i < 4; ++i) { Note n; n.start = PPQ * i; n.length = PPQ; n.pitch = 72; edit::addNote (c.project, clip, n); }
+    c.refresh();
+    c.selectClip (clip);
+    NotationView view (c);
+    view.setSize (1000, 400);
+    bool on = false;
+    auto drawnAt = [&] (double beats)
+    {
+        // No audio device here: moved while stopped, then playing again.
+        engine.stop();
+        engine.locate (c.project.tempo.secondsAt ((Tick) (beats * PPQ)));
+        if (on) engine.play();
+        view.createComponentSnapshot (view.getLocalBounds());
+        return view.shownPlayheadX;
+    };
+    CHECK (drawnAt (1.0) < 0);                 // stopped: none
+    on = true;
+    const float a = drawnAt (1.0), b = drawnAt (2.5);
+    CHECK (a > 0);
+    CHECK (b > a);                             // it moves on
+    c.apply ("Loop Clip", [clip] (Project& p) { edit::loopContent (p, clip); });
+    const float again = drawnAt (5.0);         // the second pass, beat 1 again
+    CHECK (std::abs (again - a) < 1.0f);
+    engine.stop();
+}
+
+#include "TopBar.h"
+
+TEST ("message line: a message gives way to what's chosen, or what the pointer is over; notes say pitch, velocity and length; clips their length and notes (0070)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    const Id clip = edit::addMidiClip (c.project, t, PPQ * 4 * 48, PPQ * 4 * 4);
+    Note n; n.start = 0; n.length = PPQ / 2; n.pitch = 60; n.velocity = 100;
+    const Id note = edit::addNote (c.project, clip, n);
+    n.start = PPQ; n.pitch = 64;
+    edit::addNote (c.project, clip, n);
+    c.refresh();
+    c.selectedClips.clear();
+    c.selectedNotes.clear();
+
+    TopBar bar (c);
+    bar.setSize (1600, bar.preferredHeight());
+    c.say ("Deleted the track.");
+    c.retireMessage();
+    CHECK_EQ (c.message, String ("Deleted the track."));
+    // Nothing chosen: pointing at a clip says its length and notes, and the message gives way.
+    c.hover (clip);
+    c.retireMessage();
+    CHECK (c.message.isEmpty());
+    const auto clipInfo = c.infoLine();
+    CHECK (clipInfo.contains ("4 bars"));
+    CHECK (clipInfo.contains ("2 notes"));
+    CHECK (clipInfo.contains ("49.1.000"));
+    // A chosen note: its pitch, velocity and length, whatever the pointer is over.
+    c.selectedClip = clip;
+    c.selectedNotes = { note };
+    const auto noteInfo = c.infoLine();
+    CHECK (noteInfo.contains ("C4"));
+    CHECK (noteInfo.contains ("Velocity 100"));
+    CHECK (noteInfo.contains ("Length 1/8"));
+    // A warning stays while only the pointer moves; a new choice lets it go.
+    c.say ("Something went wrong.", true);
+    c.hover (0);
+    c.hover (clip);
+    c.retireMessage();
+    CHECK (c.message.isNotEmpty());
+    c.selectedNotes.clear();
+    c.retireMessage();
+    CHECK (c.message.isEmpty());
+}
+
+TEST ("top bar: right-click hides what isn't wanted; the Grid is the arrangement's; Shift-click Follow turns pages (0070)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    TopBar bar (c);
+    bar.setSize (1800, 200);
+    auto shownNamed = [&] (const String& text)
+    {
+        for (auto* ch : bar.getChildren())
+            if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText() == text) return b->isVisible();
+        return false;
+    };
+    CHECK (shownNamed ("Tap") && shownNamed ("Punch") && shownNamed ("Count-in"));
+    c.hiddenInTopBar = { "Tap", "Punch", "Count-in" };
+    bar.resized();
+    CHECK (! shownNamed ("Tap") && ! shownNamed ("Punch") && ! shownNamed ("Count-in"));
+    CHECK (shownNamed ("Loop"));
+    CHECK (TopBar::hideable().contains ("Grid"));
+
+    // The arrangement snaps to its own grid; the editors keep theirs.
+    c.grid = PPQ / 4;
+    c.arrangeGrid = PPQ * 4;
+    CHECK_EQ (c.arrangeSnap (PPQ * 3), Tick (PPQ * 4));
+    CHECK_EQ (c.snapTick (PPQ * 3), Tick (PPQ * 3));
+
+    // Follow: a click scrolls, a Shift-click turns pages, and each clicked again stops following.
+    Button* follow = nullptr;
+    for (auto* ch : bar.getChildren())
+        if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText().startsWith ("Follow")) follow = b;
+    CHECK (follow != nullptr);
+    if (! follow) return;
+    c.followPlayback = false;
+    follow->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CHECK (c.followPlayback && ! c.followPages);
+    c.followPages = true;      // as a Shift-click leaves it
+    bar.resized();
+    MessageManager::getInstance()->runDispatchLoopUntil (60);
+    CHECK (follow->getButtonText() == "Follow: Page");
+}
+
+#include "ArticulationManagerView.h"
+
+TEST ("articulation manager: maps imported into the library, used on a track from the piano roll's menu, one undo step (0072)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    c.articulationFolder = folder().getChildFile ("articulation-library");
+    c.articulationFolder.deleteRecursively();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Violins");
+    c.focusTrack = t;
+    c.refresh();
+
+    const File fixtures = File (KALIBRE_SOURCE_DIR).getChildFile ("Tests/fixtures/articulations");
+    Array<File> files { fixtures.getChildFile ("Test Strings.expressionmap"), fixtures.getChildFile ("Test Strings.reabank"), fixtures.getChildFile ("Test Strings.plist") };
+    CHECK_EQ (c.importArticulationMaps (files), 4);
+    CHECK (c.message.contains ("Imported"));
+    const auto library = c.articulationLibrary();
+    CHECK_EQ (library.size(), size_t (4));
+    // Imported again: replaced, not doubled.
+    c.importArticulationMaps ({ fixtures.getChildFile ("Test Strings.plist") });
+    CHECK_EQ (c.articulationLibrary().size(), size_t (4));
+
+    ArticulationManagerView view (c);
+    view.setSize (900, 500);
+    CHECK_EQ (view.shownRows().size(), size_t (4));
+
+    // From the piano roll's Velocity menu: the library's maps are there.
+    PianoRoll roll (c);
+    roll.setSize (900, 500);
+    auto menu = roll.articulationMenu();
+    bool listed = false;
+    for (PopupMenu::MenuItemIterator it (menu); it.next();) listed |= it.getItem().text == "Violins";
+    CHECK (listed);
+
+    const auto before = c.history.size();
+    ArticulationMap violins;
+    for (auto& m : library) if (m.name == "Violins") violins = m;
+    c.useArticulationMap (t, violins);
+    CHECK_EQ (c.history.size(), before + 1);
+    const auto* map = c.project.articulationMap (c.project.track (t)->articulationMap);
+    CHECK (map != nullptr);
+    if (map) CHECK_EQ (map->name, std::string ("Violins"));
+    // Used again: the song's copy, not a second one.
+    c.useArticulationMap (t, violins);
+    CHECK_EQ (c.project.articulationMaps.size(), size_t (1));
+    view.refresh();
+    bool both = false;
+    for (auto& r : view.shownRows()) both |= r.map.name == "Violins" && r.inLibrary && r.inSong;
+    CHECK (both);
+}
+
+#include "CrashReports.h"
+#include "CrashContext.h"
+#include <sys/wait.h>
+#include <unistd.h>
+#include <csignal>
+
+TEST ("crash reports: a crash writes what went wrong and the plug-in that was playing, then ends as before (0073)")
+{
+    const auto reports = folder().getChildFile ("crash-reports");
+    reports.deleteRecursively();
+    reports.createDirectory();
+    const auto before = Time::getCurrentTime() - RelativeTime::seconds (2);
+    const pid_t child = fork();
+    if (child == 0)
+    {
+        crash::install (reports, "test");
+        crashcontext::audioPlugin = "Riffer";
+        std::raise (SIGSEGV);
+        _exit (0);   // never reached
+    }
+    int status = 0;
+    waitpid (child, &status, 0);
+    CHECK (WIFSIGNALED (status) && WTERMSIG (status) == SIGSEGV);   // it still ends as a crash
+    const auto found = crash::since (reports, before);
+    CHECK_EQ (found.size(), 1);
+    if (found.isEmpty()) return;
+    CHECK_EQ (crash::summary (found.getFirst()), String ("a bad memory access, in Riffer"));
+    CHECK (found.getFirst().loadFileAsString().contains ("Where, the newest call first"));
+    CHECK (crash::since (reports, Time::getCurrentTime() + RelativeTime::seconds (5)).isEmpty());
+}
+
+TEST ("backups: one while it has changed, none when it hasn't; the newest 48 kept; opened as the song, unsaved (0073)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    c.backupsRoot = folder().getChildFile ("backups");
+    c.backupsRoot.deleteRecursively();
+    edit::addTrack (c.project, TrackKind::Track, "Piano");
+    c.refresh();
+    CHECK (c.backup());
+    CHECK (! c.backup());                     // nothing changed since
+    CHECK_EQ (c.backups().size(), 1);
+    for (int i = 0; i < 50; ++i)
+    {
+        edit::addTrack (c.project, TrackKind::Track, "More " + std::to_string (i));
+        CHECK (c.backup());
+    }
+    CHECK_EQ (c.backups().size(), Controller::backupsKept);
+    const auto newest = c.backups().getFirst();
+    CHECK (newest.loadFileAsString().contains ("More 49"));
+
+    // A saved song's backups go beside it, in Backups.
+    const auto song = folder().getChildFile ("backup-song").getChildFile ("Song.kalibre");
+    song.getParentDirectory().deleteRecursively();
+    song.getParentDirectory().createDirectory();
+    CHECK (song.replaceWithText (String (file::save (c.project))));
+    c.file = song;
+    edit::addTrack (c.project, TrackKind::Track, "Strings");
+    CHECK (c.backup());
+    CHECK (song.getParentDirectory().getChildFile ("Backups").isDirectory());
+    const auto b = c.backups().getFirst();
+    edit::addTrack (c.project, TrackKind::Track, "Later");
+    CHECK (c.openBackup (b));
+    CHECK (c.file == song);                   // saved over the song, not the backup
+    CHECK (c.dirty);
+    bool later = false;
+    for (auto& t : c.project.tracks) later |= t.name == "Later";
+    CHECK (! later);
+}
+
+#include "Arrange.h"
+
+TEST ("track headers: an I/O button beside M, S and R says where the track listens and plays to (0074)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    const Id ret = edit::addTrack (c.project, TrackKind::Return, "Reverb");
+    c.project.track (t)->output = ret;
+    c.refresh();
+    Arrange arrange (c);
+    arrange.setSize (1200, 600);
+    c.refresh();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    std::function<Button* (Component&)> find = [&] (Component& p) -> Button*
+    {
+        for (auto* ch : p.getChildren())
+        {
+            if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText() == "I/O" && b->isVisible()
+                && b->getTooltip().contains ("Reverb")) return b;
+            if (auto* f = find (*ch)) return f;
+        }
+        return nullptr;
+    };
+    auto* io = find (arrange);
+    CHECK (io != nullptr);
+    if (io) CHECK (io->getTooltip().contains ("every keyboard"));
+}
+
+TEST ("select and explode: the Select menu's choices through the controller; Explode Chords one undo step (0075)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Piano");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    for (int pitch : { 48, 52, 55 }) { Note n; n.start = 0; n.length = PPQ * 4; n.pitch = pitch; edit::addNote (c.project, clip, n); }
+    c.refresh();
+    c.selectClip (clip);
+    c.selectNotes (noteselect::What::Third);
+    CHECK_EQ (c.selectedNotes.size(), size_t (1));
+    CHECK (c.message.contains ("thirds"));
+    c.selectNotes (noteselect::What::Seventh);
+    CHECK (c.selectedNotes.empty());
+    const auto tracksBefore = c.project.tracks.size();
+    const auto steps = c.history.size();
+    c.explodeChords ({ clip });
+    CHECK_EQ (c.project.tracks.size(), tracksBefore + 3);
+    CHECK_EQ (c.history.size(), steps + 1);
+    c.undo();
+    CHECK_EQ (c.project.tracks.size(), tracksBefore);
+    CHECK (c.project.clip (clip) != nullptr);
+}
+
+TEST ("step input: keys from a MIDI keyboard, a number for the length, written at the cursor on letting go, the cursor moving on (0076)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Piano");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    c.focusTrack = t;
+    c.refresh();
+    c.selectClip (clip);
+    c.locate (PPQ);
+    c.setStepInput (true);
+    CHECK (c.message.contains ("1/16"));
+    CHECK (c.stepDigit (9));
+    CHECK (c.stepDigit (5));                       // a dotted 1/8
+    const auto steps = c.history.size();
+    engine.playIn (MidiMessage::noteOn (1, 60, (uint8) 100));
+    engine.playIn (MidiMessage::noteOn (1, 64, (uint8) 90));
+    engine.playIn (MidiMessage::noteOff (1, 60));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), size_t (0));   // one key still held
+    engine.playIn (MidiMessage::noteOff (1, 64));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    const auto& notes = c.project.clip (clip)->midi.notes;
+    CHECK_EQ (notes.size(), size_t (2));
+    for (auto& n : notes) { CHECK_EQ (n.start, Tick (PPQ)); CHECK_EQ (n.length, Tick (PPQ * 3 / 4)); }
+    CHECK_EQ (c.cursor, Tick (PPQ + PPQ * 3 / 4));
+    CHECK_EQ (c.history.size(), steps + 1);
+    // Past the clip's end it grows; in the drum grid the notes are the drums'.
+    c.editor = EditorKind::Drums;
+    c.stepDigit (8);
+    engine.playIn (MidiMessage::noteOn (10, 36, (uint8) 110));
+    engine.playIn (MidiMessage::noteOff (10, 36));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    const auto* cl = c.project.clip (clip);
+    CHECK_EQ (cl->length, Tick (PPQ * 8));
+    bool drum = false;
+    for (auto& n : cl->midi.notes) drum |= n.pitch == 36 && n.from == NoteFrom::Drums && n.length == PPQ * 4;
+    CHECK (drum);
+    // Off: keys are only heard.
+    c.setStepInput (false);
+    engine.playIn (MidiMessage::noteOn (1, 70, (uint8) 100));
+    engine.playIn (MidiMessage::noteOff (1, 70));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), size_t (3));
+    CHECK (! c.stepDigit (4));
+}
+
+TEST ("dawproject: a song exported with its audio and Kalibre's own devices, and opened again as a new song (0077)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Drums");
+    edit::addClip (c.project, t, audioClip (clickFile (0.5), 0, PPQ * 4));
+    const Id synthTrack = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    edit::addDevice (c.project, synthTrack, synthRef(), DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (c.project, synthTrack, 0, PPQ * 4);
+    Note n; n.pitch = 64; n.length = PPQ; edit::addNote (c.project, clip, n);
+    c.refresh();
+    c.storeDeviceStates();
+    const auto stateBefore = c.project.track (synthTrack)->devices.front().state;
+    CHECK (! stateBefore.empty());
+
+    const auto f = folder().getChildFile ("song.dawproject");
+    f.deleteFile();
+    folder().getChildFile ("song Audio").deleteRecursively();
+    CHECK (c.exportDawProject (f));
+    CHECK (f.existsAsFile());
+    {
+        ZipFile zip (f);
+        CHECK (zip.getEntry ("project.xml") != nullptr);
+        CHECK (zip.getEntry ("metadata.xml") != nullptr);
+        bool audio = false;
+        for (int i = 0; i < zip.getNumEntries(); ++i) audio |= zip.getEntry (i)->filename.startsWith ("audio/");
+        CHECK (audio);
+    }
+    c.project = Project();
+    CHECK (c.importDawProject (f));
+    CHECK_EQ (c.project.tracks.size(), size_t (2));
+    if (c.project.tracks.size() != 2) return;
+    const auto& drums = c.project.tracks[0];
+    CHECK_EQ (drums.clips().size(), size_t (1));
+    if (! drums.clips().empty()) CHECK (File (String (drums.clips()[0].audio.file)).existsAsFile());
+    const auto& keys = c.project.tracks[1];
+    CHECK_EQ (keys.devices.size(), size_t (1));
+    if (! keys.devices.empty()) CHECK_EQ (keys.devices[0].state, stateBefore);
+    CHECK_EQ (keys.clips().size(), size_t (1));
+    CHECK (c.file == File());
+    CHECK (c.dirty);
+}
+
+TEST ("multi-core: playing live through an audio device, the plan plays the blocks once JUCE's graph has had its one, and the sound is there (0078)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    engine.setParallel (true);
+    FakeDevice device;
+    Project p;
+    for (int i = 0; i < 3; ++i)
+    {
+        const Id t = edit::addTrack (p, TrackKind::Track, "Click " + std::to_string (i));
+        edit::addClip (p, t, audioClip (clickFile (0.25), 0, PPQ * 4));
+        edit::addDevice (p, t, gain (-6.0f * (float) i), DeviceRole::AudioFx);
+        p.track (t)->pan = 0;
+    }
+    startLive (engine, device, p);
+    engine.locate (0);
+    engine.play();
+    const auto live = playLive (engine, 0.5);
+    engine.stop();
+    CHECK (engine.audioGraph().blocksByPlan.load() > 30);
+    CHECK (peak (live, 0).second > 0.5f);
+}

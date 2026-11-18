@@ -23,6 +23,7 @@
 #include "Controller.h"
 #include "LowerZone.h"
 #include "PluginManagerView.h"
+#include "ArticulationManagerView.h"
 #include "Surfaces.h"
 #include "TopBar.h"
 
@@ -63,6 +64,7 @@ public:
     void showBrowser (Browser::Tab);
     void hideBrowser() { browserShown = false; browser.setVisible (false); resized(); }
     void showPluginManager();
+    void showArticulationManager();
 
     Controller& controller() { return c; }
     bool browserShown = false;
@@ -78,6 +80,7 @@ private:
     std::unique_ptr<juce::MenuBarComponent> menuBar;   // on Linux and Windows; the Mac uses its own
     std::unique_ptr<juce::FileChooser> chooser;
     std::unique_ptr<PluginManagerWindow> pluginWindow;
+    std::unique_ptr<ArticulationManagerWindow> articulationWindow;
     int dragStartHeight = 0;
     bool draggingDivider = false;
 

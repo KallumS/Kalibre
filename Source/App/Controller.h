@@ -15,6 +15,8 @@
 #include "Engine.h"
 #include "ControlSettings.h"
 #include "Patterns.h"
+#include "NoteSelect.h"
+#include "StepInput.h"
 #include "Song.h"
 #include "Keys.h"
 
@@ -23,7 +25,7 @@
 namespace kal
 {
 // VST3 effects once filed as MIDI effects, put right on opening (decision 0058).
-void refileEffects (Project&);
+void refileEffects (Project&, const PluginManager&);
 
 
 enum class EditorKind { PianoRoll, Drums, Steps, Euclid, Notation };
@@ -49,9 +51,13 @@ public:
     std::set<Id> selectedClips;
     std::set<Id> selectedNotes;
     Tick cursor = 0;                // where things go in, and where Play starts
-    Tick grid = PPQ / 4;
+    Tick grid = PPQ / 4;            // the editors' grid (the lower zone's Grid)
+    Tick arrangeGrid = PPQ / 4;     // the arrangement's (the top bar's Grid, 0070)
     bool snap = true;
     bool followPlayback = true;
+    bool followPages = false;       // Shift-click Follow: turn the page at the edge, not scroll (0070)
+    juce::StringArray hiddenInTopBar;   // the top bar's items hidden by right-click (0070)
+    int cpuEverySeconds = 2;        // how often the CPU reading changes
     EditorKind editor = EditorKind::PianoRoll;
     ZoneTab zoneTab = ZoneTab::Devices;
     bool showChordLane = true;
@@ -79,8 +85,10 @@ public:
     bool redo();
 
     //==========================================================================
-    // The message line under the transport (decision 0025): stays until
-    // dismissed or replaced, and can carry an Undo.
+    // The message line under the transport (decisions 0025, 0070): what just
+    // happened, until something else is chosen or pointed at (a warning,
+    // until something else is chosen, or it's clicked); then what's chosen,
+    // or what the pointer is over when nothing is.
     juce::String message;
     bool messageIsWarning = false;
     bool messageCanUndo = false;
@@ -91,6 +99,46 @@ public:
     void showPluginManager() { if (onShowPluginManager) onShowPluginManager(); }
     std::function<void()> onShowPluginManager;     // the window sets this
     void dismiss();
+
+    // Step input (decision 0076): keys held on a MIDI keyboard, a number for the
+    // length, written at the cursor as they're let go, the cursor moving on.
+    bool stepInput = false;
+    StepInput stepper;
+    void setStepInput (bool on);
+    void stepKey (int pitch, int velocity, bool on);
+    bool stepDigit (int digit);     // false when step input is off
+    void sayStepInput();
+
+    // Choose the chosen clip's notes by what they are (decision 0075); `only`, one editor's.
+    void selectNotes (noteselect::What, std::optional<NoteFrom> only = std::nullopt);
+    // Each voice of the clips' chords to a track of its own, one undo step (0075).
+    void explodeChords (const std::set<Id>& clips);
+
+    // Articulation maps (decision 0072): a library kept between songs, read
+    // from Cubase, Logic or Reaticulate maps in the Articulation Manager.
+    juce::File articulationFolder;             // empty: beside the plug-in list (tests set it)
+    juce::File articulationLibraryFile() const;
+    std::vector<ArticulationMap> articulationLibrary() const;
+    void saveArticulationLibrary (const std::vector<ArticulationMap>&);
+    // Each file's maps into the library (one of the same name replaced); says what came in.
+    int importArticulationMaps (const juce::Array<juce::File>&);
+    // The map on the track, copied into the song first if it isn't there. One undo step.
+    void useArticulationMap (Id track, const ArticulationMap&);
+    void showArticulationManager() { if (onShowArticulationManager) onShowArticulationManager(); }
+    std::function<void()> onShowArticulationManager;     // the window sets this
+    // What the pointer is over, told by the arrangement and the piano roll.
+    Id hoveredClip = 0, hoveredNote = 0;
+    void hover (Id clip, Id note = 0) { hoveredClip = clip; hoveredNote = note; }
+    // What's chosen (notes, else clips), or else what the pointer is over, in words.
+    juce::String infoLine() const;
+    juce::String describeClip (const Clip&) const;
+    juce::String describeNotes (const Clip&, const std::set<Id>& notes) const;
+    // Lets a message give way to the info once the choice or the pointer moves on.
+    juce::String messageChoice, messagePointer;
+    juce::String choiceKey() const;
+    juce::String pointerKey() const { return juce::String ((juce::int64) hoveredClip) + ":" + juce::String ((juce::int64) hoveredNote); }
+    // Called often (the top bar's timer): lets a message go once things moved on.
+    void retireMessage();
 
     //==========================================================================
     // Transport.
@@ -118,6 +166,15 @@ public:
     juce::File projectFolder() const;
     juce::File autosaveFile() const;   // a copy every few minutes, never over the project itself
     void autosave();
+    // Backups (decision 0073): every 15 minutes while it has changed, a copy
+    // of its own, dated, in the project folder's Backups (or Kalibre's own,
+    // for a song not yet saved); the newest 48 kept.
+    juce::File backupsFolder() const;
+    juce::File backupsRoot;                    // empty: Application Support/Kalibre/Backups (tests set it)
+    juce::Array<juce::File> backups() const;   // newest first
+    bool backup();                             // false when nothing changed since the last
+    bool openBackup (const juce::File&);       // as this song, unsaved
+    static constexpr int backupMinutes = 15, backupsKept = 48;
     juce::File recordingsFolder() const;
     bool importFile (const juce::File&, Id track, Tick at);   // audio, MIDI
     bool importVideo (const juce::File&, Tick at);           // the picture, and its sound on a track (decision 0046)
@@ -126,6 +183,10 @@ public:
     // a score (.musicxml, .xml or zipped .mxl) in, a track for each part.
     bool exportMusicXml (const juce::File&);
     bool importMusicXml (const juce::File&);
+    // DAWproject (decision 0077): the song as a .dawproject for Bitwig, Studio One,
+    // Cubase and others, its audio inside; and one opened as a new song.
+    bool exportDawProject (const juce::File&);
+    bool importDawProject (const juce::File&);
     bool exportAudio (const juce::File&, const Engine::RenderOptions&, bool stems);
 
     // A project's files (decision 0041; ProjectFiles.cpp).
@@ -169,7 +230,19 @@ public:
     void newVersion (Id track);
     // Chooses version `index` (0-3) on each of these tracks that has it (decision 0050).
     void chooseVersion (const std::vector<Id>& tracks, int index);
-    void freeze (Id track, bool);   // render the track with its plug-ins into audio, and unload them
+    // Freeze (decision 0080): the track rendered, quietly, through its own plug-ins to a
+    // 32-bit float WAV, and its plug-ins unloaded with their states kept. Unfreezing
+    // deletes the render and loads them again as they were.
+    void freeze (Id track, bool);
+    // Bounce in Place (decision 0080): the clips rendered through their track's plug-ins
+    // onto a new audio track under it, made like it; the clips muted. One undo step.
+    void bounceInPlace (const std::set<Id>& clips);
+    // The track alone through its own plug-ins at unity (its clips, or just `onlyClips`), from
+    // `start` to `end` seconds and `tail` more, into a 32-bit float WAV. Nothing else is unloaded.
+    bool renderTrackAudio (Id track, const std::set<Id>& onlyClips, double start, double end, double tail,
+                           const juce::File& out, juce::String& error);
+    // After Undo or Redo: a frozen track whose render was deleted by Unfreeze is rendered again.
+    void refreezeMissing();
     Id newMidiClip (Id track, Tick start, Tick length);
     void deleteSelection();
     void duplicateSelection();
@@ -203,7 +276,7 @@ public:
 
     //==========================================================================
     // Devices.
-    void addPlugin (Id track, const juce::PluginDescription&);
+    void addPlugin (Id track, const juce::PluginDescription&, std::optional<DeviceRole> as = {});
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
     bool placeToolBlock (juce::AudioPluginInstance& from, const struct ToolBlock&);   // decision 0068
     void setDeviceActive (Id device, bool);
@@ -256,8 +329,9 @@ public:
 
     //==========================================================================
     // Snapping.
-    Tick snapTick (Tick) const;       // nearest grid line, from the bar line
+    Tick snapTick (Tick) const;     // nearest grid line, from the bar line
     Tick snapDown (Tick) const;
+    Tick arrangeSnap (Tick) const;  // the same, to the arrangement's grid
 
     // The studio's sync and control surface settings (decisions 0034, 0035).
     ControlSettings studio;
@@ -278,7 +352,8 @@ public:
 private:
     std::vector<double> taps;
     bool wasRecording = false;
-    juce::uint32 lastAutosave = 0;
+    juce::uint32 lastAutosave = 0, lastBackup = 0;
+    juce::String lastBackupText;
     double recordFromSeconds = 0;
     struct Writing { Id track = 0, lane = 0; Tick lastTick = 0; bool on = false; Project before; double trimFrom = -1; Tick trimStart = 0; };
     void finishWriting();

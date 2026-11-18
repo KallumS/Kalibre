@@ -208,6 +208,23 @@ void PianoRoll::paint (Graphics& g)
             }
             if (moving && preview.action == roll::Action::CopyNotes) {}
         }
+        // A looped clip's repeats, faint: what plays again (Loop Its Content).
+        if (clip->loopLength > 0)
+        {
+            g.setColour (trackCol.withAlpha (0.3f));
+            for (Tick pass = clip->loopLength; pass < clip->offset + clip->length; pass += clip->loopLength)
+                for (auto& n : notes)
+                {
+                    if (n.start >= clip->loopLength) continue;
+                    const Tick a = pass + n.start;
+                    if (a >= clip->offset + clip->length) continue;
+                    const Tick b = std::min ({ a + n.length, pass + clip->loopLength, clip->offset + clip->length });
+                    g.fillRoundedRectangle (Rectangle<float> (xOf (a), yOf (n.pitch) + 1.0f, jmax (3.0f, xOf (b) - xOf (a) - 1.0f), rowHeight - 2.0f), 2.0f);
+                }
+            g.setColour (theme::edge);
+            for (Tick pass = clip->loopLength; pass < clip->offset + clip->length; pass += clip->loopLength)
+                g.fillRect (xOf (pass) - 0.5f, (float) area.getY(), 1.0f, (float) area.getHeight());
+        }
         // Copies being dragged: drawn where they'll land.
         if (preview.action == roll::Action::CopyNotes)
             for (auto& n : notes)
@@ -500,10 +517,14 @@ void PianoRoll::commit (const roll::Outcome& o)
         {
             Id made = 0;
             auto note = o.added;
+            // In a looped clip, a note drawn on a repeat goes into the loop, where it plays every time.
+            const auto* looped = c.project.clip (clip);
+            const Tick loop = looped ? looped->loopLength : 0;
+            if (loop > 0) note.start = ((note.start % loop) + loop) % loop;
             c.apply ("Add Note", [&] (Project& p) { made = edit::addNote (p, clip, note); });
             c.selectedNotes = { made };
             // A note drawn past the clip's end lengthens the clip.
-            if (auto* cl = c.clip())
+            if (auto* cl = c.clip(); cl && loop == 0)
                 if (note.end() > cl->offset + cl->length)
                 {
                     const Tick end = c.project.tempo.barStart (c.project.tempo.barAt (base() + note.end() - 1) + 1) - cl->start;
@@ -626,7 +647,47 @@ void PianoRoll::laneMenu()
         laneKind = saved;
         m.addItem (name, true, laneKind == k, [this, k] { laneKind = k; repaint(); });
     }
+    // The track's articulation map (decision 0072): with one, the articulation lane shows above.
+    m.addSeparator();
+    m.addSubMenu ("Articulation Map", articulationMenu());
     m.showMenuAsync (PopupMenu::Options());
+}
+
+PopupMenu PianoRoll::articulationMenu()
+{
+    PopupMenu maps;
+    const auto* t = const_cast<Controller&> (c).focus();
+    const Id track = c.focusTrack;
+    const bool can = t && t->holdsClips();
+    maps.addItem ("None", can, t && t->articulationMap == 0, [this, track]
+    {
+        c.apply ("Articulation Map", [track] (Project& p) { if (auto* x = p.track (track)) x->articulationMap = 0; });
+        resized();
+    });
+    StringArray inSong;
+    for (auto& map : c.project.articulationMaps)
+    {
+        inSong.add (String (map.name));
+        maps.addItem (String (map.name), can, t && t->articulationMap == map.id, [this, track, map]
+        {
+            c.useArticulationMap (track, map);
+            resized();
+        });
+    }
+    bool header = false;
+    for (auto& map : c.articulationLibrary())
+    {
+        if (inSong.contains (String (map.name))) continue;
+        if (! header) { maps.addSectionHeader ("From the Library"); header = true; }
+        maps.addItem (String (map.name), can, false, [this, track, map]
+        {
+            c.useArticulationMap (track, map);
+            resized();
+        });
+    }
+    maps.addSeparator();
+    maps.addItem (ui::u8 ("Articulation Manager\xe2\x80\xa6"), [this] { c.showArticulationManager(); });
+    return maps;
 }
 
 void PianoRoll::drawLaneValue (const MouseEvent& e)
@@ -712,12 +773,17 @@ void PianoRoll::articulationMenu (const Note& n)
 void PianoRoll::mouseMove (const MouseEvent& e)
 {
     const auto* clip = c.project.clip (c.selectedClip);
-    if (! clip || ! noteArea().contains (e.getPosition())) { setMouseCursor (MouseCursor::NormalCursor); return; }
+    if (! clip || ! noteArea().contains (e.getPosition())) { c.hover (0); setMouseCursor (MouseCursor::NormalCursor); return; }
     roll::Zone zone;
-    if (roll::noteAt (clip->midi.notes, relAt ((float) e.x), pitchAt ((float) e.y), timeline.ticksFor ((float) theme::px (6)), &zone))
+    const auto* note = roll::noteAt (clip->midi.notes, relAt ((float) e.x), pitchAt ((float) e.y), timeline.ticksFor ((float) theme::px (6)), &zone);
+    // The note under the pointer, for the message line (0070).
+    c.hover (note ? clip->id : 0, note ? note->id : 0);
+    if (note)
         setMouseCursor (zone == roll::Zone::Body ? MouseCursor::DraggingHandCursor : MouseCursor::LeftRightResizeCursor);
     else setMouseCursor (MouseCursor::NormalCursor);
 }
+
+void PianoRoll::mouseExit (const MouseEvent&) { c.hover (0); }
 
 void PianoRoll::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails& w)
 {

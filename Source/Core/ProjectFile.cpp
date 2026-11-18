@@ -47,7 +47,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Device, id, role, plugin, state
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (OfflineFx, chain, includeTail)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (PatternFeel, swing, gate)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Clip, id, kind, name, start, length, offset, loopLength, colour, muted, locked,
-                                                 midi, audio, offlineFx, fromTake, link, drumsFeel, stepsFeel, euclidFeel)
+                                                 midi, audio, offlineFx, fromTake, link, drumsFeel, stepsFeel, euclidFeel, detectChords)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Take, id, name, clips)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (CompSegment, start, end, take)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackVersion, id, name, clips, takes, comp, takesShown, devices, ownDevices)
@@ -58,8 +58,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (ModTarget, device, param, amoun
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Modulator, id, kind, name, shape, rateHz, sync, syncBeats, phase, bipolar,
                                                  attack, decay, sustain, release, sourceTrack, followAttack, followRelease,
                                                  followGain, table, tableFile, targets)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (ArtOutput, kind, number, value)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Articulation, name, keyswitch, keyswitchVelocity, cc, ccValue, program, channel,
-                                                 delayMs, colour)
+                                                 delayMs, colour, more)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (ArticulationMap, id, name, articulations)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Send, target, gainDb, preFader, muted)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (TrackInput, audioChannel, stereo, midiDevice, midiChannel)
@@ -119,6 +120,25 @@ std::string save (const Project& p)
     j["sampleRate"] = p.sampleRate;
     j["nextId"] = p.nextId;
     return j.dump (1, '\t');
+}
+
+std::string saveMaps (const std::vector<ArticulationMap>& maps)
+{
+    nlohmann::json j;
+    j["kalibreArticulationMaps"] = formatVersion;
+    j["maps"] = maps;
+    return j.dump (1, '\t');
+}
+
+std::vector<ArticulationMap> loadMaps (const std::string& text)
+{
+    try
+    {
+        const auto j = nlohmann::json::parse (text);
+        if (j.is_object() && j.contains ("maps")) return j.at ("maps").get<std::vector<ArticulationMap>>();
+    }
+    catch (...) {}
+    return {};
 }
 
 std::optional<Project> load (const std::string& text, std::string* error)

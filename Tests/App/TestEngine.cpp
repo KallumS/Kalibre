@@ -808,3 +808,258 @@ TEST ("lua tools: Insert at Cursor puts the block on the device's track at the p
     CHECK (c.undo());
     CHECK_EQ (c.project.tracks.size(), before);
 }
+
+#include "BuiltinInstruments.h"
+
+namespace
+{
+AudioBuffer<float> readAll (const File& f)
+{
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    AudioBuffer<float> b;
+    if (! r) return b;
+    b.setSize ((int) r->numChannels, (int) r->lengthInSamples);
+    r->read (&b, 0, b.getNumSamples(), 0, true, true);
+    return b;
+}
+
+PluginRef kalibre (const char* id) { PluginRef r; r.format = "Kalibre"; r.identifier = id; r.name = id; return r; }
+
+// A song with everything the graph has to line up: plug-ins of different
+// latencies on parallel paths, a folder, a return fed by sends, a sidechain,
+// an instrument playing notes, audio clips.
+Project busySong (const File& click, int tracks = 6, bool folders = true, bool sends = true)
+{
+    Project p;
+    const Id folder = edit::addTrack (p, TrackKind::Folder, "Band");
+    const Id ret = edit::addTrack (p, TrackKind::Return, "Room");
+    edit::addDevice (p, ret, kalibre ("test-latency:96"), DeviceRole::AudioFx);
+    for (int i = 0; i < tracks; ++i)
+    {
+        const Id t = edit::addTrack (p, TrackKind::Track, "Track " + std::to_string (i), 0, folders && i < 3 ? folder : 0);
+        edit::addClip (p, t, audioClip (click, (Tick) i * PPQ / 3, PPQ * 4));
+        edit::addDevice (p, t, kalibre (("test-latency:" + std::to_string (37 * i)).c_str()), DeviceRole::AudioFx);
+        edit::addDevice (p, t, kalibre (("test-gain:" + std::to_string (-i)).c_str()), DeviceRole::AudioFx);
+        if (sends) edit::addSend (p, t, ret, -6.0 - i);
+        p.track (t)->pan = (float) (i - 3) / 3.0f;
+    }
+    const Id keys = edit::addTrack (p, TrackKind::Track, "Keys");
+    edit::addDevice (p, keys, synthRef(), DeviceRole::Instrument);
+    edit::addDevice (p, keys, kalibre ("test-latency:211"), DeviceRole::AudioFx);
+    const Id clip = edit::addMidiClip (p, keys, 0, PPQ * 8);
+    for (int i = 0; i < 8; ++i) { Note n; n.start = (Tick) i * PPQ; n.length = PPQ / 2; n.pitch = 48 + i * 3; edit::addNote (p, clip, n); }
+    return p;
+}
+} // namespace
+
+TEST ("multi-core: a song played on every core comes out exactly as JUCE's own graph plays it, delay compensation and all (0078)")
+{
+    const auto click = clickFile (0.25);
+    const auto p = busySong (click);
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 3.0; o.tail = 0.5; o.dither = false; o.bitDepth = 32;
+    // Each from a fresh engine: an instrument's voices carry on from one render to the next.
+    auto render = [&] (bool parallel, const File& out)
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        engine.setParallel (parallel);
+        String error;
+        CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+        return engine.audioGraph().blocksByPlan.load();
+    };
+    const auto one = tempFolder().getChildFile ("graph-one-thread.wav");
+    const auto many = tempFolder().getChildFile ("graph-every-core.wav");
+    CHECK_EQ (render (false, one), 0);
+    CHECK (render (true, many) > 100);   // played by the plan, not JUCE's graph
+
+    const auto a = readAll (one), b = readAll (many);
+    CHECK_EQ (a.getNumSamples(), b.getNumSamples());
+    CHECK (a.getMagnitude (0, a.getNumSamples()) > 0.1f);   // there's something to compare
+    float worst = 0;
+    for (int ch = 0; ch < jmin (a.getNumChannels(), b.getNumChannels()); ++ch)
+        for (int i = 0; i < jmin (a.getNumSamples(), b.getNumSamples()); ++i)
+            worst = jmax (worst, std::abs (a.getSample (ch, i) - b.getSample (ch, i)));
+    CHECK (worst < 1.0e-5f);
+    if (worst >= 1.0e-5f) std::printf ("  largest difference %g\n", (double) worst);
+}
+
+TEST ("multi-core: heavy plug-ins on several tracks are played on several threads at once, and faster (0078)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    engine.setParallel (true);
+    if (engine.audioThreads() < 2) { std::printf ("  (one core here: nothing to spread)\n"); return; }
+    Project p;
+    for (int i = 0; i < 4; ++i)
+    {
+        const Id t = edit::addTrack (p, TrackKind::Track, "Heavy " + std::to_string (i));
+        edit::addDevice (p, t, kalibre ("test-busy:1"), DeviceRole::AudioFx);
+    }
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 1.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    String error;
+    auto timed = [&] (bool parallel)
+    {
+        engine.setParallel (parallel);
+        const auto start = Time::getMillisecondCounterHiRes();
+        CHECK (engine.render (p, tempFolder(), tempFolder().getChildFile ("busy.wav"), o, {}, error));
+        return Time::getMillisecondCounterHiRes() - start;
+    };
+    const double serial = timed (false);
+    const double spread = timed (true);
+    CHECK (engine.audioGraph().threadsInLastBlock.load() >= 2);
+    std::printf ("  %d threads; 4 x 1 ms a block: %.0f ms on one, %.0f ms on every core\n", engine.audioThreads(), serial, spread);
+    CHECK (spread < serial * 0.8);
+}
+
+#include "AudioFiles.h"
+#include "Controller.h"
+
+namespace
+{
+bool floatWav (const File& f)
+{
+    WavAudioFormat wav;
+    std::unique_ptr<AudioFormatReader> r (wav.createReaderFor (f.createInputStream().release(), true));
+    return r && r->bitsPerSample == 32 && r->usesFloatingPointData;
+}
+} // namespace
+
+TEST ("freeze: quietly, nothing else reloaded; a 32-bit float render; unfreezing deletes it and brings the plug-ins back as they were; Undo renders it again (0080)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    const Id synth = edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    Note n; n.pitch = 60; n.length = PPQ * 2; edit::addNote (c.project, clip, n);
+    const Id other = edit::addTrack (c.project, TrackKind::Track, "Other");
+    const Id otherSynth = edit::addDevice (c.project, other, synthRef(), DeviceRole::Instrument);
+    c.refresh();
+    // A setting of the synth's own, to see it come back.
+    auto* inst = engine.instance (synth);
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    auto* param = inst->getParameters()[0];
+    param->setValueNotifyingHost (0.73f);
+    const float set = param->getValue();
+    auto* otherBefore = engine.instance (otherSynth);
+
+    c.freeze (t, true);
+    CHECK (c.project.track (t)->frozen);
+    CHECK (engine.instance (synth) == nullptr);              // unloaded
+    CHECK (engine.instance (otherSynth) == otherBefore);     // the rest never reloaded
+    const File render (String (c.project.track (t)->frozenFile));
+    CHECK (render.existsAsFile());
+    CHECK (floatWav (render));
+    CHECK (readAll (render).getMagnitude (0, readAll (render).getNumSamples()) > 0.01f);
+
+    c.freeze (t, false);
+    CHECK (! render.existsAsFile());                         // the render is deleted
+    CHECK (! c.project.track (t)->frozen);
+    auto* back = engine.instance (synth);
+    CHECK (back != nullptr);
+    if (back) CHECK (std::abs (back->getParameters()[0]->getValue() - set) < 0.001f);
+
+    c.undo();                                                // frozen again: its render is made again
+    CHECK (c.project.track (t)->frozen);
+    CHECK (File (String (c.project.track (t)->frozenFile)).existsAsFile());
+}
+
+TEST ("bounce in place: a MIDI clip through its track's plug-ins onto a new audio track under it, the clip muted; 32-bit float; one undo step (0080)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+    c.project.track (t)->volumeDb = -3.0;
+    const Id clip = edit::addMidiClip (c.project, t, PPQ * 4, PPQ * 4);
+    Note n; n.pitch = 64; n.length = PPQ; edit::addNote (c.project, clip, n);
+    const Id later = edit::addMidiClip (c.project, t, PPQ * 16, PPQ * 4);
+    c.refresh();
+    const auto tracksBefore = c.project.tracks.size();
+    const auto steps = c.history.size();
+    c.bounceInPlace ({ clip });
+    CHECK_EQ (c.history.size(), steps + 1);
+    CHECK_EQ (c.project.tracks.size(), tracksBefore + 1);
+    CHECK_EQ (c.project.indexOf (t) + 1, c.project.indexOf (c.project.tracks[(size_t) c.project.indexOf (t) + 1].id));
+    const auto& bounced = c.project.tracks[(size_t) c.project.indexOf (t) + 1];
+    CHECK_EQ (bounced.name, std::string ("Keys Bounce"));
+    CHECK (std::abs (bounced.volumeDb + 3.0) < 0.001);       // made like its track
+    CHECK (bounced.devices.empty());
+    CHECK_EQ (bounced.clips().size(), size_t (1));
+    if (! bounced.clips().empty())
+    {
+        const auto& a = bounced.clips().front();
+        CHECK (! a.isMidi());
+        CHECK_EQ (a.start, Tick (PPQ * 4));
+        CHECK (a.length >= PPQ * 4);
+        const File f (String (a.audio.file));
+        CHECK (floatWav (f));
+        const auto b = readAll (f);
+        CHECK (b.getMagnitude (0, b.getNumSamples()) > 0.01f);
+    }
+    CHECK (c.project.clip (clip)->muted);
+    CHECK (! c.project.clip (later)->muted);                  // only what was chosen
+    c.undo();
+    CHECK_EQ (c.project.tracks.size(), tracksBefore);
+    CHECK (! c.project.clip (clip)->muted);
+}
+
+TEST ("32-bit float: imported audio that isn't is copied into the song's Audio folder as 32-bit float WAV; recordings are written so (0079)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    // A 16-bit WAV.
+    const auto f = tempFolder().getChildFile ("sixteen.wav");
+    f.deleteFile();
+    {
+        AudioBuffer<float> b (2, 4800);
+        b.clear();
+        b.setSample (0, 100, 0.5f);
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (16));
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    }
+    CHECK (! audiofile::isFloatWav (f));
+    CHECK (c.importFile (f, 0, 0));
+    const Clip* imported = nullptr;
+    for (auto& t : c.project.tracks) for (auto& cl : t.clips()) imported = &cl;
+    CHECK (imported != nullptr);
+    if (imported)
+    {
+        const File copy (String (imported->audio.file));
+        CHECK (copy != f);
+        CHECK (floatWav (copy));
+        CHECK_EQ (imported->name, std::string ("sixteen"));
+    }
+    // One that is already float is used where it is.
+    const auto click = clickFile (0.1);
+    CHECK (audiofile::isFloatWav (click));
+    CHECK (c.importFile (click, 0, PPQ * 8));
+    bool same = false;
+    for (auto& t : c.project.tracks) for (auto& cl : t.clips()) same |= File (String (cl.audio.file)) == click;
+    CHECK (same);
+    // What a recording is written with.
+    const auto rec = tempFolder().getChildFile ("writer.wav");
+    {
+        auto w = audiofile::floatWav (rec, 48000, 2);
+        CHECK (w != nullptr);
+        AudioBuffer<float> b (2, 10);
+        b.clear();
+        b.setSample (0, 1, 1.5f);   // over 0 dB, kept
+        if (w) w->writeFromAudioSampleBuffer (b, 0, 10);
+    }
+    CHECK (floatWav (rec));
+    CHECK (readAll (rec).getSample (0, 1) > 1.4f);
+}

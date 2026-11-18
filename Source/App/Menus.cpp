@@ -6,6 +6,7 @@
 #include "Song.h"
 #include "Surround.h"
 #include "MainComponent.h"
+#include "CrashReports.h"
 
 namespace kal
 {
@@ -62,7 +63,7 @@ PopupMenu MainComponent::appMenu()
         browser.showTab (Browser::Tab::Studio);
         resized();
     }));
-    m.addItem (item (ui::u8 ("Scan for Plug-ins"), [this] { c.scanPlugins(); }, {}, ! c.engine.plugins().scanning()));
+    // Scanning is in the Plug-in Manager; one place for it, one menu item (0069).
     m.addItem (item (ui::u8 ("Plug-in Manager\xe2\x80\xa6"), [this] { c.showPluginManager(); }));
     return m;
 }
@@ -88,6 +89,23 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                     if (c.open (f)) { c.file = keep; c.dirty = true; c.say ("Opened the autosave from " + f.getLastModificationTime().toString (true, true, false) + ". Save to keep it."); }
                 });
             }));
+            // Backups (decision 0073): every 15 minutes while it has changed.
+            PopupMenu backups;
+            const auto found = c.backups();
+            for (int i = 0; i < jmin (12, found.size()); ++i)
+            {
+                const auto f = found[i];
+                backups.addItem (item (f.getLastModificationTime().toString (true, true, false), [this, f] { checkSaved ([this, f] { c.openBackup (f); }); }));
+            }
+            if (found.isEmpty()) backups.addItem (item ("No backups yet: one is made every 15 minutes while there are changes", [] {}, {}, false));
+            backups.addSeparator();
+            backups.addItem (item ("Show Backups in Finder", [this]
+            {
+                auto folder = c.backupsFolder();
+                folder.createDirectory();
+                folder.revealToUser();
+            }));
+            m.addSubMenu ("Open a Backup", backups);
             // Templates (decision 0041).
             PopupMenu templates;
             for (auto& f : c.templatesFolder().findChildFiles (File::findFiles, false, "*.kalibre"))
@@ -109,6 +127,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                     if (r > 0) c.saveTemplate (w->getTextEditorContents ("name").trim(), r == 2);
                 }), true);
             }));
+            m.addItem (item (ui::u8 ("Articulation Manager\xe2\x80\xa6"), [this] { showArticulationManager(); }));
             m.addItem (item ("Collect All Files and Save", [this] { if (! c.file.existsAsFile()) saveFile ([this] { c.collectAndSave(); }); else c.collectAndSave(); }));
             m.addItem (item (ui::u8 ("Relink Missing Files\xe2\x80\xa6"), [this]
             {
@@ -138,6 +157,15 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                     if (fc.getResult().existsAsFile()) c.importMusicXml (fc.getResult());
                 });
             }));
+            m.addItem (item (ui::u8 ("Open a DAWproject\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Open a song from Bitwig, Studio One, Cubase or another program, as a new song",
+                                                         File::getSpecialLocation (File::userDocumentsDirectory), "*.dawproject");
+                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult().existsAsFile()) checkSaved ([this, f = fc.getResult()] { c.importDawProject (f); });
+                });
+            }));
             m.addItem (item (ui::u8 ("Import Video\xe2\x80\xa6"), [this]
             {
                 chooser = std::make_unique<FileChooser> ("Import a video", File::getSpecialLocation (File::userMoviesDirectory), "*.mov;*.mp4;*.m4v");
@@ -162,6 +190,15 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this] (const FileChooser& fc)
                 {
                     if (fc.getResult() != File()) c.exportMusicXml (fc.getResult().withFileExtension (".musicxml"));
+                });
+            }));
+            m.addItem (item (ui::u8 ("Export a DAWproject\xe2\x80\xa6"), [this]
+            {
+                chooser = std::make_unique<FileChooser> ("Export the song as a DAWproject, for Bitwig, Studio One, Cubase and others",
+                                                         c.projectFolder().getChildFile ((c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Song")) + ".dawproject"), "*.dawproject");
+                chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this] (const FileChooser& fc)
+                {
+                    if (fc.getResult() != File()) c.exportDawProject (fc.getResult().withFileExtension (".dawproject"));
                 });
             }));
             m.addItem (item (ui::u8 ("Export Several at Once\xe2\x80\xa6"), [this] { exportBatch(); }));
@@ -431,7 +468,6 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Meters", [this] { c.zoneTab = ZoneTab::Meters; c.viewChanged(); }, k ("meters"), true, c.zoneTab == ZoneTab::Meters));
             m.addSeparator();
             m.addItem (item ("Browser", [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); }, k ("browser"), true, browserShown));
-            m.addItem (item (ui::u8 ("Plug-in Manager\xe2\x80\xa6"), [this] { showPluginManager(); }));
             m.addItem (item ("Section Lane", [this] { c.showSectionLane = ! c.showSectionLane; c.viewChanged(); }, {}, true, c.showSectionLane));
             m.addItem (item ("Chord Lane", [this] { c.showChordLane = ! c.showChordLane; c.viewChanged(); }, {}, true, c.showChordLane));
             m.addItem (item ("Tempo Lane", [this] { c.showTempoLane = ! c.showTempoLane; c.viewChanged(); }, {}, true, c.showTempoLane));
@@ -491,6 +527,12 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         case 7:   // Help
         {
             m.addItem (item ("Keys", [this] { showBrowser (Browser::Tab::Keys); }));
+            m.addItem (item ("Show Crash Reports", []
+            {
+                auto f = crash::folder();
+                f.createDirectory();
+                f.revealToUser();
+            }));
             m.addItem (item ("Kalibre on GitHub", [] { URL ("https://github.com/KallumS/Kalibre").launchInDefaultBrowser(); }));
             break;
         }

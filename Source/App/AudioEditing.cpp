@@ -5,6 +5,7 @@
 */
 
 #include "Controller.h"
+#include "AudioFiles.h"
 
 #include "AudioTools.h"
 #include "Edit.h"
@@ -49,11 +50,7 @@ bool Controller::editAudio (Id clipId, const String& label, int start, int end,
     // "Vocal edit 3.wav" beside the recordings; the original stays where it is.
     const auto base = src.getFileNameWithoutExtension().upToLastOccurrenceOf (" edit", false, false);
     const auto out = recordingsFolder().getNonexistentChildFile (base + " edit", ".wav");
-    WavAudioFormat wav;
-    std::unique_ptr<OutputStream> stream (out.createOutputStream().release());
-    auto writer = stream ? wav.createWriterFor (stream, AudioFormatWriterOptions().withSampleRate (rate)
-                                                    .withNumChannels (buf.getNumChannels()).withBitsPerSample (32))
-                         : nullptr;
+    auto writer = audiofile::floatWav (out, rate, buf.getNumChannels());   // decision 0079
     if (! writer || ! writer->writeFromAudioSampleBuffer (buf, 0, buf.getNumSamples()))
     {
         say ("The edited audio couldn't be written.", true);

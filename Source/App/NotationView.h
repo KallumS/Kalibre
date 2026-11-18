@@ -17,7 +17,7 @@
 namespace kal
 {
 
-class NotationView : public juce::Component, private juce::ChangeListener
+class NotationView : public juce::Component, private juce::ChangeListener, private juce::Timer
 {
 public:
     explicit NotationView (Controller&);
@@ -50,6 +50,11 @@ private:
     float xOfClipTick (Tick) const;       // where a clip tick falls, between the glyphs either side
     Tick clipTickAt (float x) const;
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void timerCallback() override;
+public:
+    // Where the playhead is drawn, or below zero when it isn't (stopped, or outside the clip).
+    float playheadX() const;
+    float shownPlayheadX = -1;   // where it was last drawn (tests)
 };
 
 } // namespace kal

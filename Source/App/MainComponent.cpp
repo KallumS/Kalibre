@@ -37,6 +37,12 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
         lowerHeight = s->getIntValue ("lowerHeight", 320);
         browserShown = s->getBoolValue ("browser", false);
         c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
+        c.hiddenInTopBar.addTokens (s->getValue ("hiddenInTopBar"), "|", {});
+        c.hiddenInTopBar.removeEmptyStrings();
+        c.cpuEverySeconds = jlimit (1, 5, s->getIntValue ("cpuEverySeconds", 2));
+        c.arrangeGrid = jmax<Tick> (PPQ / 32, (Tick) s->getIntValue ("arrangeGrid", PPQ / 4));
+        c.followPages = s->getBoolValue ("followPages", false);
+        c.engine.setParallel (s->getBoolValue ("everyCore", true));   // decision 0078
         setTextSize ((float) s->getDoubleValue ("textSize", 1.0));
     }
     browser.setVisible (browserShown);
@@ -44,6 +50,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
     setTitle ("Kalibre");
     registerKeys();
     c.onShowPluginManager = [this] { showPluginManager(); };
+    c.onShowArticulationManager = [this] { showArticulationManager(); };
     c.addChangeListener (this);
     setSize (1440, 900);
 }
@@ -52,13 +59,20 @@ MainComponent::~MainComponent()
 {
     c.keys.all().clear();   // their actions point at this window
     c.onShowPluginManager = nullptr;
+    c.onShowArticulationManager = nullptr;
     pluginWindow.reset();
+    articulationWindow.reset();
     c.removeChangeListener (this);
     if (auto* s = settingsStore().getUserSettings())
     {
         s->setValue ("lowerHeight", lowerHeight);
         s->setValue ("browser", browserShown);
         s->setValue ("zeroCrossings", c.zeroCrossings);
+        s->setValue ("hiddenInTopBar", c.hiddenInTopBar.joinIntoString ("|"));
+        s->setValue ("cpuEverySeconds", c.cpuEverySeconds);
+        s->setValue ("arrangeGrid", (int) c.arrangeGrid);
+        s->setValue ("followPages", c.followPages);
+        s->setValue ("everyCore", c.engine.isParallel());
         s->setValue ("textSize", (double) theme::scale());
         settingsStore().saveIfNeeded();
         settingsStore().closeFiles();
@@ -93,6 +107,18 @@ void MainComponent::showPluginManager()
     if (auto* view = dynamic_cast<PluginManagerView*> (pluginWindow->getContentComponent())) view->refresh();
     pluginWindow->setVisible (true);
     pluginWindow->toFront (true);
+}
+
+void MainComponent::showArticulationManager()
+{
+    if (! articulationWindow)
+    {
+        articulationWindow = std::make_unique<ArticulationManagerWindow> (c);
+        if (auto* top = getTopLevelComponent()) articulationWindow->centreAroundComponent (top, articulationWindow->getWidth(), articulationWindow->getHeight());
+    }
+    if (auto* view = dynamic_cast<ArticulationManagerView*> (articulationWindow->getContentComponent())) view->refresh();
+    articulationWindow->setVisible (true);
+    articulationWindow->toFront (true);
 }
 
 void MainComponent::setTextSize (float s)
@@ -156,6 +182,16 @@ void MainComponent::mouseDrag (const MouseEvent& e)
 //==============================================================================
 bool MainComponent::keyPressed (const KeyPress& k)
 {
+    // Step input takes the numbers while it's on (decision 0076).
+    if (c.stepInput && ! k.getModifiers().isCommandDown() && ! k.getModifiers().isCtrlDown() && ! k.getModifiers().isAltDown())
+    {
+        int digit = -1;
+        const auto ch = k.getTextCharacter();
+        if (ch >= '0' && ch <= '9') digit = (int) (ch - '0');
+        else if (k.getKeyCode() >= '0' && k.getKeyCode() <= '9') digit = k.getKeyCode() - '0';
+        else if (k.getKeyCode() >= KeyPress::numberPad0 && k.getKeyCode() <= KeyPress::numberPad9) digit = k.getKeyCode() - KeyPress::numberPad0;
+        if (digit >= 0 && c.stepDigit (digit)) return true;
+    }
     // Every key is the user's to change (decision 0045), in the browser's Keys tab.
     return c.keys.handle (KeyPress (k.getKeyCode(), k.getModifiers().withoutMouseButtons(), 0));
 }

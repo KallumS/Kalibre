@@ -14,7 +14,9 @@ static Colour trackColour (const Track& t) { return Colour (t.colour); }
 //==============================================================================
 TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), arrange (a), c (ctrl)
 {
-    for (theme::HouseButton* b : std::initializer_list<theme::HouseButton*> { &version, &mute, &solo, &arm, &fold }) addAndMakeVisible (b);
+    for (theme::HouseButton* b : std::initializer_list<theme::HouseButton*> { &version, &io, &mute, &solo, &arm, &fold }) addAndMakeVisible (b);
+    io.setTitle ("Inputs and Outputs");
+    io.onClick = [this] { if (c.optionAdds (id)) { refreshButtons(); return; } routingMenu(); };
     addAndMakeVisible (name);
     name.setEditable (false, true);
     name.setFont (theme::font());
@@ -76,6 +78,8 @@ void TrackHeader::update (const Track& t)
     version.setButtonText ("v" + String (t.activeVersion + 1));
     version.setTip ("Version " + String (t.activeVersion + 1) + " of " + String ((int) t.versions.size())
                     + ". Click to choose another, or make a new one.");
+    io.setVisible (t.kind != TrackKind::Master);
+    io.setTip (routingWords (t));
     fold.setVisible (t.isFolder());
     fold.setButtonText (t.collapsed ? String::fromUTF8 ("\xe2\x96\xb8") : String::fromUTF8 ("\xe2\x96\xbe"));
     depth = c.project.depth (t.id);
@@ -122,6 +126,7 @@ void TrackHeader::resized()
     const int b = theme::px (22);
     for (theme::HouseButton* btn : std::initializer_list<theme::HouseButton*> { &arm, &solo, &mute })
         if (btn->isVisible()) { btn->setBounds (top.removeFromRight (b)); top.removeFromRight (2); }
+    if (io.isVisible()) { io.setBounds (top.removeFromRight (theme::px (30))); top.removeFromRight (2); }
     if (version.isVisible()) { version.setBounds (top.removeFromRight (theme::px (30))); top.removeFromRight (4); }
     name.setBounds (top);
 }
@@ -176,7 +181,7 @@ void TrackHeader::showMenu()
 {
     const auto* t = c.project.track (id);
     if (! t) return;
-    PopupMenu m, colours, autoModes, monitor;
+    PopupMenu m, colours, autoModes;
     if (t->holdsClips())
     {
         m.addItem ("New Version", (int) t->versions.size() < maxVersions, false, [this] { c.newVersion (id); });
@@ -239,14 +244,6 @@ void TrackHeader::showMenu()
     m.addSubMenu ("Automation", autoModes);
     if (t->holdsClips())
     {
-        const char* mon[] { "Auto (while armed)", "On", "Off" };
-        for (int i = 0; i < 3; ++i)
-            monitor.addItem (mon[i], true, (int) t->monitor == i, [this, i]
-            {
-                c.apply ("Monitoring", [this, i] (Project& p) { if (auto* tr = p.track (id)) tr->monitor = (Monitor) i; });
-            });
-        m.addSubMenu ("Monitor Input", monitor);
-
         PopupMenu maps;
         maps.addItem ("None", true, t->articulationMap == 0, [this] { c.apply ("Articulation Map", [this] (Project& p) { if (auto* tr = p.track (id)) tr->articulationMap = 0; }); });
         for (auto& map : c.project.articulationMaps)
@@ -255,60 +252,9 @@ void TrackHeader::showMenu()
                 c.apply ("Articulation Map", [this, mid] (Project& p) { if (auto* tr = p.track (id)) tr->articulationMap = mid; });
             });
         m.addSubMenu ("Articulation Map", maps);
-
-        // Where it listens (the window's own choosers, not just the defaults).
-        PopupMenu audioIn, midiIn, midiCh;
-        const int inputs = c.engine.devices().getCurrentAudioDevice()
-                             ? c.engine.devices().getCurrentAudioDevice()->getActiveInputChannels().countNumberOfSetBits() : 2;
-        auto setInput = [this] (int ch, bool stereo)
-        {
-            c.apply ("Input", [this, ch, stereo] (Project& p) { if (auto* tr = p.track (id)) { tr->input.audioChannel = ch; tr->input.stereo = stereo; } });
-        };
-        audioIn.addItem ("None", true, t->input.audioChannel < 0, [setInput] { setInput (-1, true); });
-        for (int ch = 0; ch + 1 < jmax (2, inputs); ch += 2)
-            audioIn.addItem ("Inputs " + String (ch + 1) + "-" + String (ch + 2) + " (Stereo)", true,
-                             t->input.audioChannel == ch && t->input.stereo, [setInput, ch] { setInput (ch, true); });
-        for (int ch = 0; ch < jmax (2, inputs); ++ch)
-            audioIn.addItem ("Input " + String (ch + 1) + " (Mono)", true, t->input.audioChannel == ch && ! t->input.stereo,
-                             [setInput, ch] { setInput (ch, false); });
-        m.addSubMenu ("Audio Input", audioIn);
-        auto setMidi = [this] (std::string dev)
-        {
-            c.apply ("MIDI Input", [this, dev] (Project& p) { if (auto* tr = p.track (id)) tr->input.midiDevice = dev; });
-        };
-        midiIn.addItem ("Every Keyboard", true, t->input.midiDevice == "All", [setMidi] { setMidi ("All"); });
-        midiIn.addItem ("None", true, t->input.midiDevice == "None", [setMidi] { setMidi ("None"); });
-        for (auto& d : MidiInput::getAvailableDevices())
-            midiIn.addItem (d.name, true, t->input.midiDevice == d.identifier.toStdString(), [setMidi, idf = d.identifier.toStdString()] { setMidi (idf); });
-        m.addSubMenu ("MIDI Input", midiIn);
-        for (int ch = 0; ch <= 16; ++ch)
-            midiCh.addItem (ch == 0 ? String ("Every Channel") : "Channel " + String (ch), true, t->input.midiChannel == ch, [this, ch]
-            {
-                c.apply ("MIDI Channel", [this, ch] (Project& p) { if (auto* tr = p.track (id)) tr->input.midiChannel = ch; });
-            });
-        m.addSubMenu ("MIDI Channel", midiCh);
-        m.addItem ("MPE (a Channel for Each Note)", true, t->mpe, [this]
-        {
-            c.apply ("MPE", [this] (Project& p) { if (auto* tr = p.track (id)) tr->mpe = ! tr->mpe; });
-            if (const auto* tr = c.project.track (id); tr && tr->mpe)
-                c.say ("MPE is on: each note plays on its own channel with its own bend, pressure and slide. Draw them in the piano roll's Note lanes.");
-        });
     }
     if (t->kind != TrackKind::Master)
     {
-        PopupMenu out;
-        out.addItem (t->parent ? "Its Folder" : "The Master", true, t->output == 0, [this]
-        {
-            c.apply ("Output", [this] (Project& p) { if (auto* tr = p.track (id)) tr->output = 0; });
-        });
-        for (auto& r : c.project.tracks)
-            if ((r.kind == TrackKind::Return || r.isFolder()) && r.id != id && r.id != t->parent && edit::canRoute (c.project, id, r.id))
-                out.addItem (String (r.name), true, t->output == r.id, [this, rid = r.id]
-                {
-                    c.apply ("Output", [this, rid] (Project& p) { if (auto* tr = p.track (id)) tr->output = rid; });
-                });
-        m.addSubMenu ("Output", out);
-
         // Track groups (decision 0037): volume, pan, mute, solo and arm move together.
         PopupMenu groups;
         groups.addItem ("None", true, t->group == 0, [this] { c.apply ("Group", [this] (Project& p) { for (auto tid : c.selectedTracks) if (auto* tr = p.track (tid)) tr->group = 0; if (auto* tr = p.track (id)) tr->group = 0; }); });
@@ -327,6 +273,83 @@ void TrackHeader::showMenu()
         }
         m.addSubMenu ("Group", groups);
     }
+    m.addSeparator();
+    if (t->holdsClips())
+        m.addItem (t->frozen ? "Unfreeze" : "Freeze", [this, frozen = t->frozen] { c.freeze (id, ! frozen); });
+    m.addItem ("Lock", true, t->locked, [this] { c.apply ("Lock", [this] (Project& p) { if (auto* tr = p.track (id)) tr->locked = ! tr->locked; }); });
+    m.addItem ("Duplicate", [this] { c.duplicateSelectedTracks(); });
+    m.addItem ("Delete", [this] { c.deleteSelectedTracks(); });
+    m.showMenuAsync (PopupMenu::Options());
+}
+
+// The I/O button beside M, S and R (decision 0074): where the track listens
+// and where it plays to, in one menu, each choice ticked.
+void TrackHeader::routingMenu()
+{
+    const auto* t = c.project.track (id);
+    if (! t || t->kind == TrackKind::Master) return;
+    PopupMenu m;
+    if (t->holdsClips())
+    {
+        m.addSectionHeader ("Audio In");
+        const int inputs = c.engine.devices().getCurrentAudioDevice()
+                             ? c.engine.devices().getCurrentAudioDevice()->getActiveInputChannels().countNumberOfSetBits() : 2;
+        auto setInput = [this] (int ch, bool stereo)
+        {
+            c.apply ("Input", [this, ch, stereo] (Project& p) { if (auto* tr = p.track (id)) { tr->input.audioChannel = ch; tr->input.stereo = stereo; } });
+        };
+        m.addItem ("None", true, t->input.audioChannel < 0, [setInput] { setInput (-1, true); });
+        for (int ch = 0; ch + 1 < jmax (2, inputs); ch += 2)
+            m.addItem ("Inputs " + String (ch + 1) + "-" + String (ch + 2) + " (Stereo)", true,
+                       t->input.audioChannel == ch && t->input.stereo, [setInput, ch] { setInput (ch, true); });
+        PopupMenu mono;
+        for (int ch = 0; ch < jmax (2, inputs); ++ch)
+            mono.addItem ("Input " + String (ch + 1), true, t->input.audioChannel == ch && ! t->input.stereo, [setInput, ch] { setInput (ch, false); });
+        m.addSubMenu ("Mono", mono, true, nullptr, t->input.audioChannel >= 0 && ! t->input.stereo);
+
+        m.addSectionHeader ("MIDI In");
+        auto setMidi = [this] (std::string dev)
+        {
+            c.apply ("MIDI Input", [this, dev] (Project& p) { if (auto* tr = p.track (id)) tr->input.midiDevice = dev; });
+        };
+        m.addItem ("Every Keyboard", true, t->input.midiDevice == "All", [setMidi] { setMidi ("All"); });
+        m.addItem ("None", true, t->input.midiDevice == "None", [setMidi] { setMidi ("None"); });
+        for (auto& d : MidiInput::getAvailableDevices())
+            m.addItem (d.name, true, t->input.midiDevice == d.identifier.toStdString(), [setMidi, idf = d.identifier.toStdString()] { setMidi (idf); });
+        PopupMenu midiCh;
+        for (int ch = 0; ch <= 16; ++ch)
+            midiCh.addItem (ch == 0 ? String ("Every Channel") : "Channel " + String (ch), true, t->input.midiChannel == ch, [this, ch]
+            {
+                c.apply ("MIDI Channel", [this, ch] (Project& p) { if (auto* tr = p.track (id)) tr->input.midiChannel = ch; });
+            });
+        m.addSubMenu ("MIDI Channel: " + (t->input.midiChannel == 0 ? String ("Every") : String (t->input.midiChannel)), midiCh);
+        m.addItem ("MPE (a Channel for Each Note)", true, t->mpe, [this]
+        {
+            c.apply ("MPE", [this] (Project& p) { if (auto* tr = p.track (id)) tr->mpe = ! tr->mpe; });
+            if (const auto* tr = c.project.track (id); tr && tr->mpe)
+                c.say ("MPE is on: each note plays on its own channel with its own bend, pressure and slide. Draw them in the piano roll's Note lanes.");
+        });
+        PopupMenu monitor;
+        const char* mon[] { "Auto (while armed)", "On", "Off" };
+        for (int i = 0; i < 3; ++i)
+            monitor.addItem (mon[i], true, (int) t->monitor == i, [this, i]
+            {
+                c.apply ("Monitoring", [this, i] (Project& p) { if (auto* tr = p.track (id)) tr->monitor = (Monitor) i; });
+            });
+        m.addSubMenu (String ("Monitor Input: ") + mon[(int) t->monitor], monitor);
+    }
+
+    m.addSectionHeader ("Out");
+    m.addItem (t->parent ? "Its Folder" : "The Master", true, t->output == 0, [this]
+    {
+        c.apply ("Output", [this] (Project& p) { if (auto* tr = p.track (id)) tr->output = 0; });
+    });
+    for (auto& r : c.project.tracks)
+        if ((r.kind == TrackKind::Return || r.isFolder()) && r.id != id && r.id != t->parent && edit::canRoute (c.project, id, r.id))
+            m.addItem (String (r.name), true, t->output == r.id, [this, rid = r.id]
+            {
+                c.apply ("Output", [this, rid] (Project& p) { if (auto* tr = p.track (id)) tr->output = rid; });
+            });
     PopupMenu sends;
     for (auto& r : c.project.tracks)
         if (r.kind == TrackKind::Return && r.id != id)
@@ -336,13 +359,25 @@ void TrackHeader::showMenu()
             });
     if (sends.getNumItems() == 0) sends.addItem ("Add a Return first", false, false, [] {});
     m.addSubMenu ("Send To", sends);
-    m.addSeparator();
-    if (t->holdsClips())
-        m.addItem (t->frozen ? "Unfreeze" : "Freeze", [this, frozen = t->frozen] { c.freeze (id, ! frozen); });
-    m.addItem ("Lock", true, t->locked, [this] { c.apply ("Lock", [this] (Project& p) { if (auto* tr = p.track (id)) tr->locked = ! tr->locked; }); });
-    m.addItem ("Duplicate", [this] { c.duplicateSelectedTracks(); });
-    m.addItem ("Delete", [this] { c.deleteSelectedTracks(); });
-    m.showMenuAsync (PopupMenu::Options());
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&io));
+}
+
+// In words, for the I/O button's tooltip.
+String TrackHeader::routingWords (const Track& t) const
+{
+    String in, out;
+    if (t.holdsClips())
+    {
+        in = t.input.audioChannel < 0 ? String ("no audio")
+           : t.input.stereo ? "inputs " + String (t.input.audioChannel + 1) + "-" + String (t.input.audioChannel + 2)
+                            : "input " + String (t.input.audioChannel + 1);
+        String midi = t.input.midiDevice == "All" ? String ("every keyboard") : t.input.midiDevice == "None" ? String ("no MIDI") : String ("one keyboard");
+        if (t.input.midiChannel > 0) midi << ", channel " << t.input.midiChannel;
+        in = "In: " + in + "; " + midi + ". ";
+    }
+    const auto* o = c.project.track (t.output);
+    out = "Out: " + (o ? String (o->name) : t.parent ? String ("its folder") : String ("the master")) + ".";
+    return in + out + " Click to change.";
 }
 
 // The track panel's own menu, under the tracks: a new one goes at the end,
@@ -486,7 +521,7 @@ void Arrange::changeListenerCallback (ChangeBroadcaster*)
     if (stamp != chordsFor && c.showChordLane)
     {
         chordsFor = stamp;
-        chords = harmony::chordsAlong (c.project, 0, c.project.endTick());
+        chords = harmony::chordsAlong (c.project, 0, c.project.endTick(), true);   // only the clips asked for (0071)
     }
     layoutRows();
     repaint();
@@ -499,9 +534,13 @@ void Arrange::timerCallback()
     {
         const auto lanes = laneArea();
         const float x = timeline.x (c.playhead());
-        if (x > (float) lanes.getWidth() * 0.85f || x < 0)
+        // Scrolling (click Follow) keeps the playhead near the left; turning the page
+        // (Shift-click) waits for it to reach the right edge, then shows the next screenful (0070).
+        const float edge = c.followPages ? 1.0f : 0.85f;
+        if (x > (float) lanes.getWidth() * edge || x < 0)
         {
-            timeline.startTick = std::max (0.0, (double) c.playhead() - lanes.getWidth() * 0.1 / timeline.pixelsPerTick);
+            const double lead = c.followPages ? 0.0 : lanes.getWidth() * 0.1 / timeline.pixelsPerTick;
+            timeline.startTick = std::max (0.0, (double) c.playhead() - lead);
             layoutRows();
             repaint();
             return;
@@ -772,6 +811,15 @@ void Arrange::drawClip (Graphics& g, const Track& t, const Clip& clip, Rectangle
     if (! clip.isMidi() && clip.audio.warp != WarpMode::Off)
         label << "  " << (clip.audio.warp == WarpMode::Spectral ? "spectral" : clip.audio.warp == WarpMode::Granular ? "granular" : "repitch");
     if (! clip.offlineFx.chain.empty()) label << "  fx";
+    // An alias clip (decision 0074): two links of a chain at the top right; edits reach every copy.
+    if (clip.link != 0 && title.getWidth() > 30.0f)
+    {
+        auto badge = title.removeFromRight (jmin (22.0f, title.getHeight() + 6.0f)).reduced (3.0f, jmax (2.0f, title.getHeight() * 0.22f));
+        const float w = badge.getWidth() * 0.62f, h = badge.getHeight();
+        g.setColour (theme::text);
+        g.drawRoundedRectangle ({ badge.getX(), badge.getY(), w, h }, h * 0.5f, 1.3f);
+        g.drawRoundedRectangle ({ badge.getRight() - w, badge.getY(), w, h }, h * 0.5f, 1.3f);
+    }
     g.drawText (label, title.toNearestInt().reduced (4, 0), Justification::centredLeft, true);
 
     g.saveState();
@@ -974,7 +1022,8 @@ void Arrange::paint (Graphics& g)
     {
         const auto& m = tempo.meterAtBar (bar);
         const Tick start = tempo.barStart (bar);
-        const Tick step = timeline.lineStep (m, 14.0f);
+        // The arrangement's grid (the top bar's Grid), as fine as the zoom lets it be seen.
+        const Tick step = std::max<Tick> (c.snap ? c.arrangeGrid : PPQ, timeline.lineStep (m, 14.0f));
         for (Tick t = start; t < start + m.barTicks(); t += step)
         {
             g.setColour (t == start ? theme::rule : theme::lane);
@@ -1116,8 +1165,11 @@ String Arrange::getTooltip()
 void Arrange::mouseMove (const MouseEvent& e)
 {
     const auto lanes = laneArea();
+    // What the pointer is over, for the message line (0070).
+    const auto* over = lanes.contains (e.getPosition()) ? clipAt (e.getPosition()) : nullptr;
+    c.hover (over ? over->id : 0);
     if (! lanes.contains (e.getPosition())) { setMouseCursor (MouseCursor::NormalCursor); return; }
-    if (const auto* clip = clipAt (e.getPosition()))
+    if (const auto* clip = over)
     {
         const float edge = (float) theme::px (6);
         const float x0 = xOf (clip->start), x1 = xOf (clip->end());
@@ -1126,6 +1178,8 @@ void Arrange::mouseMove (const MouseEvent& e)
     }
     else setMouseCursor (MouseCursor::NormalCursor);
 }
+
+void Arrange::mouseExit (const MouseEvent&) { c.hover (0); }
 
 void Arrange::mouseDown (const MouseEvent& e)
 {
@@ -1141,12 +1195,12 @@ void Arrange::mouseDown (const MouseEvent& e)
         if (e.y > rulerBottom - theme::px (14) || e.mods.isShiftDown())
         {
             drag = Drag::Loop;
-            dragOrigin = c.snapTick (tickAt ((float) e.x));
+            dragOrigin = c.arrangeSnap (tickAt ((float) e.x));
         }
         else
         {
             drag = Drag::Cursor;
-            c.locate (c.snapTick (tickAt ((float) e.x)));
+            c.locate (c.arrangeSnap (tickAt ((float) e.x)));
         }
         return;
     }
@@ -1172,7 +1226,7 @@ void Arrange::mouseDown (const MouseEvent& e)
         if (e.y >= tt && e.y < tt + theme::px (48) && e.x >= lanes.getX())
         {
             drag = Drag::Tempo;
-            dragOrigin = c.snapTick (tickAt ((float) e.x));
+            dragOrigin = c.arrangeSnap (tickAt ((float) e.x));
             return;
         }
     }
@@ -1181,7 +1235,7 @@ void Arrange::mouseDown (const MouseEvent& e)
     if (! lanes.contains (e.getPosition())) return;
 
     const auto* row = rowAt (e.y);
-    if (! row) { c.locate (c.snapTick (tickAt ((float) e.x))); return; }
+    if (! row) { c.locate (c.arrangeSnap (tickAt ((float) e.x))); return; }
 
     if (row->take >= 0)
     {
@@ -1226,7 +1280,7 @@ void Arrange::mouseDown (const MouseEvent& e)
         if (dragPoint < 0)
         {
             const double v = jlimit (0.0, 1.0, (double) ((float) rr.getBottom() - 3 - (float) e.y) / (rr.getHeight() - 6));
-            const Tick at = c.snapTick (tickAt ((float) e.x));
+            const Tick at = c.arrangeSnap (tickAt ((float) e.x));
             const int laneIndex = row->automation;
             const Id tid = t->id;
             c.apply ("Add Point", [=] (Project& p) { edit::addPoint (p.track (tid)->automation[(size_t) laneIndex], { at, v }); });
@@ -1302,7 +1356,7 @@ void Arrange::mouseDown (const MouseEvent& e)
     if (! (e.mods.isShiftDown() || e.mods.isAltDown() || e.mods.isCommandDown())) c.selectedClips.clear();
     if (e.mods.isPopupMenu()) { laneMenu (*row, e.getPosition()); return; }
     drag = Drag::Cursor;
-    c.locate (c.snapTick (tickAt ((float) e.x)));
+    c.locate (c.arrangeSnap (tickAt ((float) e.x)));
 }
 
 void Arrange::mouseDrag (const MouseEvent& e)
@@ -1310,10 +1364,10 @@ void Arrange::mouseDrag (const MouseEvent& e)
     const Tick at = tickAt ((float) e.x);
     switch (drag)
     {
-        case Drag::Cursor: c.locate (c.snapTick (std::max<Tick> (0, at))); break;
+        case Drag::Cursor: c.locate (c.arrangeSnap (std::max<Tick> (0, at))); break;
         case Drag::Loop:
         {
-            const Tick here = c.snapTick (std::max<Tick> (0, at));
+            const Tick here = c.arrangeSnap (std::max<Tick> (0, at));
             if (here == dragOrigin) break;
             c.project.loop.start = std::min (dragOrigin, here);
             c.project.loop.end = std::max (dragOrigin, here);
@@ -1325,7 +1379,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
         {
             const auto* clip = c.project.clip (dragClip);
             if (! clip) break;
-            previewStart = e.mods.isCommandDown() ? std::max<Tick> (0, at - dragOffset) : std::max<Tick> (0, c.snapTick (at - dragOffset));
+            previewStart = e.mods.isCommandDown() ? std::max<Tick> (0, at - dragOffset) : std::max<Tick> (0, c.arrangeSnap (at - dragOffset));
             previewEnd = previewStart + clip->length;
             copying = e.mods.isAltDown() && ! e.mods.isShiftDown();
             if (const auto* row = rowAt (e.y))
@@ -1338,7 +1392,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
         {
             const auto* clip = c.project.clip (dragClip);
             if (! clip) break;
-            Tick snapped = e.mods.isCommandDown() ? at : c.snapTick (at);
+            Tick snapped = e.mods.isCommandDown() ? at : c.arrangeSnap (at);
             snapped = c.zeroEdge (*clip, snapped).tick;   // onto a zero crossing, when that's on (decision 0054)
             if (drag == Drag::TrimStart) previewStart = jlimit<Tick> (0, clip->end() - 1, snapped);
             else previewEnd = std::max (clip->start + 1, snapped);
@@ -1363,7 +1417,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
             {
                 const Tick lo = lane.points[(size_t) dragPoint - 1].tick + 1;
                 const Tick hi = dragPoint + 1 < (int) lane.points.size() ? lane.points[(size_t) dragPoint + 1].tick - 1 : std::numeric_limits<Tick>::max();
-                pt.tick = jlimit (lo, hi, c.snapTick (at));
+                pt.tick = jlimit (lo, hi, c.arrangeSnap (at));
             }
             c.refresh();
             break;
@@ -1401,7 +1455,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
             auto* clip = c.project.clip (dragClip);
             if (! clip || dragPoint < 0 || dragPoint >= (int) clip->audio.markers.size()) break;
             const Tick base = clip->start - clip->offset;
-            clip->audio.markers[(size_t) dragPoint].tick = std::max<Tick> (0, (e.mods.isCommandDown() ? at : c.snapTick (at)) - base);
+            clip->audio.markers[(size_t) dragPoint].tick = std::max<Tick> (0, (e.mods.isCommandDown() ? at : c.arrangeSnap (at)) - base);
             repaint();
             break;
         }
@@ -1488,7 +1542,7 @@ void Arrange::mouseUp (const MouseEvent&)
                 // A click uses the take's clip under the pointer, all of it.
                 for (auto& cl : take.clips) if (a >= cl.start && a < cl.end()) { a = cl.start; b = cl.end(); }
             }
-            else { a = c.snapTick (a); b = c.snapTick (b); }
+            else { a = c.arrangeSnap (a); b = c.arrangeSnap (b); }
             const Id tid = dragTrack, takeId = take.id;
             if (b > a) c.apply ("Comp", [=] (Project& p) { comp::choose (p, tid, takeId, a, b); });
         }
@@ -1519,7 +1573,7 @@ void Arrange::mouseDoubleClick (const MouseEvent& e)
     const auto lanes = laneArea();
     if (e.y < theme::px (36) && e.x >= lanes.getX())
     {
-        const Tick at = c.snapTick (tickAt ((float) e.x));
+        const Tick at = c.arrangeSnap (tickAt ((float) e.x));
         c.apply ("Add Marker", [at] (Project& p)
         {
             p.markers.push_back ({ p.newId(), at, "Marker " + std::to_string (p.markers.size() + 1) });
@@ -1592,15 +1646,32 @@ void Arrange::clipMenu (Id id)
     PopupMenu m;
     m.addItem ("Split at Cursor", clip->start < c.cursor && clip->end() > c.cursor, false, [this] { c.splitAtCursor(); });
     m.addItem ("Duplicate", [this] { c.duplicateSelection(); });
-    m.addItem ("Duplicate Linked", [this, id]
+    // Alias clips (decision 0074): copies that share their notes or audio, marked with a chain.
+    {
+        auto chosen = c.selectedClips;
+        if (! chosen.count (id)) chosen = { id };
+        bool allAlias = true;
+        for (auto cid : chosen) if (const auto* x = c.project.clip (cid)) allAlias &= x->link != 0;
+        if (! allAlias)
+            m.addItem (chosen.size() > 1 ? "Create Alias Clips" : "Create Alias Clip", [this, chosen]
+            {
+                c.apply ("Create Alias Clip", [chosen] (Project& p) { song::makeAlias (p, chosen); });
+                c.say ("An alias clip: duplicate it (Command-D, or Option-drag) and an edit to the notes of any copy is made to them all.", false, true);
+            });
+        else
+            m.addItem ("Make Independent", [this, chosen]
+            {
+                c.apply ("Make Independent", [chosen] (Project& p) { for (auto cid : chosen) song::unlink (p, cid); });
+                c.say ("No longer an alias: edits to it are its own.", false, true);
+            });
+    }
+    m.addItem ("Duplicate as Alias", [this, id]
     {
         Id made = 0;
-        c.apply ("Duplicate Linked", [&] (Project& p) { made = song::duplicateLinked (p, id); });
+        c.apply ("Duplicate as Alias", [&] (Project& p) { made = song::duplicateLinked (p, id); });
         if (made) { c.selectedClips = { made }; c.selectedClip = made; }
-        c.say ("Linked: an edit to the notes or audio of one is made to the other.");
+        c.say ("Alias clips: an edit to the notes or audio of one is made to every copy.");
     });
-    if (clip->link != 0)
-        m.addItem ("Unlink", [this, id] { c.apply ("Unlink", [id] (Project& p) { song::unlink (p, id); }); });
     m.addItem ("Put in the Launcher", [this, id]
     {
         Track* tr = nullptr;
@@ -1624,15 +1695,34 @@ void Arrange::clipMenu (Id id)
     });
     m.addItem ("Delete", [this] { c.deleteSelection(); });
     m.addSeparator();
+    // On every chosen clip (Shift-click and Option-click choose several, decision 0053), 0071.
+    {
+        auto chosen = c.selectedClips;
+        if (! chosen.count (id)) chosen = { id };
+        bool midi = false, allDetected = true;
+        for (auto cid : chosen)
+            if (const auto* x = c.project.clip (cid); x && x->isMidi()) { midi = true; allDetected &= x->detectChords; }
+        const bool several = chosen.size() > 1;
+        m.addItem (several ? "Set the Loop to the Clips" : "Set the Loop to the Clip", [this, chosen]
+        {
+            c.apply ("Loop to Clips", [chosen] (Project& p) { song::loopToClips (p, chosen); });
+            c.say ("The loop is set to " + String (c.project.tempo.formatBarBeat (c.project.loop.start)) + " to "
+                   + String (c.project.tempo.formatBarBeat (c.project.loop.end)) + ", and on.", false, true);
+        });
+        m.addItem ("Explode Chords to Tracks", midi, false, [this, chosen] { c.explodeChords (chosen); });
+        m.addItem ("Bounce in Place", [this, chosen] { c.bounceInPlace (chosen); });
+        m.addItem ("Detect Chords", midi, midi && allDetected, [this, chosen, on = ! (midi && allDetected)]
+        {
+            c.apply (on ? "Detect Chords" : "Hide Chords", [chosen, on] (Project& p) { song::detectChords (p, chosen, on); });
+            if (on && ! c.showChordLane) { c.showChordLane = true; c.viewChanged(); }
+            c.say (on ? String ("The chords of ") + (chosen.size() > 1 ? "these clips" : "this clip") + " are in the chord lane above the tracks."
+                      : String ("Their chords are no longer shown."), false, true);
+        });
+    }
+    m.addSeparator();
     m.addItem ("Loop Its Content", true, clip->loopLength > 0, [this, id]
     {
-        c.apply ("Loop Clip", [id] (Project& p)
-        {
-            auto* cl = p.clip (id);
-            if (! cl) return;
-            if (cl->loopLength > 0) cl->loopLength = 0;
-            else { cl->loopLength = cl->length + cl->offset; cl->length *= 2; }
-        });
+        c.apply ("Loop Clip", [id] (Project& p) { edit::loopContent (p, id); });
     });
     m.addItem ("Mute", true, clip->muted, [this, id] { c.apply ("Mute Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->muted = ! cl->muted; }); });
     m.addItem ("Lock", true, clip->locked, [this, id] { c.apply ("Lock Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->locked = ! cl->locked; }); });
@@ -1728,7 +1818,7 @@ void Arrange::clipMenu (Id id)
                         }
                     });
                 });
-        if (offline.getNumItems() == 0) offline.addItem ("Scan for plug-ins first (Kalibre menu)", false, false, [] {});
+        if (offline.getNumItems() == 0) offline.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
         PopupMenu fxMenu;
         fxMenu.addSubMenu ("Add", offline);
         for (size_t i = 0; i < clip->offlineFx.chain.size(); ++i)
@@ -1758,7 +1848,7 @@ void Arrange::laneMenu (const Row& row, Point<int> at)
     const auto* t = c.project.track (row.track);
     if (! t) return;
     PopupMenu m;
-    const Tick tick = c.snapTick (tickAt ((float) at.x));
+    const Tick tick = c.arrangeSnap (tickAt ((float) at.x));
     if (row.take >= 0)
     {
         const Id tid = t->id;
@@ -1800,7 +1890,7 @@ void Arrange::laneMenu (const Row& row, Point<int> at)
             c.automationClipboardLength = to - from;
             c.say ("Copied " + String ((int) c.automationClipboard.size()) + " points. Right-click where they go and choose Paste.");
         });
-        m.addItem ("Paste Here", ! c.automationClipboard.empty(), false, [this, tid, laneIndex, at = c.snapTick (tick)]
+        m.addItem ("Paste Here", ! c.automationClipboard.empty(), false, [this, tid, laneIndex, at = c.arrangeSnap (tick)]
         {
             const auto pts = c.automationClipboard;
             const Tick len = c.automationClipboardLength;
@@ -1871,7 +1961,7 @@ void Arrange::filesDropped (const StringArray& files, int x, int y)
 {
     const auto* row = rowAt (y);
     Id track = row && row->isClips() ? row->track : 0;
-    Tick at = c.snapTick (std::max<Tick> (0, tickAt ((float) x)));
+    Tick at = c.arrangeSnap (std::max<Tick> (0, tickAt ((float) x)));
     for (auto& f : files)
     {
         c.importFile (File (f), track, at);

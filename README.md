@@ -15,13 +15,19 @@ grow and shrink with it.
   smaller if it must be, never stretched; swipe sideways with two fingers to
   move along the rack. Each can move to **its own window**, and **Match
   Loudness** keeps an effect's output as loud as its input.
+- **Every performance core**: the tracks' plug-ins play side by side on all
+  the Mac's fast cores, as audio threads, exactly as they'd sound on one.
 - A **plug-in scanner** that looks at each plug-in in a helper, so one that
-  crashes is turned off instead of taking Kalibre with it; the **Plug-in
-  Manager** shows them all.
+  crashes is turned off instead of taking Kalibre with it, and learns which
+  send MIDI, so MIDI generators like Riffer are filed as MIDI effects; the
+  **Plug-in Manager** shows them all and files any one by hand.
+- **Crash reports** that name the plug-in that was playing, and **backups**
+  of the song every 15 minutes.
 - **The Container**: up to eight plug-ins in a row, each on its own band,
   the mid or the sides, with on, solo, volume and pan.
 - **Audio and MIDI on the same track.** Folders inside folders that sum their
-  tracks and take plug-ins of their own. Returns and sends.
+  tracks and take plug-ins of their own. Returns and sends. Each track's
+  inputs and outputs on its **I/O** button.
 - **Track versions**: up to four a track, each with its own clips and its own
   plug-ins; switch with the 1 to 4 buttons in the mixer, several tracks at
   once, to compare them A/B/C/D.
@@ -36,14 +42,23 @@ grow and shrink with it.
   Blocks Notation and Midi Catalogue, whose Insert at Cursor puts the block
   in the song; and Orchestration Helper beside the track. Each in its own
   window, as in REAPER.
-- **The scale and the chord** at the top of the window; the scale shaded in
-  the piano roll, a chord lane along the timeline.
+- **The scale and the chord you're playing** at the top of the window; the
+  scale shaded in the piano roll; the chords of the clips you ask
+  (**Detect Chords**) in a lane along the timeline.
+- **A message line** that says what just happened, then what's chosen or
+  under the pointer: a note's pitch, velocity and length, a clip's length and
+  notes. **The top bar** shows what you choose (right-click it), with the
+  arrangement's **grid** and **Follow** that scrolls or turns the page.
 - **Five ways to write notes**: the piano roll (click to add, right-click to
   remove, drag to move or stretch, right-drag to clear an area, Shift-drag to
   choose; a new note is as long as the last one), a drum grid, a step
   sequencer, a Euclidean sequencer, notation, **all adding to the same
   clip**, each showing its own notes and lighting the step being played.
-  **MusicXML** in and out.
+  **Step input** from a MIDI keyboard (hold the keys, press 1-8 for the
+  length, let go). **Select** the roots, thirds or fifths of every chord,
+  the notes on the beat, the top line; **Explode Chords** into a track a
+  voice. **MusicXML** and **DAWproject** (Bitwig, Studio One, Cubase) in and
+  out.
 - **Arm for audio or MIDI**: click a track's arm button for audio (red),
   right-click for MIDI (blue), which records what its instrument is played,
   a free-running arpeggiator's notes included; Shift-click for both,
@@ -68,7 +83,8 @@ grow and shrink with it.
 - **Automation that picks up the last thing you touched.**
 - **The X/Y morph**: four plug-ins or four samples, one in each corner.
 - **Track delay** (-125 ms to pull slow strings into time) and **articulation
-  maps** with a delay for each articulation.
+  maps** with a delay for each articulation, chosen in the piano roll;
+  Cubase, Logic and Reaticulate maps imported in the **Articulation Manager**.
 - **Capture**: it's always listening, so the idea you played before pressing
   Record can still be kept, MIDI or audio.
 - **Warping**: repitch, granular or spectral, from the loop's tempo or warp
@@ -81,9 +97,13 @@ grow and shrink with it.
 - **Sync**: MIDI clock and timecode out, clock and timecode in, Machine
   Control, Ableton Link, the Mac's network MIDI.
 - **Control surfaces**: Mackie Control (X-Touch, FaderPort...), HUI and OSC.
+- **Bounce in Place** for clips, and **Freeze** for tracks (quietly, nothing
+  else reloaded; Unfreeze deletes the render and brings the plug-ins back).
+  Everything Kalibre records or renders, and all audio brought in, kept as
+  **32-bit float WAV**; exports in any format.
 - **Audio tools**: normalise, strip silence, quantise audio to the grid, a
   sample editor with a spectrogram, **snap to zero crossings**.
-- **Sections** you move (Shift-drag one to any bar) and duplicate with all their music, ripple editing, linked clips,
+- **Sections** you move (Shift-drag one to any bar) and duplicate with all their music, ripple editing, **alias clips** (edit one, every copy follows),
   track groups, and a **clip launcher** for playing ideas in loops.
 - **Kalibre Synth and Sampler**, **presets** and **A/B** for every plug-in,
   hardware inserts, instruments' extra outputs on their own tracks,
@@ -99,6 +119,8 @@ grow and shrink with it.
 ![The mixer: versions 1 to 4, Mono on every strip, the Cue track after the master](docs/mixer-versions-and-cue.png)
 ![The Container](docs/container.png)
 ![The Plug-in Manager](docs/plugin-manager.png)
+![The Articulation Manager: Cubase, Logic and Reaticulate maps imported](docs/articulation-manager.png)
+![The top bar, its Grid, and the message line telling what's chosen; I/O on each track](docs/top-bar-and-io.png)
 ![The sample editor](docs/sample-editor.png)
 ![Kalibre Synth and Sampler](docs/synth-and-sampler.png)
 ![A plug-in shown smaller to fit a short rack](docs/fitted-to-the-rack.png)
@@ -121,8 +143,8 @@ What's done and what isn't, feature by feature: **[docs/FEATURES.md](docs/FEATUR
 Every push is built for Apple silicon by GitHub Actions: open the latest
 **Build** run under the repository's **Actions** tab and download
 **Kalibre-macOS**. Open the `.dmg`, drag Kalibre into Applications, and the
-first time right-click it and choose **Open**. Then **Kalibre > Scan for
-Plug-ins**.
+first time right-click it and choose **Open**. Then **Kalibre > Plug-in
+Manager…** and **Scan for New Plug-ins**.
 
 Or build it on your Mac: double-click `build-mac.command` (needs Xcode's
 Command Line Tools and CMake).

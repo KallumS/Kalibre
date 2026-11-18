@@ -18,6 +18,33 @@ StringArray& fakeFiles()
     return f;
 }
 
+// What a fake plug-in is when it's opened: "Riffer" sends MIDI and has
+// outputs (an instrument that only sends MIDI); "Arp" sends MIDI and has none.
+struct FakeInstance : public AudioPluginInstance
+{
+    FakeInstance (PluginDescription d, int outs)
+        : AudioPluginInstance (BusesProperties().withOutput ("Out", outs == 2 ? AudioChannelSet::stereo() : AudioChannelSet::disabled(), outs == 2)),
+          desc (std::move (d)) {}
+    void fillInPluginDescription (PluginDescription& d) const override { d = desc; }
+    const String getName() const override { return desc.name; }
+    void prepareToPlay (double, int) override {}
+    void releaseResources() override {}
+    void processBlock (AudioBuffer<float>&, MidiBuffer&) override {}
+    double getTailLengthSeconds() const override { return 0; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return true; }
+    AudioProcessorEditor* createEditor() override { return nullptr; }
+    bool hasEditor() const override { return false; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const String&) override {}
+    void getStateInformation (MemoryBlock&) override {}
+    void setStateInformation (const void*, int) override {}
+    PluginDescription desc;
+};
+
 struct FakeFormat : public AudioPluginFormat
 {
     String getName() const override { return "Fake"; }
@@ -46,8 +73,10 @@ struct FakeFormat : public AudioPluginFormat
     StringArray searchPathsForPlugins (const FileSearchPath&, bool, bool) override { return fakeFiles(); }
     FileSearchPath getDefaultLocationsToSearch() override { return {}; }
     bool requiresUnblockedMessageThreadDuringCreation (const PluginDescription&) const override { return false; }
-    void createPluginInstance (const PluginDescription&, double, int, PluginCreationCallback cb) override
+    void createPluginInstance (const PluginDescription& d, double, int, PluginCreationCallback cb) override
     {
+        if (d.name == "Riffer") { cb (std::make_unique<FakeInstance> (d, 2), {}); return; }
+        if (d.name == "Arp") { cb (std::make_unique<FakeInstance> (d, 0), {}); return; }
         cb (nullptr, "Fake plug-ins don't make sound.");
     }
 };
@@ -199,4 +228,49 @@ TEST ("plug-ins: what the old scanner left in Scanning.txt is turned off as a cr
         CHECK_EQ (b->format, String ("VST3"));
     }
     else CHECK (false);
+}
+
+TEST ("plug-ins: the scan opens each one; an instrument that only sends MIDI is listed as a MIDI effect too, and any can be filed by hand (0069)")
+{
+    const auto folder = freshFolder ("traits");
+    fakeFiles() = { "fake:ok:Riffer", "fake:ok:Arp", "fake:ok:Good Synth" };
+    PluginManager pm (folder);
+    waitFor (pm, [&] (auto p) { pm.scan (p); });
+    CHECK_EQ (fakeTypes (pm), 3);
+    auto get = [&] (const char* f) { auto d = pm.known().getTypeForFile (f); return d ? *d : PluginDescription(); };
+    const auto riffer = get ("fake:ok:Riffer"), arp = get ("fake:ok:Arp"), synth = get ("fake:ok:Good Synth");
+
+    // Every fake says it's an instrument; opened, Arp sends MIDI and no sound.
+    CHECK (pm.roleOf (arp) == DeviceRole::MidiFx);
+    CHECK (pm.roleOf (riffer) == DeviceRole::Instrument);
+    CHECK (pm.sendsMidi (riffer));
+    CHECK (! pm.sendsMidi (synth));
+    CHECK (pm.roleOf (synth) == DeviceRole::Instrument);
+    CHECK (pm.traitsOf (riffer).known);
+    CHECK_EQ (pm.traitsOf (riffer).audioOuts, 2);
+    CHECK_EQ (pm.needingAnotherLook(), 0);
+
+    // Filed by hand, kept on the next start; and given back.
+    pm.fileAs (riffer, DeviceRole::MidiFx);
+    CHECK (pm.roleOf (riffer) == DeviceRole::MidiFx);
+    PluginManager again (folder);
+    CHECK (again.roleOf (riffer) == DeviceRole::MidiFx);
+    CHECK (again.filedByHand (riffer));
+    CHECK (again.sendsMidi (riffer));
+    again.fileAs (riffer, std::nullopt);
+    CHECK (again.roleOf (riffer) == DeviceRole::Instrument);
+
+    // A list scanned before Kalibre learned this is looked at again by the next scan.
+    const auto list = folder.getChildFile ("Plug-ins.xml");
+    auto xml = parseXML (list);
+    CHECK (xml != nullptr);
+    if (! xml) return;
+    xml->removeChildElement (xml->getChildByName ("KALIBRE_TRAITS"), true);
+    CHECK (xml->writeTo (list));
+    PluginManager old (folder);
+    CHECK (old.needingAnotherLook() >= 3);     // on the Mac, Apple's own Audio Units too
+    CHECK (old.roleOf (arp) == DeviceRole::Instrument);
+    waitFor (old, [&] (auto p) { old.scan (p); });
+    CHECK_EQ (old.needingAnotherLook(), 0);
+    CHECK (old.roleOf (arp) == DeviceRole::MidiFx);
 }

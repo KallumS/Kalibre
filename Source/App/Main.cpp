@@ -1,5 +1,6 @@
 // Kalibre: the app, its one window, and opening projects from the Finder.
 
+#include "CrashReports.h"
 #include "MainComponent.h"
 
 #include <chrono>
@@ -53,6 +54,11 @@ public:
 
     void initialise (const String& commandLine) override
     {
+        // A crash leaves a report of where (decision 0073); the last start's is told of below.
+        const auto reports = crash::folder();
+        const auto seenMarker = reports.getChildFile ("Shown.txt");
+        const auto unread = crash::since (reports, seenMarker.existsAsFile() ? seenMarker.getLastModificationTime() : Time());
+        crash::install (reports, getApplicationVersion());
         LookAndFeel::setDefaultLookAndFeel (&look);
         // What a control does, shown when the pointer rests on it, in every window.
         tips = std::make_unique<TooltipWindow> (nullptr, 600);
@@ -67,7 +73,10 @@ public:
        #endif
         if (error.isNotEmpty()) controller->say ("The audio device didn't start: " + error + " Choose one under Audio in the browser.", true);
         else if (plugins->known().getNumTypes() == 0)
-            controller->say ("Welcome. Kalibre hasn't looked for your plug-ins yet: choose Scan for Plug-ins from the Kalibre menu.");
+            controller->say ("Welcome. Kalibre hasn't looked for your plug-ins yet: choose Plug-in Manager from the Kalibre menu and click Scan for New Plug-ins.");
+        else if (plugins->needingAnotherLook() > 0)
+            controller->say ("Kalibre now opens each plug-in as it scans, to learn which send MIDI (Riffer, Scaler) and file them as MIDI effects. "
+                             "Choose Plug-in Manager from the Kalibre menu and click Scan for New Plug-ins: it looks at yours again.");
         else if (! plugins->blocked().empty())
         {
             // Left by the old scanner, which crashed with the plug-in (decision 0047).
@@ -76,6 +85,12 @@ public:
             if (crashed > 0)
                 controller->say ("A plug-in closed Kalibre while it was being scanned. It's turned off now, and scans look at each plug-in "
                                  "in a helper, so a crash can't close Kalibre again. Kalibre > Plug-in Manager shows it.");
+        }
+        if (! unread.isEmpty())
+        {
+            controller->say ("Kalibre quit unexpectedly last time (" + crash::summary (unread.getFirst()) + "). Help > Show Crash Reports has the report; "
+                             "File > Open a Backup has your song from up to 15 minutes before.", true);
+            seenMarker.replaceWithText (unread.getFirst().getFileName());
         }
         const auto file = File::getCurrentWorkingDirectory().getChildFile (commandLine.unquoted());
         if (commandLine.isNotEmpty() && file.hasFileExtension ("kalibre")) controller->open (file);

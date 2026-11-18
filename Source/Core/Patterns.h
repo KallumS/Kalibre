@@ -22,6 +22,12 @@ namespace kal::patterns
 {
 
 //==============================================================================
+// Where a clip's editors read and write: from its offset for its length; a
+// looped clip's loop, which is its content from 0 (as it plays).
+struct Window { Tick from = 0, length = 0; };
+Window windowOf (const Clip&);
+
+//==============================================================================
 // Euclidean rhythms: `pulses` onsets spread as evenly as they go over
 // `steps`, rotated. euclid(8, 3) = x..x..x. (the tresillo).
 std::vector<bool> euclid (int steps, int pulses, int rotation = 0);

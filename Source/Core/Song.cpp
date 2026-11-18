@@ -3,6 +3,7 @@
 #include "Edit.h"
 
 #include <algorithm>
+#include <limits>
 #include <map>
 
 namespace kal::song
@@ -394,6 +395,12 @@ Id duplicateLinked (Project& p, Id clipId)
     return copy;
 }
 
+void makeAlias (Project& p, const std::set<Id>& clips)
+{
+    for (auto id : clips)
+        if (auto* c = p.clip (id); c && c->link == 0) c->link = p.newId();
+}
+
 void unlink (Project& p, Id clipId)
 {
     if (auto* c = p.clip (clipId)) c->link = 0;
@@ -587,6 +594,24 @@ bool anyLaunched (const Project& p)
 {
     for (auto& t : p.tracks) if (t.launch.slot >= 0 || t.launch.stopped) return true;
     return false;
+}
+
+bool loopToClips (Project& p, const std::set<Id>& clips)
+{
+    Tick from = std::numeric_limits<Tick>::max(), to = 0;
+    for (auto id : clips)
+        if (const auto* c = p.clip (id)) { from = std::min (from, c->start); to = std::max (to, c->end()); }
+    if (to <= from) return false;
+    p.loop.start = from;
+    p.loop.end = to;
+    p.loop.on = true;
+    return true;
+}
+
+void detectChords (Project& p, const std::set<Id>& clips, bool on)
+{
+    for (auto id : clips)
+        if (auto* c = p.clip (id); c && c->isMidi()) c->detectChords = on;
 }
 
 } // namespace kal::song

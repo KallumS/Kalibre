@@ -12,6 +12,13 @@
 namespace kal::patterns
 {
 
+Window windowOf (const Clip& c)
+{
+    if (c.loopLength > 0) return { 0, c.loopLength };
+    return { c.offset, c.length };
+}
+
+
 std::vector<bool> euclid (int steps, int pulses, int rotation)
 {
     steps = std::clamp (steps, 1, 128);

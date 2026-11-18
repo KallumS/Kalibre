@@ -19,3 +19,5 @@ Arranging a song by its parts, and playing ideas in loops before arranging them.
 
 - Slots can be edited in the piano roll like any clip.
 - Launching is quantised to the bar; there's no other quantisation choice yet.
+
+Renamed by 0074: linked clips are alias clips (Create Alias Clip, Duplicate as Alias, Make Independent), marked with a chain.

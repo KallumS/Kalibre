@@ -56,6 +56,9 @@ private:
     std::unique_ptr<PluginList> plugins;
     std::unique_ptr<FileList> files;
     std::unique_ptr<juce::AudioDeviceSelectorComponent> audio;
+    // Every performance core, or the audio thread alone (decision 0078).
+    theme::HouseButton cores { "Use Every Core", "Play the tracks on all the Mac's performance cores at once, not one after another. "
+                                                  "Off: everything on one core, as before.", true };
     juce::ListBox pluginBox, fileBox;
     theme::HouseButton up { ui::u8 ("\xe2\x86\x91"), "The folder above." };
     Tab tab = Tab::Plugins;

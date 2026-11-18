@@ -24,16 +24,24 @@ void TopBar::Readout::paint (Graphics& g)
 
 TopBar::TopBar (Controller& ctrl) : c (ctrl)
 {
-    for (auto* b : { &start, &playButton, &recordButton, &loop, &punch, &click, &countIn, &follow, &tap, &undoMessage, &dismissMessage })
+    for (auto* b : { &start, &playButton, &recordButton, &loop, &punch, &click, &countIn, &follow, &tap })
+    {
         addAndMakeVisible (b);
+        b->onRightClick = [this] { showMenu(); };
+    }
+    addAndMakeVisible (undoMessage);
     playButton.setTitle ("Play");
     recordButton.setTitle ("Record");
     start.setTitle ("Go to Start");
-    for (auto* r : { &position, &tempo, &signature, &scale, &chord, &cpu, &load })
+    for (auto* r : { &position, &tempo, &signature, &grid, &scale, &chord, &cpu, &load })
     {
         addAndMakeVisible (r);
         r->setRepaintsOnMouseActivity (true);
+        r->onRightClick = [this] { showMenu(); };
     }
+    grid.label = "Grid";
+    grid.setTooltip (theme::wrapTip ("The arrangement's grid: where clips, the cursor and the loop snap to. Click to choose. The editors have their own, in the lower zone."));
+    grid.onDown = [this] (const MouseEvent&) { chooseGrid(); };
     position.label = "Position";
     tempo.label = "Tempo";
     signature.label = "Time";
@@ -42,12 +50,13 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     chord.big = true;
     cpu.label = "Delay";
     load.label = "CPU";
-    load.setTooltip (theme::wrapTip ("How busy the audio is: how much of the time it has for each block it uses. The mixer shows each track's share."));
+    load.setTooltip (theme::wrapTip ("How busy the audio is: how much of the time it has for each block it uses, the highest in the last few seconds. "
+                                     "Right-click to change how often it changes. The mixer shows each track's share."));
     position.setTooltip ("Click to show bars and beats, minutes, samples or timecode.");
     tempo.setTooltip (theme::wrapTip ("Drag up or down to change the tempo, double-click to type it. Tempo changes and ramps are drawn in the tempo lane (View > Tempo Lane)."));
     signature.setTooltip ("Double-click to change the time signature from the bar the cursor is in.");
     scale.setTooltip (theme::wrapTip ("The scale the song is in. Its notes are shaded in the piano roll, and chords are spelled for it."));
-    chord.setTooltip (theme::wrapTip ("The chord sounding at the playhead, from the clips and the keys you're holding."));
+    chord.setTooltip (theme::wrapTip ("The chord you're playing on a MIDI keyboard. The chords of clips are shown in the chord lane: right-click clips > Detect Chords."));
     cpu.setTooltip (theme::wrapTip ("How much the plug-ins delay the sound in all. Kalibre lines every track up by this much (plug-in delay compensation)."));
 
     start.onClick = [this] { c.goToStart(); };
@@ -57,10 +66,17 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     punch.onClick = [this] { c.apply ("Punch", [] (Project& p) { p.punch.on = ! p.punch.on; }); };
     click.onClick = [this] { c.apply ("Metronome", [] (Project& p) { p.metronome.on = ! p.metronome.on; }); };
     countIn.onClick = [this] { c.apply ("Count-in", [] (Project& p) { p.metronome.countIn = ! p.metronome.countIn; }); };
-    follow.onClick = [this] { c.followPlayback = follow.getToggleState(); c.viewChanged(); };
+    follow.onClick = [this]
+    {
+        // Click: scroll along (or stop following); Shift-click: turn the page at the edge (0070).
+        const bool pages = ModifierKeys::getCurrentModifiers().isShiftDown();
+        if (pages) { c.followPlayback = ! (c.followPlayback && c.followPages); c.followPages = c.followPlayback; }
+        else { c.followPlayback = ! (c.followPlayback && ! c.followPages); c.followPages = false; }
+        c.viewChanged();
+        update();
+    };
     tap.onClick = [this] { c.tapTempo(); };
     undoMessage.onClick = [this] { c.undo(); };
-    dismissMessage.onClick = [this] { c.dismiss(); };
 
     position.onDown = [this] (const MouseEvent&)
     {
@@ -87,8 +103,7 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     chord.onDown = [this] (const MouseEvent&)
     {
         // Clicking the chord plays it.
-        const auto pitches = harmony::soundingAt (c.project, c.playhead());
-        for (int p : pitches) c.engine.audition (c.focusTrack, p, 90, 0.8);
+        for (int p : heldPitches()) c.engine.audition (c.focusTrack, p, 90, 0.8);
     };
 
     c.addChangeListener (this);
@@ -98,34 +113,65 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
 
 TopBar::~TopBar() { c.removeChangeListener (this); }
 
-// The bar's width on one row; narrower than this, it takes two (wrapped, never cropped).
-static int oneRowWidth (TopBar::TimeFormat)
+// What can be hidden from the bar (right-click it), by name (0070).
+const StringArray& TopBar::hideable()
 {
-    return theme::px (32 + 40 + 32 + 60 + 64 + 52 + 82 + 130 + 80 + 46 + 56 + 190 + 220 + 70 + 76) + theme::px (6) * 18;
+    static const StringArray names { "Loop", "Punch", "Click", "Count-in", "Position", "Tempo", "Tap", "Time Signature",
+                                     "Grid", "Scale", "Chord", "Follow", "CPU", "Delay" };
+    return names;
 }
+
+// Each item's width on the bar, by name (the scale and chord at their narrowest).
+static int widthOf (const String& name)
+{
+    static const std::map<String, int> w { { "Loop", 52 }, { "Punch", 64 }, { "Click", 56 }, { "Count-in", 82 }, { "Position", 130 },
+                                           { "Tempo", 80 }, { "Tap", 46 }, { "Time Signature", 56 }, { "Grid", 64 }, { "Scale", 150 },
+                                           { "Chord", 170 }, { "Follow", 70 }, { "CPU", 56 }, { "Delay", 76 } };
+    auto it = w.find (name);
+    return it == w.end() ? 0 : it->second;
+}
+
+// The bar's width on one row; narrower than this, it takes two (wrapped, never cropped).
+static int oneRowWidth (const StringArray& hidden)
+{
+    int w = 32 + 40 + 32, n = 4;
+    for (auto& name : TopBar::hideable())
+        if (! hidden.contains (name)) { w += widthOf (name); ++n; }
+    return theme::px (w) + theme::px (6) * n;
+}
+
+// The message line: always there, a little smaller than the bar's words (0070).
+int TopBar::lineHeight() const { return theme::px (24); }
 
 int TopBar::preferredHeight() const
 {
-    const int rows = getWidth() > 0 && getWidth() < oneRowWidth (timeFormat) ? 2 : 1;
-    return rows * theme::px (48) + (c.message.isNotEmpty() ? theme::px (32) : 0);
+    const int rows = getWidth() > 0 && getWidth() < oneRowWidth (c.hiddenInTopBar) ? 2 : 1;
+    return rows * theme::px (48) + lineHeight();
+}
+
+void TopBar::mouseDown (const MouseEvent& e)
+{
+    if (e.mods.isPopupMenu()) { showMenu(); return; }
+    // Clicking the message line puts the message away (it shows what's chosen instead).
+    if (e.y >= getHeight() - lineHeight() && c.message.isNotEmpty()) c.dismiss();
 }
 
 void TopBar::paint (Graphics& g)
 {
     g.fillAll (theme::ground);
-    const int barsHeight = preferredHeight() - (c.message.isNotEmpty() ? theme::px (32) : 0);
+    const int barsHeight = getHeight() - lineHeight();
     g.setColour (theme::rule);
     g.fillRect (0, barsHeight - 1, getWidth(), 1);
-    if (c.message.isNotEmpty())
+    if (line.isNotEmpty())
     {
         auto r = getLocalBounds().withTop (barsHeight).reduced (theme::px (12), 0);
-        g.setColour (c.messageIsWarning ? theme::warnText : theme::text);
-        g.setFont (theme::font());
-        auto textArea = r.withTrimmedRight (undoMessage.isVisible() ? theme::px (170) : theme::px (90));
-        g.drawFittedText (c.message, textArea, Justification::centredLeft, 1);
-        g.setColour (theme::rule);
-        g.fillRect (0, getHeight() - 1, getWidth(), 1);
+        g.setColour (lineIsMessage ? (c.messageIsWarning ? theme::warnText : theme::text) : theme::textSecondary);
+        g.setFont (theme::font (theme::smallPoints));
+        auto textArea = r.withTrimmedRight (undoMessage.isVisible() ? undoMessage.getWidth() + theme::px (12) : 0);
+        g.drawFittedText (line, textArea, Justification::centredLeft, 1);
     }
+    g.setColour (theme::rule);
+    g.fillRect (0, getHeight() - 1, getWidth(), 1);
     // The record button is red while recording: shape (a ring) and colour.
     if (c.engine.isRecording())
     {
@@ -134,64 +180,73 @@ void TopBar::paint (Graphics& g)
     }
 }
 
+Component* TopBar::itemNamed (const String& name)
+{
+    static const char* names[] { "Loop", "Punch", "Click", "Count-in", "Position", "Tempo", "Tap", "Time Signature",
+                                 "Grid", "Scale", "Chord", "Follow", "CPU", "Delay" };
+    Component* items[] { &loop, &punch, &click, &countIn, &position, &tempo, &tap, &signature, &grid, &scale, &chord, &follow, &load, &cpu };
+    for (size_t i = 0; i < std::size (names); ++i) if (name == names[i]) return items[i];
+    return nullptr;
+}
+
 void TopBar::resized()
 {
-    const bool twoRows = getWidth() < oneRowWidth (timeFormat);
+    const auto& hidden = c.hiddenInTopBar;
+    const bool twoRows = getWidth() < oneRowWidth (hidden);
     const int rowH = theme::px (48);
     auto r = getLocalBounds().removeFromTop (rowH).reduced (theme::px (8), theme::px (6));
     const int h = r.getHeight();
     const int gap = theme::px (6);
     const int ch = jmin (h, theme::px (28));
+    auto shown = [&] (const char* name) { return ! hidden.contains (name); };
     auto place = [&] (Component& comp, int w) { comp.setBounds (r.removeFromLeft (w).withSizeKeepingCentre (w, ch)); r.removeFromLeft (gap); };
+    auto readout = [&] (Component& comp, int w) { comp.setBounds (r.removeFromLeft (w)); r.removeFromLeft (gap); };
     place (start, theme::px (32));
     place (playButton, theme::px (40));
     place (recordButton, theme::px (32));
     r.removeFromLeft (gap);
-    place (loop, loop.idealWidth());
-    place (punch, punch.idealWidth());
-    place (click, click.idealWidth());
-    place (countIn, countIn.idealWidth());
+    if (shown ("Loop")) place (loop, loop.idealWidth());
+    if (shown ("Punch")) place (punch, punch.idealWidth());
+    if (shown ("Click")) place (click, click.idealWidth());
+    if (shown ("Count-in")) place (countIn, countIn.idealWidth());
     if (twoRows)
     {
         // The second row: where the song is, and what it's in.
         r = getLocalBounds().withTop (rowH).removeFromTop (rowH).reduced (theme::px (8), theme::px (6));
     }
     else r.removeFromLeft (gap);
-    position.setBounds (r.removeFromLeft (theme::px (130)));
-    r.removeFromLeft (gap);
-    tempo.setBounds (r.removeFromLeft (theme::px (80)));
-    r.removeFromLeft (gap / 2);
-    place (tap, tap.idealWidth());
-    signature.setBounds (r.removeFromLeft (theme::px (56)));
-    r.removeFromLeft (gap);
+    if (shown ("Position")) readout (position, theme::px (130));
+    if (shown ("Tempo")) { tempo.setBounds (r.removeFromLeft (theme::px (80))); r.removeFromLeft (gap / 2); }
+    if (shown ("Tap")) place (tap, tap.idealWidth());
+    if (shown ("Time Signature")) readout (signature, theme::px (56));
+    if (shown ("Grid")) readout (grid, theme::px (64));
 
-    cpu.setBounds (r.removeFromRight (theme::px (76)));
-    r.removeFromRight (gap);
-    load.setBounds (r.removeFromRight (theme::px (56)));
-    r.removeFromRight (gap);
-    follow.setBounds (r.removeFromRight (follow.idealWidth()).withSizeKeepingCentre (follow.idealWidth(), ch));
-    r.removeFromRight (gap);
+    if (shown ("Delay")) { cpu.setBounds (r.removeFromRight (theme::px (76))); r.removeFromRight (gap); }
+    if (shown ("CPU")) { load.setBounds (r.removeFromRight (theme::px (56))); r.removeFromRight (gap); }
+    if (shown ("Follow"))
+    {
+        const int fw = follow.idealWidth();
+        follow.setBounds (r.removeFromRight (fw).withSizeKeepingCentre (fw, ch));
+        r.removeFromRight (gap);
+    }
     const int each = jmax (theme::px (100), (r.getWidth() - gap) / 2);
-    scale.setBounds (r.removeFromLeft (jmin (each, theme::px (190))));
-    r.removeFromLeft (gap);
-    chord.setBounds (r.removeFromLeft (jmin (r.getWidth(), theme::px (220))));
+    if (shown ("Scale")) { scale.setBounds (r.removeFromLeft (jmin (each, theme::px (190)))); r.removeFromLeft (gap); }
+    if (shown ("Chord")) chord.setBounds (r.removeFromLeft (jmin (r.getWidth(), theme::px (220))));
 
-    // Anything that still can't fit is hidden rather than squashed; every one is also in the menus.
-    for (auto* comp : std::initializer_list<Component*> { &countIn, &punch, &click, &follow, &cpu, &load, &chord, &scale, &tap, &signature })
-        comp->setVisible (comp->getRight() <= getWidth() - theme::px (4) && comp->getWidth() >= theme::px (24));
+    // Hidden by choice; and anything that still can't fit is hidden rather than squashed.
+    for (auto& name : hideable())
+        if (auto* comp = itemNamed (name))
+            comp->setVisible (shown (name.toRawUTF8()) && comp->getRight() <= getWidth() - theme::px (4) && comp->getWidth() >= theme::px (24));
 
     const int barsHeight = (twoRows ? 2 : 1) * rowH;
     auto m = getLocalBounds().withTop (barsHeight).reduced (theme::px (12), theme::px (2));
-    dismissMessage.setBounds (m.removeFromRight (dismissMessage.idealWidth (theme::smallControl)).withSizeKeepingCentre (dismissMessage.idealWidth (theme::smallControl), theme::px (24)));
-    m.removeFromRight (gap);
-    undoMessage.setBounds (m.removeFromRight (undoMessage.idealWidth (theme::smallControl)).withSizeKeepingCentre (undoMessage.idealWidth (theme::smallControl), theme::px (24)));
+    const int uw = undoMessage.idealWidth (theme::smallControl);
+    undoMessage.setBounds (m.removeFromRight (uw).withSizeKeepingCentre (uw, theme::px (20)));
 }
 
 void TopBar::changeListenerCallback (ChangeBroadcaster*)
 {
-    const bool hasMessage = c.message.isNotEmpty();
-    undoMessage.setVisible (hasMessage && c.messageCanUndo && c.history.canUndo());
-    dismissMessage.setVisible (hasMessage);
+    resized();
     if (auto* p = getParentComponent()) p->resized();
     update();
 }
@@ -216,16 +271,8 @@ void TopBar::update()
     signature.value = String (m.numerator) + "/" + String (m.denominator);
     scale.value = harmony::scaleName (p.scale);
 
-    // The chord: the clips at the playhead, and keys held on a keyboard.
-    auto pitches = harmony::soundingAt (p, now);
-    std::array<int, 128> held {};
-    for (auto& e : c.engine.shared.midiCapture.snapshot())
-    {
-        const int type = e.bytes[0] & 0xF0;
-        if (type == 0x90 && e.bytes[2] > 0) held[e.bytes[1] & 127] = 1;
-        else if (type == 0x80 || type == 0x90) held[e.bytes[1] & 127] = 0;
-    }
-    for (int k = 0; k < 128; ++k) if (held[(size_t) k]) pitches.push_back (k);
+    // The chord: what's played on a MIDI keyboard, only (0070); clips' chords are in the chord lane.
+    const auto pitches = heldPitches();
     auto name = String (harmony::chordName (pitches, p.scale));
     if (name.isEmpty() && pitches.size() == 1) name = String (harmony::noteName (p.scale, pitches.front()));
     chord.value = name.isEmpty() ? ui::u8 ("\xe2\x80\x94") : name;
@@ -233,7 +280,23 @@ void TopBar::update()
 
     const int latency = c.engine.latencySamples();
     cpu.value = String (latency * 1000.0 / jmax (1.0, c.engine.sampleRate()), 1) + " ms";
-    load.value = String (roundToInt (c.engine.cpu() * 100.0)) + "%";
+    // Measured as often as before; shown as the highest of the last few seconds, changed only that often.
+    cpuPeak = jmax (cpuPeak, c.engine.cpu());
+    const auto nowMs = Time::getMillisecondCounter();
+    if (cpuSince == 0 || nowMs - cpuSince >= (uint32) (1000 * jmax (1, c.cpuEverySeconds)))
+    {
+        cpuShown = cpuPeak;
+        cpuPeak = 0;
+        cpuSince = nowMs;
+    }
+    load.value = String (roundToInt (cpuShown * 100.0)) + "%";
+
+    // The message line: a message until things move on, then what's chosen or pointed at.
+    c.retireMessage();
+    lineIsMessage = c.message.isNotEmpty();
+    line = lineIsMessage ? c.message : c.infoLine();
+    const bool undoable = lineIsMessage && c.messageCanUndo && c.history.canUndo();
+    if (undoMessage.isVisible() != undoable) undoMessage.setVisible (undoable);
 
     playButton.setToggleState (c.engine.isPlaying(), dontSendNotification);
     playButton.setButtonText (c.engine.isPlaying() ? String::fromUTF8 ("\xe2\x96\xa0") : String::fromUTF8 ("\xe2\x96\xb6"));
@@ -244,8 +307,82 @@ void TopBar::update()
     click.setToggleState (p.metronome.on, dontSendNotification);
     countIn.setToggleState (p.metronome.countIn, dontSendNotification);
     follow.setToggleState (c.followPlayback, dontSendNotification);
-    for (auto* r : { &position, &tempo, &signature, &scale, &chord, &cpu, &load }) r->repaint();
+    const auto followText = c.followPlayback && c.followPages ? String ("Follow: Page") : String ("Follow");
+    if (follow.getButtonText() != followText) { follow.setButtonText (followText); resized(); }
+    {
+        const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" };
+        String g = String (c.arrangeGrid) + " ticks";
+        for (int i = 0; i < 7; ++i)
+        {
+            const Tick v = PPQ * 4 >> i;
+            if (v == c.arrangeGrid) g = names[i];
+            else if (v * 2 / 3 == c.arrangeGrid) g = String (names[i]) + "T";
+        }
+        grid.value = c.snap ? g : String ("Off");
+    }
+    for (auto* r : { &position, &tempo, &signature, &grid, &scale, &chord, &cpu, &load }) r->repaint();
     repaint();
+}
+
+std::vector<int> TopBar::heldPitches() const
+{
+    std::array<int, 128> held {};
+    for (auto& e : c.engine.shared.midiCapture.snapshot())
+    {
+        const int type = e.bytes[0] & 0xF0;
+        if (type == 0x90 && e.bytes[2] > 0) held[e.bytes[1] & 127] = 1;
+        else if (type == 0x80 || type == 0x90) held[e.bytes[1] & 127] = 0;
+    }
+    std::vector<int> out;
+    for (int k = 0; k < 128; ++k) if (held[(size_t) k]) out.push_back (k);
+    return out;
+}
+
+// Right-click the bar: what it shows, and how often the CPU reading changes (0070).
+void TopBar::showMenu()
+{
+    PopupMenu m;
+    m.addSectionHeader ("Show in the Bar");
+    for (auto& name : hideable())
+        m.addItem (name, true, ! c.hiddenInTopBar.contains (name), [this, name]
+        {
+            if (c.hiddenInTopBar.contains (name)) c.hiddenInTopBar.removeString (name);
+            else c.hiddenInTopBar.add (name);
+            resized();
+            if (auto* p = getParentComponent()) p->resized();
+            repaint();
+        });
+    m.addItem ("Show Everything", ! c.hiddenInTopBar.isEmpty(), false, [this]
+    {
+        c.hiddenInTopBar.clear();
+        resized();
+        if (auto* p = getParentComponent()) p->resized();
+    });
+    PopupMenu every;
+    for (int s : { 1, 2, 5 })
+        every.addItem (s == 1 ? String ("Every Second") : "Every " + String (s) + " Seconds", true, c.cpuEverySeconds == s,
+                       [this, s] { c.cpuEverySeconds = s; cpuSince = 0; update(); });
+    m.addSeparator();
+    m.addSubMenu ("Change the CPU Reading", every);
+    m.showMenuAsync (PopupMenu::Options());
+}
+
+// The arrangement's grid (0070): 1/1 to 1/64, triplets, or off.
+void TopBar::chooseGrid()
+{
+    PopupMenu m, triplets;
+    const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" };
+    auto set = [this] (Tick v) { c.arrangeGrid = v; c.snap = true; c.viewChanged(); update(); };
+    for (int i = 0; i < 7; ++i)
+    {
+        const Tick v = PPQ * 4 >> i;
+        m.addItem (names[i], true, c.snap && c.arrangeGrid == v, [set, v] { set (v); });
+        if (i > 0) triplets.addItem (String (names[i]) + " Triplet", true, c.snap && c.arrangeGrid == v * 2 / 3, [set, v] { set (v * 2 / 3); });
+    }
+    m.addSubMenu ("Triplets", triplets);
+    m.addSeparator();
+    m.addItem ("Snap to the Grid", true, c.snap, [this] { c.snap = ! c.snap; c.viewChanged(); update(); });
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&grid));
 }
 
 void TopBar::editTempo()

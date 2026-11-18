@@ -1,4 +1,5 @@
 #include "TrackProcessors.h"
+#include "AudioFiles.h"
 
 #include "Edit.h"
 #include "Surround.h"
@@ -172,13 +173,8 @@ AudioBuffer<float> TrackSource::recentInput (double seconds) const
 
 void TrackSource::startRecording (const File& f, double rate)
 {
-    f.getParentDirectory().createDirectory();
-    f.deleteFile();
-    WavAudioFormat wav;
-    auto stream = f.createOutputStream();
-    if (! stream) return;
-    std::unique_ptr<OutputStream> os (stream.release());
-    auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (rate).withNumChannels (2).withBitsPerSample (24));
+    // Recordings are 32-bit float WAV, as all Kalibre's own audio (decision 0079).
+    auto w = audiofile::floatWav (f, rate, 2);
     if (! w) return;
     recordFile = f;
     recordStart = -1;

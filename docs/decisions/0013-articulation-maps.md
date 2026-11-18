@@ -11,3 +11,5 @@ A project holds articulation maps; a track uses one. Each articulation has a key
 ## Consequences
 
 Maps are edited from Track > Articulation Maps.
+
+Widened by 0072: maps imported from Cubase, Logic and Reaticulate, with further outputs; chosen from the piano roll's Velocity menu and the Articulation Manager.

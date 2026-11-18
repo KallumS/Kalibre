@@ -19,7 +19,10 @@ LowerZone::LowerZone (Controller& ctrl)
         b->setClickingTogglesState (true);
         addChildComponent (b);
     }
-    for (auto* b : { &gridButton, &snapButton, &quantise, &legato, &ccLanes, &autoCc }) addChildComponent (b);
+    for (auto* b : { &gridButton, &snapButton, &quantise, &legato, &selectButton, &ccLanes, &autoCc }) addChildComponent (b);
+    selectButton.onClick = [this] { selectMenu(); };
+    addChildComponent (stepButton);
+    stepButton.onClick = [this] { c.setStepInput (stepButton.getToggleState()); };
     ccLanes.onClick = [this] { CcLanes::lanesMenu (c, &ccLanes); };
     autoCc.onClick = [this] { c.autoCc(); };
     for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample, &launcher, &offline, &meters, &videoView })
@@ -59,6 +62,7 @@ void LowerZone::changeListenerCallback (ChangeBroadcaster*)
     if (c.zoneTab != shownTab || c.editor != shownEditor || audioChosen() != shownAudio || c.offlineClip != offline.shown()
         || videoTab.isVisible() == c.project.video.file.empty()) show();
     snapButton.setToggleState (c.snap, dontSendNotification);
+    stepButton.setToggleState (c.stepInput, dontSendNotification);
     updateAuto();
 }
 
@@ -99,9 +103,14 @@ void LowerZone::show()
     // An audio clip is edited in the sample editor; the note editors are for MIDI.
     const bool audio = c.zoneTab == ZoneTab::Editor && shownAudio;
     const bool editing = c.zoneTab == ZoneTab::Editor && ! audio;
-    for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab, &gridButton, &snapButton, &quantise, &legato })
+    for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab, &gridButton, &snapButton, &quantise, &legato, &selectButton })
         b->setVisible (editing);
     const bool withLanes = editing && (c.editor == EditorKind::PianoRoll || c.editor == EditorKind::Notation);
+    // Step input in the piano roll, notation and drum grid (decision 0076); off elsewhere.
+    const bool stepping = editing && (withLanes || c.editor == EditorKind::Drums);
+    stepButton.setVisible (stepping);
+    if (! stepping && c.stepInput) c.setStepInput (false);
+    stepButton.setToggleState (c.stepInput, dontSendNotification);
     ccLanes.setVisible (withLanes);
     autoCc.setVisible (withLanes);
     updateAuto();
@@ -128,10 +137,10 @@ void LowerZone::show()
     euclidView.setVisible (editing && c.editor == EditorKind::Euclid);
     notation.setVisible (editing && c.editor == EditorKind::Notation);
 
-    const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-    const Tick values[] { PPQ * 4, PPQ * 2, PPQ, PPQ / 2, PPQ / 4, PPQ / 8 };
+    const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" };
+    const Tick values[] { PPQ * 4, PPQ * 2, PPQ, PPQ / 2, PPQ / 4, PPQ / 8, PPQ / 16 };
     String label = String (c.grid) + " ticks";
-    for (int i = 0; i < 6; ++i)
+    for (int i = 0; i < 7; ++i)
     {
         if (values[i] == c.grid) label = names[i];
         if (values[i] * 2 / 3 == c.grid) label = String (names[i]) + "T";
@@ -144,14 +153,62 @@ void LowerZone::show()
 void LowerZone::gridMenu()
 {
     PopupMenu m;
-    const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-    const Tick values[] { PPQ * 4, PPQ * 2, PPQ, PPQ / 2, PPQ / 4, PPQ / 8 };
-    for (int i = 0; i < 6; ++i)
+    const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" };
+    const Tick values[] { PPQ * 4, PPQ * 2, PPQ, PPQ / 2, PPQ / 4, PPQ / 8, PPQ / 16 };
+    for (int i = 0; i < 7; ++i)
         m.addItem (names[i], true, c.grid == values[i], [this, v = values[i]] { c.grid = v; show(); c.viewChanged(); });
     m.addSeparator();
-    for (int i = 1; i < 6; ++i)
+    for (int i = 1; i < 7; ++i)
         m.addItem (String (names[i]) + " Triplet", true, c.grid == values[i] * 2 / 3, [this, v = values[i] * 2 / 3] { c.grid = v; show(); c.viewChanged(); });
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (&gridButton));
+}
+
+// Select (decision 0075): the piano roll and notation by chord, beat and line;
+// the pattern editors their own notes by beat.
+void LowerZone::selectMenu()
+{
+    using W = noteselect::What;
+    PopupMenu m;
+    std::optional<NoteFrom> only;
+    if (c.editor == EditorKind::Drums) only = NoteFrom::Drums;
+    if (c.editor == EditorKind::Steps) only = NoteFrom::Steps;
+    if (c.editor == EditorKind::Euclid) only = NoteFrom::Euclid;
+    auto add = [&] (const String& name, W w) { m.addItem (name, [this, w, only] { c.selectNotes (w, only); }); };
+    const bool chordsToo = c.editor == EditorKind::PianoRoll || c.editor == EditorKind::Notation;
+    if (chordsToo)
+    {
+        m.addSectionHeader ("In Each Chord");
+        add ("Select Roots", W::Root);
+        add ("Select 3rds", W::Third);
+        add ("Select 5ths", W::Fifth);
+        add ("Select 7ths", W::Seventh);
+        add ("Select 9ths", W::Ninth);
+        add ("Select 11ths", W::Eleventh);
+        add ("Select 13ths", W::Thirteenth);
+        m.addSectionHeader ("In Time");
+    }
+    add ("Select Every Beat", W::OnBeat);
+    add ("Select Every Off Beat", W::OffBeat);
+    if (chordsToo)
+    {
+        m.addSectionHeader ("Along the Clip");
+        add ("Select the Bottom Notes", W::Bottom);
+        add ("Select the Top Notes", W::Top);
+    }
+    m.addSeparator();
+    m.addItem ("Select All", c.clip() != nullptr, false, [this, only]
+    {
+        c.selectedNotes.clear();
+        if (auto* cl = c.clip()) for (auto& n : cl->midi.notes) if (! only || n.from == *only) c.selectedNotes.insert (n.id);
+        c.sendChangeMessage();
+    });
+    m.addItem ("Select None", ! c.selectedNotes.empty(), false, [this] { c.selectedNotes.clear(); c.sendChangeMessage(); });
+    if (chordsToo)
+    {
+        m.addSeparator();
+        m.addItem ("Explode Chords to Tracks", c.clip() != nullptr, false, [this] { c.explodeChords ({ c.selectedClip }); });
+    }
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&selectButton));
 }
 
 void LowerZone::paint (Graphics& g)
@@ -177,7 +234,8 @@ void LowerZone::resized()
     {
         for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab }) place (*b);
         bar.removeFromLeft (theme::px (12));
-        for (auto* b : { &gridButton, &snapButton, &quantise, &legato }) place (*b);
+        for (auto* b : { &gridButton, &snapButton, &quantise, &legato, &selectButton }) place (*b);
+        if (stepButton.isVisible()) place (stepButton);
         if (ccLanes.isVisible())
         {
             bar.removeFromLeft (theme::px (12));
