@@ -1078,3 +1078,95 @@ TEST ("notation: the playhead moves across the staff while playing, round a loop
     CHECK (std::abs (again - a) < 1.0f);
     engine.stop();
 }
+
+#include "TopBar.h"
+
+TEST ("message line: a message gives way to what's chosen, or what the pointer is over; notes say pitch, velocity and length; clips their length and notes (0070)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    const Id clip = edit::addMidiClip (c.project, t, PPQ * 4 * 48, PPQ * 4 * 4);
+    Note n; n.start = 0; n.length = PPQ / 2; n.pitch = 60; n.velocity = 100;
+    const Id note = edit::addNote (c.project, clip, n);
+    n.start = PPQ; n.pitch = 64;
+    edit::addNote (c.project, clip, n);
+    c.refresh();
+    c.selectedClips.clear();
+    c.selectedNotes.clear();
+
+    TopBar bar (c);
+    bar.setSize (1600, bar.preferredHeight());
+    c.say ("Deleted the track.");
+    c.retireMessage();
+    CHECK_EQ (c.message, String ("Deleted the track."));
+    // Nothing chosen: pointing at a clip says its length and notes, and the message gives way.
+    c.hover (clip);
+    c.retireMessage();
+    CHECK (c.message.isEmpty());
+    const auto clipInfo = c.infoLine();
+    CHECK (clipInfo.contains ("4 bars"));
+    CHECK (clipInfo.contains ("2 notes"));
+    CHECK (clipInfo.contains ("49.1.000"));
+    // A chosen note: its pitch, velocity and length, whatever the pointer is over.
+    c.selectedClip = clip;
+    c.selectedNotes = { note };
+    const auto noteInfo = c.infoLine();
+    CHECK (noteInfo.contains ("C4"));
+    CHECK (noteInfo.contains ("Velocity 100"));
+    CHECK (noteInfo.contains ("Length 1/8"));
+    // A warning stays while only the pointer moves; a new choice lets it go.
+    c.say ("Something went wrong.", true);
+    c.hover (0);
+    c.hover (clip);
+    c.retireMessage();
+    CHECK (c.message.isNotEmpty());
+    c.selectedNotes.clear();
+    c.retireMessage();
+    CHECK (c.message.isEmpty());
+}
+
+TEST ("top bar: right-click hides what isn't wanted; the Grid is the arrangement's; Shift-click Follow turns pages (0070)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    TopBar bar (c);
+    bar.setSize (1800, 200);
+    auto shownNamed = [&] (const String& text)
+    {
+        for (auto* ch : bar.getChildren())
+            if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText() == text) return b->isVisible();
+        return false;
+    };
+    CHECK (shownNamed ("Tap") && shownNamed ("Punch") && shownNamed ("Count-in"));
+    c.hiddenInTopBar = { "Tap", "Punch", "Count-in" };
+    bar.resized();
+    CHECK (! shownNamed ("Tap") && ! shownNamed ("Punch") && ! shownNamed ("Count-in"));
+    CHECK (shownNamed ("Loop"));
+    CHECK (TopBar::hideable().contains ("Grid"));
+
+    // The arrangement snaps to its own grid; the editors keep theirs.
+    c.grid = PPQ / 4;
+    c.arrangeGrid = PPQ * 4;
+    CHECK_EQ (c.arrangeSnap (PPQ * 3), Tick (PPQ * 4));
+    CHECK_EQ (c.snapTick (PPQ * 3), Tick (PPQ * 3));
+
+    // Follow: a click scrolls, a Shift-click turns pages, and each clicked again stops following.
+    Button* follow = nullptr;
+    for (auto* ch : bar.getChildren())
+        if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText().startsWith ("Follow")) follow = b;
+    CHECK (follow != nullptr);
+    if (! follow) return;
+    c.followPlayback = false;
+    follow->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CHECK (c.followPlayback && ! c.followPages);
+    c.followPages = true;      // as a Shift-click leaves it
+    bar.resized();
+    MessageManager::getInstance()->runDispatchLoopUntil (60);
+    CHECK (follow->getButtonText() == "Follow: Page");
+}

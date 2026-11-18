@@ -733,12 +733,17 @@ void PianoRoll::articulationMenu (const Note& n)
 void PianoRoll::mouseMove (const MouseEvent& e)
 {
     const auto* clip = c.project.clip (c.selectedClip);
-    if (! clip || ! noteArea().contains (e.getPosition())) { setMouseCursor (MouseCursor::NormalCursor); return; }
+    if (! clip || ! noteArea().contains (e.getPosition())) { c.hover (0); setMouseCursor (MouseCursor::NormalCursor); return; }
     roll::Zone zone;
-    if (roll::noteAt (clip->midi.notes, relAt ((float) e.x), pitchAt ((float) e.y), timeline.ticksFor ((float) theme::px (6)), &zone))
+    const auto* note = roll::noteAt (clip->midi.notes, relAt ((float) e.x), pitchAt ((float) e.y), timeline.ticksFor ((float) theme::px (6)), &zone);
+    // The note under the pointer, for the message line (0070).
+    c.hover (note ? clip->id : 0, note ? note->id : 0);
+    if (note)
         setMouseCursor (zone == roll::Zone::Body ? MouseCursor::DraggingHandCursor : MouseCursor::LeftRightResizeCursor);
     else setMouseCursor (MouseCursor::NormalCursor);
 }
+
+void PianoRoll::mouseExit (const MouseEvent&) { c.hover (0); }
 
 void PianoRoll::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails& w)
 {

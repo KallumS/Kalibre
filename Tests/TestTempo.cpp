@@ -77,3 +77,19 @@ TEST ("time: minutes and timecode")
     CHECK_EQ (TempoMap::formatMinutes (62.345), std::string ("1:02.345"));
     CHECK_EQ (TempoMap::formatTimecode (62.5, 25), std::string ("00:01:02:12"));
 }
+
+TEST ("tempo: a length in words, as a musician says it")
+{
+    TempoMap t;
+    CHECK_EQ (t.describeLength (0, PPQ / 2), std::string ("1/8"));
+    CHECK_EQ (t.describeLength (0, PPQ), std::string ("1/4"));
+    CHECK_EQ (t.describeLength (0, PPQ * 3 / 4), std::string ("3/16"));
+    CHECK_EQ (t.describeLength (0, PPQ * 3 / 2), std::string ("3/8"));
+    CHECK_EQ (t.describeLength (0, PPQ * 4), std::string ("1 bar"));
+    CHECK_EQ (t.describeLength (0, PPQ * 16), std::string ("4 bars"));
+    CHECK_EQ (t.describeLength (0, PPQ * 9), std::string ("2 bars 1 beat"));
+    CHECK_EQ (t.describeLength (0, PPQ * 4 + PPQ / 4), std::string ("1 bar 1/16"));
+    CHECK_EQ (t.describeLength (0, 7), std::string ("7 ticks"));
+    t.setMeterAt (0, 6, 8);
+    CHECK_EQ (t.describeLength (0, PPQ * 3 + PPQ / 2), std::string ("1 bar 1 beat"));
+}

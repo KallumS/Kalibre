@@ -486,7 +486,7 @@ void Arrange::changeListenerCallback (ChangeBroadcaster*)
     if (stamp != chordsFor && c.showChordLane)
     {
         chordsFor = stamp;
-        chords = harmony::chordsAlong (c.project, 0, c.project.endTick());
+        chords = harmony::chordsAlong (c.project, 0, c.project.endTick(), true);   // only the clips asked for (0071)
     }
     layoutRows();
     repaint();
@@ -499,9 +499,13 @@ void Arrange::timerCallback()
     {
         const auto lanes = laneArea();
         const float x = timeline.x (c.playhead());
-        if (x > (float) lanes.getWidth() * 0.85f || x < 0)
+        // Scrolling (click Follow) keeps the playhead near the left; turning the page
+        // (Shift-click) waits for it to reach the right edge, then shows the next screenful (0070).
+        const float edge = c.followPages ? 1.0f : 0.85f;
+        if (x > (float) lanes.getWidth() * edge || x < 0)
         {
-            timeline.startTick = std::max (0.0, (double) c.playhead() - lanes.getWidth() * 0.1 / timeline.pixelsPerTick);
+            const double lead = c.followPages ? 0.0 : lanes.getWidth() * 0.1 / timeline.pixelsPerTick;
+            timeline.startTick = std::max (0.0, (double) c.playhead() - lead);
             layoutRows();
             repaint();
             return;
@@ -974,7 +978,8 @@ void Arrange::paint (Graphics& g)
     {
         const auto& m = tempo.meterAtBar (bar);
         const Tick start = tempo.barStart (bar);
-        const Tick step = timeline.lineStep (m, 14.0f);
+        // The arrangement's grid (the top bar's Grid), as fine as the zoom lets it be seen.
+        const Tick step = std::max<Tick> (c.snap ? c.arrangeGrid : PPQ, timeline.lineStep (m, 14.0f));
         for (Tick t = start; t < start + m.barTicks(); t += step)
         {
             g.setColour (t == start ? theme::rule : theme::lane);
@@ -1116,8 +1121,11 @@ String Arrange::getTooltip()
 void Arrange::mouseMove (const MouseEvent& e)
 {
     const auto lanes = laneArea();
+    // What the pointer is over, for the message line (0070).
+    const auto* over = lanes.contains (e.getPosition()) ? clipAt (e.getPosition()) : nullptr;
+    c.hover (over ? over->id : 0);
     if (! lanes.contains (e.getPosition())) { setMouseCursor (MouseCursor::NormalCursor); return; }
-    if (const auto* clip = clipAt (e.getPosition()))
+    if (const auto* clip = over)
     {
         const float edge = (float) theme::px (6);
         const float x0 = xOf (clip->start), x1 = xOf (clip->end());
@@ -1126,6 +1134,8 @@ void Arrange::mouseMove (const MouseEvent& e)
     }
     else setMouseCursor (MouseCursor::NormalCursor);
 }
+
+void Arrange::mouseExit (const MouseEvent&) { c.hover (0); }
 
 void Arrange::mouseDown (const MouseEvent& e)
 {
@@ -1141,12 +1151,12 @@ void Arrange::mouseDown (const MouseEvent& e)
         if (e.y > rulerBottom - theme::px (14) || e.mods.isShiftDown())
         {
             drag = Drag::Loop;
-            dragOrigin = c.snapTick (tickAt ((float) e.x));
+            dragOrigin = c.arrangeSnap (tickAt ((float) e.x));
         }
         else
         {
             drag = Drag::Cursor;
-            c.locate (c.snapTick (tickAt ((float) e.x)));
+            c.locate (c.arrangeSnap (tickAt ((float) e.x)));
         }
         return;
     }
@@ -1172,7 +1182,7 @@ void Arrange::mouseDown (const MouseEvent& e)
         if (e.y >= tt && e.y < tt + theme::px (48) && e.x >= lanes.getX())
         {
             drag = Drag::Tempo;
-            dragOrigin = c.snapTick (tickAt ((float) e.x));
+            dragOrigin = c.arrangeSnap (tickAt ((float) e.x));
             return;
         }
     }
@@ -1181,7 +1191,7 @@ void Arrange::mouseDown (const MouseEvent& e)
     if (! lanes.contains (e.getPosition())) return;
 
     const auto* row = rowAt (e.y);
-    if (! row) { c.locate (c.snapTick (tickAt ((float) e.x))); return; }
+    if (! row) { c.locate (c.arrangeSnap (tickAt ((float) e.x))); return; }
 
     if (row->take >= 0)
     {
@@ -1226,7 +1236,7 @@ void Arrange::mouseDown (const MouseEvent& e)
         if (dragPoint < 0)
         {
             const double v = jlimit (0.0, 1.0, (double) ((float) rr.getBottom() - 3 - (float) e.y) / (rr.getHeight() - 6));
-            const Tick at = c.snapTick (tickAt ((float) e.x));
+            const Tick at = c.arrangeSnap (tickAt ((float) e.x));
             const int laneIndex = row->automation;
             const Id tid = t->id;
             c.apply ("Add Point", [=] (Project& p) { edit::addPoint (p.track (tid)->automation[(size_t) laneIndex], { at, v }); });
@@ -1302,7 +1312,7 @@ void Arrange::mouseDown (const MouseEvent& e)
     if (! (e.mods.isShiftDown() || e.mods.isAltDown() || e.mods.isCommandDown())) c.selectedClips.clear();
     if (e.mods.isPopupMenu()) { laneMenu (*row, e.getPosition()); return; }
     drag = Drag::Cursor;
-    c.locate (c.snapTick (tickAt ((float) e.x)));
+    c.locate (c.arrangeSnap (tickAt ((float) e.x)));
 }
 
 void Arrange::mouseDrag (const MouseEvent& e)
@@ -1310,10 +1320,10 @@ void Arrange::mouseDrag (const MouseEvent& e)
     const Tick at = tickAt ((float) e.x);
     switch (drag)
     {
-        case Drag::Cursor: c.locate (c.snapTick (std::max<Tick> (0, at))); break;
+        case Drag::Cursor: c.locate (c.arrangeSnap (std::max<Tick> (0, at))); break;
         case Drag::Loop:
         {
-            const Tick here = c.snapTick (std::max<Tick> (0, at));
+            const Tick here = c.arrangeSnap (std::max<Tick> (0, at));
             if (here == dragOrigin) break;
             c.project.loop.start = std::min (dragOrigin, here);
             c.project.loop.end = std::max (dragOrigin, here);
@@ -1325,7 +1335,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
         {
             const auto* clip = c.project.clip (dragClip);
             if (! clip) break;
-            previewStart = e.mods.isCommandDown() ? std::max<Tick> (0, at - dragOffset) : std::max<Tick> (0, c.snapTick (at - dragOffset));
+            previewStart = e.mods.isCommandDown() ? std::max<Tick> (0, at - dragOffset) : std::max<Tick> (0, c.arrangeSnap (at - dragOffset));
             previewEnd = previewStart + clip->length;
             copying = e.mods.isAltDown() && ! e.mods.isShiftDown();
             if (const auto* row = rowAt (e.y))
@@ -1338,7 +1348,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
         {
             const auto* clip = c.project.clip (dragClip);
             if (! clip) break;
-            Tick snapped = e.mods.isCommandDown() ? at : c.snapTick (at);
+            Tick snapped = e.mods.isCommandDown() ? at : c.arrangeSnap (at);
             snapped = c.zeroEdge (*clip, snapped).tick;   // onto a zero crossing, when that's on (decision 0054)
             if (drag == Drag::TrimStart) previewStart = jlimit<Tick> (0, clip->end() - 1, snapped);
             else previewEnd = std::max (clip->start + 1, snapped);
@@ -1363,7 +1373,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
             {
                 const Tick lo = lane.points[(size_t) dragPoint - 1].tick + 1;
                 const Tick hi = dragPoint + 1 < (int) lane.points.size() ? lane.points[(size_t) dragPoint + 1].tick - 1 : std::numeric_limits<Tick>::max();
-                pt.tick = jlimit (lo, hi, c.snapTick (at));
+                pt.tick = jlimit (lo, hi, c.arrangeSnap (at));
             }
             c.refresh();
             break;
@@ -1401,7 +1411,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
             auto* clip = c.project.clip (dragClip);
             if (! clip || dragPoint < 0 || dragPoint >= (int) clip->audio.markers.size()) break;
             const Tick base = clip->start - clip->offset;
-            clip->audio.markers[(size_t) dragPoint].tick = std::max<Tick> (0, (e.mods.isCommandDown() ? at : c.snapTick (at)) - base);
+            clip->audio.markers[(size_t) dragPoint].tick = std::max<Tick> (0, (e.mods.isCommandDown() ? at : c.arrangeSnap (at)) - base);
             repaint();
             break;
         }
@@ -1488,7 +1498,7 @@ void Arrange::mouseUp (const MouseEvent&)
                 // A click uses the take's clip under the pointer, all of it.
                 for (auto& cl : take.clips) if (a >= cl.start && a < cl.end()) { a = cl.start; b = cl.end(); }
             }
-            else { a = c.snapTick (a); b = c.snapTick (b); }
+            else { a = c.arrangeSnap (a); b = c.arrangeSnap (b); }
             const Id tid = dragTrack, takeId = take.id;
             if (b > a) c.apply ("Comp", [=] (Project& p) { comp::choose (p, tid, takeId, a, b); });
         }
@@ -1519,7 +1529,7 @@ void Arrange::mouseDoubleClick (const MouseEvent& e)
     const auto lanes = laneArea();
     if (e.y < theme::px (36) && e.x >= lanes.getX())
     {
-        const Tick at = c.snapTick (tickAt ((float) e.x));
+        const Tick at = c.arrangeSnap (tickAt ((float) e.x));
         c.apply ("Add Marker", [at] (Project& p)
         {
             p.markers.push_back ({ p.newId(), at, "Marker " + std::to_string (p.markers.size() + 1) });
@@ -1623,6 +1633,29 @@ void Arrange::clipMenu (Id id)
         c.say ("The clip is in the launcher, scene " + String (slot + 1) + ". (G shows the launcher.)");
     });
     m.addItem ("Delete", [this] { c.deleteSelection(); });
+    m.addSeparator();
+    // On every chosen clip (Shift-click and Option-click choose several, decision 0053), 0071.
+    {
+        auto chosen = c.selectedClips;
+        if (! chosen.count (id)) chosen = { id };
+        bool midi = false, allDetected = true;
+        for (auto cid : chosen)
+            if (const auto* x = c.project.clip (cid); x && x->isMidi()) { midi = true; allDetected &= x->detectChords; }
+        const bool several = chosen.size() > 1;
+        m.addItem (several ? "Set the Loop to the Clips" : "Set the Loop to the Clip", [this, chosen]
+        {
+            c.apply ("Loop to Clips", [chosen] (Project& p) { song::loopToClips (p, chosen); });
+            c.say ("The loop is set to " + String (c.project.tempo.formatBarBeat (c.project.loop.start)) + " to "
+                   + String (c.project.tempo.formatBarBeat (c.project.loop.end)) + ", and on.", false, true);
+        });
+        m.addItem ("Detect Chords", midi, midi && allDetected, [this, chosen, on = ! (midi && allDetected)]
+        {
+            c.apply (on ? "Detect Chords" : "Hide Chords", [chosen, on] (Project& p) { song::detectChords (p, chosen, on); });
+            if (on && ! c.showChordLane) { c.showChordLane = true; c.viewChanged(); }
+            c.say (on ? String ("The chords of ") + (chosen.size() > 1 ? "these clips" : "this clip") + " are in the chord lane above the tracks."
+                      : String ("Their chords are no longer shown."), false, true);
+        });
+    }
     m.addSeparator();
     m.addItem ("Loop Its Content", true, clip->loopLength > 0, [this, id]
     {
@@ -1752,7 +1785,7 @@ void Arrange::laneMenu (const Row& row, Point<int> at)
     const auto* t = c.project.track (row.track);
     if (! t) return;
     PopupMenu m;
-    const Tick tick = c.snapTick (tickAt ((float) at.x));
+    const Tick tick = c.arrangeSnap (tickAt ((float) at.x));
     if (row.take >= 0)
     {
         const Id tid = t->id;
@@ -1794,7 +1827,7 @@ void Arrange::laneMenu (const Row& row, Point<int> at)
             c.automationClipboardLength = to - from;
             c.say ("Copied " + String ((int) c.automationClipboard.size()) + " points. Right-click where they go and choose Paste.");
         });
-        m.addItem ("Paste Here", ! c.automationClipboard.empty(), false, [this, tid, laneIndex, at = c.snapTick (tick)]
+        m.addItem ("Paste Here", ! c.automationClipboard.empty(), false, [this, tid, laneIndex, at = c.arrangeSnap (tick)]
         {
             const auto pts = c.automationClipboard;
             const Tick len = c.automationClipboardLength;
@@ -1865,7 +1898,7 @@ void Arrange::filesDropped (const StringArray& files, int x, int y)
 {
     const auto* row = rowAt (y);
     Id track = row && row->isClips() ? row->track : 0;
-    Tick at = c.snapTick (std::max<Tick> (0, tickAt ((float) x)));
+    Tick at = c.arrangeSnap (std::max<Tick> (0, tickAt ((float) x)));
     for (auto& f : files)
     {
         c.importFile (File (f), track, at);

@@ -128,10 +128,10 @@ void LowerZone::show()
     euclidView.setVisible (editing && c.editor == EditorKind::Euclid);
     notation.setVisible (editing && c.editor == EditorKind::Notation);
 
-    const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-    const Tick values[] { PPQ * 4, PPQ * 2, PPQ, PPQ / 2, PPQ / 4, PPQ / 8 };
+    const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" };
+    const Tick values[] { PPQ * 4, PPQ * 2, PPQ, PPQ / 2, PPQ / 4, PPQ / 8, PPQ / 16 };
     String label = String (c.grid) + " ticks";
-    for (int i = 0; i < 6; ++i)
+    for (int i = 0; i < 7; ++i)
     {
         if (values[i] == c.grid) label = names[i];
         if (values[i] * 2 / 3 == c.grid) label = String (names[i]) + "T";
@@ -144,12 +144,12 @@ void LowerZone::show()
 void LowerZone::gridMenu()
 {
     PopupMenu m;
-    const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" };
-    const Tick values[] { PPQ * 4, PPQ * 2, PPQ, PPQ / 2, PPQ / 4, PPQ / 8 };
-    for (int i = 0; i < 6; ++i)
+    const char* names[] { "1/1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" };
+    const Tick values[] { PPQ * 4, PPQ * 2, PPQ, PPQ / 2, PPQ / 4, PPQ / 8, PPQ / 16 };
+    for (int i = 0; i < 7; ++i)
         m.addItem (names[i], true, c.grid == values[i], [this, v = values[i]] { c.grid = v; show(); c.viewChanged(); });
     m.addSeparator();
-    for (int i = 1; i < 6; ++i)
+    for (int i = 1; i < 7; ++i)
         m.addItem (String (names[i]) + " Triplet", true, c.grid == values[i] * 2 / 3, [this, v = values[i] * 2 / 3] { c.grid = v; show(); c.viewChanged(); });
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (&gridButton));
 }

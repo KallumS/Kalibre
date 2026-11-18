@@ -37,6 +37,11 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
         lowerHeight = s->getIntValue ("lowerHeight", 320);
         browserShown = s->getBoolValue ("browser", false);
         c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
+        c.hiddenInTopBar.addTokens (s->getValue ("hiddenInTopBar"), "|", {});
+        c.hiddenInTopBar.removeEmptyStrings();
+        c.cpuEverySeconds = jlimit (1, 5, s->getIntValue ("cpuEverySeconds", 2));
+        c.arrangeGrid = jmax<Tick> (PPQ / 32, (Tick) s->getIntValue ("arrangeGrid", PPQ / 4));
+        c.followPages = s->getBoolValue ("followPages", false);
         setTextSize ((float) s->getDoubleValue ("textSize", 1.0));
     }
     browser.setVisible (browserShown);
@@ -59,6 +64,10 @@ MainComponent::~MainComponent()
         s->setValue ("lowerHeight", lowerHeight);
         s->setValue ("browser", browserShown);
         s->setValue ("zeroCrossings", c.zeroCrossings);
+        s->setValue ("hiddenInTopBar", c.hiddenInTopBar.joinIntoString ("|"));
+        s->setValue ("cpuEverySeconds", c.cpuEverySeconds);
+        s->setValue ("arrangeGrid", (int) c.arrangeGrid);
+        s->setValue ("followPages", c.followPages);
         s->setValue ("textSize", (double) theme::scale());
         settingsStore().saveIfNeeded();
         settingsStore().closeFiles();

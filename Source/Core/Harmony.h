@@ -52,7 +52,8 @@ bool isDrumTrack (const Track&);
 
 // Every pitched note in the project in [from, to), at its place in time,
 // looped clips unrolled. Muted tracks and clips are left out.
-std::vector<TimedPitch> collect (const Project&, Tick from, Tick to);
+// `detectedOnly`: only clips whose chords were asked for (Detect Chords, 0071).
+std::vector<TimedPitch> collect (const Project&, Tick from, Tick to, bool detectedOnly = false);
 
 // The notes sounding at one tick.
 std::vector<int> soundingAt (const Project&, Tick);
@@ -62,7 +63,7 @@ std::vector<int> soundingAt (const Project&, Tick);
 std::string chordName (const std::vector<int>& pitches, const ScaleChoice&);
 
 // The chord lane: chords along [from, to), beat by beat.
-std::vector<ChordSpan> chordsAlong (const Project&, Tick from, Tick to);
+std::vector<ChordSpan> chordsAlong (const Project&, Tick from, Tick to, bool detectedOnly = false);
 
 // The keys that fit the notes best, best first.
 std::vector<KeyGuess> rankKeys (const std::vector<TimedPitch>&);

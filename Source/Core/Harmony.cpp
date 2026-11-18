@@ -37,7 +37,7 @@ bool isDrumTrack (const Track& t)
         || n.find ("kit") != std::string::npos;
 }
 
-std::vector<TimedPitch> collect (const Project& p, Tick from, Tick to)
+std::vector<TimedPitch> collect (const Project& p, Tick from, Tick to, bool detectedOnly)
 {
     std::vector<TimedPitch> out;
     bool anySolo = false;
@@ -47,7 +47,7 @@ std::vector<TimedPitch> collect (const Project& p, Tick from, Tick to)
         if (! t.holdsClips() || t.mute || (anySolo && ! t.solo) || isDrumTrack (t)) continue;
         for (auto& c : t.clips())
         {
-            if (! c.isMidi() || c.muted || c.end() <= from || c.start >= to) continue;
+            if (! c.isMidi() || c.muted || c.end() <= from || c.start >= to || (detectedOnly && ! c.detectChords)) continue;
             const Tick content = c.loopLength > 0 ? c.loopLength : std::numeric_limits<Tick>::max() / 4;
             for (Tick base = c.start - c.offset; base < c.end(); base += content)
             {
@@ -160,12 +160,12 @@ Template best (const Weights& w)
 }
 } // namespace
 
-std::vector<ChordSpan> chordsAlong (const Project& p, Tick from, Tick to)
+std::vector<ChordSpan> chordsAlong (const Project& p, Tick from, Tick to, bool detectedOnly)
 {
     std::vector<ChordSpan> out;
     from = std::max<Tick> (0, from);
     if (to <= from) return out;
-    const auto notes = collect (p, from, to);
+    const auto notes = collect (p, from, to, detectedOnly);
     if (notes.empty()) return out;
 
     std::vector<std::pair<Tick, Tick>> beats;

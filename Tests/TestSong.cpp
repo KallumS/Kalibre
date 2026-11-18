@@ -1,5 +1,6 @@
 #include "Check.h"
 #include "Edit.h"
+#include "Harmony.h"
 #include "Playback.h"
 #include "Song.h"
 
@@ -234,4 +235,28 @@ TEST ("song: a section dragged to any bar takes its music; what was there moves 
     const auto before = q;
     song::moveSectionTo (q, v, bar * 56);
     CHECK (q == before);
+}
+
+TEST ("song: the loop set to clips spans them; chords are shown only for clips they were detected in")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    const Id a = edit::addMidiClip (p, t, PPQ * 4 * 48, PPQ * 4 * 4);   // 4 bars at bar 49
+    const Id b = edit::addMidiClip (p, t, PPQ * 4 * 60, PPQ * 4 * 2);
+    CHECK (song::loopToClips (p, { a }));
+    CHECK_EQ (p.loop.start, Tick (PPQ * 4 * 48));
+    CHECK_EQ (p.loop.end, Tick (PPQ * 4 * 52));
+    CHECK (p.loop.on);
+    CHECK (song::loopToClips (p, { a, b }));
+    CHECK_EQ (p.loop.end, Tick (PPQ * 4 * 62));
+    CHECK (! song::loopToClips (p, {}));
+
+    for (int pitch : { 60, 64, 67 }) { Note n; n.start = 0; n.length = PPQ * 4; n.pitch = pitch; edit::addNote (p, a, n); }
+    CHECK (harmony::chordsAlong (p, 0, p.endTick(), true).empty());
+    CHECK (! harmony::chordsAlong (p, 0, p.endTick()).empty());
+    song::detectChords (p, { a }, true);
+    const auto spans = harmony::chordsAlong (p, 0, p.endTick(), true);
+    CHECK (! spans.empty());
+    song::detectChords (p, { a }, false);
+    CHECK (harmony::chordsAlong (p, 0, p.endTick(), true).empty());
 }

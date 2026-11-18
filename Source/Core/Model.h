@@ -234,6 +234,7 @@ struct Clip
     Id fromTake = 0;          // made by the comp from this take (decision 0029); 0 for an ordinary clip
     Id link = 0;              // linked clips (decision 0037) share this: an edit to one's content is made to all
     PatternFeel drumsFeel { 0, 0.9 }, stepsFeel { 0, 0.5 }, euclidFeel { 0, 0.9 };   // decision 0063
+    bool detectChords = false; // its chords shown in the chord lane (right-click > Detect Chords, 0071)
 
     Tick end() const { return start + length; }
     bool isMidi() const { return kind == Kind::Midi; }

@@ -227,7 +227,129 @@ void Controller::say (const String& m, bool warning, bool canUndo)
     message = m;
     messageIsWarning = warning;
     messageCanUndo = canUndo;
+    messageChoice = choiceKey();
+    messagePointer = pointerKey();
     sendChangeMessage();
+}
+
+String Controller::choiceKey() const
+{
+    String k;
+    for (auto id : selectedNotes) k << (int64) id << ",";
+    k << "|";
+    for (auto id : selectedClips) k << (int64) id << ",";
+    return k;
+}
+
+void Controller::retireMessage()
+{
+    if (message.isEmpty()) return;
+    const bool choiceMoved = choiceKey() != messageChoice;
+    const bool pointerMoved = pointerKey() != messagePointer && hoveredClip != 0;
+    if (choiceMoved || (! messageIsWarning && pointerMoved)) dismiss();
+}
+
+String Controller::describeNotes (const Clip& clip, const std::set<Id>& ids) const
+{
+    std::vector<const Note*> ns;
+    for (auto& n : clip.midi.notes) if (ids.count (n.id)) ns.push_back (&n);
+    if (ns.empty()) return {};
+    const auto& tempo = project.tempo;
+    const Tick base = clip.start - clip.offset;
+    const String dot = ui::u8 (" \xc2\xb7 ");
+    if (ns.size() == 1)
+    {
+        const auto& n = *ns.front();
+        return String (harmony::noteName (project.scale, n.pitch)) + dot + "Velocity " + String (n.velocity)
+             + dot + "Length " + String (tempo.describeLength (base + n.start, n.length))
+             + dot + "At " + String (tempo.formatBarBeat (base + n.start));
+    }
+    int lo = 127, hi = 0, vlo = 127, vhi = 0;
+    Tick llo = std::numeric_limits<Tick>::max(), lhi = 0;
+    for (auto* n : ns)
+    {
+        lo = std::min (lo, n->pitch); hi = std::max (hi, n->pitch);
+        vlo = std::min (vlo, n->velocity); vhi = std::max (vhi, n->velocity);
+        llo = std::min (llo, n->length); lhi = std::max (lhi, n->length);
+    }
+    const String dash = ui::u8 ("\xe2\x80\x93");
+    String s = String ((int) ns.size()) + " notes" + dot;
+    s << (lo == hi ? String (harmony::noteName (project.scale, lo))
+                   : String (harmony::noteName (project.scale, lo)) + " to " + String (harmony::noteName (project.scale, hi)));
+    s << dot << "Velocity " << (vlo == vhi ? String (vlo) : String (vlo) + dash + String (vhi));
+    s << dot << (llo == lhi ? "Length " + String (tempo.describeLength (base, llo))
+                            : "Lengths " + String (tempo.describeLength (base, llo)) + " to " + String (tempo.describeLength (base, lhi)));
+    return s;
+}
+
+String Controller::describeClip (const Clip& c) const
+{
+    const auto& tempo = project.tempo;
+    const String dot = ui::u8 (" \xc2\xb7 ");
+    String s = String (c.name).isNotEmpty() ? String (c.name) : String (c.isMidi() ? "MIDI clip" : "Audio clip");
+    s << dot << String (tempo.describeLength (c.start, c.length));
+    if (c.isMidi())
+    {
+        const auto w = patterns::windowOf (c);
+        int count = 0;
+        for (auto& n : c.midi.notes) count += n.start >= w.from && n.start < w.from + w.length ? 1 : 0;
+        s << dot << count << (count == 1 ? " note" : " notes");
+        if (c.loopLength > 0) s << dot << "Looped every " << String (tempo.describeLength (c.start, c.loopLength));
+    }
+    else
+    {
+        const double secs = tempo.secondsAt (c.end()) - tempo.secondsAt (c.start);
+        s << " (" << String (secs, 1) << " s)";
+        if (! c.audio.file.empty()) s << dot << File (String (c.audio.file)).getFileName();
+    }
+    s << dot << "From " << String (tempo.formatBarBeat (c.start));
+    return s;
+}
+
+String Controller::infoLine() const
+{
+    if (const auto* clip = project.clip (selectedClip); clip && clip->isMidi() && ! selectedNotes.empty())
+    {
+        const auto s = describeNotes (*clip, selectedNotes);
+        if (s.isNotEmpty()) return s;
+    }
+    if (selectedClips.size() == 1)
+        if (const auto* clip = project.clip (*selectedClips.begin())) return describeClip (*clip);
+    if (selectedClips.size() > 1)
+    {
+        Tick from = std::numeric_limits<Tick>::max(), to = 0;
+        int notes = 0, n = 0;
+        for (auto id : selectedClips)
+            if (const auto* clip = project.clip (id))
+            {
+                ++n;
+                from = std::min (from, clip->start);
+                to = std::max (to, clip->end());
+                if (clip->isMidi())
+                {
+                    const auto w = patterns::windowOf (*clip);
+                    for (auto& x : clip->midi.notes) notes += x.start >= w.from && x.start < w.from + w.length ? 1 : 0;
+                }
+            }
+        if (n > 0)
+        {
+            const String dot = ui::u8 (" \xc2\xb7 ");
+            String s = String (n) + " clips" + dot + String (project.tempo.describeLength (from, to - from)) + " in all"
+                     + dot + "From " + String (project.tempo.formatBarBeat (from));
+            if (notes > 0) s << dot << notes << " notes";
+            return s;
+        }
+    }
+    if (const auto* clip = project.clip (hoveredClip))
+    {
+        if (hoveredNote != 0 && clip->isMidi())
+        {
+            const auto s = describeNotes (*clip, { hoveredNote });
+            if (s.isNotEmpty()) return s;
+        }
+        return describeClip (*clip);
+    }
+    return {};
 }
 
 void Controller::scanPlugins (std::vector<std::pair<String, String>> files)
@@ -1594,6 +1716,14 @@ Tick Controller::snapTick (Tick t) const
     const int bar = project.tempo.barAt (t);
     const Tick start = project.tempo.barStart (bar);
     return start + (Tick) std::llround ((double) (t - start) / (double) grid) * grid;
+}
+
+Tick Controller::arrangeSnap (Tick t) const
+{
+    if (! snap || arrangeGrid <= 0) return t;
+    const int bar = project.tempo.barAt (t);
+    const Tick start = project.tempo.barStart (bar);
+    return start + (Tick) std::llround ((double) (t - start) / (double) arrangeGrid) * arrangeGrid;
 }
 
 Tick Controller::snapDown (Tick t) const

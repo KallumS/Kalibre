@@ -49,9 +49,13 @@ public:
     std::set<Id> selectedClips;
     std::set<Id> selectedNotes;
     Tick cursor = 0;                // where things go in, and where Play starts
-    Tick grid = PPQ / 4;
+    Tick grid = PPQ / 4;            // the editors' grid (the lower zone's Grid)
+    Tick arrangeGrid = PPQ / 4;     // the arrangement's (the top bar's Grid, 0070)
     bool snap = true;
     bool followPlayback = true;
+    bool followPages = false;       // Shift-click Follow: turn the page at the edge, not scroll (0070)
+    juce::StringArray hiddenInTopBar;   // the top bar's items hidden by right-click (0070)
+    int cpuEverySeconds = 2;        // how often the CPU reading changes
     EditorKind editor = EditorKind::PianoRoll;
     ZoneTab zoneTab = ZoneTab::Devices;
     bool showChordLane = true;
@@ -79,8 +83,10 @@ public:
     bool redo();
 
     //==========================================================================
-    // The message line under the transport (decision 0025): stays until
-    // dismissed or replaced, and can carry an Undo.
+    // The message line under the transport (decisions 0025, 0070): what just
+    // happened, until something else is chosen or pointed at (a warning,
+    // until something else is chosen, or it's clicked); then what's chosen,
+    // or what the pointer is over when nothing is.
     juce::String message;
     bool messageIsWarning = false;
     bool messageCanUndo = false;
@@ -91,6 +97,19 @@ public:
     void showPluginManager() { if (onShowPluginManager) onShowPluginManager(); }
     std::function<void()> onShowPluginManager;     // the window sets this
     void dismiss();
+    // What the pointer is over, told by the arrangement and the piano roll.
+    Id hoveredClip = 0, hoveredNote = 0;
+    void hover (Id clip, Id note = 0) { hoveredClip = clip; hoveredNote = note; }
+    // What's chosen (notes, else clips), or else what the pointer is over, in words.
+    juce::String infoLine() const;
+    juce::String describeClip (const Clip&) const;
+    juce::String describeNotes (const Clip&, const std::set<Id>& notes) const;
+    // Lets a message give way to the info once the choice or the pointer moves on.
+    juce::String messageChoice, messagePointer;
+    juce::String choiceKey() const;
+    juce::String pointerKey() const { return juce::String ((juce::int64) hoveredClip) + ":" + juce::String ((juce::int64) hoveredNote); }
+    // Called often (the top bar's timer): lets a message go once things moved on.
+    void retireMessage();
 
     //==========================================================================
     // Transport.
@@ -256,8 +275,9 @@ public:
 
     //==========================================================================
     // Snapping.
-    Tick snapTick (Tick) const;       // nearest grid line, from the bar line
+    Tick snapTick (Tick) const;     // nearest grid line, from the bar line
     Tick snapDown (Tick) const;
+    Tick arrangeSnap (Tick) const;  // the same, to the arrangement's grid
 
     // The studio's sync and control surface settings (decisions 0034, 0035).
     ControlSettings studio;
