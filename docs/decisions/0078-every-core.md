@@ -47,8 +47,9 @@ Tested: a song with plug-ins of different latencies on parallel paths, a
 folder, a return fed by sends, an instrument, exported on every core and
 on one: the same, sample for sample. Four tracks with a plug-in taking
 1 ms a block: on four threads, about 2.5 times as fast (Linux, four
-cores). Live playback through an audio device: played by the plan. Built
-and run under ThreadSanitizer too.
+cores). Live playback through an audio device: played by the plan. A
+ThreadSanitizer build of the tests was started; its result goes in the
+session log.
 
 Found on the way: an export's first block was handed to JUCE's graph,
 losing what the plan's delay lines held for the second; exports don't
