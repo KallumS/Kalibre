@@ -60,7 +60,7 @@
 | `Engine/CrashContext.h` | The plug-in the audio thread is in, for the crash report (0073). |
 | `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050), and on a track armed for MIDI catches what its instrument is played (`MidiTap`, 0064). |
 | `Engine/BuiltinInstruments.*`, `HardwareInsert.*` | Kalibre Synth and Sampler (0039); the hardware insert and the interface's channels it shares (0040). |
-| `Engine/JsfxDevice.*` | The family's JSFX as devices, run by ysfx (0066). |
+| `Engine/JsfxDevice.*` | The family's JSFX as devices, run by ysfx (0066): Kalibre's own file drags taken as dropped files; `export_buffer_to_project` (filled in when CMake fetches ysfx) handed to the Controller, which prints it onto a new track (0066 amended). |
 | `Engine/NoteSplitter.*` | The Note Splitter device, and its outputs' nodes into other tracks' Sources (0083). |
 | `Engine/PanLaw.h` | Constant power, sine curves, exactly 0 dB in the middle (0081). |
 | `Engine/ScaleViewDevice.cpp` | ScaleView's own processor in a HostedProcessor, passing the notes on (0093). |
