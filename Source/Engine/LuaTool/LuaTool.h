@@ -48,7 +48,7 @@ std::unique_ptr<juce::AudioPluginInstance> makeLuaTool (const PluginRef&);
 // notes from its start.
 struct ToolBlock
 {
-    struct Note { double start = 0, length = 0.25; int pitch = 60, velocity = 100; };
+    struct Note { double start = 0, length = 0.25; int pitch = 60, velocity = 100, channel = 0; };
     struct Part { std::string name; std::vector<Note> notes; };
     std::string name;
     double beats = 0;

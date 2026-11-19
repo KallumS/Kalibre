@@ -1867,6 +1867,7 @@ bool Controller::placeToolBlock (AudioPluginInstance& from, const ToolBlock& b)
             note.length = std::max<Tick> (1, (Tick) std::llround (n.length * PPQ));
             note.pitch = n.pitch;
             note.velocity = n.velocity;
+            note.channel = n.channel;
             c.midi.notes.push_back (note);
         }
         edit::sortNotes (c.midi);

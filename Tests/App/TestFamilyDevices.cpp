@@ -200,3 +200,72 @@ TEST ("family devices: MIDI Production Center loads the chosen clip, from its me
     c.reaperScripts->sync();
     CHECK (c.reaperScripts->backgroundLoader() == nullptr);
 }
+
+#include "LuaTool/LuaTool.h"
+
+TEST ("family devices: Good Idea's own engine makes an idea; it auditions, plays with the song and goes into the song, drums on channel 10")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Ideas");
+    PluginRef ref;
+    for (auto& s : luaTools()) if (String (s.id) == "good-idea") ref = luaToolRef (s);
+    CHECK (ref.identifier == "tool:good-idea");
+    const Id dev = edit::addDevice (c.project, t, ref, DeviceRole::MidiFx);
+    c.refresh();
+    auto* inst = engine.instance (dev);
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    CHECK_EQ (luaToolError (*inst), String());
+
+    // An idea of each kind from Good Idea's engine, as New Idea makes one.
+    const String make =
+        "local T = dofile('<embedded>/tools/good-idea/gi_theory.lua') "
+        "local I = dofile('<embedded>/tools/good-idea/gi_idea.lua').init(T) "
+        "local st = I.newState() st.kind = %KIND% st.seed = 7 I.clampState(st) "
+        "idea = I.make(st, I.meter(4, 4), st.seed) return #idea.block.notes";
+    for (auto kind : { "'Motif'", "'Drums'" })
+    {
+        const auto n = luaToolRun (*inst, make.replace ("%KIND%", kind));
+        if (n.getIntValue() <= 0) check::fail (__FILE__, __LINE__, (String ("no notes for ") + kind + ": " + n).toStdString());
+    }
+    // The drums: on channel 10 (9 from 0).
+    CHECK_EQ (luaToolRun (*inst, "for _, n in ipairs(idea.block.notes) do if (n.chan or 0) ~= 9 then return 'no' end end return 'yes'"), String ("yes"));
+
+    // Audition through the device's MIDI out, on channel 10.
+    const String place = "local P = dofile('<embedded>/tools/good-idea/gi_place.lua') ";
+    CHECK_EQ (luaToolRun (*inst, place + "return tostring(P.previewStart(idea.block, 120))"), String ("true"));
+    inst->prepareToPlay (48000, 512);
+    AudioBuffer<float> b (2, 512);
+    int ons = 0, onTen = 0;
+    for (int i = 0; i < 200; ++i)
+    {
+        MidiBuffer m;
+        inst->processBlock (b, m);
+        for (const auto meta : m)
+            if (meta.getMessage().isNoteOn()) { ++ons; onTen += meta.getMessage().getChannel() == 10 ? 1 : 0; }
+    }
+    CHECK (ons > 0);
+    CHECK_EQ (onTen, ons);
+
+    // Play with REAPER is the device's Play with the Song.
+    luaToolRun (*inst, place + "P.follow(idea.block, true)");
+    CHECK_EQ (luaToolRun (*inst, "return tostring(host.withSong())"), String ("true"));
+    luaToolRun (*inst, place + "P.follow(idea.block, false)");
+
+    // Into the song at the playhead, one undo step; its notes keep their channel.
+    c.locate (PPQ * 4);
+    const auto steps = c.history.size();
+    CHECK_EQ (luaToolRun (*inst, place + "return P.insert(idea.block)"), String ("0"));
+    CHECK_EQ (c.history.size(), steps + 1);
+    const auto& clips = c.project.track (t)->clips();
+    CHECK_EQ (clips.size(), size_t (1));
+    if (! clips.empty())
+    {
+        CHECK_EQ (clips[0].start, PPQ * 4);
+        CHECK (! clips[0].midi.notes.empty());
+        for (auto& n : clips[0].midi.notes) CHECK_EQ (n.channel, 9);
+    }
+}

@@ -202,6 +202,17 @@ static int SliderInt(lua_State *L)
     return 2;
 }
 
+// Good Idea's (decision 0093): a number typed or stepped, the mouse, an item's width.
+static int InputInt(lua_State *L)
+{
+    int v = (int)luaL_checknumber(L, 3);
+    bool hit = ImGui::InputInt(str(L, 2), &v, integer(L, 4, 1), integer(L, 5, 100), integer(L, 6, 0));
+    lua_pushboolean(L, hit);
+    lua_pushinteger(L, v);
+    return 2;
+}
+static int SetNextItemWidth(lua_State *L) { ImGui::SetNextItemWidth(num(L, 2, 0)); return 0; }
+
 static int Text(lua_State *L) { ImGui::TextUnformatted(str(L, 2)); return 0; }
 static int TextWrapped(lua_State *L) { ImGui::TextWrapped("%s", str(L, 2)); return 0; }
 static int SeparatorText(lua_State *L) { ImGui::SeparatorText(str(L, 2)); return 0; }
@@ -254,6 +265,11 @@ static int GetContentRegionAvail(lua_State *L)
 static int GetCursorScreenPos(lua_State *L)
 {
     ImVec2 v = ImGui::GetCursorScreenPos();
+    return push2(L, v.x, v.y);
+}
+static int GetMousePos(lua_State *L)
+{
+    ImVec2 v = ImGui::GetMousePos();
     return push2(L, v.x, v.y);
 }
 static int GetItemRectMin(lua_State *L)
@@ -449,7 +465,8 @@ void openImGui(lua_State *L)
         {"BeginMenu", BeginMenu}, {"EndMenu", EndMenu}, {"MenuItem", MenuItem},
         {"BeginTooltip", BeginTooltip}, {"EndTooltip", EndTooltip}, {"SetTooltip", SetTooltip},
         {"Button", Button}, {"InvisibleButton", InvisibleButton}, {"Checkbox", Checkbox},
-        {"SliderInt", SliderInt}, {"Text", Text}, {"TextWrapped", TextWrapped},
+        {"SliderInt", SliderInt}, {"InputInt", InputInt}, {"SetNextItemWidth", SetNextItemWidth},
+        {"GetMousePos", GetMousePos}, {"Text", Text}, {"TextWrapped", TextWrapped},
         {"SeparatorText", SeparatorText}, {"Separator", Separator}, {"SameLine", SameLine},
         {"NewLine", NewLine}, {"Dummy", Dummy},
         {"PushID", PushID}, {"PopID", PopID},

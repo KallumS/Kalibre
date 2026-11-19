@@ -13,7 +13,7 @@ namespace kal::tools
 
 class ToolSession;
 
-struct BlockNote { double start = 0, len = 0; int pitch = 60, vel = 100; };   // quarter notes
+struct BlockNote { double start = 0, len = 0; int pitch = 60, vel = 100, chan = 0; };   // quarter notes; chan 0-15
 
 // The block, handed whole to the audio thread.
 struct PlayBlock
@@ -26,7 +26,7 @@ struct PlayBlock
 // Notes sounding from one source (the song, or the audition).
 struct Voices
 {
-    struct V { int pitch; double off; };
+    struct V { int pitch; double off; int chan = 0; };
     std::array<V, 512> v {};
     int n = 0;
 };

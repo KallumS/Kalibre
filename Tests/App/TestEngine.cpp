@@ -698,7 +698,7 @@ TEST ("instant virtual instrument: built in, its parameters passed on, its windo
 
 #include "LuaTool/LuaTool.h"
 
-TEST ("lua tools: Starting Blocks, its Notation, Midi Catalogue and Orchestration Helper run their own scripts, play their block, keep their settings")
+TEST ("lua tools: Starting Blocks, its Notation, Midi Catalogue, Good Idea and Orchestration Helper run their own scripts, play their block, keep their settings")
 {
     for (const auto& spec : luaTools())
     {
@@ -728,7 +728,7 @@ TEST ("lua tools: Starting Blocks, its Notation, Midi Catalogue and Orchestratio
         // block over when Audition is clicked; the others as soon as they start.
         if (! spec.gfx)
         {
-        if (String (spec.id) == "midi-catalogue")
+        if (String (spec.id) == "midi-catalogue" || String (spec.id) == "good-idea")
             luaToolRun (*inst, "host.setBlock({ { start = 0, len = 1, pitch = 64, vel = 90 } }, 4)");
         inst->prepareToPlay (48000, 512);
         CHECK_EQ (luaToolRun (*inst, "host.audition(true) return host.auditioning()"), String ("true"));

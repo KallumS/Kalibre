@@ -25,6 +25,8 @@ const std::vector<LuaToolSpec>& luaTools()
           "Starting Blocks, shown as notation" },
         { "midi-catalogue", "Midi Catalogue", "Midi Catalogue.lua",
           "A catalogue of parts for every instrument, from the choices made" },
+        { "good-idea", "Good Idea", "Good Idea.lua",
+          "Ideas for starting a track: a motif, a phrase, eight to sixteen bars, or a drum groove" },
         { "orchestration-helper", "Orchestration Helper", "Orchestration Helper.lua",
           "Doublings, pairings and combinations, each with its source", true },
     };
@@ -170,7 +172,7 @@ void ToolProcessor::release (Voices& vs, double upTo, double from, double spb, i
         if (vs.v[(size_t) i].off < upTo)
         {
             const int s = sample0 + jmax (0, (int) std::floor ((vs.v[(size_t) i].off - from) * spb));
-            o.addEvent (MidiMessage::noteOff (1, vs.v[(size_t) i].pitch), s);
+            o.addEvent (MidiMessage::noteOff (vs.v[(size_t) i].chan + 1, vs.v[(size_t) i].pitch), s);
             vs.v[(size_t) i] = vs.v[(size_t) (--vs.n)];
         }
         else ++i;
@@ -179,7 +181,7 @@ void ToolProcessor::release (Voices& vs, double upTo, double from, double spb, i
 
 void ToolProcessor::releaseAll (Voices& vs, int sample, MidiBuffer& o)
 {
-    for (int i = 0; i < vs.n; ++i) o.addEvent (MidiMessage::noteOff (1, vs.v[(size_t) i].pitch), sample);
+    for (int i = 0; i < vs.n; ++i) o.addEvent (MidiMessage::noteOff (vs.v[(size_t) i].chan + 1, vs.v[(size_t) i].pitch), sample);
     vs.n = 0;
 }
 
@@ -204,14 +206,15 @@ void ToolProcessor::play (Voices& vs, const PlayBlock& b, double from, double to
                 if (t >= to) break;
                 const int s = sampleAt (t, from, spb, sample0, numSamples);
                 for (int i = 0; i < vs.n; ++i)   // the same pitch still sounding is let go first
-                    if (vs.v[(size_t) i].pitch == n.pitch)
+                    if (vs.v[(size_t) i].pitch == n.pitch && vs.v[(size_t) i].chan == n.chan)
                     {
-                        o.addEvent (MidiMessage::noteOff (1, n.pitch), s);
+                        o.addEvent (MidiMessage::noteOff (n.chan + 1, n.pitch), s);
                         vs.v[(size_t) i] = vs.v[(size_t) (--vs.n)];
                         break;
                     }
-                o.addEvent (MidiMessage::noteOn (1, n.pitch, (uint8) n.vel), s);
-                if (vs.n < (int) vs.v.size()) vs.v[(size_t) (vs.n++)] = { n.pitch, t + jmax (0.001, n.len) };
+                // On its own channel (Good Idea's drums on 10, decision 0093).
+                o.addEvent (MidiMessage::noteOn (n.chan + 1, n.pitch, (uint8) n.vel), s);
+                if (vs.n < (int) vs.v.size()) vs.v[(size_t) (vs.n++)] = { n.pitch, t + jmax (0.001, n.len), n.chan };
             }
         }
     }
@@ -220,7 +223,7 @@ void ToolProcessor::play (Voices& vs, const PlayBlock& b, double from, double to
         if (vs.v[(size_t) i].off < to)
         {
             const int s = sampleAt (vs.v[(size_t) i].off, from, spb, sample0, numSamples);
-            o.addEvent (MidiMessage::noteOff (1, vs.v[(size_t) i].pitch), s);
+            o.addEvent (MidiMessage::noteOff (vs.v[(size_t) i].chan + 1, vs.v[(size_t) i].pitch), s);
             vs.v[(size_t) i] = vs.v[(size_t) (--vs.n)];
         }
         else ++i;

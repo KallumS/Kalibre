@@ -178,6 +178,7 @@ static std::vector<BlockNote> notesAt (lua_State* L, int t)
             nt.len = field (L, e, "len", 0.25);
             nt.pitch = jlimit (0, 127, (int) field (L, e, "pitch", 60));
             nt.vel = jlimit (1, 127, (int) field (L, e, "vel", 100));
+            nt.chan = jlimit (0, 15, (int) field (L, e, "chan", 0));
             notes.push_back (nt);
         }
         lua_pop (L, 1);
@@ -221,7 +222,7 @@ static int h_insert (lua_State* L)
             lua_pop (L, 1);
             lua_getfield (L, e, "notes");
             for (const auto& nt : notesAt (L, lua_gettop (L)))
-                part.notes.push_back ({ nt.start, nt.len, nt.pitch, nt.vel });
+                part.notes.push_back ({ nt.start, nt.len, nt.pitch, nt.vel, nt.chan });
             lua_pop (L, 1);
             b.parts.push_back (std::move (part));
         }
