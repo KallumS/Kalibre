@@ -1883,7 +1883,7 @@ void Controller::selectAllNotes()
 }
 
 //==============================================================================
-void Controller::addPlugin (Id track, const PluginDescription& d, std::optional<DeviceRole> as)
+void Controller::addPlugin (Id track, const PluginDescription& d, std::optional<DeviceRole> as, int position)
 {
     const auto ref = PluginManager::refFor (d);
     const auto role = as ? *as : engine.plugins().roleOf (d);
@@ -1893,7 +1893,7 @@ void Controller::addPlugin (Id track, const PluginDescription& d, std::optional<
         return;
     }
     Id made = 0;
-    apply ("Add " + d.name, [&] (Project& p) { made = edit::addDevice (p, track, ref, role); });
+    apply ("Add " + d.name, [&] (Project& p) { made = edit::addDevice (p, track, ref, role, position); });
     if (made && ! engine.instance (made))
         say (d.name + " couldn't be loaded.", true);
     zoneTab = ZoneTab::Devices;

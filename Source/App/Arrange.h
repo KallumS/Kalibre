@@ -118,6 +118,8 @@ public:
 private:
     Controller& c;
     std::unique_ptr<juce::FileChooser> chooser;   // Import Audio Here, Split at Transients (0095)
+    Tick trimShift = 0;        // Shift-drag resizing: how far the edge is from where the drag began (0095)
+    bool shiftTrim = false;
     juce::OwnedArray<TrackHeader> headers;
     juce::ScrollBar vbar { true }, hbar { false };
     int scrollY = 0;

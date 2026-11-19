@@ -63,6 +63,9 @@ public:
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+    // The sizes a double-click on a handle's dots brings back (0095).
+    static constexpr int defaultLowerHeight = 320, defaultBrowserWidth = 320;
 
     // MenuBarModel (Menus.cpp): File, Edit, Track, Transport, Automation, View, Scripts, Help.
     juce::StringArray getMenuBarNames() override;

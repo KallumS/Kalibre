@@ -37,9 +37,9 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
    #endif
     if (auto* s = settingsStore().getUserSettings())
     {
-        lowerHeight = s->getIntValue ("lowerHeight", 320);
+        lowerHeight = s->getIntValue ("lowerHeight", defaultLowerHeight);
         lowerShown = s->getBoolValue ("lowerShown", true);
-        browserWidth = s->getIntValue ("browserWidth", 320);
+        browserWidth = s->getIntValue ("browserWidth", defaultBrowserWidth);
         browserShown = s->getBoolValue ("browser", false);
         c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
         c.workClock.setAwayMinutes (s->getIntValue ("awayMinutes", 3));
@@ -286,6 +286,25 @@ void MainComponent::mouseUp (const MouseEvent&)
     draggingBrowserEdge = false;
     draggingDivider = false;
     repaint();
+}
+
+// A double-click on the dots (the divider, or a shut panel's bar) opens that
+// panel at its first size (0095): the way back from a drag gone too far.
+void MainComponent::mouseDoubleClick (const MouseEvent& e)
+{
+    if (dividerArea().expanded (0, 2).contains (e.getPosition()))
+    {
+        lowerHeight = defaultLowerHeight;
+        showLowerZone();
+    }
+    else if (browserHandle().contains (e.getPosition()))
+    {
+        browserWidth = defaultBrowserWidth;
+        browserShown = true;
+        browser.setVisible (true);
+        resized();
+        repaint();
+    }
 }
 
 void MainComponent::mouseDrag (const MouseEvent& e)

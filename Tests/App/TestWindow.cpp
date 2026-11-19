@@ -239,3 +239,36 @@ TEST ("lower zone: dragged lower than its smallest it shuts, leaving a bar at th
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("lower zone and browser: a double-click on their dots opens them at their first size, shut or not (0095)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        auto doubleClick = [&w] (Point<int> p) { w.mouseDoubleClick (mouseAt (w, p, p, false)); };
+        // Shut, from the bar along the bottom.
+        w.lowerHeight = 200;
+        w.hideLowerZone();
+        doubleClick (w.lowerHandle().getCentre());
+        CHECK (w.lowerShown);
+        CHECK_EQ (w.lowerBounds().getHeight(), MainComponent::defaultLowerHeight);
+        // Open but tall: back to its first height.
+        w.lowerHeight = 520;
+        w.resized();
+        doubleClick (w.lowerHandle().getCentre());
+        CHECK_EQ (w.lowerBounds().getHeight(), MainComponent::defaultLowerHeight);
+        // The browser, shut, from its bar at the left.
+        w.browserWidth = 500;
+        w.hideBrowser();
+        doubleClick (w.browserHandle().getCentre());
+        CHECK (w.browserShown);
+        CHECK_EQ (w.browserBounds().getWidth(), MainComponent::defaultBrowserWidth);
+        w.hideBrowser();   // as it was: the window saves it for the next one
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

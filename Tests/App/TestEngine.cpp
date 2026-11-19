@@ -1294,3 +1294,72 @@ TEST ("sampler: Speed in Keys is tape; Granular keeps the pitch at half speed, a
     for (size_t i = (size_t) (2.8 * 48000); i < held.size(); ++i) end = std::max (end, std::abs (held[i]));
     CHECK (end > 0.05f);
 }
+
+namespace
+{
+// An interface that says it runs at `rate`, as one at 192 kHz would.
+struct FakeDevice : public AudioIODevice
+{
+    explicit FakeDevice (double r) : AudioIODevice ("Fake", "Fake"), rate (r) {}
+    double rate;
+    StringArray getOutputChannelNames() override { return { "1", "2" }; }
+    StringArray getInputChannelNames() override { return {}; }
+    Array<double> getAvailableSampleRates() override { return { 44100, 48000, 88200, 96000, 176400, 192000 }; }
+    Array<int> getAvailableBufferSizes() override { return { 512 }; }
+    int getDefaultBufferSize() override { return 512; }
+    String open (const BigInteger&, const BigInteger&, double, int) override { return {}; }
+    void close() override {}
+    bool isOpen() override { return true; }
+    void start (AudioIODeviceCallback*) override {}
+    void stop() override {}
+    bool isPlaying() override { return false; }
+    String getLastError() override { return {}; }
+    int getCurrentBufferSizeSamples() override { return 512; }
+    double getCurrentSampleRate() override { return rate; }
+    int getCurrentBitDepth() override { return 32; }
+    BigInteger getActiveOutputChannels() const override { return 3; }
+    BigInteger getActiveInputChannels() const override { return 0; }
+    int getOutputLatencyInSamples() override { return 0; }
+    int getInputLatencyInSamples() override { return 0; }
+};
+} // namespace
+
+TEST ("192 kHz: an interface running at 192 kHz plays and exports the song at 192 kHz, in tune and in time (0095)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device (192000);
+    engine.audioDeviceAboutToStart (&device);
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (engine.sampleRate(), 192000.0);
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Sampler");
+    const Id dev = edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument);
+    KalibreSampler loader;
+    String err;
+    CHECK (loader.load (sineFile (440, 2.0), err));
+    MemoryBlock m;
+    loader.getStateInformation (m);
+    p.device (dev)->state = m.toBase64Encoding().toStdString();
+    const Id clip = edit::addMidiClip (p, t, 0, PPQ * 4);
+    edit::addNote (p, clip, { .start = PPQ, .length = PPQ * 2, .pitch = 60, .velocity = 127 });   // 0.5 s to 1.5 s at 120
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 2.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("192k.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (out));
+    CHECK (r != nullptr);
+    if (! r) return;
+    CHECK_EQ (r->sampleRate, 192000.0);
+    CHECK (std::abs ((double) r->lengthInSamples - 2.0 * 192000) < 512);
+    AudioBuffer<float> b (2, (int) r->lengthInSamples);
+    r->read (&b, 0, b.getNumSamples(), 0, true, true);
+    CHECK (b.getMagnitude (0, 0, (int) (0.45 * 192000)) < 1e-4f);     // silent before the note
+    CHECK (b.getMagnitude (0, (int) (0.55 * 192000), 19200) > 0.1f);  // sounding just after it starts
+    const double hz = audiotools::pitchOf (b.getReadPointer (0, (int) (1.0 * 192000)), 16384, 192000);
+    CHECK (std::abs (hz - 440) < 2);
+    engine.audioDeviceStopped();
+}

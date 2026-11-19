@@ -37,9 +37,19 @@ class ModulatorPanel;
 
 class PluginWindow;
 
-class DeviceRack : public juce::Component, private juce::ChangeListener, private juce::Timer
+class DeviceRack : public juce::Component, public juce::DragAndDropTarget, private juce::ChangeListener, private juce::Timer
 {
 public:
+    // A plug-in dragged from the browser's Plug-ins tab is added where it's
+    // dropped, on the track shown (a new one when none is), 0095.
+    bool isInterestedInDragSource (const SourceDetails&) override;
+    void itemDragEnter (const SourceDetails&) override { dropping = true; repaint(); }
+    void itemDragExit (const SourceDetails&) override { dropping = false; repaint(); }
+    void itemDropped (const SourceDetails&) override;
+    void paintOverChildren (juce::Graphics&) override;
+    // Where a drop at `x` (the rack's coordinates) goes in the track's devices.
+    int dropIndex (int x) const;
+
     explicit DeviceRack (Controller&);
     ~DeviceRack() override;
 
@@ -83,6 +93,7 @@ private:
     juce::OwnedArray<ModulatorPanel> modulators;
     theme::HouseButton add { "+ Add", "Add a plug-in to this track: a MIDI effect, an instrument or an audio effect." };
     Id shownTrack = 0;
+    bool dropping = false;
     juce::String shownShape;
     std::map<Id, std::unique_ptr<PluginWindow>> windows;
     std::map<Id, juce::AudioPluginInstance*> windowFor;

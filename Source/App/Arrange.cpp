@@ -1215,7 +1215,7 @@ void Arrange::mouseMove (const MouseEvent& e)
     {
         const float edge = (float) theme::px (6);
         const float x0 = xOf (clip->start), x1 = xOf (clip->end());
-        if ((float) e.x < x0 + edge || (float) e.x > x1 - edge) setMouseCursor (MouseCursor::LeftRightResizeCursor);
+        if ((float) e.x < x0 + edge || (float) e.x > x1 - edge || e.mods.isShiftDown()) setMouseCursor (MouseCursor::LeftRightResizeCursor);
         else setMouseCursor (MouseCursor::DraggingHandCursor);
     }
     else setMouseCursor (MouseCursor::NormalCursor);
@@ -1396,8 +1396,18 @@ void Arrange::mouseDown (const MouseEvent& e)
         previewEnd = clip->end();
         previewTrack = owner->id;
         const float edge = (float) theme::px (6);
+        trimShift = 0;
+        shiftTrim = false;
         if ((float) e.x < xOf (clip->start) + edge) drag = Drag::TrimStart;
         else if ((float) e.x > xOf (clip->end()) - edge) drag = Drag::TrimEnd;
+        else if (e.mods.isShiftDown() && ! e.mods.isAltDown() && ! e.mods.isCommandDown())
+        {
+            // Shift-drag anywhere on a clip resizes it from its nearer edge, which
+            // follows the pointer from where it was (0095). A Shift-click still chooses.
+            drag = (float) e.x < (xOf (clip->start) + xOf (clip->end())) / 2.0f ? Drag::TrimStart : Drag::TrimEnd;
+            trimShift = (drag == Drag::TrimStart ? clip->start : clip->end()) - dragOrigin;
+            shiftTrim = true;
+        }
         else { drag = Drag::MoveClip; copying = e.mods.isAltDown() && ! e.mods.isShiftDown(); }
         return;
     }
@@ -1444,7 +1454,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
         {
             const auto* clip = c.project.clip (dragClip);
             if (! clip) break;
-            Tick snapped = e.mods.isCommandDown() ? at : c.arrangeSnap (at);
+            Tick snapped = e.mods.isCommandDown() ? at + trimShift : c.arrangeSnap (at + trimShift);
             snapped = c.zeroEdge (*clip, snapped).tick;   // onto a zero crossing, when that's on (decision 0054)
             if (drag == Drag::TrimStart) previewStart = jlimit<Tick> (0, clip->end() - 1, snapped);
             else previewEnd = std::max (clip->start + 1, snapped);
@@ -1569,7 +1579,7 @@ void Arrange::mouseUp (const MouseEvent& e)
                 c.apply ("Move Clip", [=] (Project& p) { edit::moveClip (p, id, start, to); });
         }
     }
-    else if ((drag == Drag::TrimStart || drag == Drag::TrimEnd) && dragClip)
+    else if ((drag == Drag::TrimStart || drag == Drag::TrimEnd) && dragClip && ! (shiftTrim && ! e.mouseWasDraggedSinceMouseDown()))
     {
         const Id id = dragClip;
         const Tick a = previewStart, b = previewEnd;

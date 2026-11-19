@@ -343,7 +343,8 @@ public:
 
     //==========================================================================
     // Devices.
-    void addPlugin (Id track, const juce::PluginDescription&, std::optional<DeviceRole> as = {});
+    // `position`: where in the track's devices (its role's place still kept); -1, after its kind.
+    void addPlugin (Id track, const juce::PluginDescription&, std::optional<DeviceRole> as = {}, int position = -1);
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
     // The Note Splitter (decision 0083): how many outputs, the track each goes to,
     // and a new track for each output without one. Each one undo step.

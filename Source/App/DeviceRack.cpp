@@ -866,6 +866,40 @@ void DeviceRack::paint (Graphics& g)
     }
 }
 
+//==============================================================================
+bool DeviceRack::isInterestedInDragSource (const SourceDetails& d)
+{
+    return d.description.toString().startsWith ("plugin:");
+}
+
+int DeviceRack::dropIndex (int x) const
+{
+    int index = 0;
+    for (auto* p : panels)
+        if (getLocalPoint (p, p->getLocalBounds().getCentre()).x < x) ++index;
+    return index;
+}
+
+void DeviceRack::itemDropped (const SourceDetails& d)
+{
+    dropping = false;
+    repaint();
+    const int index = d.description.toString().fromFirstOccurrenceOf ("plugin:", false, false).getIntValue();
+    const auto types = c.engine.plugins().known().getTypes();
+    if (index < 0 || index >= types.size()) return;
+    Id track = c.focus() ? c.focusTrack : 0;
+    if (track == 0) track = c.addTrack (TrackKind::Track, types[index].name);
+    c.addPlugin (track, types[index], {}, dropIndex (d.localPosition.x));
+}
+
+void DeviceRack::paintOverChildren (Graphics& g)
+{
+    // While a plug-in is dragged over: the rack outlined, where it will go.
+    if (! dropping) return;
+    g.setColour (theme::control);
+    g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (2.0f), 5.0f, 2.0f);
+}
+
 void DeviceRack::resized()
 {
     viewport.setBounds (getLocalBounds().reduced (theme::px (8), theme::px (6)));
