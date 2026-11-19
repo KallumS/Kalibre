@@ -90,6 +90,8 @@ struct Note
     // A pattern step played several times in its length (decision 0063): the
     // first of them says how many; the rest are 0, "a repeat of the one before".
     int repeat = 1;
+    // Muted by the Mute tool (decision 0092): kept, drawn hollow, never played.
+    bool muted = false;
 
     Tick end() const { return start + length; }
     bool operator== (const Note&) const = default;

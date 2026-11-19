@@ -273,7 +273,7 @@ void MainComponent::registerKeys()
     keys.add ("start", "Go to the Start", K (K::returnKey), [this] { c.goToStart(); });
     keys.add ("record", "Record", K ('r'), [this] { c.record(); });
     keys.add ("loop", "Loop", K ('l'), [this] { c.toggleLoop(); });
-    keys.add ("dismiss", "Let Go of the Choice", K (K::escapeKey), [this] { c.selectedNotes.clear(); c.selectedClips.clear(); c.dismiss(); });
+    keys.add ("dismiss", "Let Go of the Choice", K (K::escapeKey), [this] { c.selectedNotes.clear(); c.selectedClips.clear(); c.range = {}; c.dismiss(); });
     keys.add ("delete", "Delete", K (K::backspaceKey), [this] { c.deleteSelection(); });
     keys.add ("delete2", "Delete (Forward)", K (K::deleteKey), [this] { c.deleteSelection(); });
     keys.add ("undo", "Undo", K ('z', cmd, 0), [this] { c.undo(); });
@@ -304,6 +304,14 @@ void MainComponent::registerKeys()
     keys.add ("mute", "Mute the Chosen Tracks", K ('m'), [this] { c.apply ("Mute", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->mute = ! t->mute; }); });
     keys.add ("solo", "Solo the Chosen Tracks", K ('s'), [this] { c.apply ("Solo", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->solo = ! t->solo; }); });
     keys.add ("fit", "Zoom to Fit", K ('f'), [this] { arrange.zoomToFit(); });
+    // The tools (decision 0092), in Cubase's order on 1 to 9; the rest without a key until given one.
+    for (int i = 0; i < tools::toolCount; ++i)
+    {
+        const auto tool = (tools::Tool) i;
+        const String name (tools::info (tool).name);
+        keys.add ("tool" + name.removeCharacters (" "), "Tool: " + name, i < 9 ? K ((juce_wchar) ('1' + i)) : K(),
+                  [this, tool] { c.chooseToolEverywhere (tool); });
+    }
     keys.file = settingsStore().getUserSettings() ? settingsStore().getUserSettings()->getFile().getSiblingFile ("Keys.json") : File();
     keys.load();
 }

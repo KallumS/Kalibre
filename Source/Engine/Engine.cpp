@@ -300,8 +300,10 @@ void Engine::audition (Id track, int pitch, int velocity, double seconds)
     auto on = MidiMessage::noteOn (1, pitch, (uint8) jlimit (1, 127, velocity));
     on.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
     player.getMidiMessageCollector().addMessageToQueue (on);
-    Timer::callAfterDelay ((int) (seconds * 1000), [this, pitch]
+    // The note-off comes later: only if this engine is still there then.
+    Timer::callAfterDelay ((int) (seconds * 1000), [this, pitch, life = std::weak_ptr<bool> (aliveToken)]
     {
+        if (life.expired()) return;
         auto off = MidiMessage::noteOff (1, pitch);
         off.setTimeStamp (Time::getMillisecondCounterHiRes() * 0.001);
         player.getMidiMessageCollector().addMessageToQueue (off);

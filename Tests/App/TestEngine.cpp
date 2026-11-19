@@ -562,7 +562,7 @@ TEST ("chance and timing: an export plays each note as often as its chance says,
 #include "JsfxDevice.h"
 #include "Editors.h"
 
-TEST ("jsfx: the family's five JSFX load, each with its sliders as parameters, and keep their state")
+TEST ("jsfx: the family's JSFX load, each with its sliders as parameters, and keep their state")
 {
     for (auto& s : jsfxDevices())
     {
@@ -698,7 +698,7 @@ TEST ("instant virtual instrument: built in, its parameters passed on, its windo
 
 #include "LuaTool/LuaTool.h"
 
-TEST ("lua tools: Starting Blocks, its Notation, Midi Catalogue and Orchestration Helper run their own scripts, play their block, keep their settings")
+TEST ("lua tools: Starting Blocks, its Notation, Midi Catalogue, Good Idea and Orchestration Helper run their own scripts, play their block, keep their settings")
 {
     for (const auto& spec : luaTools())
     {
@@ -728,7 +728,7 @@ TEST ("lua tools: Starting Blocks, its Notation, Midi Catalogue and Orchestratio
         // block over when Audition is clicked; the others as soon as they start.
         if (! spec.gfx)
         {
-        if (String (spec.id) == "midi-catalogue")
+        if (String (spec.id) == "midi-catalogue" || String (spec.id) == "good-idea")
             luaToolRun (*inst, "host.setBlock({ { start = 0, len = 1, pitch = 64, vel = 90 } }, 4)");
         inst->prepareToPlay (48000, 512);
         CHECK_EQ (luaToolRun (*inst, "host.audition(true) return host.auditioning()"), String ("true"));
@@ -1128,4 +1128,20 @@ TEST ("engine: a freeze and a bounce hear the sidechain from another track (0080
         if (heard.size() != 1) check::fail (__FILE__, __LINE__, std::string ("from a ") + (fromReturn ? "return" : "folder") + ": " + std::to_string (heard.size()) + " clicks");
         c.freeze (b, false);
     }
+}
+
+TEST ("audition: the note-off it schedules is let go if the engine has gone by then")
+{
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+        edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+        engine.sync (p, 0, File::getSpecialLocation (File::tempDirectory));
+        engine.audition (t, 60, 100, 0.05);
+    }
+    // The engine is gone; its note-off comes due here, and must touch nothing.
+    MessageManager::getInstance()->runDispatchLoopUntil (300);
+    CHECK (true);
 }

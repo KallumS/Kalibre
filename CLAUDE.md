@@ -11,6 +11,7 @@ renders of what changed, and make sure every change reaches them as the CI's
 - [`docs/decisions/`](docs/decisions/README.md): one record per choice, by number: **(0009)** is the piano roll's mouse rules.
 - [`docs/FEATURES.md`](docs/FEATURES.md): what's done, what's partly done, what isn't. Keep it true.
 - [`docs/sessions/`](docs/sessions/): one log per working session.
+- [`docs/UPDATING-ENGINES.md`](docs/UPDATING-ENGINES.md): bringing the family's engines up to date (`tools/update_engines.py`).
 
 Write to all of them when something changes.
 
@@ -21,8 +22,8 @@ Write to all of them when something changes.
 cmake -B build-core -G Ninja -DKALIBRE_BUILD_APP=OFF && cmake --build build-core && ./build-core/KalibreTests
 # everything (fetches JUCE 9.0.5, the CLAP SDK, Signalsmith Stretch)
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build
-xvfb-run -a ./build/KalibreAppTests_artefacts/Debug/KalibreAppTests
-xvfb-run -a ./build/KalibreRender_artefacts/Debug/KalibreRender renders 1
+xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreAppTests_artefacts/Debug/KalibreAppTests
+xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreRender_artefacts/Debug/KalibreRender renders 1
 ```
 
 - Look at a render after any drawing change (0023).

@@ -13,6 +13,7 @@
 #include "LuaTool/LuaTool.h"
 #include "NoteSplitter.h"
 #include "PianoRoll.h"
+#include "ToolPicker.h"
 #include "Arrange.h"
 #include "ArticulationManagerView.h"
 
@@ -366,6 +367,55 @@ int main (int argc, char** argv)
                 png.writeImageToStream (image, s);
                 std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
                 for (auto& n : c.project.clip (clip)->midi.notes) n.delayMs = 0;
+                c.refresh();
+            }
+        }
+        // The toolbox (decision 0092): Control-right-click over the arrangement and the piano roll.
+        {
+            auto snap = [&] (Component& comp, const String& name)
+            {
+                MessageManager::getInstance()->runDispatchLoopUntil (50);
+                auto image = comp.createComponentSnapshot (comp.getLocalBounds(), true, scale);
+                PNGImageFormat png;
+                const auto f = out.getChildFile (name + ".png");
+                f.deleteFile();
+                FileOutputStream s (f);
+                png.writeImageToStream (image, s);
+                std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+            };
+            c.chooseTool (tools::Area::Arrange, tools::Tool::Split);
+            {
+                ToolBox box (c, tools::Area::Arrange);
+                box.hovered = 6;   // the pointer on Mute
+                snap (box, "28-toolbox-arrangement");
+            }
+            c.chooseTool (tools::Area::Roll, tools::Tool::Line, 2);
+            {
+                ToolBox box (c, tools::Area::Roll);
+                snap (box, "29-toolbox-piano-roll");
+            }
+            // A range on two tracks, and muted notes drawn hollow.
+            const auto& chords = c.project.tracks[1].clips();
+            if (! chords.empty())
+            {
+                const Id clip = chords.front().id;
+                int k = 0;
+                for (auto& n : c.project.clip (clip)->midi.notes) n.muted = (k++ % 4 == 1);
+                c.selectClip (clip);
+                c.selectedNotes.clear();
+                std::vector<Id> shown;
+                for (auto& t : c.project.tracks) if (t.name == "Strings" || t.name == "Vocal") shown.push_back (t.id);
+                c.range = { shown, PPQ * 5, PPQ * 11 };
+                c.zoneTab = ZoneTab::Editor;
+                c.editor = EditorKind::PianoRoll;
+                c.chooseTool (tools::Area::Arrange, tools::Tool::Range);
+                c.refresh();
+                shoot ("30-range-and-muted-notes");
+                for (auto& n : c.project.clip (clip)->midi.notes) n.muted = false;
+                c.range = {};
+                c.chooseTool (tools::Area::Arrange, tools::Tool::Select);
+                c.chooseTool (tools::Area::Roll, tools::Tool::Select);
+                c.zoneTab = ZoneTab::Devices;
                 c.refresh();
             }
         }

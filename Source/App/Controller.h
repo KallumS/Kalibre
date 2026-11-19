@@ -20,6 +20,7 @@
 #include "StepInput.h"
 #include "Song.h"
 #include "Keys.h"
+#include "Toolbox.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -74,9 +75,28 @@ public:
     void selectTracks (std::vector<Id>);
 
     //==========================================================================
+    // The tools (decision 0092): what a left click is, in the arrangement and
+    // in the piano roll, chosen from the toolbox (Control-right-click). Not saved.
+    tools::State arrangeTool, rollTool;
+    tools::State& toolsFor (tools::Area a) { return a == tools::Area::Arrange ? arrangeTool : rollTool; }
+    void chooseTool (tools::Area, tools::Tool, std::optional<int> mode = std::nullopt);
+    void chooseToolEverywhere (tools::Tool);   // a tool's key: in each area that has it
+    // The Range tool's stretch of time on some tracks: Delete clears what's in it.
+    struct Range
+    {
+        std::vector<Id> tracks;
+        Tick from = 0, to = 0;
+        bool empty() const { return tracks.empty() || to <= from; }
+    };
+    Range range;
+
+    //==========================================================================
     // Changes.
     // False when refused (more than 1000 tracks, decision 0088): nothing changed.
     bool apply (const juce::String& label, std::function<void (Project&)> change);
+    // A drag that showed its change in the project as it went (a tool's): the
+    // project as it was before is put back, and the change made with apply.
+    bool applyLive (const Project& before, const juce::String& label);
 
     // The top bar's timer (decision 0091): how long the user has made music in this
     // song, DAW Battle Pass's active-time clock. The window tells it when anything
@@ -390,6 +410,11 @@ public:
 
     // The engine's state of mind, for the window.
     std::function<void()> onTransportChanged;
+
+    // The family's REAPER scripts that hand phrases to Midular and MIDI Production
+    // Center, run as they are (decision 0093). The chosen MIDI clips into the device.
+    std::unique_ptr<class ReaperScripts> reaperScripts;
+    bool loadChosenClipsInto (Id device);
 
 private:
     std::vector<double> taps;

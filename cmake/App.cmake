@@ -69,6 +69,17 @@ FetchContent_GetProperties(ysfx)
 if(NOT ysfx_POPULATED)
     FetchContent_Populate(ysfx)
 endif()
+# One correction (decision 0093): in @serialize, file_avail says how many values
+# are left to read, as REAPER's does; ysfx said only 1 or 0, so a JSFX checking
+# for at least so many (Midular) never read its saved phrase back.
+set(YSFX_FILE_API ${ysfx_SOURCE_DIR}/sources/ysfx_api_file.cpp)
+file(READ ${YSFX_FILE_API} ysfx_file_api)
+string(REPLACE "return (m_buffer->size() > m_pos) ? 1 : 0;"
+               "return (m_buffer->size() > m_pos) ? (int32_t) ((m_buffer->size() - m_pos) / 4) : 0;"
+               ysfx_file_api_fixed "${ysfx_file_api}")
+if(NOT ysfx_file_api_fixed STREQUAL ysfx_file_api)
+    file(WRITE ${YSFX_FILE_API} "${ysfx_file_api_fixed}")
+endif()
 set(YSFX_PLUGIN OFF CACHE BOOL "" FORCE)
 set(YSFX_GFX ON CACHE BOOL "" FORCE)
 set(YSFX_TESTS OFF CACHE BOOL "" FORCE)
@@ -140,6 +151,7 @@ add_library(KalibreApp STATIC
     Source/Engine/SyncDevices.cpp
     Source/App/Theme.cpp
     Source/App/Controller.cpp
+    Source/App/ReaperScripts.cpp
     Source/App/AudioEditing.cpp
     Source/App/Presets.cpp
     Source/App/ProjectFiles.cpp
@@ -158,6 +170,9 @@ add_library(KalibreApp STATIC
     Source/App/TopBar.cpp
     Source/App/Arrange.cpp
     Source/App/PianoRoll.cpp
+    Source/App/ToolPicker.cpp
+    Source/App/ArrangeTools.cpp
+    Source/App/PianoRollTools.cpp
     Source/App/CcLanes.cpp
     Source/App/PatternEditors.cpp
     Source/App/NotationView.cpp
@@ -169,6 +184,16 @@ add_library(KalibreApp STATIC
     Source/App/Menus.cpp
     Source/App/Surfaces.cpp
     Source/App/StudioPanel.cpp)
+# ScaleView (KallumS/ScaleView, GPL-3.0, decision 0093), the same way: its source
+# unchanged, its folder its include root (its ScaleModel.h is Kalibre's own, the
+# same file), its plug-in entry point renamed so it doesn't meet IVI's.
+set(SCALEVIEW_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ScaleView/Source/PluginProcessor.cpp
+                      ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ScaleView/Source/PluginEditor.cpp)
+target_sources(KalibreApp PRIVATE ${SCALEVIEW_SOURCES} Source/Engine/ScaleViewDevice.cpp)
+set_source_files_properties(${SCALEVIEW_SOURCES} Source/Engine/ScaleViewDevice.cpp Tests/App/TestFamilyDevices.cpp PROPERTIES
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ScaleView/Source
+    COMPILE_DEFINITIONS "JucePlugin_Name=\"ScaleView\";createPluginFilter=scaleViewPluginFilter")
+
 # Instant Virtual Instrument (KallumS/Instant-Virtual-Instrument, GPL-3.0), its
 # source unchanged, compiled into the app library as a built-in instrument
 # (decision 0067). Its own folder is its include root, and its plug-in name
@@ -253,7 +278,7 @@ target_link_libraries(Kalibre PRIVATE
 if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp
-    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp
+    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp Tests/App/TestTools.cpp Tests/App/TestFamilyDevices.cpp
     Tests/App/TestNeutral.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1 KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

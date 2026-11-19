@@ -41,6 +41,21 @@ struct JsfxSpec
 const std::vector<JsfxSpec>& jsfxDevices();
 PluginRef jsfxRef (const JsfxSpec&);
 
+// A JSFX's shared memory (gmem), as REAPER's gmem_read and gmem_write see it
+// (decision 0093): a slot of the memory named `name`, made if need be;
+// nullptr while no JSFX using that name is open. Midular's and MIDI
+// Production Center's own scripts hand phrases over through it.
+double* jsfxGmem (const juce::String& name, unsigned int index);
+// The JSFX a device is ("midular"), or empty if it isn't one.
+juce::String jsfxIdOf (juce::AudioPluginInstance&);
+// A JSFX parameter in its slider's own units, as REAPER's TrackFX_GetParam and
+// TrackFX_SetParam take them. False if it isn't a JSFX's slider.
+bool jsfxSliderValue (juce::AudioProcessorParameter&, double& value, double& min, double& max);
+bool setJsfxSlider (juce::AudioProcessorParameter&, double value);
+// One of a JSFX's own variables, for the tests to look inside it.
+double jsfxVariable (juce::AudioPluginInstance&, const char* name);
+double jsfxMemory (juce::AudioPluginInstance&, unsigned int address);
+
 // The JSFX a reference names, made; nullptr if it names none.
 std::unique_ptr<juce::AudioPluginInstance> makeJsfx (const PluginRef&);
 
@@ -49,5 +64,9 @@ std::unique_ptr<juce::AudioPluginInstance> makeInstantVirtualInstrument();
 // Its own demo sound loaded, for the tests (and anyone wanting one to start from).
 bool loadInstantVirtualInstrumentDemo (juce::AudioPluginInstance&);
 PluginRef instantVirtualInstrumentRef();
+
+// ScaleView, built in (decision 0093; ScaleViewDevice.cpp): the scale, and the chord being played.
+std::unique_ptr<juce::AudioPluginInstance> makeScaleView();
+PluginRef scaleViewRef();
 
 } // namespace kal

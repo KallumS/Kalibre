@@ -1,4 +1,5 @@
 #include "PianoRoll.h"
+#include "ToolPicker.h"
 
 #include "Mpe.h"
 
@@ -191,10 +192,12 @@ void PianoRoll::paint (Graphics& g)
             const bool doomed = preview.action == roll::Action::RemoveNotes && preview.notes.count (n.id);
             auto r = Rectangle<float> (xOf (shown.start), yOf (shown.pitch) + 1.0f, jmax (3.0f, xOf (shown.end()) - xOf (shown.start) - 1.0f), rowHeight - 2.0f);
             const float shade = 0.55f + 0.45f * (float) shown.velocity / 127.0f;
-            g.setColour (doomed ? theme::warn.withAlpha (0.5f) : chosen ? theme::accent : trackCol.withMultipliedBrightness (shade));
+            // A muted note (decision 0092) is hollow: its outline only.
+            const bool hollow = shown.muted && ! chosen && ! doomed;
+            g.setColour (hollow ? theme::roll : doomed ? theme::warn.withAlpha (0.5f) : chosen ? theme::accent : trackCol.withMultipliedBrightness (shade));
             g.fillRoundedRectangle (r, 2.0f);
-            g.setColour (theme::ink);
-            g.drawRoundedRectangle (r, 2.0f, 1.0f);
+            g.setColour (hollow ? trackCol : theme::ink);
+            g.drawRoundedRectangle (r, 2.0f, hollow ? 1.5f : 1.0f);
             if (chosen && r.getWidth() > 4)
             {
                 // Chosen is shown by shape as well: a bar along the note's foot.
@@ -202,7 +205,7 @@ void PianoRoll::paint (Graphics& g)
             }
             if (rowHeight >= 11 && r.getWidth() > 26)
             {
-                g.setColour (theme::ink);
+                g.setColour (hollow ? theme::text : theme::ink);
                 g.setFont (theme::font (jmin (11.0f, rowHeight - 2)));
                 g.drawText (String (harmony::noteName (scale, shown.pitch)), r.reduced (3, 0).toNearestInt(), Justification::centredLeft, false);
             }
@@ -240,6 +243,10 @@ void PianoRoll::paint (Graphics& g)
             g.setColour (theme::accent);
             g.fillRoundedRectangle (Rectangle<float> (xOf (n.start), yOf (n.pitch) + 1.0f, jmax (3.0f, xOf (n.end()) - xOf (n.start) - 1.0f), rowHeight - 2.0f), 2.0f);
         }
+        g.restoreState();
+        paintTool (g);
+        g.saveState();
+        g.reduceClipRegion (area);
         if (preview.showArea)
         {
             auto r = Rectangle<float>::leftTopRightBottom (xOf (preview.areaFrom), yOf (preview.areaHi), xOf (preview.areaTo), yOf (preview.areaLo) + rowHeight);
@@ -425,7 +432,8 @@ roll::Pointer PianoRoll::pointerFor (const MouseEvent& e) const
     p.tick = relAt ((float) e.x);
     p.pitch = pitchAt ((float) e.y);
     p.right = e.mods.isPopupMenu();
-    p.shift = e.mods.isShiftDown();
+    // The Range tool's drag chooses an area, as Shift-drag does (decision 0092).
+    p.shift = e.mods.isShiftDown() || (c.rollTool.tool == tools::Tool::Range && ! e.mods.isPopupMenu());
     p.option = e.mods.isAltDown();
     p.command = e.mods.isCommandDown();
     return p;
@@ -450,6 +458,9 @@ roll::Settings PianoRoll::settings() const
 void PianoRoll::mouseDown (const MouseEvent& e)
 {
     grabKeyboardFocus();
+    toolDrag.reset();
+    // Control-right-click: the toolbox (decision 0092). Control-click alone stays the Mac's right-click.
+    if (e.mods.isCtrlDown() && e.mods.isRightButtonDown()) { showToolBox (e.getScreenPosition()); return; }
     auto* clip = c.clip();
     if (! clip || ! clip->isMidi()) return;
     downAt = e.getPosition();
@@ -478,6 +489,9 @@ void PianoRoll::mouseDown (const MouseEvent& e)
         return;
     }
 
+    // A tool takes the left click (PianoRollTools.cpp); Select leaves it to the rules (0009).
+    if (! e.mods.isPopupMenu() && toolDown (e)) return;
+
     notesCopy = clip->midi.notes;
     gesture = std::make_unique<roll::Gesture> (notesCopy, c.selectedNotes, settings(), noteAnchor);
     preview = gesture->press (pointerFor (e));
@@ -488,6 +502,7 @@ void PianoRoll::mouseDown (const MouseEvent& e)
 
 void PianoRoll::mouseDrag (const MouseEvent& e)
 {
+    if (toolDrag) { toolDragTo (e); return; }
     if (velocityDrag) { if (laneKind >= 0) drawLaneValue (e); else setVelocityAt (e); return; }
     if (e.y < rulerHeight() && ! gesture) { c.locate (c.snapTick (base() + relAt ((float) e.x))); return; }
     if (! gesture) return;
@@ -508,6 +523,7 @@ void PianoRoll::mouseDrag (const MouseEvent& e)
 
 void PianoRoll::mouseUp (const MouseEvent& e)
 {
+    if (toolDrag) { toolUp (e); return; }
     if (velocityDrag)
     {
         velocityDrag = false;
@@ -795,6 +811,7 @@ void PianoRoll::mouseMove (const MouseEvent& e)
     const auto* note = roll::noteAt (clip->midi.notes, relAt ((float) e.x), pitchAt ((float) e.y), timeline.ticksFor ((float) theme::px (6)), &zone);
     // The note under the pointer, for the message line (0070).
     c.hover (note ? clip->id : 0, note ? note->id : 0);
+    if (c.rollTool.tool != tools::Tool::Select) { setMouseCursor (toolicons::cursor (c.rollTool.tool)); return; }
     if (note)
         setMouseCursor (zone == roll::Zone::Body ? MouseCursor::DraggingHandCursor : MouseCursor::LeftRightResizeCursor);
     else setMouseCursor (MouseCursor::NormalCursor);

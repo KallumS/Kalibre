@@ -25,6 +25,8 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/Toolbox.*` | The tools Control-right-click chooses, each area's, their modes; Split into pieces, Glue, clearing a range, Line's shapes, Time Warp (0092). |
+| `Core/Trombolese.*` | Trombolese's voice, ported from its Python (waveguide, reed, geometry), its tables made by its own functions, and each note's partial and slide (0093). |
 | `Core/WorkClock.*` | The top bar's timer: DAW Battle Pass's active-time clock (0091). |
 | `Core/NoteFixer.*` | Note Position & Volume Fixer's engine: where each note is heard in a render, and how loud (0085). |
 | `Core/NoteSplit.*` | The Note Splitter's rule: a chord's notes, top to bottom, an output each (0083). |
@@ -60,6 +62,7 @@
 | `Engine/JsfxDevice.*` | The family's JSFX as devices, run by ysfx (0066). |
 | `Engine/NoteSplitter.*` | The Note Splitter device, and its outputs' nodes into other tracks' Sources (0083). |
 | `Engine/PanLaw.h` | Constant power, sine curves, exactly 0 dB in the middle (0081). |
+| `Engine/ScaleViewDevice.cpp` | ScaleView's own processor in a HostedProcessor, passing the notes on (0093). |
 | `Engine/HostedProcessor.*` | A plain JUCE `AudioProcessor` compiled into Kalibre as a device: parameters passed on, its window inside the device's (0067). |
 | `Engine/LuaTool/` | The family's ReaScripts as devices (0068): `ImGuiLua` (ReaImGui on Dear ImGui), `ToolSession` (a script's Lua, `reaper` and `host`), `LuaTool` (the processor, the window); `GfxTool` (gfx, for Orchestration Helper). |
 | `Engine/Mp3Writer.*` | MP3 export through Shine (0041). |
@@ -69,6 +72,8 @@
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp`, `NoteFixing.cpp` | More of the Controller: audio commands, presets and A/B, file commands, Fix Note Timings and Volume (0085). |
+| `App/ToolPicker.*`, `ArrangeTools.cpp`, `PianoRollTools.cpp` | The toolbox at the pointer, its icons and pointers; what each tool does in the arrangement and the piano roll (0092). |
+| `App/ReaperScripts.*` | The family's REAPER scripts that hand a JSFX its phrase (Midular's importer, MIDI Production Center's loaders), run unchanged with a `reaper` for this song (0093). |
 | `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |
 | `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
 | `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
@@ -81,10 +86,10 @@
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
 | `tools/RenderWindow.cpp` | Draws the window into PNGs on CI (0023). |
 | `tools/export-chat.py` | Writes a session's transcript as the chat backup in `docs/sessions/`; a new part's title and description are its last two arguments. |
-| `Engines/` | The family's engines, JSFX and ReaScripts (`tools/`), copied unchanged from their repositories (`Engines/VENDORED.md`), embedded in the app. |
+| `Engines/` | The family's engines, JSFX (with their imports and data) and ReaScripts (`tools/`, `scripts/`), copied unchanged from their repositories (`engines.json`, `VENDORED.md`), embedded in the app. `tools/update_engines.py` brings them up to date (docs/UPDATING-ENGINES.md). |
 | `Scripts/` | Example scripts. |
 | `Resources/` | The app icon: `Icon.svg`, and `Icon.png` drawn from it (0048). |
-| `ThirdParty/` | Lua 5.4 (MIT), nlohmann/json (MIT) and Instant Virtual Instrument's source (GPL-3.0, 0067). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link, Shine (LGPL, MP3), ysfx (Apache-2.0, 0066) and Dear ImGui (MIT, 0068) are fetched by CMake. |
+| `ThirdParty/` | Lua 5.4 (MIT), nlohmann/json (MIT) Instant Virtual Instrument's and ScaleView's source (GPL-3.0, 0067, 0093). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link, Shine (LGPL, MP3), ysfx (Apache-2.0, 0066) and Dear ImGui (MIT, 0068) are fetched by CMake. |
 
 ## How sound flows
 
@@ -121,7 +126,8 @@ performance core, each as soon as what feeds it is done (0078).
   Source's `blockTicks`, never once a block.
 - At most 1000 tracks, checked in `Controller::apply` (0088): a change that
   adds tracks some other way (a script, opening a file) checks too.
-- A gesture is one `Controller::apply` (one undo step).
+- A gesture is one `Controller::apply` (one undo step). A tool's drag that shows its change as it goes ends in `Controller::applyLive` (0092).
+- A tool other than Select takes only the left click; right-clicks keep their menus, and Control-right-click is the toolbox's (0092).
 - A track's devices stay MIDI effects, instruments, audio effects (`edit::normaliseChain`).
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).
 - A plug-in's window is deleted before its instance: the engine keeps removed instances for a second and a half.
@@ -145,4 +151,7 @@ performance core, each as soon as what feeds it is done (0078).
 - Rendering one track (`Engine::renderTrack`, freeze and bounce, 0080) wires only it out; an offline plan leaves out what can't reach the output.
 - The graph's nodes play on several threads at once (0078): a processor may not share state with another node unless it's marked `runsAlone`; anything per thread is `thread_local`. Rebuild the graph with `graph.rebuild()` on the message thread, so a plan is made.
 - Lua is compiled as C++ (0068): include its headers plainly, never inside `extern "C"`, or nothing links.
-- The family's scripts in `Engines/` are copied unchanged: what Kalibre needs differently goes in its own stand-ins (`Engines/tools/sb_place.lua`, `mc_place.lua`) or the host, and a fix to a script goes to its repo first.
+- The family's scripts in `Engines/` are copied unchanged: what Kalibre needs differently goes in its own stand-ins (`Engines/tools/sb_place.lua`, `mc_place.lua`, `gi_place.lua`) or the host, and a fix to a script goes to its repo first.
+- EEL2's names ignore case: `P_ST` and `p_st` are one variable (0093). `tools/update_engines.py` looks for two spellings in a JSFX.
+- A new JSFX isn't run through `@serialize` until a song gives it a state, as in REAPER; ysfx's `file_avail` there is mended to count what's left (cmake/App.cmake).
+- On the Mac's disk names ignore case too: no two files may differ only by case (`Core/Toolbox.h` and `App/ToolPicker.h`, once `ToolBox.h`, 0092).

@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "ReaperScripts.h"
 #include "NoteSplitter.h"
 #include "AudioFiles.h"
 
@@ -76,12 +77,26 @@ Controller::Controller (Engine& e) : engine (e)
     NoteSplitterProcessor::makeEditor = nullptr;
     newProject();
     beginWorkClock();
+    reaperScripts = std::make_unique<ReaperScripts> (*this);
     startTimerHz (30);
+}
+
+bool Controller::loadChosenClipsInto (Id device)
+{
+    std::vector<Id> clips;
+    for (auto id : selectedClips) if (auto* cl = project.clip (id); cl && cl->isMidi()) clips.push_back (id);
+    if (clips.empty() && ! (clip() && clip()->isMidi()))
+    {
+        say ("Choose a MIDI clip first (click it in the arrangement), then load it.", true);
+        return false;
+    }
+    return reaperScripts->loadChosenClips (device);
 }
 
 Controller::~Controller()
 {
     stopTimer();
+    reaperScripts.reset();
     engine.cache.onReady = nullptr;
     engine.onTouched = nullptr;
     engine.onMessage = nullptr;
@@ -97,6 +112,35 @@ void Controller::syncEngine()
     const double ls = project.tempo.secondsAt (project.loop.start), le = project.tempo.secondsAt (project.loop.end);
     engine.setLoop (project.loop.on, ls, le);
     engine.setCountIn (project.metronome.countIn ? project.tempo.secondsAt (project.tempo.barStart (project.metronome.countInBars)) : 0.0);
+}
+
+bool Controller::applyLive (const Project& before, const String& label)
+{
+    auto after = std::make_shared<Project> (std::move (project));
+    project = before;
+    return apply (label, [after] (Project& p) { p = *after; });
+}
+
+void Controller::chooseTool (tools::Area area, tools::Tool tool, std::optional<int> mode)
+{
+    auto& state = toolsFor (area);
+    if (! state.choose (tool, area, mode)) return;
+    if (tool != tools::Tool::Range && area == tools::Area::Arrange) range = {};
+    say (String (area == tools::Area::Arrange ? "Arrangement" : "Piano roll") + " tool: " + String (state.describe()) + ". "
+         + String (tools::info (tool).help));
+    viewChanged();
+}
+
+void Controller::chooseToolEverywhere (tools::Tool tool)
+{
+    const bool inArrange = arrangeTool.choose (tool, tools::Area::Arrange);
+    const bool inRoll = rollTool.choose (tool, tools::Area::Roll);
+    if (! inArrange && ! inRoll) return;
+    if (tool != tools::Tool::Range) range = {};
+    const auto& state = inArrange ? arrangeTool : rollTool;
+    say ("Tool: " + String (state.describe()) + (inArrange && inRoll ? "" : inArrange ? " (in the arrangement)" : " (in the piano roll)")
+         + ". " + String (tools::info (tool).help));
+    viewChanged();
 }
 
 bool Controller::apply (const String& label, std::function<void (Project&)> change)
@@ -1645,6 +1689,13 @@ Id Controller::newMidiClip (Id track, Tick start, Tick length)
 
 void Controller::deleteSelection()
 {
+    if (! range.empty())
+    {
+        const auto r = range;
+        range = {};
+        apply ("Clear the Range", [r] (Project& p) { tools::clearRange (p, r.tracks, r.from, r.to); });
+        return;
+    }
     if (! selectedNotes.empty() && selectedClip)
     {
         auto notes = selectedNotes;
@@ -1816,6 +1867,7 @@ bool Controller::placeToolBlock (AudioPluginInstance& from, const ToolBlock& b)
             note.length = std::max<Tick> (1, (Tick) std::llround (n.length * PPQ));
             note.pitch = n.pitch;
             note.velocity = n.velocity;
+            note.channel = n.channel;
             c.midi.notes.push_back (note);
         }
         edit::sortNotes (c.midi);
@@ -2233,6 +2285,7 @@ void Controller::tickWorkClock (double now)
 void Controller::timerCallback()
 {
     tickWorkClock (Time::getMillisecondCounterHiRes() / 1000.0);
+    if (reaperScripts) reaperScripts->sync();   // MIDI Production Center's loader while there's one (0093)
     // Every three minutes, while not recording.
     const auto now = Time::getMillisecondCounter();
     if (now - lastAutosave > 180000 && ! wasRecording)

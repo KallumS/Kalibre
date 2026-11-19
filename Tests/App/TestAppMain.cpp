@@ -21,6 +21,9 @@ int main (int argc, char** argv)
     {
         if (argc > 1 && std::strstr (t.name, argv[1]) == nullptr) continue;
         check::current() = t.name;
+        // Each test named as it starts, so a crash in CI's log says where it was.
+        std::printf ("- %s\n", t.name);
+        std::fflush (stdout);
         t.fn();
         ++ran;
     }

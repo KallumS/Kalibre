@@ -26,6 +26,9 @@ public:
     ~HostedProcessor() override;
 
     juce::AudioProcessor& inner() { return *processor; }
+    // The MIDI it leaves in the buffer goes on to what follows, though the plug-in says
+    // it sends none: ScaleView reads the notes and passes them by (decision 0093).
+    bool passMidiOn = false;
 
     const juce::String getName() const override { return description.name; }
     void fillInPluginDescription (juce::PluginDescription& d) const override { d = description; }
@@ -37,7 +40,7 @@ public:
     bool isBusesLayoutSupported (const BusesLayout& l) const override { return l == processor->getBusesLayout(); }
     double getTailLengthSeconds() const override { return processor->getTailLengthSeconds(); }
     bool acceptsMidi() const override { return processor->acceptsMidi(); }
-    bool producesMidi() const override { return processor->producesMidi(); }
+    bool producesMidi() const override { return passMidiOn || processor->producesMidi(); }
     bool isMidiEffect() const override { return processor->isMidiEffect(); }
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return processor->hasEditor(); }

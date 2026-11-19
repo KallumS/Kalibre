@@ -1,4 +1,5 @@
 #include "Arrange.h"
+#include "ToolPicker.h"
 
 #include "Song.h"
 
@@ -1143,6 +1144,7 @@ void Arrange::paintOverChildren (Graphics& g)
         g.setColour (theme::edge);
         g.fillRect (cx, 0.0f, 1.0f, (float) getHeight() - theme::px (12));
     }
+    paintTool (g);
     if (drag == Drag::Section)
     {
         // The bar it would start on, down every track.
@@ -1202,6 +1204,13 @@ void Arrange::mouseMove (const MouseEvent& e)
     const auto* over = lanes.contains (e.getPosition()) ? clipAt (e.getPosition()) : nullptr;
     c.hover (over ? over->id : 0);
     if (! lanes.contains (e.getPosition())) { setMouseCursor (MouseCursor::NormalCursor); return; }
+    // A tool's own pointer over the lanes (decision 0092).
+    if (c.arrangeTool.tool != tools::Tool::Select && ! (c.arrangeTool.tool == tools::Tool::Draw && over))
+    {
+        setMouseCursor (toolicons::cursor (c.arrangeTool.tool));
+        toolMove (e);
+        return;
+    }
     if (const auto* clip = over)
     {
         const float edge = (float) theme::px (6);
@@ -1219,6 +1228,12 @@ void Arrange::mouseDown (const MouseEvent& e)
     drag = Drag::None;
     dragClip = 0;
     copying = false;
+    toolDrag.reset();
+    // Control-right-click: the toolbox (decision 0092). Control-click alone stays the Mac's right-click.
+    if (e.mods.isCtrlDown() && e.mods.isRightButtonDown()) { showToolBox (e.getScreenPosition()); return; }
+    // A tool takes the left click (ArrangeTools.cpp); Select mostly leaves it to what follows.
+    if (! e.mods.isPopupMenu() && toolDown (e)) return;
+    if (! c.range.empty() && ! e.mods.isPopupMenu()) { c.range = {}; c.viewChanged(); }
     const auto lanes = laneArea();
     const int rulerTop = 0, rulerBottom = theme::px (36);
 
@@ -1337,7 +1352,10 @@ void Arrange::mouseDown (const MouseEvent& e)
         }
         // Shift-click a range, Option-click adds (Option-drag still copies),
         // Command-click adds or takes away (decision 0053).
-        c.chooseClip (clip->id, e.mods);
+        // Select's Click Adds or Takes Away: a plain click is a Command-click (decision 0092).
+        const bool adds = c.arrangeTool.tool == tools::Tool::Select && c.arrangeTool.mode() == tools::selectmode::ClickAddsOrRemoves
+                          && ! (e.mods.isShiftDown() || e.mods.isAltDown() || e.mods.isCommandDown());
+        c.chooseClip (clip->id, adds ? e.mods.withFlags (ModifierKeys::commandModifier) : e.mods);
         c.focusOn (owner->id);
         if (owner->locked || clip->locked) return;
         if (! clip->isMidi())
@@ -1394,6 +1412,7 @@ void Arrange::mouseDown (const MouseEvent& e)
 
 void Arrange::mouseDrag (const MouseEvent& e)
 {
+    if (toolDrag) { toolDragTo (e); return; }
     const Tick at = tickAt ((float) e.x);
     switch (drag)
     {
@@ -1511,8 +1530,9 @@ void Arrange::mouseDrag (const MouseEvent& e)
     }
 }
 
-void Arrange::mouseUp (const MouseEvent&)
+void Arrange::mouseUp (const MouseEvent& e)
 {
+    if (toolDrag) { toolUp (e); return; }
     if (drag == Drag::Section)
     {
         const Id id = dragSection;

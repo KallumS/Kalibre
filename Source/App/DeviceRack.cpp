@@ -346,6 +346,12 @@ public:
                 });
                 m.addSeparator();
             }
+        // Midular and MIDI Production Center take a phrase from a MIDI clip (decision 0093).
+        if (d->plugin.identifier == "jsfx:midular" || d->plugin.identifier == "jsfx:midi-production-center")
+        {
+            m.addItem ("Load the Chosen MIDI Clip", [this] { c.loadChosenClipsInto (id); });
+            m.addSeparator();
+        }
         m.addItem ("Automate the Last Touched Control", c.lastTouched.device == id, false, [this] { c.automateLastTouched(); });
         PopupMenu mods;
         const char* kinds[] { "LFO", "ADSR", "ADR", "Envelope Follower", "Wavetable" };
@@ -717,6 +723,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     for (auto& [maker, menu] : byMaker[2]) effects.addSubMenu (maker, menu);
     kalibre.addItem ("Kalibre Synth", [&c, track] { c.addBuiltIn (track, synthRef(), DeviceRole::Instrument); });
     kalibre.addItem ("Kalibre Sampler", [&c, track] { c.addBuiltIn (track, samplerRef(), DeviceRole::Instrument); });
+    kalibre.addItem ("Trombolese (a Trombone Crossed with an Oboe)", [&c, track] { c.addBuiltIn (track, tromboleseRef(), DeviceRole::Instrument); });
     kalibre.addItem ("Hardware Insert (Outboard Gear)", [&c, track] { c.addBuiltIn (track, hardwareInsertRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();
     kalibre.addItem ("X/Y Morph as an Instrument (Samples or Instruments)", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::Instrument); });
@@ -732,6 +739,8 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
         kalibre.addItem (String (s.name) + "  (" + kinds[(int) s.role] + ")", [&c, track, &s] { c.addBuiltIn (track, jsfxRef (s), s.role); });
     }
     kalibre.addItem ("Instant Virtual Instrument  (Instrument)", [&c, track] { c.addBuiltIn (track, instantVirtualInstrumentRef(), DeviceRole::Instrument); });
+    // ScaleView reads what's played: before the instrument, where the notes are (decision 0093).
+    kalibre.addItem ("ScaleView  (MIDI Effect)", [&c, track] { c.addBuiltIn (track, scaleViewRef(), DeviceRole::MidiFx); });
     // The family's ReaImGui tools, built in (decision 0068).
     for (auto& s : luaTools())
         kalibre.addItem (String (s.name) + "  (MIDI Effect)", [&c, track, &s] { c.addBuiltIn (track, luaToolRef (s), DeviceRole::MidiFx); });

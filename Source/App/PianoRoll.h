@@ -7,6 +7,9 @@
     Shift-drag to choose an area. The project's scale shades its rows (the
     root's darker still) when Shade the Scale is on (decision 0015).
 
+    Control-right-click opens the toolbox (decision 0092): with a tool other
+    than Select, a left click is the tool's (PianoRollTools.cpp).
+
     Under the notes, the velocity lane (drag to set how hard each note is
     played; click its name for each note's chance of playing, random velocity
     range or random timing (decision 0061), or to draw a controller there
@@ -101,6 +104,39 @@ private:
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
+
+    // The tools (decision 0092; PianoRollTools.cpp): with a tool other than
+    // Select, a left click in the notes is the tool's; with Select, the rules
+    // above (0009). Right-clicks keep theirs.
+    struct ToolDrag
+    {
+        tools::Tool tool = tools::Tool::Select;
+        int mode = 0;
+        juce::Point<int> down, at;
+        Tick downTick = 0;            // the clip's own ticks, snapped
+        int downPitch = 60;
+        bool option = false, moved = false;
+        bool muteTo = false;
+        Project before;               // Erase and Mute show their change as they go
+        std::vector<Note> adding;     // Draw, Line and Drumstick: the notes to add on letting go
+        Id heard = 0;                 // Play: the note last played
+        double startTick0 = 0;        // Hand
+        float scrollPitch0 = 0;
+        int changed = 0;
+    };
+    std::optional<ToolDrag> toolDrag;
+    bool toolDown (const juce::MouseEvent&);
+    void toolDragTo (const juce::MouseEvent&);
+    void toolUp (const juce::MouseEvent&);
+    void paintTool (juce::Graphics&);
+    Tick toolSnap (Tick rel, bool free) const;      // to the editors' grid, in the clip's own ticks
+    Tick toolSnapDown (Tick rel, bool free) const;
+    void eraseNoteAt (juce::Point<int>);
+    void muteNoteAt (juce::Point<int>);
+    void paintHitAt (juce::Point<int>);
+    const Note* noteUnder (juce::Point<int>) const;
+public:
+    void showToolBox (juce::Point<int> screen);
 };
 
 } // namespace kal
