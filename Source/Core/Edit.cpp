@@ -760,6 +760,7 @@ Id addDevice (Project& p, Id trackId, const PluginRef& plugin, DeviceRole role, 
     d.id = p.newId();
     d.plugin = plugin;
     d.role = role;
+    if (plugin.format == "Kalibre" && plugin.identifier == "note-splitter") d.midiTo.assign (4, 0);   // four outputs to begin with (0083)
     if (position < 0 || position > static_cast<int> (t->devices.size()))
         t->devices.push_back (d);
     else
@@ -793,11 +794,12 @@ void moveDevice (Project& p, Id deviceId, int newIndex)
     normaliseChain (*owner);
 }
 
-void setDeviceActive (Project& p, Id deviceId, bool active, const std::string& state)
+void setDeviceActive (Project& p, Id deviceId, bool active, const std::string& state, int latency, double rate)
 {
     if (auto* d = p.device (deviceId))
     {
         if (! active && ! state.empty()) d->state = state;
+        if (! active) { d->offLatency = std::max (0, latency); d->offLatencyRate = rate; }
         d->active = active;
     }
 }
@@ -852,15 +854,20 @@ AutomationLane& laneFor (Track& t, const AutoTarget& target, double defaultValue
 
 double valueAt (const AutomationLane& lane, Tick tick, double fallback)
 {
+    return valueAtTicks (lane, (double) tick, fallback);
+}
+
+double valueAtTicks (const AutomationLane& lane, double tick, double fallback)
+{
     const auto& pts = lane.points;
     if (pts.empty()) return fallback;
-    if (tick <= pts.front().tick) return pts.front().value;
-    if (tick >= pts.back().tick) return pts.back().value;
-    auto it = std::upper_bound (pts.begin(), pts.end(), tick, [] (Tick t, const AutoPoint& p) { return t < p.tick; });
+    if (tick <= (double) pts.front().tick) return pts.front().value;
+    if (tick >= (double) pts.back().tick) return pts.back().value;
+    auto it = std::upper_bound (pts.begin(), pts.end(), tick, [] (double t, const AutoPoint& p) { return t < (double) p.tick; });
     const auto& b = *it;
     const auto& a = *(it - 1);
     if (a.step || b.tick == a.tick) return a.value;
-    double f = static_cast<double> (tick - a.tick) / static_cast<double> (b.tick - a.tick);
+    double f = (tick - (double) a.tick) / static_cast<double> (b.tick - a.tick);
     if (std::abs (a.curve) > 1e-6)
     {
         // A power curve: positive bends it to rise late, negative to rise early.

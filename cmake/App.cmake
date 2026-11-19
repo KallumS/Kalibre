@@ -121,6 +121,7 @@ add_library(KalibreApp STATIC
     Source/Engine/ContainerProcessor.cpp
     Source/Engine/JsfxDevice.cpp
     Source/Engine/HostedProcessor.cpp
+    Source/Engine/NoteSplitter.cpp
     Source/Engine/LuaTool/LuaTool.cpp
     Source/Engine/LuaTool/ToolSession.cpp
     Source/Engine/LuaTool/ImGuiLua.cpp
@@ -142,12 +143,14 @@ add_library(KalibreApp STATIC
     Source/App/AudioEditing.cpp
     Source/App/Presets.cpp
     Source/App/ProjectFiles.cpp
+    Source/App/NoteFixing.cpp
     Source/App/SampleEditor.cpp
     Source/App/LauncherView.cpp
     Source/App/OfflineFxView.cpp
     Source/App/MetersView.cpp
     Source/App/PluginManagerView.cpp
     Source/App/ArticulationManagerView.cpp
+    Source/App/NoteSplitterEditor.cpp
     Source/App/CrashReports.cpp
     Source/App/VideoView.cpp
     Source/App/Keys.cpp
@@ -250,7 +253,8 @@ target_link_libraries(Kalibre PRIVATE
 if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp
-    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp)
+    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp
+    Tests/App/TestNeutral.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1 KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(KalibreAppTests PRIVATE KalibreApp juce::juce_recommended_config_flags)

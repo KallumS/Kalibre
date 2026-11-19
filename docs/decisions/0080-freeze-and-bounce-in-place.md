@@ -44,5 +44,7 @@ it, the clip muted, the other clip not; one undo step.
 
 Freezing still pauses playback while it renders (the plug-ins are the
 playing ones); the bigger the song, the less it costs now, as only the
-frozen track plays. Sidechains from other tracks aren't heard in a freeze
-or bounce (the others are silent while it renders).
+frozen track plays. Sidechains from other tracks are heard in a freeze or
+bounce: from a track's fader as before, and (since 18 November, later) from
+folders and returns, as rendering one track now wires the rest as ever with
+the master going nowhere, and the offline plan plays only what it hears.

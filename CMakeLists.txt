@@ -85,6 +85,9 @@ add_library(KalibreCore STATIC
     Source/Core/Articulations.cpp
     Source/Core/NoteSelect.cpp
     Source/Core/StepInput.cpp
+    Source/Core/NoteSplit.cpp
+    Source/Core/NoteFixer.cpp
+    Source/Core/WorkClock.cpp
     Source/Core/DawProject.cpp
     ${EMBEDDED_LUA_CPP}
     Source/Script/LuaHost.cpp)
@@ -127,6 +130,9 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestArticulations.cpp
         Tests/TestNoteSelect.cpp
         Tests/TestStepInput.cpp
+        Tests/TestNoteSplit.cpp
+        Tests/TestNoteFixer.cpp
+        Tests/TestWorkClock.cpp
         Tests/TestDawProject.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

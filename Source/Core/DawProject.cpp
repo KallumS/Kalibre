@@ -1,6 +1,10 @@
 #include "DawProject.h"
 
+#include "AudioTools.h"
+#include "Edit.h"
 #include "Xml.h"
+
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -54,6 +58,11 @@ struct Writer
     xml::Writer w { "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" };
     int next = 0;
     std::map<Id, std::string> channelOf, trackOf;
+    // Each automatable parameter's id, for automation's targets (0084).
+    std::map<Id, std::string> volumeOf, panOf, muteOf;
+    std::map<std::pair<Id, Id>, std::string> sendOf;          // (track, return) -> the send's volume
+    std::map<std::pair<Id, int>, std::string> paramOf;        // (device, parameter) -> its id
+    nlohmann::json curves = nlohmann::json::object();         // Points id -> the lane's own points, where it bends
     Written out;
     std::set<std::string> usedAudio;
 
@@ -74,11 +83,11 @@ struct Writer
         if (! t.devices.empty())
         {
             w.open ("Devices");
-            for (auto& d : t.devices) device (d);
+            for (auto& d : t.devices) device (d, t);
             w.close();
         }
-        w.empty ("Mute", { { "value", t.mute ? "true" : "false" }, { "id", id() }, { "name", "Mute" } });
-        w.empty ("Pan", { { "max", "1" }, { "min", "0" }, { "unit", "normalized" }, { "value", num ((t.pan + 1.0) / 2.0) }, { "id", id() }, { "name", "Pan" } });
+        w.empty ("Mute", { { "value", t.mute ? "true" : "false" }, { "id", muteOf[t.id] = id() }, { "name", "Mute" } });
+        w.empty ("Pan", { { "max", "1" }, { "min", "0" }, { "unit", "normalized" }, { "value", num ((t.pan + 1.0) / 2.0) }, { "id", panOf[t.id] = id() }, { "name", "Pan" } });
         if (! t.sends.empty())
         {
             w.open ("Sends");
@@ -87,17 +96,25 @@ struct Writer
                 if (! channelOf.count (s.target)) continue;
                 w.open ("Send", { { "destination", channelOf[s.target] }, { "type", s.preFader ? "pre" : "post" }, { "id", id() } });
                 w.empty ("Enable", { { "value", s.muted ? "false" : "true" }, { "id", id() }, { "name", "On/Off" } });
-                w.empty ("Volume", { { "max", "2" }, { "min", "0" }, { "unit", "linear" }, { "value", num (linearFromDb (s.gainDb)) }, { "id", id() }, { "name", "Send" } });
+                w.empty ("Volume", { { "max", "2" }, { "min", "0" }, { "unit", "linear" }, { "value", num (linearFromDb (s.gainDb)) }, { "id", sendOf[{ t.id, s.target }] = id() }, { "name", "Send" } });
                 w.close();
             }
             w.close();
         }
         // The schema's order: Devices, Mute, Pan, Sends, Volume.
-        w.empty ("Volume", { { "max", "2" }, { "min", "0" }, { "unit", "linear" }, { "value", num (linearFromDb (t.volumeDb)) }, { "id", id() }, { "name", "Volume" } });
+        w.empty ("Volume", { { "max", "2" }, { "min", "0" }, { "unit", "linear" }, { "value", num (linearFromDb (t.volumeDb)) }, { "id", volumeOf[t.id] = id() }, { "name", "Volume" } });
         w.close();
     }
 
-    void device (const Device& d)
+    // A plug-in parameter an automation lane moves: X and Y of the morph are its first two.
+    static std::pair<int, std::string> automatedParam (const AutoTarget& a)
+    {
+        if (a.kind == AutoTarget::Kind::MorphX) return { 0, "X" };
+        if (a.kind == AutoTarget::Kind::MorphY) return { 1, "Y" };
+        return { a.param, a.paramName };
+    }
+
+    void device (const Device& d, const Track& t)
     {
         const auto& r = d.plugin;
         const std::string element = r.format == "VST3" ? "Vst3Plugin" : r.format == "AudioUnit" ? "AuPlugin"
@@ -106,6 +123,27 @@ struct Writer
         w.open (element, { { "deviceID", r.identifier }, { "deviceName", r.name }, { "deviceRole", roleName (d.role) },
                            { "deviceVendor", r.format == "Kalibre" ? std::string ("Kalibre") : r.manufacturer },
                            { "loaded", d.active ? "true" : "false" }, { "id", did }, { "name", r.name } });
+        // The parameters its automation moves (0084), so the lanes have something to name.
+        std::map<int, std::pair<std::string, double>> automated;
+        for (auto& l : t.automation)
+            if (l.target.device == d.id && (l.target.kind == AutoTarget::Kind::DeviceParam || l.target.kind == AutoTarget::Kind::MorphX || l.target.kind == AutoTarget::Kind::MorphY)
+                && ! l.points.empty())
+            {
+                const auto [index, name] = automatedParam (l.target);
+                if (index >= 0) automated[index] = { name, l.points.front().value };
+            }
+        if (! automated.empty())
+        {
+            w.open ("Parameters");
+            for (auto& [index, info] : automated)
+            {
+                xml::Writer::Attributes pa { { "max", "1" }, { "min", "0" }, { "unit", "normalized" }, { "value", num (info.second) },
+                                             { "parameterID", std::to_string (index) }, { "id", paramOf[{ d.id, index }] = id() } };
+                if (! info.first.empty()) pa.push_back ({ "name", info.first });
+                w.empty ("RealParameter", pa);
+            }
+            w.close();
+        }
         w.empty ("Enabled", { { "value", d.bypassed ? "false" : "true" }, { "id", id() }, { "name", "On/Off" } });
         if (! d.state.empty())
         {
@@ -164,23 +202,117 @@ struct Writer
             w.close();
             return;
         }
-        // Audio: where in the file is in seconds.
-        a.push_back ({ "contentTimeUnit", "seconds" });
-        a.push_back ({ "playStart", num (c.audio.sourceStart) });
+        // Audio. Warped (0084): the clip's content is a Warps timeline in beats, each
+        // Warp a beat of the clip's content and the moment of the file it plays then.
+        // Not: where in the file is in seconds.
+        const bool warped = c.audio.warp != WarpMode::Off;
+        if (warped)
+        {
+            a.push_back ({ "contentTimeUnit", "beats" });
+            a.push_back ({ "playStart", beats (c.offset) });
+            if (c.loopLength > 0) { a.push_back ({ "loopStart", "0" }); a.push_back ({ "loopEnd", beats (c.loopLength) }); }
+        }
+        else
+        {
+            a.push_back ({ "contentTimeUnit", "seconds" });
+            a.push_back ({ "playStart", num (c.audio.sourceStart) });
+        }
         a.push_back ({ "fadeTimeUnit", "seconds" });
         a.push_back ({ "fadeInTime", num (c.audio.fadeIn) });
         a.push_back ({ "fadeOutTime", num (c.audio.fadeOut) });
         w.open ("Clip", a);
+        if (warped) w.open ("Warps", { { "contentTimeUnit", "seconds" }, { "timeUnit", "beats" }, { "id", id() } });
         std::string name = fileName (c.audio.file);
         std::string path = "audio/" + name;
         for (int k = 2; usedAudio.count (path) && out.audio.end() == std::find_if (out.audio.begin(), out.audio.end(), [&] (auto& x) { return x.first == path && x.second == c.audio.file; }); ++k)
             path = "audio/" + std::to_string (k) + " " + name;
         if (! usedAudio.count (path)) { usedAudio.insert (path); out.audio.push_back ({ path, c.audio.file }); }
+        const char* algorithm = c.audio.warp == WarpMode::Repitch ? "repitch" : c.audio.warp == WarpMode::Granular ? "granular" : "stretch";
         w.open ("Audio", { { "channels", std::to_string (c.audio.fileChannels) }, { "duration", num (c.audio.sourceStart + c.audio.sourceLength) },
-                           { "sampleRate", num (c.audio.fileSampleRate) }, { "algorithm", "stretch" }, { "id", id() } });
+                           { "sampleRate", num (c.audio.fileSampleRate) }, { "algorithm", algorithm }, { "id", id() } });
         w.empty ("File", { { "path", path } });
         w.close();
+        if (warped)
+        {
+            auto markers = c.audio.markers;
+            std::sort (markers.begin(), markers.end(), [] (const WarpMarker& x, const WarpMarker& y) { return x.tick < y.tick; });
+            if (markers.size() < 2)
+            {
+                // From the file's own tempo (or its own speed): where it is at each end of the content.
+                const Tick contentStart = c.start - c.offset;
+                const Tick end = std::max<Tick> (1, c.loopLength > 0 ? c.loopLength : c.offset + c.length);
+                auto at = [&] (Tick t)
+                {
+                    const double s = audiotools::sourceSecondsAt (c.audio, t);
+                    return s >= 0 ? s : c.audio.sourceStart + p.tempo.secondsAt (contentStart + t) - p.tempo.secondsAt (contentStart);
+                };
+                markers = { { at (0), 0 }, { at (end), end } };
+            }
+            for (auto& m : markers) w.empty ("Warp", { { "time", beats (m.tick) }, { "contentTime", num (m.sourceSeconds) } });
+            w.close();
+        }
         w.close();
+    }
+
+    // A track's automation lanes, as Points in its lanes of the arrangement (0084).
+    void automation (const Track& t)
+    {
+        for (auto& l : t.automation)
+        {
+            if (l.points.empty()) continue;
+            std::string target;
+            const char* unit = "normalized";
+            bool boolean = false;
+            switch (l.target.kind)
+            {
+                case AutoTarget::Kind::Volume:    target = volumeOf[t.id]; unit = "linear"; break;
+                case AutoTarget::Kind::Pan:       target = panOf[t.id]; break;
+                case AutoTarget::Kind::Mute:      target = muteOf[t.id]; boolean = true; break;
+                case AutoTarget::Kind::SendLevel: target = sendOf.count ({ t.id, l.target.send }) ? sendOf[{ t.id, l.target.send }] : std::string(); unit = "linear"; break;
+                default:
+                {
+                    const auto key = std::make_pair (l.target.device, automatedParam (l.target).first);
+                    if (paramOf.count (key)) target = paramOf[key];
+                    break;
+                }
+            }
+            if (target.empty()) continue;
+            const auto pointsId = id();
+            xml::Writer::Attributes pa { { "id", pointsId } };
+            if (! boolean) pa.insert (pa.begin(), { "unit", unit });
+            w.open ("Points", pa);
+            w.empty ("Target", { { "parameter", target } });
+            // A bent segment (0087): short straight pieces along the bend, every 32nd note or so.
+            std::vector<AutoPoint> drawn;
+            bool bends = false;
+            for (size_t i = 0; i < l.points.size(); ++i)
+            {
+                const auto& a = l.points[i];
+                drawn.push_back ({ a.tick, a.value, 0, a.step });
+                if (boolean || a.step || std::abs (a.curve) < 1e-6 || i + 1 >= l.points.size()) continue;
+                const Tick span = l.points[i + 1].tick - a.tick;
+                const int pieces = std::clamp ((int) (span / (PPQ / 8)), 4, 32);
+                for (int k = 1; k < pieces && span > pieces; ++k)
+                {
+                    const Tick at = a.tick + span * k / pieces;
+                    drawn.push_back ({ at, edit::valueAt (l, at, a.value), 0, false });
+                }
+                bends = true;
+            }
+            if (bends)
+            {
+                auto& keep = curves[pointsId] = nlohmann::json::array();
+                for (auto& pt : l.points) keep.push_back ({ pt.tick, pt.value, pt.curve, pt.step });
+            }
+            for (auto& pt : drawn)
+            {
+                if (boolean) { w.empty ("BoolPoint", { { "time", beats (pt.tick) }, { "value", pt.value >= 0.5 ? "true" : "false" } }); continue; }
+                // Volume and send lanes run over -60..+6 dB; written as gain.
+                const double v = std::string (unit) == "linear" ? linearFromDb (pt.value * 66.0 - 60.0) : pt.value;
+                w.empty ("RealPoint", { { "time", beats (pt.tick) }, { "value", num (v) }, { "interpolation", pt.step ? "hold" : "linear" } });
+            }
+            w.close();
+        }
     }
 };
 } // namespace
@@ -210,15 +342,23 @@ Written write (const Project& p, const std::string& appVersion)
 
     w.open ("Arrangement", { { "id", wr.id() } });
     w.open ("Lanes", { { "timeUnit", "beats" }, { "id", wr.id() } });
-    for (auto& t : p.tracks)
+    auto lanesOf = [&] (const Track& t)
     {
-        if (! t.holdsClips() || t.clips().empty()) continue;
+        const bool clips = t.holdsClips() && ! t.clips().empty();
+        const bool moves = std::any_of (t.automation.begin(), t.automation.end(), [] (const AutomationLane& l) { return ! l.points.empty(); });
+        if (! clips && ! moves) return;
         w.open ("Lanes", { { "track", wr.trackOf[t.id] }, { "id", wr.id() } });
-        w.open ("Clips", { { "id", wr.id() } });
-        for (auto& c : t.clips()) wr.clip (c);
+        if (clips)
+        {
+            w.open ("Clips", { { "id", wr.id() } });
+            for (auto& c : t.clips()) wr.clip (c);
+            w.close();
+        }
+        wr.automation (t);
         w.close();
-        w.close();
-    }
+    };
+    for (auto& t : p.tracks) if (t.kind != TrackKind::Cue) lanesOf (t);
+    lanesOf (p.master);
     w.close();
     if (! p.markers.empty())
     {
@@ -246,6 +386,7 @@ Written write (const Project& p, const std::string& appVersion)
     w.empty ("Scenes");
     w.close();
     wr.out.projectXml = w.str();
+    if (! wr.curves.empty()) wr.out.kalibreAutomation = nlohmann::json { { "curves", wr.curves } }.dump (1);
 
     xml::Writer meta { "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" };
     meta.open ("MetaData");
@@ -289,6 +430,9 @@ struct Reader
     std::vector<std::pair<Id, const xml::Node*>> sends;
     std::set<std::string> leftOut;
     bool seconds = false;
+    // What each parameter's id is, for automation (0084): the track it's on, and what it moves.
+    std::map<std::string, std::pair<Id, AutoTarget>> parameter;
+    nlohmann::json curves;   // Kalibre's own note of its curves, by Points id (0087)
 
     Tick toTick (double v, bool inSeconds) const
     {
@@ -297,9 +441,19 @@ struct Reader
 
     void readChannel (const xml::Node& ch, Track& t)
     {
+        auto known = [&] (const xml::Node* n, AutoTarget::Kind kind)
+        {
+            if (! n || n->attr ("id").empty()) return;
+            AutoTarget a;
+            a.kind = kind;
+            parameter[n->attr ("id")] = { t.id, a };
+        };
         if (auto* v = ch.child ("Volume")) t.volumeDb = std::clamp (dbFromLinear (numAttr (*v, "value", 1.0)), -150.0, 12.0);
         if (auto* v = ch.child ("Pan")) t.pan = std::clamp (numAttr (*v, "value", 0.5) * 2.0 - 1.0, -1.0, 1.0);
         if (auto* v = ch.child ("Mute")) t.mute = v->attr ("value") == "true";
+        known (ch.child ("Volume"), AutoTarget::Kind::Volume);
+        known (ch.child ("Pan"), AutoTarget::Kind::Pan);
+        known (ch.child ("Mute"), AutoTarget::Kind::Mute);
         t.solo = ch.attr ("solo") == "true";
         if (auto* devs = ch.child ("Devices"))
             for (auto& d : devs->children)
@@ -326,6 +480,20 @@ struct Reader
                     else leftOut.insert ("other programs' plug-in settings (the plug-ins come in as they start)");
                 }
                 r.kalibreStates[dev.id] = "kalibre/states/" + d.attr ("id") + ".bin";
+                // Its parameters, as automation may name them.
+                if (auto* params = d.child ("Parameters"))
+                    for (auto& prm : params->children)
+                    {
+                        if (prm.attr ("id").empty() || prm.attr ("parameterID").empty()) continue;
+                        AutoTarget a;
+                        a.kind = AutoTarget::Kind::DeviceParam;
+                        a.device = dev.id;
+                        a.param = (int) numAttr (prm, "parameterID", -1);
+                        a.paramName = prm.attr ("name");
+                        if (ref.format == "Kalibre" && ref.identifier == "xy-morph" && a.param <= 1)
+                            a.kind = a.param == 0 ? AutoTarget::Kind::MorphX : AutoTarget::Kind::MorphY;
+                        parameter[prm.attr ("id")] = { t.id, a };
+                    }
                 t.devices.push_back (dev);
             }
         if (auto* s = ch.child ("Sends"))
@@ -415,12 +583,8 @@ struct Reader
             return;
         }
         const xml::Node* audio = n.child ("Audio");
-        if (! audio)
-            if (auto* warps = n.child ("Warps"))
-            {
-                audio = warps->child ("Audio");
-                if (warps->all ("Warp").size() > 2) leftOut.insert ("warping");
-            }
+        const xml::Node* warps = audio ? nullptr : n.child ("Warps");
+        if (warps) audio = warps->child ("Audio");
         if (audio)
         {
             c.kind = Clip::Kind::Audio;
@@ -429,6 +593,50 @@ struct Reader
             c.audio.fileChannels = (int) numAttr (*audio, "channels", 2);
             c.audio.sourceStart = contentSeconds ? numAttr (n, "playStart", 0) : 0;
             c.audio.sourceLength = p.tempo.secondsAt (end) - p.tempo.secondsAt (c.start);
+            // Warped (0084): each Warp a beat of the content and the moment of the file then.
+            std::vector<WarpMarker> marks;
+            if (warps)
+            {
+                const bool warpSeconds = warps->attr ("timeUnit") == "seconds";
+                const bool fileBeats = warps->attr ("contentTimeUnit") == "beats";
+                for (auto* wp : warps->all ("Warp"))
+                {
+                    const double time = numAttr (*wp, "time", 0), content = numAttr (*wp, "contentTime", 0);
+                    WarpMarker m;
+                    m.tick = warpSeconds ? p.tempo.tickAt (p.tempo.secondsAt (c.start) + time) - c.start : (Tick) std::llround (time * PPQ);
+                    m.sourceSeconds = fileBeats ? content * 60.0 / p.tempo.bpmAt (c.start) : content;
+                    marks.push_back (m);
+                }
+                std::sort (marks.begin(), marks.end(), [] (const WarpMarker& x, const WarpMarker& y) { return x.tick < y.tick; });
+            }
+            if (marks.size() >= 2)
+            {
+                const auto algorithm = audio->attr ("algorithm");
+                c.audio.warp = algorithm.find ("repitch") != std::string::npos || algorithm.find ("Repitch") != std::string::npos ? WarpMode::Repitch
+                             : algorithm.find ("granular") != std::string::npos || algorithm.find ("texture") != std::string::npos ? WarpMode::Granular
+                             : WarpMode::Spectral;
+                c.audio.markers = marks;
+                // Where it starts: in beats of the content, or (in seconds of the file) found on the warps.
+                const double ps = numAttr (n, "playStart", 0);
+                if (! contentSeconds) c.offset = (Tick) std::llround (ps * PPQ);
+                else
+                {
+                    Tick at = marks.front().tick;
+                    for (size_t i = 0; i + 1 < marks.size(); ++i)
+                        if (ps >= marks[i].sourceSeconds && ps <= marks[i + 1].sourceSeconds && marks[i + 1].sourceSeconds > marks[i].sourceSeconds)
+                            at = marks[i].tick + (Tick) std::llround ((double) (marks[i + 1].tick - marks[i].tick) * (ps - marks[i].sourceSeconds) / (marks[i + 1].sourceSeconds - marks[i].sourceSeconds));
+                    c.offset = std::max<Tick> (0, at);
+                }
+                c.audio.sourceStart = 0;
+                const double s0 = audiotools::sourceSecondsAt (c.audio, c.offset), s1 = audiotools::sourceSecondsAt (c.audio, c.offset + c.length);
+                c.audio.sourceLength = std::max (0.0, s1 - s0);
+                if (! n.attr ("loopEnd").empty())
+                {
+                    const Tick ls = (Tick) std::llround (numAttr (n, "loopStart", 0) * PPQ), le = (Tick) std::llround (numAttr (n, "loopEnd", 0) * PPQ);
+                    if (le > ls && ls == 0) c.loopLength = le;
+                    else if (le > ls) leftOut.insert ("loops that don't start at a clip's beginning");
+                }
+            }
             const bool fadeSeconds = n.attr ("fadeTimeUnit") != "beats";
             auto fade = [&] (const char* a) { const double v = numAttr (n, a, 0); return fadeSeconds ? v : v * 60.0 / p.tempo.bpmAt (c.start); };
             c.audio.fadeIn = fade ("fadeInTime");
@@ -473,16 +681,64 @@ struct Reader
                 if (! t || ! t->holdsClips()) { leftOut.insert ("clips on folders or the master"); continue; }
                 for (auto& c : x.children) if (c.name == "Clip") readClip (c, trackId, 0);
             }
-            else if (x.name == "Points") leftOut.insert ("automation");
+            else if (x.name == "Points") readAutomation (x, trackId);
         }
         seconds = before;
+    }
+
+    // A track's automation (0084): its Points, aimed at one of its parameters.
+    void readAutomation (const xml::Node& pts, Id trackId)
+    {
+        const auto* target = pts.child ("Target");
+        const auto it = target ? parameter.find (target->attr ("parameter")) : parameter.end();
+        if (it == parameter.end()) { leftOut.insert ("automation of what Kalibre doesn't have (" + (target ? target->attr ("expression", "a parameter") : std::string ("nothing")) + ")"); return; }
+        const auto [owner, aim] = it->second;
+        Track* t = owner == p.master.id ? &p.master : p.track (owner);
+        if (! t) return;
+        const auto unit = pts.attr ("unit");
+        const bool gain = aim.kind == AutoTarget::Kind::Volume || aim.kind == AutoTarget::Kind::SendLevel;
+        AutomationLane lane;
+        lane.id = p.newId();
+        lane.target = aim;
+        for (auto& e : pts.children)
+        {
+            if (e.name != "RealPoint" && e.name != "BoolPoint" && e.name != "IntegerPoint" && e.name != "EnumPoint") continue;
+            AutoPoint pt;
+            pt.tick = toTick (numAttr (e, "time", 0), seconds);
+            if (e.name == "BoolPoint") { pt.value = e.attr ("value") == "true" ? 1.0 : 0.0; pt.step = true; }
+            else
+            {
+                double v = numAttr (e, "value", 0);
+                // Volume and send lanes run over -60..+6 dB.
+                if (gain) v = ((unit == "decibel" ? v : dbFromLinear (v)) + 60.0) / 66.0;
+                pt.value = std::clamp (v, 0.0, 1.0);
+                pt.step = e.attr ("interpolation") == "hold" || e.name != "RealPoint";
+            }
+            lane.points.push_back (pt);
+        }
+        // Written by Kalibre with bends: the points as they were, curves and all.
+        if (curves.is_object() && curves.contains (pts.attr ("id")))
+        {
+            lane.points.clear();
+            for (auto& q : curves[pts.attr ("id")])
+                if (q.is_array() && q.size() == 4)
+                    lane.points.push_back ({ q[0].get<Tick>(), q[1].get<double>(), q[2].get<double>(), q[3].get<bool>() });
+        }
+        if (lane.points.empty()) return;
+        std::stable_sort (lane.points.begin(), lane.points.end(), [] (const AutoPoint& a, const AutoPoint& b) { return a.tick < b.tick; });
+        t->automation.push_back (lane);
     }
 };
 } // namespace
 
-Read read (const std::string& text, const std::string& metadata)
+Read read (const std::string& text, const std::string& metadata, const std::string& kalibreAutomation)
 {
     Reader rd;
+    if (! kalibreAutomation.empty())
+    {
+        auto j = nlohmann::json::parse (kalibreAutomation, nullptr, false);
+        if (! j.is_discarded() && j.contains ("curves")) rd.curves = j["curves"];
+    }
     auto parsed = xml::parse (text);
     if (! parsed.root || parsed.root->name != "Project")
     {
@@ -529,7 +785,14 @@ Read read (const std::string& text, const std::string& metadata)
         if (it == rd.channel.end() || ! p.track (it->second)) continue;
         Send s;
         s.target = it->second;
-        if (auto* v = node->child ("Volume")) s.gainDb = std::clamp (dbFromLinear (numAttr (*v, "value", 0.5)), -150.0, 12.0);
+        if (auto* v = node->child ("Volume"))
+        {
+            s.gainDb = std::clamp (dbFromLinear (numAttr (*v, "value", 0.5)), -150.0, 12.0);
+            AutoTarget a;
+            a.kind = AutoTarget::Kind::SendLevel;
+            a.send = s.target;
+            if (! v->attr ("id").empty()) rd.parameter[v->attr ("id")] = { tid, a };
+        }
         if (auto* en = node->child ("Enable")) s.muted = en->attr ("value") == "false";
         s.preFader = node->attr ("type") == "pre";
         if (auto* t = (tid == p.master.id ? &p.master : p.track (tid))) t->sends.push_back (s);

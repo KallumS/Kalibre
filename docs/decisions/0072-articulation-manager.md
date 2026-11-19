@@ -34,5 +34,5 @@ channels.
 Not read, as in Note Position Fixer: Cubase's note changer, remote triggers,
 Reaticulate's routing and its group-2 articulations' meaning (they come in
 as ordinary ones). Dynamics (velocity or CC1) aren't used by Kalibre.
-Delays are 0 on import; set them from Track > Articulation Maps. Tested on
+Delays are 0 on import; set them in the manager (0082). Tested on
 the three test files, through playback, and in the window (render 24).

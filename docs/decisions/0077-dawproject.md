@@ -25,8 +25,8 @@ written by Bitwig Studio, Studio One, Cubase 14 and others.
   go in a side file only Kalibre reads (`kalibre/states/`), and a Kalibre
   file opened in Kalibre keeps them. Another program's built-in devices
   (Bitwig's EQ+) are left out, and the message line says so.
-- **Not yet**: automation, warping (audio comes in unwarped), takes,
-  versions, the clip launcher, other programs' plug-in settings.
+- **Not yet**: takes, versions, the clip launcher, other programs' plug-in
+  settings. Automation and warping since (0084).
 - File > Open a DAWproject… opens one as a new, unsaved song (its audio
   extracted beside it, in "<name> Audio"); File > Export a DAWproject….
 - Bitwig's layouts read too: lanes inside lanes, notes inside a clip's

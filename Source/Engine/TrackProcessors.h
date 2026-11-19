@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "PanLaw.h"
 #include "Capture.h"
 #include "Loudness.h"
 #include "Modulation.h"
@@ -74,6 +75,15 @@ public:
 
     std::atomic<float> volumeDb { 0 }, pan { 0 };
     std::atomic<float> automatedVolume { std::numeric_limits<float>::quiet_NaN() };
+    // Volume automation for this block, a level in dB for every sample (the
+    // audio engine's document: curves followed sample by sample). Written by
+    // the track's Source, which plays before the fader, and used once.
+    std::vector<float> volumeCurve;
+    std::atomic<int> volumeCurveSamples { 0 };
+    std::vector<float> panCurve;               // the same for the pan lane, -1..1
+    std::atomic<int> panCurveSamples { 0 };
+    std::vector<std::uint8_t> muteCurve;       // and the mute lane, 1 muted (decision 0089)
+    std::atomic<int> muteCurveSamples { 0 };
     std::atomic<float> automatedPan { std::numeric_limits<float>::quiet_NaN() };
     std::atomic<bool> audible { true }, phaseInvert { false }, mono { false };
     std::atomic<int> automatedMute { -1 };          // -1: not automated; 0 or 1 from a mute lane
@@ -83,6 +93,8 @@ public:
     std::atomic<bool> bus { false };
     std::atomic<float> frontBack { 1.0f };
     float currentGain() const { return lastGain.load(); }
+    // The next block starts at the level set, not faded to it (a render's start).
+    std::atomic<bool> snap { false };
 
     // The analysers' tap (decision 0044): the last 8192 samples out, for the window to read.
     static constexpr int tapSize = 8192;
@@ -111,8 +123,15 @@ public:
     loudness::Meter loudnessMeter;
 
     const juce::String getName() const override { return "Fader"; }
-    void prepareToPlay (double rate, int) override
+    void prepareToPlay (double rate, int block) override
     {
+        volumeCurveSamples = 0;
+        fresh = true;
+        volumeCurve.assign ((size_t) juce::jmax (block, 8192), 0.0f);
+        panCurve.assign ((size_t) juce::jmax (block, 8192), 0.0f);
+        panCurveSamples = 0;
+        muteCurve.assign ((size_t) juce::jmax (block, 8192), 0);
+        muteCurveSamples = 0;
         smoothedGain.reset (rate, 0.02);
         for (auto& sp : speaker) sp.reset (rate, 0.02);
         loudnessMeter.prepare (rate);
@@ -137,6 +156,59 @@ private:
     double meanL = 0, meanR = 0;   // mean squares, smoothed
     std::array<juce::SmoothedValue<float>, 8> speaker;
     std::atomic<float> lastGain { 1.0f };
+    bool fresh = true;   // the first block after preparing starts at the level set, not a fade to it
+};
+
+//==============================================================================
+// Stands in for a switched-off plug-in (decision 0086): the sound delayed as
+// long as the plug-in delayed it, and saying so, so delay compensation still
+// lines everything up.
+class HeldDelay : public juce::AudioProcessor
+{
+public:
+    explicit HeldDelay (int samples)
+        : AudioProcessor (BusesProperties().withInput ("In", juce::AudioChannelSet::stereo()).withOutput ("Out", juce::AudioChannelSet::stereo())),
+          length (juce::jmax (0, samples))
+    {
+        setLatencySamples (length);
+    }
+    const int length;
+    const juce::String getName() const override { return "Switched-off Plug-in's Delay"; }
+    void prepareToPlay (double, int) override { ring.setSize (2, length + 1); ring.clear(); at = 0; }
+    void releaseResources() override {}
+    void processBlock (juce::AudioBuffer<float>& b, juce::MidiBuffer& m) override
+    {
+        m.clear();
+        const int size = ring.getNumSamples();
+        if (size < 2) return;
+        int w = at;
+        for (int i = 0; i < b.getNumSamples(); ++i)
+        {
+            for (int ch = 0; ch < juce::jmin (2, b.getNumChannels()); ++ch)
+            {
+                ring.setSample (ch, w, b.getSample (ch, i));
+                b.setSample (ch, i, ring.getSample (ch, (w + 1) % size));
+            }
+            w = (w + 1) % size;
+        }
+        at = w;
+    }
+    double getTailLengthSeconds() const override { return 0; }
+    bool acceptsMidi() const override { return false; }
+    bool producesMidi() const override { return false; }
+    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
+    bool hasEditor() const override { return false; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const juce::String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const juce::String&) override {}
+    void getStateInformation (juce::MemoryBlock&) override {}
+    void setStateInformation (const void*, int) override {}
+
+private:
+    juce::AudioBuffer<float> ring;
+    int at = 0;
 };
 
 //==============================================================================
@@ -149,18 +221,42 @@ public:
     std::atomic<float> automatedDb { std::numeric_limits<float>::quiet_NaN() };   // from a send lane
     std::atomic<bool> on { true };
     std::atomic<Fader*> follow { nullptr };   // in a surround mix, a post-fader send follows this fader's level
+    std::atomic<bool> snap { false };          // the next block starts at the level set
+    std::vector<float> curve;                  // its lane, dB at every sample of the block (0089)
+    std::atomic<int> curveSamples { 0 };
 
     const juce::String getName() const override { return "Send"; }
-    void prepareToPlay (double, int) override {}
+    void prepareToPlay (double, int block) override
+    {
+        last = std::numeric_limits<float>::quiet_NaN();
+        curve.assign ((size_t) juce::jmax (block, 8192), 0.0f);
+        curveSamples = 0;
+    }
     void releaseResources() override {}
     void processBlock (juce::AudioBuffer<float>& b, juce::MidiBuffer& m) override
     {
         m.clear();
         const float autoDb = automatedDb.load();
         const float db = std::isnan (autoDb) ? gainDb.load() : autoDb;
+        if (snap.exchange (false)) last = std::numeric_limits<float>::quiet_NaN();
+        const float followed = follow.load() != nullptr ? std::abs (follow.load()->currentGain()) : 1.0f;
+        const int n = b.getNumSamples();
+        if (curveSamples.exchange (0) == n && ! std::isnan (autoDb) && n <= (int) curve.size())
+        {
+            // Its lane, sample by sample (0089).
+            for (int i = 0; i < n; ++i)
+            {
+                const float gi = on ? juce::Decibels::decibelsToGain (curve[(size_t) i], -100.0f) * followed : 0.0f;
+                for (int ch = 0; ch < b.getNumChannels(); ++ch) b.getWritePointer (ch)[i] *= gi;
+            }
+            last = on ? juce::Decibels::decibelsToGain (curve[(size_t) n - 1], -100.0f) * followed : 0.0f;
+            return;
+        }
         float g = on ? juce::Decibels::decibelsToGain (db, -100.0f) : 0.0f;
-        if (auto* f = follow.load()) g *= std::abs (f->currentGain());
-        b.applyGainRamp (0, b.getNumSamples(), last, g);
+        g *= followed;
+        if (std::isnan (last)) last = g;   // the first block starts where it is: no fade in from elsewhere
+        if (last == g) { if (g != 1.0f) b.applyGain (g); }
+        else b.applyGainRamp (0, b.getNumSamples(), last, g);
         last = g;
     }
     double getTailLengthSeconds() const override { return 0; }
@@ -177,10 +273,17 @@ public:
     void setStateInformation (const void*, int) override {}
 
 private:
-    float last = 0.5f;
+    float last = std::numeric_limits<float>::quiet_NaN();
 };
 
 //==============================================================================
+// One audio region's samples added (at 64 bits) to l and r, which hold the
+// timeline's samples first .. first + length. Each sample of the timeline
+// belongs to one region at most: the one whose edges, each rounded to its
+// nearest sample, hold it, so two halves of a split meet on one sample.
+void mixRegion (const playback::AudioRegion&, const juce::AudioBuffer<float>&, double rate,
+                long long first, int length, double* l, double* r);
+
 class TrackSource : public juce::AudioProcessor, public MidiTap
 {
 public:
@@ -191,6 +294,7 @@ public:
     {
         AutomationLane lane;
         juce::AudioProcessorParameter* param = nullptr;
+        TimedPlugin* host = nullptr;   // the plug-in's wrapper, which cuts its blocks where the lane says (0089)
     };
 
     struct ModulatorRun
@@ -286,6 +390,10 @@ private:
     std::array<modulation::Runner, 32> runners;
     std::array<Id, 32> runnerIds {};
     juce::AudioBuffer<float> live;
+    std::vector<double> mixL, mixR;   // the clips mixed at 64 bits, a block long
+    std::vector<double> blockTicks;   // the song's ticks at each sample of the block (0089)
+    std::uint32_t drawn = 0;
+    void drawAutomation (const Data&, int samples);
 
     std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> writer;
     juce::TimeSliceThread writerThread { "Kalibre recording" };

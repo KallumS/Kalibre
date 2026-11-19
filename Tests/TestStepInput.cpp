@@ -45,3 +45,17 @@ TEST ("step input: a chord is written when its last key lets go, at the length c
     CHECK_EQ (next[0].length, Tick (PPQ / 2));
     CHECK (s.keyUp (62).empty());       // a key-up with nothing held writes nothing
 }
+
+TEST ("step input: - is a rest as long as the length chosen; a 9 or 0 before it makes that rest dotted or a triplet")
+{
+    StepInput s;
+    CHECK_EQ (s.rest(), Tick (PPQ / 4));          // 1/16, the length to begin with
+    s.digit (6);
+    CHECK_EQ (s.rest(), Tick (PPQ));              // the length chosen by the number
+    s.digit (9);
+    CHECK_EQ (s.rest(), Tick (PPQ * 3 / 2));      // a dotted 1/4 rest
+    CHECK_EQ (s.length(), Tick (PPQ));            // the notes' length as it was
+    s.digit (0);
+    CHECK_EQ (s.rest(), Tick (PPQ * 2 / 3));
+    CHECK_EQ (s.rest(), Tick (PPQ));              // the triplet was for one only
+}

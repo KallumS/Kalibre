@@ -24,6 +24,9 @@ static ApplicationProperties& settingsStore()
 MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange (ctrl), lower (ctrl), browser (ctrl), surfaces (ctrl)
 {
     ui::setHost (this);
+    // The top bar's timer (0091): the mouse moving or clicking in any of Kalibre's
+    // windows is someone there; over another app, it isn't.
+    Desktop::getInstance().addGlobalMouseListener (&activity);
     addAndMakeVisible (top);
     addAndMakeVisible (arrange);
     addAndMakeVisible (lower);
@@ -57,6 +60,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
 
 MainComponent::~MainComponent()
 {
+    Desktop::getInstance().removeGlobalMouseListener (&activity);
     c.keys.all().clear();   // their actions point at this window
     c.onShowPluginManager = nullptr;
     c.onShowArticulationManager = nullptr;
@@ -182,6 +186,7 @@ void MainComponent::mouseDrag (const MouseEvent& e)
 //==============================================================================
 bool MainComponent::keyPressed (const KeyPress& k)
 {
+    c.noteActivity();   // a key is someone there (0091)
     // Step input takes the numbers while it's on (decision 0076).
     if (c.stepInput && ! k.getModifiers().isCommandDown() && ! k.getModifiers().isCtrlDown() && ! k.getModifiers().isAltDown())
     {
@@ -191,6 +196,8 @@ bool MainComponent::keyPressed (const KeyPress& k)
         else if (k.getKeyCode() >= '0' && k.getKeyCode() <= '9') digit = k.getKeyCode() - '0';
         else if (k.getKeyCode() >= KeyPress::numberPad0 && k.getKeyCode() <= KeyPress::numberPad9) digit = k.getKeyCode() - KeyPress::numberPad0;
         if (digit >= 0 && c.stepDigit (digit)) return true;
+        // The - key (or the keypad's): a rest.
+        if ((ch == '-' || k.getKeyCode() == '-' || k.getKeyCode() == KeyPress::numberPadSubtract) && c.stepRest()) return true;
     }
     // Every key is the user's to change (decision 0045), in the browser's Keys tab.
     return c.keys.handle (KeyPress (k.getKeyCode(), k.getModifiers().withoutMouseButtons(), 0));

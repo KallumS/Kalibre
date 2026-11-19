@@ -1,6 +1,7 @@
 #include "Check.h"
 #include "Edit.h"
 #include "Playback.h"
+#include "ProjectFile.h"
 
 #include <cmath>
 
@@ -63,6 +64,20 @@ TEST ("playback: articulations send their keyswitch first and add their own dela
         if ((m2.bytes[0] & 0xF0) == 0x90 && m2.bytes[1] == 69) { CHECK (near (m2.seconds, 3.0 - 0.110)); CHECK_EQ (int (m2.bytes[0] & 15), 2); foundStacc = true; }
     }
     CHECK (foundLegato && foundStacc);
+
+    // A note's own delay (decision 0082) on top of the track's and its articulation's.
+    for (auto& n : p.clip (c)->midi.notes) if (n.pitch == 67) n.delayMs = 35;
+    const auto later = playback::compile (p, *p.track (t));
+    bool moved = false;
+    for (auto& m2 : later.midi)
+        if ((m2.bytes[0] & 0xF0) == 0x90 && m2.bytes[1] == 67) { CHECK (near (m2.seconds, 2.0 - 0.160 + 0.035)); moved = true; }
+    CHECK (moved);
+    // Kept in the file.
+    auto back = file::load (file::save (p));
+    CHECK (back.has_value());
+    bool kept = false;
+    if (back) for (auto& n : back->clip (c)->midi.notes) kept |= n.pitch == 67 && n.delayMs == 35;
+    CHECK (kept);
 }
 
 TEST ("playback: looped clips repeat and notes stop at the clip's end")

@@ -22,6 +22,22 @@ ArticulationManagerView::ArticulationManagerView (Controller& ctrl) : c (ctrl)
         addAndMakeVisible (l);
     }
     for (auto* b : { &importButton, &useButton, &removeButton }) addAndMakeVisible (b);
+    arts.setMultipleSelectionEnabled (true);
+    delayLabel.setFont (theme::font (theme::smallPoints));
+    delayLabel.setColour (Label::textColourId, theme::text);
+    delayLabel.setJustificationType (Justification::centredRight);
+    addAndMakeVisible (delayLabel);
+    delayField.setInputRestrictions (6, "-0123456789.");
+    delayField.setTooltip ("The chosen articulations' delay in milliseconds: how much later they play (negative: earlier), "
+                           "for a library whose notes speak late. Kept in the library and in this song. Press Return to set it.");
+    delayField.setTitle ("Delay of the chosen articulations, in milliseconds");
+    delayField.setColour (TextEditor::backgroundColourId, theme::sunken);
+    delayField.setColour (TextEditor::textColourId, theme::text);
+    delayField.setColour (TextEditor::outlineColourId, theme::rule);
+    delayField.setJustification (Justification::centredRight);
+    delayField.onReturnKey = [this] { applyDelay(); };
+    delayField.onFocusLost = [this] { applyDelay(); };
+    addAndMakeVisible (delayField);
     importButton.onClick = [this]
     {
         chooser = std::make_unique<FileChooser> ("Import Articulation Maps", File::getSpecialLocation (File::userHomeDirectory), "*.expressionmap;*.plist;*.reabank");
@@ -96,10 +112,39 @@ const ArticulationManagerView::Row* ArticulationManagerView::chosenRow() const
     return r >= 0 && r < (int) rows.size() ? &rows[(size_t) r] : nullptr;
 }
 
+void ArticulationManagerView::articulationsChosen()
+{
+    // The field shows the first chosen articulation's delay.
+    const auto* r = chosenRow();
+    const int first = arts.getSelectedRow();
+    const bool any = r != nullptr && first >= 0 && first < (int) r->map.articulations.size();
+    delayField.setEnabled (any);
+    delayLabel.setEnabled (any);
+    delayField.setText (any ? String (r->map.articulations[(size_t) first].delayMs, 0) : String(), dontSendNotification);
+}
+
+void ArticulationManagerView::applyDelay()
+{
+    const auto* r = chosenRow();
+    if (! r || ! delayField.isEnabled()) return;
+    std::set<int> which;
+    for (int i = 0; i < (int) r->map.articulations.size(); ++i) if (arts.isRowSelected (i)) which.insert (i);
+    if (which.empty()) return;
+    const double ms = delayField.getText().trim().getDoubleValue();
+    bool same = true;
+    for (int i : which) same = same && r->map.articulations[(size_t) i].delayMs == ms;
+    if (same) return;
+    const auto name = r->map.name;
+    c.setArticulationDelay (name, which, ms);
+    refresh();
+    for (int i : which) arts.selectRow (i, false, i == *which.begin());
+}
+
 void ArticulationManagerView::chosenChanged()
 {
     arts.updateContent();
     arts.repaint();
+    articulationsChosen();
     const auto* r = chosenRow();
     useButton.setEnabled (r != nullptr && c.focus() != nullptr && c.focus()->holdsClips());
     bool anyLibrary = false;
@@ -151,7 +196,8 @@ void ArticulationManagerView::paint (Graphics& g)
     g.fillAll (theme::ground);
     String info;
     if (auto* r = chosenRow())
-        info = String (r->map.name) + ": " + String ((int) r->map.articulations.size()) + " articulations, what each sends before its note.";
+        info = String (r->map.name) + ": " + String ((int) r->map.articulations.size()) + " articulations, what each sends before its note. "
+               "Choose articulations to set their delay.";
     else
         info = "No articulation maps yet. Import a Cubase expression map, a Logic articulation set or a Reaticulate bank.";
     if (auto* t = c.focus())
@@ -174,6 +220,11 @@ void ArticulationManagerView::resized()
     infoArea = r.removeFromTop (theme::px (30));
     maps.setBounds (r.removeFromLeft (r.getWidth() * 2 / 5));
     r.removeFromLeft (theme::px (8));
+    auto field = r.removeFromBottom (theme::px (26));
+    r.removeFromBottom (theme::px (4));
+    delayField.setBounds (field.removeFromRight (theme::px (70)));
+    field.removeFromRight (theme::px (6));
+    delayLabel.setBounds (field.removeFromRight (theme::px (90)));
     arts.setBounds (r);
 }
 

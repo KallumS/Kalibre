@@ -6,6 +6,7 @@
 #include "HardwareInsert.h"
 #include "Surround.h"
 #include "Mp3Writer.h"
+#include "NoteSplitter.h"
 
 namespace kal
 {
@@ -75,6 +76,7 @@ void Engine::audioDeviceAboutToStart (AudioIODevice* device)
 {
     rate = device->getCurrentSampleRate();
     blockSize = device->getCurrentBufferSizeSamples();
+    startedInputs = device->getActiveInputChannels().countNumberOfSetBits();
     graph.setWorkgroup (device->getWorkgroup());   // the workers are audio threads too (decision 0078)
     shared.clock.rate = rate;
     cache.setSampleRate (rate);
@@ -231,6 +233,7 @@ void Engine::setMappings (std::vector<MidiMapping> maps)
 void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
 {
     if (m.isActiveSense()) return;
+    if (m.isNoteOn()) notesPlayedIn.fetch_add (1, std::memory_order_relaxed);
     const String from = source ? source->getIdentifier() : String();
     // A control surface's own port (decision 0034).
     if (surfaceInput && surfaceInput (from, m)) return;
@@ -668,7 +671,15 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                  << (t->armed ? "a" + String ((int) t->armFor) : String()) << (int) t->monitor << "/" << t->input.audioChannel << "[";
         // The node's own number too: a device replaced by another under the same id is rewired.
         for (auto& d : t->devices) if (d.active && wantedDevices.count (d.id)) newShape << (int64) d.id << "#" << (int64) deviceNodes[d.id]->nodeID.uid << (int) d.role << (d.bypassed ? "b" : "") << "<" << (int64) d.sidechainFrom << ",";
+        for (auto& d : t->devices) if (! d.active && d.role == DeviceRole::AudioFx && d.offLatency > 0) newShape << "off" << (int64) d.id << ":" << heldSamples (d) << ",";
         newShape << "]{";
+        // The Note Splitter's outputs (decision 0083).
+        for (auto& d : t->devices)
+            if (! d.midiTo.empty() && d.active && wantedDevices.count (d.id))
+            {
+                newShape << "split" << (int64) d.id;
+                for (auto to : d.midiTo) newShape << ">" << (int64) to;
+            }
         for (auto& s : t->sends) newShape << (int64) s.target << (s.preFader ? "p" : "") << ",";
         newShape << "}";
     }
@@ -691,6 +702,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         };
 
         // Where sound going into a track goes: its first audio effect, or its fader.
+        std::set<Id> keepHeld;
         std::map<Id, NodeID> entry;
         std::map<Id, NodeID> preFader;
         for (auto* t : all)
@@ -698,7 +710,22 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             auto& nodes = tracks[t->id];
             std::vector<NodeID> fx;
             for (auto& d : t->devices)
+            {
                 if (d.active && d.role == DeviceRole::AudioFx && wantedDevices.count (d.id)) fx.push_back (deviceNodes[d.id]->nodeID);
+                // A switched-off effect's delay stands in its place (0086).
+                if (! d.active && d.role == DeviceRole::AudioFx && heldSamples (d) > 0)
+                {
+                    auto& held = heldDelays[d.id];
+                    auto* now = held ? dynamic_cast<HeldDelay*> (held->getProcessor()) : nullptr;
+                    if (! now || now->length != heldSamples (d))
+                    {
+                        if (held) bury (held);
+                        held = graph.addNode (std::make_unique<HeldDelay> (heldSamples (d)), {}, Kind::none);
+                    }
+                    keepHeld.insert (d.id);
+                    fx.push_back (held->nodeID);
+                }
+            }
             entry[t->id] = fx.empty() ? nodes.fader->nodeID : fx.front();
             for (size_t i = 0; i + 1 < fx.size(); ++i) connectAudio (fx[i], fx[i + 1]);
             if (! fx.empty()) connectAudio (fx.back(), nodes.fader->nodeID);
@@ -706,7 +733,8 @@ void Engine::sync (const Project& project, Id live, const File& folder)
         }
 
         const int inputs = deviceManager.getCurrentAudioDevice()
-                             ? deviceManager.getCurrentAudioDevice()->getActiveInputChannels().countNumberOfSetBits() : 0;
+                             ? deviceManager.getCurrentAudioDevice()->getActiveInputChannels().countNumberOfSetBits()
+                             : startedInputs.load();   // a device started without the manager (the tests')
         for (auto* t : all)
         {
             auto& nodes = tracks[t->id];
@@ -773,14 +801,16 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             // The master goes out through the Cue track when there is one, except
             // when exporting (decision 0051); the Cue track goes out.
             const bool toOut = t->isCue() || (t->kind == TrackKind::Master && cue == nullptr);
-            if (only != 0)
+            if (only != 0 && t->id == only)
             {
-                // Every other track is left unconnected: an offline plan doesn't play what can't be heard.
-                if (t->id == only) connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
+                // Rendering one track: it alone goes out. The rest are wired as ever, the
+                // master to nowhere, so an offline plan plays only what this track hears:
+                // a folder or return feeding one of its sidechains, and what feeds those.
+                connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
             }
             else if (toOut)
             {
-                if (! (t->isCue() && cue == nullptr))
+                if (only == 0 && ! (t->isCue() && cue == nullptr))
                     connectChannels (nodes.fader->nodeID, audioOut->nodeID, jmin (busChannels, graph.getTotalNumOutputChannels()));
             }
             else
@@ -811,7 +841,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             std::set<Id> keep;
             for (auto& s : t->sends)
             {
-                if (only != 0) break;
+                if (only != 0 && t->id == only) break;
                 if (! project.track (s.target) || ! edit::canRoute (project, t->id, s.target)) continue;
                 keep.insert (s.target);
                 auto& sendNode = nodes.sends[s.target];
@@ -828,9 +858,57 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 it = nodes.sends.erase (it);
             }
         }
+        // The Note Splitter's outputs (decision 0083): each a node reading what the
+        // splitter sent it, into a track's MIDI input. Wired last, so a route that
+        // would feed back into its own splitter is seen, and left out.
+        std::set<std::pair<Id, int>> keepSplits;
+        for (auto* t : all)
+            for (auto& d : t->devices)
+            {
+                if (! d.active || d.midiTo.empty() || ! wantedDevices.count (d.id)) continue;
+                auto* timed = dynamic_cast<TimedPlugin*> (deviceNodes[d.id]->getProcessor());
+                auto* splitter = timed ? dynamic_cast<NoteSplitterProcessor*> (&timed->plugin()) : nullptr;
+                if (! splitter) continue;
+                for (int k = 0; k < (int) d.midiTo.size(); ++k)
+                {
+                    const auto target = tracks.find (d.midiTo[(size_t) k]);
+                    if (d.midiTo[(size_t) k] == 0 || d.midiTo[(size_t) k] == t->id || target == tracks.end() || ! target->second.source) continue;
+                    const auto to = target->second.source->nodeID, from = deviceNodes[d.id]->nodeID;
+                    if (graph.isAnInputTo (to, from)) continue;
+                    auto& node = splitNodes[{ d.id, k }];
+                    if (! node) node = graph.addNode (std::make_unique<NoteSplitOutput>(), {}, Kind::none);
+                    if (auto* o = dynamic_cast<NoteSplitOutput*> (node->getProcessor())) o->set (splitter, k);
+                    connectMidi (from, node->nodeID);
+                    connectMidi (node->nodeID, to);
+                    keepSplits.insert ({ d.id, k });
+                }
+            }
+        for (auto it = heldDelays.begin(); it != heldDelays.end();)
+        {
+            if (keepHeld.count (it->first)) { ++it; continue; }
+            bury (it->second);
+            it = heldDelays.erase (it);
+        }
+        for (auto it = splitNodes.begin(); it != splitNodes.end();)
+        {
+            if (keepSplits.count (it->first)) { ++it; continue; }
+            bury (it->second);
+            it = splitNodes.erase (it);
+        }
         if (only == 0) connectAudio (metronomeNode->nodeID, audioOut->nodeID);
         graph.rebuild();
     }
+
+    // Each Note Splitter knows its device and how many outputs it has (decision 0083).
+    for (auto* t : all)
+        for (auto& d : t->devices)
+            if (d.active && wantedDevices.count (d.id))
+                if (auto* timed = dynamic_cast<TimedPlugin*> (deviceNodes[d.id]->getProcessor()))
+                    if (auto* splitter = dynamic_cast<NoteSplitterProcessor*> (&timed->plugin()))
+                    {
+                        splitter->outputCount = jmax (1, (int) d.midiTo.size());
+                        splitter->deviceId = d.id;
+                    }
 
     // The master reaches a Summing track's recorder this long after the song
     // position it belongs to: the graph's delay, less the Cue track's after it.
@@ -956,7 +1034,12 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                     const int index = lane.target.kind == AutoTarget::Kind::MorphX ? 0
                                     : lane.target.kind == AutoTarget::Kind::MorphY ? 1 : lane.target.param;
                     if (auto* p = inst->getParameters()[index])
-                        if (lane.points.size() > 1) data->params.push_back ({ lane, p });
+                        if (lane.points.size() > 1)
+                        {
+                            auto node = deviceNodes.find (lane.target.device);
+                            auto* host = node != deviceNodes.end() && node->second ? dynamic_cast<TimedPlugin*> (node->second->getProcessor()) : nullptr;
+                            data->params.push_back ({ lane, p, host });
+                        }
                     break;
                 }
                 case AutoTarget::Kind::Mute: data->hasMute = ! lane.points.empty(); data->mute = lane; break;
@@ -1054,6 +1137,12 @@ bool Engine::render (const Project& project, const File& folder, const File& out
 
     const double renderRate = rate;
     const int block = 512;
+    // Every fader and send starts at its level, not faded from where the last play left it.
+    for (auto& [id, n] : tracks)
+    {
+        if (n.fader) if (auto* f = dynamic_cast<Fader*> (n.fader->getProcessor())) f->snap = true;
+        for (auto& [to, s] : n.sends) if (auto* g = dynamic_cast<SendGain*> (s->getProcessor())) g->snap = true;
+    }
     graph.setNonRealtime (true);
     graph.setPlayConfigDetails (0, outChannels, renderRate, block);
     graph.prepareToPlay (renderRate, block);
@@ -1173,7 +1262,35 @@ bool Engine::render (const Project& project, const File& folder, const File& out
         {
             if (! writeMp3 (out, result, renderRate, o.metadata, o.mp3Kbps, error)) cancelled = true;
         }
-        else writer->writeFromAudioSampleBuffer (result, 0, frames);
+        else if (writer->isFloatingPoint()) writer->writeFromAudioSampleBuffer (result, 0, frames);
+        else
+        {
+            // Whole words, each the nearest step of the file's word length (the audio
+            // engine's document: the least distortion a shorter word allows; JUCE's own
+            // conversion truncates, a step off for half the samples). A word as long
+            // as the source's, or longer, holds it exactly.
+            const int bits = jlimit (8, 32, writer->getBitsPerSample());
+            const double steps = std::ldexp (1.0, bits - 1);
+            const double low = -steps, high = steps - 1;
+            std::vector<std::vector<int>> words ((size_t) outChannels, std::vector<int> ((size_t) jmin (frames, 65536)));
+            std::vector<const int*> chans ((size_t) outChannels + 1, nullptr);
+            for (int from = 0; from < frames; from += 65536)
+            {
+                const int count = jmin (65536, frames - from);
+                for (int ch = 0; ch < outChannels; ++ch)
+                {
+                    const float* x = result.getReadPointer (ch, from);
+                    auto& w = words[(size_t) ch];
+                    for (int i = 0; i < count; ++i)
+                    {
+                        const double q = jlimit (low, high, std::round ((double) x[i] * steps));
+                        w[(size_t) i] = (int) ((long long) q * (1LL << (32 - bits)));
+                    }
+                    chans[(size_t) ch] = w.data();
+                }
+                writer->write (chans.data(), count);
+            }
+        }
     }
     writer.reset();
     if (cancelled) out.deleteFile();
@@ -1205,6 +1322,50 @@ bool Engine::renderTrack (const Project& project, Id track, const File& folder, 
     shape.clear();
     sync (project, liveTrack, folder);
     return ok;
+}
+
+bool Engine::renderClips (const Project& project, Id trackId, const std::set<Id>& chosen, Tick from, Tick to,
+                          const File& folder, const File& out, double& peak, String& error)
+{
+    const auto* original = project.track (trackId);
+    if (! original) { error = "The track isn't there."; return false; }
+    Track t = *original;
+    t.delayMs = 0;
+    std::erase_if (t.clips(), [&] (const Clip& c) { return ! chosen.count (c.id) || c.isMidi(); });
+    for (auto& c : t.clips()) c.muted = false;
+    const auto compiled = playback::compile (project, t);
+    const double start = project.tempo.secondsAt (from), end = project.tempo.secondsAt (to);
+    const auto first = (long long) std::llround (start * rate);
+    const int frames = (int) jmax<long long> (1, (long long) std::llround (end * rate) - first);
+    std::vector<double> l ((size_t) frames, 0.0), r ((size_t) frames, 0.0);
+    for (auto& region : compiled.audio)
+    {
+        const Clip* clip = nullptr;
+        for (auto& c : t.clips()) if (c.id == region.clip) clip = &c;
+        if (! clip) continue;
+        const auto& a = clip->audio;
+        const auto& name = a.renderedFile.empty() ? a.file : a.renderedFile;
+        const File f = File::isAbsolutePath (name) ? File (name) : folder.getChildFile (name);
+        auto plain = cache.file (f);
+        if (! plain) { error = "The audio of " + String (clip->name) + " couldn't be read."; return false; }
+        const bool warped = a.warp != WarpMode::Off || a.reversed || std::abs (a.transpose) > 1e-6;
+        const auto played = warped ? std::shared_ptr<const CachedAudio> (AudioCache::render (*plain, *clip, project.tempo, rate)) : plain;
+        mixRegion (region, played->buffer, rate, first, frames, l.data(), r.data());
+    }
+    peak = 0;
+    for (int i = 0; i < frames; ++i) peak = std::max ({ peak, std::abs (l[(size_t) i]), std::abs (r[(size_t) i]) });
+    const double scale = peak > 0 ? 1.0 / peak : 1.0;
+    AudioBuffer<float> b (2, frames);
+    for (int i = 0; i < frames; ++i)
+    {
+        b.setSample (0, i, (float) (l[(size_t) i] * scale));
+        b.setSample (1, i, (float) (r[(size_t) i] * scale));
+    }
+    out.deleteFile();
+    auto w = audiofile::floatWav (out, rate, 2);
+    if (! w || ! w->writeFromAudioSampleBuffer (b, 0, frames)) { error = "The file couldn't be written."; return false; }
+    if (peak <= 0) peak = 1;
+    return true;
 }
 
 bool Engine::renderOfflineFx (const Clip& clip, const File& source, const File& out, String& error)

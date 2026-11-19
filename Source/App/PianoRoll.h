@@ -52,6 +52,9 @@ public:
     float rowHeight = 12.0f;
     float scrollPitch = 84;   // the pitch at the top edge
 
+    // Shows a lane under the notes, as its menu does (the renders).
+    void showLane (int kind) { laneKind = kind; repaint(); }
+
 private:
     Controller& c;
     std::unique_ptr<roll::Gesture> gesture;
@@ -61,10 +64,10 @@ private:
     std::vector<Note> notesCopy;
     bool velocityDrag = false;
     // The lane under the notes: -1 velocity, -2 note chance, -3 random velocity
-    // range, -4 random timing (decision 0061), 0-127 a controller, 128 pitch
-    // bend, 129 channel pressure, 200-202 MPE.
+    // range, -4 random timing (decision 0061), -6 note delay (0082), 0-127 a
+    // controller, 128 pitch bend, 129 channel pressure, 200-202 MPE.
     int laneKind = -1;
-    noteopt::Kind noteKind() const { return (noteopt::Kind) juce::jlimit (0, 3, -laneKind - 1); }
+    noteopt::Kind noteKind() const { const int k = juce::jlimit (0, 5, -laneKind - 1); return (noteopt::Kind) (k == 4 ? 0 : k); }
     Tick lastLaneTick = -1;
     void laneMenu();
     void drawLaneValue (const juce::MouseEvent&);

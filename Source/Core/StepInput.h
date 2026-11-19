@@ -8,6 +8,8 @@
     is a dotted 1/32), 0 first makes it a triplet. Let go of the keys and
     they're written at that length where the cursor is, which moves on by it.
     The length stays chosen for the next chord until another number is pressed.
+    The - key is a rest that long: the cursor moves on, nothing written (9 or
+    0 before it: a dotted or triplet rest, the notes' length left as it was).
 
     No JUCE in here.
 */
@@ -32,6 +34,9 @@ public:
     std::vector<Note> keyUp (int pitch);
     // A number pressed: 1-8 a length, 9 dotted next, 0 triplet next.
     void digit (int d);
+    // The - key: how long a rest to leave (the length chosen, dotted or a
+    // triplet if 9 or 0 came just before).
+    Tick rest();
 
     Tick length() const;
     std::string lengthName() const;           // "1/16", "dotted 1/32", "1/8 triplet"

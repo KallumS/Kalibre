@@ -55,10 +55,19 @@ grow and shrink with it.
   sequencer, a Euclidean sequencer, notation, **all adding to the same
   clip**, each showing its own notes and lighting the step being played.
   **Step input** from a MIDI keyboard (hold the keys, press 1-8 for the
-  length, let go). **Select** the roots, thirds or fifths of every chord,
+  length, let go; - for a rest). **Select** the roots, thirds or fifths of every chord,
   the notes on the beat, the top line; **Explode Chords** into a track a
   voice. **MusicXML** and **DAWproject** (Bitwig, Studio One, Cubase) in and
-  out.
+  out, automation and warping included.
+- **Note Splitter**: a chord's notes, top to bottom, each to another track's
+  MIDI input, so one chord plays four string sections.
+- **A timer of your music-making** beside the chord in the top bar: how long
+  you've worked on the song, pausing when you're away (DAW Battle Pass's
+  clock), saved with it.
+- **Fix Note Timings and Volume** (right-click a MIDI clip): Note Position &
+  Volume Fixer built in. For sloppily edited orchestral libraries, it listens
+  to the track, finds where each note is really heard and how loud, and puts
+  each sound on the grid and evens out its level within its articulation.
 - **Arm for audio or MIDI**: click a track's arm button for audio (red),
   right-click for MIDI (blue), which records what its instrument is played,
   a free-running arpeggiator's notes included; Shift-click for both,
@@ -84,7 +93,9 @@ grow and shrink with it.
 - **The X/Y morph**: four plug-ins or four samples, one in each corner.
 - **Track delay** (-125 ms to pull slow strings into time) and **articulation
   maps** with a delay for each articulation, chosen in the piano roll;
-  Cubase, Logic and Reaticulate maps imported in the **Articulation Manager**.
+  Cubase, Logic and Reaticulate maps imported in the **Articulation Manager**,
+  where each articulation's delay is set and kept; a **delay for each note**
+  too.
 - **Capture**: it's always listening, so the idea you played before pressing
   Record can still be kept, MIDI or audio.
 - **Warping**: repitch, granular or spectral, from the loop's tempo or warp
@@ -101,6 +112,12 @@ grow and shrink with it.
   else reloaded; Unfreeze deletes the render and brings the plug-ins back).
   Everything Kalibre records or renders, and all audio brought in, kept as
   **32-bit float WAV**; exports in any format.
+- **A clean engine**: 32-bit float processing with **64-bit summing**
+  wherever signals meet, so mixing, routing, unstretched clips, splits,
+  bypassed effects, freezing and recording leave the sound exactly as it
+  was, each proved by a cancellation test. Constant-power panning, 0 dB in
+  the middle; every automation lane sample accurate; **Consolidate** for audio
+  clips.
 - **Audio tools**: normalise, strip silence, quantise audio to the grid, a
   sample editor with a spectrogram, **snap to zero crossings**.
 - **Sections** you move (Shift-drag one to any bar) and duplicate with all their music, ripple editing, **alias clips** (edit one, every copy follows),
@@ -119,8 +136,11 @@ grow and shrink with it.
 ![The mixer: versions 1 to 4, Mono on every strip, the Cue track after the master](docs/mixer-versions-and-cue.png)
 ![The Container](docs/container.png)
 ![The Plug-in Manager](docs/plugin-manager.png)
-![The Articulation Manager: Cubase, Logic and Reaticulate maps imported](docs/articulation-manager.png)
+![The Articulation Manager: Cubase, Logic and Reaticulate maps imported, two articulations given delays](docs/articulation-manager.png)
+![The Note Splitter: a chord's notes to Violins I, Violins II and Violas](docs/note-splitter.png)
+![Fix Note Timings and Volume: how to fix them](docs/fix-note-timings-and-volume.png)
 ![The top bar, its Grid, and the message line telling what's chosen; I/O on each track](docs/top-bar-and-io.png)
+![The top bar's timer, right of the chord](docs/top-bar-timer.png)
 ![The sample editor](docs/sample-editor.png)
 ![Kalibre Synth and Sampler](docs/synth-and-sampler.png)
 ![A plug-in shown smaller to fit a short rack](docs/fitted-to-the-rack.png)

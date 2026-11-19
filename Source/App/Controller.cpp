@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "NoteSplitter.h"
 #include "AudioFiles.h"
 
 #include "AudioTools.h"
@@ -72,7 +73,9 @@ Controller::Controller (Engine& e) : engine (e)
     engine.syncDevices.configure (studio);
     engine.onDevicePluginChanged = [this] { dirty = true; };
     MorphProcessor::choosePlugin = nullptr;
+    NoteSplitterProcessor::makeEditor = nullptr;
     newProject();
+    beginWorkClock();
     startTimerHz (30);
 }
 
@@ -96,15 +99,23 @@ void Controller::syncEngine()
     engine.setCountIn (project.metronome.countIn ? project.tempo.secondsAt (project.tempo.barStart (project.metronome.countInBars)) : 0.0);
 }
 
-void Controller::apply (const String& label, std::function<void (Project&)> change)
+bool Controller::apply (const String& label, std::function<void (Project&)> change)
 {
     storeDeviceStates();
     Project before = project;
     change (project);
+    activity = true;   // an edit is music-making (0091)
+    // Never more than 1000 tracks (0088): the whole change is refused.
+    if (edit::overTrackLimit (project) && project.tracks.size() > before.tracks.size())
+    {
+        project = std::move (before);
+        refuseTooManyTracks();
+        return false;
+    }
     // Linked clips and grouped tracks follow (decision 0037).
     song::propagateLinks (before, project);
     song::propagateGroups (song::mixOf (before), project);
-    if (project == before) return;
+    if (project == before) return true;
     history.push (before, label.toStdString());
     dirty = true;
     // Choices that point at things no longer there are let go.
@@ -117,6 +128,13 @@ void Controller::apply (const String& label, std::function<void (Project&)> chan
     if (! project.track (focusTrack)) focusTrack = project.tracks.empty() ? 0 : project.tracks.front().id;
     syncEngine();
     sendChangeMessage();
+    return true;
+}
+
+void Controller::refuseTooManyTracks()
+{
+    say (edit::tooManyTracks, true);
+    refusedAt = Time::getMillisecondCounter();
 }
 
 std::map<Id, int> Controller::deviceStates() const
@@ -227,6 +245,8 @@ bool Controller::redo()
 
 void Controller::say (const String& m, bool warning, bool canUndo)
 {
+    // What a refused command would have said next doesn't cover the refusal (0088).
+    if (refusedAt != 0 && Time::getMillisecondCounter() - refusedAt < 250) return;
     message = m;
     messageIsWarning = warning;
     messageCanUndo = canUndo;
@@ -249,7 +269,7 @@ void Controller::setStepInput (bool on)
 void Controller::sayStepInput()
 {
     say ("Step input: hold keys on a MIDI keyboard, press 1 to 8 for the length (1 = 1/128, 4 = 1/16, 6 = 1/4, 8 = 1/1; 9 then a number: dotted; "
-         "0 then a number: triplet), let go to write them. Now " + String (stepper.lengthName()) + ".");
+         "0 then a number: triplet), let go to write them; - for a rest that long. Now " + String (stepper.lengthName()) + ".");
 }
 
 bool Controller::stepDigit (int d)
@@ -257,6 +277,27 @@ bool Controller::stepDigit (int d)
     if (! stepInput) return false;
     stepper.digit (d);
     sayStepInput();
+    return true;
+}
+
+bool Controller::stepRest()
+{
+    if (! stepInput) return false;
+    const Tick len = stepper.rest();
+    const Tick to = cursor + len;
+    // The chosen clip grows to hold the rest, so what's written next lands in it.
+    const auto* cl = clip();
+    if (cl && cl->isMidi() && cl->loopLength == 0 && to > cl->end())
+    {
+        const Id cid = selectedClip;
+        apply ("Step Input Rest", [&] (Project& p)
+        {
+            if (auto* c = p.clip (cid))
+                c->length = std::max (c->length, p.tempo.barStart (p.tempo.barAt (to - 1) + 1) - c->start);
+        });
+    }
+    locate (to);
+    say ("Rest. Step input: now " + String (stepper.lengthName()) + "; - for another rest.");
     return true;
 }
 
@@ -799,6 +840,7 @@ void Controller::newProject()
 {
     engine.stop();
     project = Project();
+    beginWorkClock();
     history.clear();
     file = File();
     dirty = false;
@@ -843,7 +885,7 @@ void Controller::autosave()
 {
     if (! dirty || project.tracks.empty()) return;
     storeDeviceStates();
-    autosaveFile().replaceWithText (String (file::save (project)));
+    autosaveFile().replaceWithText (String (file::save (stampedForSaving())));
 }
 
 File Controller::backupsFolder() const
@@ -866,7 +908,7 @@ bool Controller::backup()
 {
     if (project.tracks.empty()) return false;
     storeDeviceStates();
-    const String text (file::save (project));
+    const String text (file::save (stampedForSaving()));
     if (text == lastBackupText) return false;
     auto folder = backupsFolder();
     folder.createDirectory();
@@ -935,8 +977,10 @@ bool Controller::open (const File& f)
     std::string error;
     auto loaded = file::load (f.loadFileAsString().toStdString(), &error);
     if (! loaded) { say (String (error), true); return false; }
+    if (edit::overTrackLimit (*loaded)) { refuseTooManyTracks(); return false; }   // 0088
     engine.stop();
     project = std::move (*loaded);
+    beginWorkClock();   // the song's own time so far (0091)
     refileEffects (project, engine.plugins());
     history.clear();
     file = f;
@@ -988,7 +1032,7 @@ bool Controller::save()
     if (! file.getFullPathName().endsWith (".kalibre")) return false;
     storeDeviceStates();
     project.name = file.getFileNameWithoutExtension().toStdString();
-    if (! file.replaceWithText (String (file::save (project))))
+    if (! file.replaceWithText (String (file::save (stampedForSaving()))))
     {
         say ("The project couldn't be saved. Check the folder can be written to.", true);
         return false;
@@ -1193,13 +1237,13 @@ Id Controller::addTrack (TrackKind kind, const String& name)
                : kind == TrackKind::Cue ? String ("Cue")
                : kind == TrackKind::Return ? String ("Return " + String::charToString ((juce_wchar) ('A' + (int) std::count_if (project.tracks.begin(), project.tracks.end(), [] (const Track& t) { return t.kind == TrackKind::Return; }))))
                                            : String ("Track " + String ((int) project.tracks.size() + 1));
-    apply ("Add Track", [&] (Project& p)
+    if (! apply ("Add Track", [&] (Project& p)
     {
         made = edit::addTrack (p, kind, label.toStdString(), kind == TrackKind::Return ? 0 : after,
                                kind == TrackKind::Return ? 0 : parent);
         auto& colours = theme::trackColours();
         if (auto* t = p.track (made); t && ! t->isCue()) t->colour = colours[(int) p.tracks.size() % colours.size()].getARGB();
-    });
+    })) return 0;
     if (made) { selectedTracks = { made }; focusOn (made); }
     if (kind == TrackKind::Summing)
         say ("A Summing track records what the master plays. Arm it and record: the mix goes onto it from where recording starts.");
@@ -1238,7 +1282,7 @@ void Controller::folderFromSelection()
 }
 
 bool Controller::renderTrackAudio (Id id, const std::set<Id>& onlyClips, double start, double end, double tail,
-                                   const File& out, String& error)
+                                   const File& out, String& error, bool instrumentsOnly, std::function<void (Project&)> adjust)
 {
     storeDeviceStates();
     // The whole song, so no other plug-in is unloaded; only this track goes out, at unity.
@@ -1258,6 +1302,10 @@ bool Controller::renderTrackAudio (Id id, const std::set<Id>& onlyClips, double 
     if (! onlyClips.empty())
         t->clips().erase (std::remove_if (t->clips().begin(), t->clips().end(), [&] (const Clip& c) { return onlyClips.count (c.id) == 0; }), t->clips().end());
     copy.metronome.on = false;
+    // Only what the instruments play: effects (a reverb) bypassed, their delay kept.
+    if (instrumentsOnly)
+        for (auto& d : t->devices) if (d.role == DeviceRole::AudioFx) d.bypassed = true;
+    if (adjust) adjust (copy);
     const bool ok = engine.renderTrack (copy, id, projectFolder(), out, start, end, tail, error);
     syncEngine();
     return ok;
@@ -1308,6 +1356,65 @@ void Controller::refreezeMissing()
         }
         else say ("The track couldn't be frozen again. " + error, true);
     }
+}
+
+void Controller::consolidate (const std::set<Id>& chosen)
+{
+    const Track* owner = nullptr;
+    int midi = 0, audio = 0;
+    Tick from = std::numeric_limits<Tick>::max(), to = 0;
+    std::string name;
+    for (auto cid : chosen)
+    {
+        const Track* o = nullptr;
+        const auto* c = project.clip (cid, &o);
+        if (! c) continue;
+        if (owner && o != owner) { say ("Choose clips on one track to consolidate.", true); return; }
+        owner = o;
+        (c->isMidi() ? midi : audio)++;
+        if (c->start < from) { from = c->start; name = c->name; }
+        to = std::max (to, c->end());
+    }
+    if (! owner) return;
+    if (midi > 0 && audio > 0) { say ("Choose only MIDI clips or only audio clips to consolidate.", true); return; }
+    if (midi > 0)
+    {
+        apply ("Consolidate", [&] (Project& p) { edit::consolidateClips (p, chosen); });
+        return;
+    }
+    if (owner->frozen) { say ("Unfreeze " + String (owner->name) + " to consolidate its clips.", true); return; }
+    const Id tid = owner->id;
+    if (name.empty()) name = owner->name;
+    const auto out = recordingsFolder().getNonexistentChildFile (String (name) + " consolidated", ".wav");
+    double peak = 1;
+    String error;
+    if (! engine.renderClips (project, tid, chosen, from, to, projectFolder(), out, peak, error))
+    {
+        say ("The clips couldn't be consolidated. " + error, true);
+        return;
+    }
+    const double seconds = project.tempo.secondsAt (to) - project.tempo.secondsAt (from);
+    const double rate = engine.sampleRate();
+    Id made = 0;
+    apply ("Consolidate", [&] (Project& p)
+    {
+        edit::removeClips (p, chosen);
+        Clip c;
+        c.kind = Clip::Kind::Audio;
+        c.name = name;
+        c.start = from;
+        c.length = std::max<Tick> (1, to - from);
+        c.audio.file = out.getFullPathName().toStdString();
+        c.audio.sourceLength = seconds;
+        c.audio.fileSampleRate = rate;
+        c.audio.fileChannels = 2;
+        c.audio.gainDb = 20.0 * std::log10 (peak);   // as loud as before
+        made = edit::addClip (p, tid, c);
+    });
+    selectedClip = made;
+    selectedClips = { made };
+    say ("Consolidated into one clip: a new file, normalised, the clip turned down by "
+         + String (-20.0 * std::log10 (peak), 1) + " dB to play as before.", false, true);
 }
 
 void Controller::bounceInPlace (const std::set<Id>& chosen)
@@ -1747,10 +1854,54 @@ void Controller::addBuiltIn (Id track, const PluginRef& ref, DeviceRole role)
     sendChangeMessage();
 }
 
+void Controller::setSplitterOutputs (Id device, int count)
+{
+    count = jlimit (1, NoteSplit::maxOutputs, count);
+    apply ("Note Splitter Outputs", [&] (Project& p) { if (auto* d = p.device (device)) d->midiTo.resize ((size_t) count, 0); });
+}
+
+void Controller::setSplitterTarget (Id device, int output, Id track)
+{
+    apply ("Note Splitter Output", [&] (Project& p)
+    {
+        if (auto* d = p.device (device); d && output >= 0 && output < (int) d->midiTo.size()) d->midiTo[(size_t) output] = track;
+    });
+}
+
+void Controller::makeSplitterTracks (Id device)
+{
+    Track* owner = nullptr;
+    if (! project.device (device, &owner) || ! owner) return;
+    const Id own = owner->id;
+    int made = 0;
+    apply ("New Tracks for the Note Splitter", [&] (Project& p)
+    {
+        Track* o = nullptr;
+        auto* d = p.device (device, &o);
+        if (! d || ! o) return;
+        const std::string base = o->name;
+        const Id parent = o->parent;
+        Id after = own;
+        for (size_t k = 0; k < d->midiTo.size(); ++k)
+        {
+            if (p.track (d->midiTo[k])) { after = d->midiTo[k]; continue; }
+            const Id t = edit::addTrack (p, TrackKind::Track, base + " " + std::to_string (k + 1), after, parent);
+            if (auto* dd = p.device (device)) dd->midiTo[k] = t;
+            after = t;
+            ++made;
+        }
+    });
+    if (made > 0) say ("Made " + String (made) + (made == 1 ? " track" : " tracks") + " for the Note Splitter's outputs. Give each an instrument.", false, true);
+}
+
 void Controller::setDeviceActive (Id device, bool active)
 {
     const auto state = active ? std::string() : engine.stateOf (device);
-    apply (active ? "Activate Plug-in" : "Deactivate Plug-in", [=] (Project& p) { edit::setDeviceActive (p, device, active, state); });
+    // Its delay stays where it was (0086), so switching it off doesn't pull its track early.
+    auto* inst = active ? nullptr : engine.instance (device);
+    const int latency = inst ? inst->getLatencySamples() : 0;
+    const double rate = engine.sampleRate();
+    apply (active ? "Activate Plug-in" : "Deactivate Plug-in", [=] (Project& p) { edit::setDeviceActive (p, device, active, state, latency, rate); });
     if (! active) say ("Deactivated: unloaded from memory and the processor. Its settings are kept for when it's switched back on.");
 }
 
@@ -2037,6 +2188,13 @@ void Controller::runScript (const File& f)
     Project before = project;
     const auto r = script::run (project, f.loadFileAsString().toStdString(), f.getFileName().toStdString(), ctx);
     if (! r.ok) { say (f.getFileNameWithoutExtension() + ": " + String (r.error), true); return; }
+    if (edit::overTrackLimit (project) && project.tracks.size() > before.tracks.size())
+    {
+        project = std::move (before);
+        refuseTooManyTracks();
+        sendChangeMessage();
+        return;
+    }
     selectedClip = r.after.selectedClip;
     selectedNotes = r.after.selectedNotes;
     if (r.changed)
@@ -2050,8 +2208,31 @@ void Controller::runScript (const File& f)
 }
 
 //==============================================================================
+// The song as saved: with how long it has been worked on so far.
+const Project& Controller::stampedForSaving()
+{
+    project.workSeconds = workClock.active;
+    return project;
+}
+
+void Controller::beginWorkClock()
+{
+    workClock.begin (project.workSeconds, Time::getMillisecondCounterHiRes() / 1000.0);
+    activity = false;
+}
+
+void Controller::tickWorkClock (double now)
+{
+    // A note played on a MIDI keyboard counts as much as a click.
+    const auto heard = engine.notesPlayedIn.load();
+    if (heard != midiHeard) { midiHeard = heard; activity = true; }
+    workClock.tick (now, activity, engine.isPlaying(), engine.isRecording());
+    activity = false;
+}
+
 void Controller::timerCallback()
 {
+    tickWorkClock (Time::getMillisecondCounterHiRes() / 1000.0);
     // Every three minutes, while not recording.
     const auto now = Time::getMillisecondCounter();
     if (now - lastAutosave > 180000 && ! wasRecording)
@@ -2072,6 +2253,7 @@ void Controller::timerCallback()
     if (playing != lastPlaying)
     {
         lastPlaying = playing;
+        activity = true;
         if (! playing && wasRecording) finishRecording();
         if (onTransportChanged) onTransportChanged();
     }

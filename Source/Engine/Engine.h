@@ -104,6 +104,7 @@ public:
     // Playing a note to hear it (clicking in the piano roll).
     // A message as if played on a keyboard (the tests play notes in with it).
     void playIn (const juce::MidiMessage& m) { handleIncomingMidiMessage (nullptr, m); }
+    std::atomic<juce::uint32> notesPlayedIn { 0 };   // notes from MIDI keyboards, for the top bar's timer (0091)
     void audition (Id track, int pitch, int velocity = 100, double seconds = 0.3);
 
     //==========================================================================
@@ -162,6 +163,13 @@ public:
     // Offline effects on one audio clip: its audio through a chain, into a new file.
     bool renderOfflineFx (const Clip&, const juce::File& source, const juce::File& out, juce::String& error);
 
+    // Consolidate (decision 0081): some of a track's audio clips, as they play (gain,
+    // fades, warping, loops; no plug-ins), mixed at 64 bits from `from` to `to` into a
+    // new 32-bit float WAV at the song's rate, normalised to 0 dBFS. `peak` is the
+    // level it was turned up from: the new clip's gain, so it plays as loud as before.
+    bool renderClips (const Project&, Id track, const std::set<Id>& clips, Tick from, Tick to,
+                      const juce::File& folder, const juce::File& out, double& peak, juce::String& error);
+
     Shared shared;
     AudioCache cache;
     SyncDevices syncDevices;   // MIDI clock, timecode, Link (decision 0034)
@@ -197,8 +205,16 @@ private:
     std::map<VersionedId, Node::Ptr> allDevices;
     std::map<VersionedId, std::string> allKeys;   // what each node was made from, to notice a swap
     std::map<Id, Node::Ptr> deviceNodes;          // the playing versions' devices, by device id
+    std::map<std::pair<Id, int>, Node::Ptr> splitNodes;
+    std::map<Id, Node::Ptr> heldDelays;   // switched-off effects' delays, by device (decision 0086)
+    int heldSamples (const Device& d) const
+    {
+        if (d.offLatency <= 0) return 0;
+        return d.offLatencyRate > 0 ? juce::roundToInt (d.offLatency * rate / d.offLatencyRate) : d.offLatency;
+    }   // the Note Splitters' outputs, by (device, output) (decision 0083)
     std::map<Id, juce::AudioPluginInstance*> araOwner;   // the instance each ARA session was started on
     bool rendering = false;   // exporting: the Cue track is left out (decision 0051)
+    std::atomic<int> startedInputs { 0 };   // the input channels of the device last started
     Id renderOnlyTrack = 0;   // rendering one track alone (decision 0080)
     std::map<Id, std::unique_ptr<AraSession>> araSessions;
     std::set<Id> araTracks;

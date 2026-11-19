@@ -40,7 +40,9 @@ struct ParallelGraph::Plan
         Kind kind = Processor;
         int ins = 0, outs = 0, chans = 0;
         bool producesMidi = false;
-        std::vector<Input> audio;
+        std::vector<Input> audio;               // sorted by the channel they arrive on
+        std::vector<int> channelEnd;            // per channel: where its inputs end in `audio`
+        std::vector<double> sum;                // where several meet on a channel: added at 64 bits
         std::vector<int> midiFrom, next;
         int indegree = 0;
         AudioBuffer<float> buffer;
@@ -132,12 +134,30 @@ struct ParallelGraph::Plan
         }
         else
         {
-            for (int ch = 0; ch < it.chans; ++ch) FloatVectorOperations::clear (it.ptrs[(size_t) ch], n);
-            for (auto& in : it.audio)
+            // Every point where signals meet sums them at 64 bits (the audio engine's
+            // document), so mixing at any one point is neutral: one signal arrives
+            // unchanged, and a signal and its inverse cancel exactly however many meet.
+            size_t k = 0;
+            for (int ch = 0; ch < it.chans; ++ch)
             {
-                const float* from = items[(size_t) in.src].buffer.getReadPointer (in.srcChannel);
-                if (in.line >= 0) from = lines[(size_t) in.line].run (from, n);
-                FloatVectorOperations::add (it.ptrs[(size_t) in.channel], from, n);
+                auto* dest = it.ptrs[(size_t) ch];
+                const size_t end = (size_t) it.channelEnd[(size_t) ch];
+                if (k == end) { FloatVectorOperations::clear (dest, n); continue; }
+                auto source = [&] (const Input& in)
+                {
+                    const float* from = items[(size_t) in.src].buffer.getReadPointer (in.srcChannel);
+                    return in.line >= 0 ? lines[(size_t) in.line].run (from, n) : from;
+                };
+                if (end - k == 1) { FloatVectorOperations::copy (dest, source (it.audio[k++]), n); continue; }
+                double* acc = it.sum.data();
+                const float* a = source (it.audio[k++]);
+                for (int i = 0; i < n; ++i) acc[i] = (double) a[i];
+                while (k < end)
+                {
+                    const float* b = source (it.audio[k++]);
+                    for (int i = 0; i < n; ++i) acc[i] += (double) b[i];
+                }
+                for (int i = 0; i < n; ++i) dest[i] = (float) acc[i];
             }
         }
         it.midi.clear();
@@ -481,6 +501,22 @@ void ParallelGraph::buildPlan (int version)
         }
         dst.audio.push_back (in);
     }
+    // Each node's inputs by channel, and room to add them at 64 bits where several meet.
+    for (auto& it : plan->items)
+    {
+        std::stable_sort (it.audio.begin(), it.audio.end(), [] (const Plan::Input& a, const Plan::Input& b) { return a.channel < b.channel; });
+        it.channelEnd.assign ((size_t) it.chans, 0);
+        bool meet = false;
+        size_t k = 0;
+        for (int ch = 0; ch < it.chans; ++ch)
+        {
+            const size_t from = k;
+            while (k < it.audio.size() && it.audio[k].channel == ch) ++k;
+            it.channelEnd[(size_t) ch] = (int) k;
+            meet = meet || k - from > 1;
+        }
+        if (meet) it.sum.assign ((size_t) block, 0.0);
+    }
     // Some must take turns: one after another, in order.
     if (runsAlone)
     {
@@ -550,7 +586,9 @@ void ParallelGraph::processBlock (AudioBuffer<float>& buffer, MidiBuffer& midi)
     const int n = buffer.getNumSamples();
     busy.store (1);
     Plan* p = current.load();
-    if (p == nullptr || ! parallel.load() || n > p->block || n <= 0 || p->rate != getSampleRate()
+    // The plan plays on one thread too when every core isn't wanted: its mix points
+    // are 64-bit, JUCE's graph's aren't.
+    if (p == nullptr || juceGraphOnly.load() || n > p->block || n <= 0 || p->rate != getSampleRate()
         || p->block != getBlockSize() || p->version != settingsVersion.load() || p->handover.exchange (false))
     {
         // JUCE's graph plays this one (and after a new plan, lets go of old nodes).

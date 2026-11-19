@@ -164,6 +164,10 @@ private:
     Tick swipeFrom = 0, swipeTo = 0;
     const std::vector<float>& peaksFor (const juce::String& file);
     void clipMenu (Id clip);
+    void fixNotes (Id clip);   // Fix Note Timings and Volume (decision 0085)
+public:
+    static juce::AlertWindow* fixNotesDialog (const Controller::NoteFixOptions&);
+private:
     void laneMenu (const Row&, juce::Point<int>);
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;

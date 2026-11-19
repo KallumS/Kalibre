@@ -11,6 +11,10 @@
 #include "MainComponent.h"
 #include "JsfxDevice.h"
 #include "LuaTool/LuaTool.h"
+#include "NoteSplitter.h"
+#include "PianoRoll.h"
+#include "Arrange.h"
+#include "ArticulationManagerView.h"
 
 using namespace juce;
 using namespace kal;
@@ -253,10 +257,15 @@ int main (int argc, char** argv)
             const File fixtures = File (KALIBRE_SOURCE_DIR).getChildFile ("Tests/fixtures/articulations");
             c.importArticulationMaps ({ fixtures.getChildFile ("Test Strings.expressionmap"), fixtures.getChildFile ("Test Strings.reabank"),
                                         fixtures.getChildFile ("Test Strings.plist") });
+            // Two articulations given their own delays (decision 0082).
+            c.setArticulationDelay ("Violins", { 0 }, -40);
+            c.setArticulationDelay ("Violins", { 2 }, 25);
             ArticulationManagerView manager (c);
             manager.setSize (900, 420);
             manager.refresh();
-            manager.choose (3);
+            for (int i = 0; i < (int) manager.shownRows().size(); ++i)
+                if (manager.shownRows()[(size_t) i].map.name == "Violins") manager.choose (i);
+            manager.chooseArticulation (0);
             MessageManager::getInstance()->runDispatchLoopUntil (50);
             auto image = manager.createComponentSnapshot (manager.getLocalBounds(), true, scale);
             PNGImageFormat png;
@@ -302,6 +311,63 @@ int main (int argc, char** argv)
             window.lowerHeight = 320;
             edit::removeTrack (c.project, t);
             c.refresh();
+        }
+        // The Note Splitter (decision 0083): a chord's notes to four string sections.
+        {
+            const Id st = edit::addTrack (c.project, TrackKind::Track, "Strings Chords");
+            const Id dev = edit::addDevice (c.project, st, noteSplitterRef(), DeviceRole::MidiFx);
+            std::vector<Id> to;
+            for (const char* name : { "Violins I", "Violins II", "Violas" }) to.push_back (edit::addTrack (c.project, TrackKind::Track, name, st));
+            to.push_back (0);   // the cellos not chosen yet
+            c.project.device (dev)->midiTo = to;
+            c.focusTrack = st;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            window.lowerHeight = 340;
+            shoot ("25-note-splitter");
+            window.lowerHeight = 320;
+            for (auto id : to) if (id) edit::removeTrack (c.project, id);
+            edit::removeTrack (c.project, st);
+            c.refresh();
+        }
+        // Fix Note Timings and Volume's question (decision 0085).
+        {
+            std::unique_ptr<AlertWindow> w (Arrange::fixNotesDialog ({}));
+            w->setVisible (true);
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            auto image = w->createComponentSnapshot (w->getLocalBounds(), true, scale);
+            PNGImageFormat png;
+            const auto f = out.getChildFile ("27-fix-note-timings-and-volume.png");
+            f.deleteFile();
+            FileOutputStream s (f);
+            png.writeImageToStream (image, s);
+            std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+        }
+        // Each note's own delay in the piano roll's lane (decision 0082).
+        {
+            const auto& chords = c.project.tracks[1].clips();
+            if (! chords.empty())
+            {
+                const Id clip = chords.front().id;
+                int k = 0;
+                for (auto& n : c.project.clip (clip)->midi.notes) n.delayMs = (k++ % 3 == 0) ? 40.0 : (k % 3 == 1 ? -25.0 : 0.0);
+                c.focusTrack = c.project.tracks[1].id;
+                c.selectClip (clip);
+                c.refresh();
+                PianoRoll roll (c);
+                roll.setSize (1100, 420);
+                roll.showLane (-6);
+                MessageManager::getInstance()->runDispatchLoopUntil (50);
+                auto image = roll.createComponentSnapshot (roll.getLocalBounds(), true, scale);
+                PNGImageFormat png;
+                const auto f = out.getChildFile ("26-note-delay-lane.png");
+                f.deleteFile();
+                FileOutputStream s (f);
+                png.writeImageToStream (image, s);
+                std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+                for (auto& n : c.project.clip (clip)->midi.notes) n.delayMs = 0;
+                c.refresh();
+            }
         }
         // The family's JSFX in the rack (decision 0066): Reese Basser, then Reverberator.
         {

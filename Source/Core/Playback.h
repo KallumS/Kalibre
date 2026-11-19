@@ -95,7 +95,7 @@ struct CompiledTrack
     std::vector<AudioRegion> audio;     // sorted by start
 };
 
-// The effective delay of a note, in seconds: the track's plus its articulation's.
+// The effective delay of a note, in seconds: the track's, its articulation's and its own.
 double noteDelaySeconds (const Project&, const Track&, const Note&);
 
 CompiledTrack compile (const Project&, const Track&);

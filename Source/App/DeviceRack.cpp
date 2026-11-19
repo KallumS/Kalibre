@@ -1,4 +1,5 @@
 #include "DeviceRack.h"
+#include "NoteSplitterEditor.h"
 
 #include "Modulation.h"
 #include "BuiltinInstruments.h"
@@ -636,6 +637,7 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
         if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
         m.showMenuAsync (PopupMenu::Options());
     };
+    NoteSplitterProcessor::makeEditor = [this] (NoteSplitterProcessor& p) -> AudioProcessorEditor* { return new NoteSplitterEditor (p, c); };
     c.addChangeListener (this);
     rebuild();
     startTimerHz (2);
@@ -690,6 +692,7 @@ DeviceRack::~DeviceRack()
     windows.clear();   // their editors go before the plug-ins
     MorphProcessor::choosePlugin = nullptr;
     ContainerProcessor::choosePlugin = nullptr;
+    NoteSplitterProcessor::makeEditor = nullptr;
     c.removeChangeListener (this);
     panels.clear();
 }
@@ -720,6 +723,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();
     kalibre.addItem ("Container (Plug-ins on a Band, the Mid or the Sides)", [&c, track] { c.addBuiltIn (track, containerRef(), DeviceRole::AudioFx); });
+    kalibre.addItem ("Note Splitter (a Chord's Notes to Several Tracks)  (MIDI Effect)", [&c, track] { c.addBuiltIn (track, noteSplitterRef(), DeviceRole::MidiFx); });
     // The family's JSFX, built in (decision 0066), with Kalibre's own devices (0069).
     kalibre.addSeparator();
     for (auto& s : jsfxDevices())

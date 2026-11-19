@@ -31,6 +31,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 
 namespace kal
 {
@@ -68,6 +69,9 @@ public:
     // Exposed for tests: render a warp synchronously.
     static std::shared_ptr<CachedAudio> render (const CachedAudio& source, const Clip&, const TempoMap&, double rate);
     static double sourceSecondsAt (const AudioData&, Tick contentTick);
+    // Where in the file the clip's content starts, if it plays the file at its own
+    // speed throughout (its tempo the song's): then it is copied, never stretched.
+    static std::optional<double> unstretchedStart (const Clip&, const TempoMap&, double rate);
 
 private:
     double rate = 48000;

@@ -97,6 +97,7 @@ bool Controller::archive (const File& zip)
     projecttools::replaceFiles (copy, inside);
     const String song = file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Untitled");
     ZipFile::Builder builder;
+    copy.workSeconds = workClock.active;
     const auto projectText = String (file::save (copy));
     builder.addEntry (new MemoryInputStream (projectText.toRawUTF8(), projectText.getNumBytesAsUTF8(), true), 9, song + "/" + song + ".kalibre", Time::getCurrentTime());
     for (auto& [src, name] : files) builder.addFile (src, 0, song + "/Audio/" + name);   // audio is stored, not squeezed
@@ -129,8 +130,11 @@ bool Controller::newFromTemplate (const File& f)
     std::string error;
     auto loaded = file::load (f.loadFileAsString().toStdString(), &error);
     if (! loaded) { say (String (error), true); return false; }
+    if (edit::overTrackLimit (*loaded)) { refuseTooManyTracks(); return false; }   // 0088
     engine.stop();
     project = std::move (*loaded);
+    project.workSeconds = 0;   // a new song from a template starts its own time
+    beginWorkClock();
     refileEffects (project, engine.plugins());
     history.clear();
     file = File();
@@ -176,7 +180,7 @@ bool Controller::importXml (const File& f)
     if (! audio) { say ("The XML has no audio in it.", true); return false; }
     std::map<String, String> filePaths;
     int clips = 0;
-    apply ("Import XML", [&] (Project& p)
+    const bool imported = apply ("Import XML", [&] (Project& p)
     {
         int index = 0;
         for (auto* track : audio->getChildWithTagNameIterator ("track"))
@@ -215,6 +219,7 @@ bool Controller::importXml (const File& f)
             }
         }
     });
+    if (! imported) return false;
     say ("Imported " + String (clips) + " clips from " + f.getFileName() + ".", false, true);
     return clips > 0;
 }
@@ -317,7 +322,7 @@ bool Controller::importMusicXml (const File& f)
     for (auto& t : project.tracks) if (! t.clips().empty()) empty = false;
     const Tick at = empty ? 0 : project.tempo.barStart (project.tempo.barAt (cursor));
     std::vector<Id> made;
-    apply ("Import MusicXML", [&] (Project& p)
+    const bool done = apply ("Import MusicXML", [&] (Project& p)
     {
         if (empty)
         {
@@ -337,6 +342,7 @@ bool Controller::importMusicXml (const File& f)
             made.push_back (t);
         }
     });
+    if (! done) return false;
     if (! made.empty()) selectTracks (made);
     say ("Imported " + String ((int) made.size()) + (made.size() == 1 ? " part" : " parts") + " from " + f.getFileName()
          + ", each on a track of its own. Add an instrument to hear them" + (empty ? String (". The score's tempo, time signatures and key came too.") : String (".")), false, true);
@@ -413,6 +419,37 @@ void Controller::useArticulationMap (Id track, const ArticulationMap& map)
     });
 }
 
+bool Controller::setArticulationDelay (const std::string& name, const std::set<int>& which, double ms)
+{
+    ms = jlimit (-1000.0, 1000.0, ms);
+    bool found = false;
+    auto library = articulationLibrary();
+    bool inLibrary = false;
+    for (auto& m : library)
+        if (m.name == name)
+            for (int i : which)
+                if (i >= 0 && i < (int) m.articulations.size()) { m.articulations[(size_t) i].delayMs = ms; inLibrary = true; }
+    if (inLibrary) { saveArticulationLibrary (library); found = true; }
+    bool inSong = false;
+    for (auto& m : project.articulationMaps) inSong |= m.name == name;
+    if (inSong)
+    {
+        apply ("Articulation Delay", [&] (Project& p)
+        {
+            for (auto& m : p.articulationMaps)
+                if (m.name == name)
+                    for (int i : which)
+                        if (i >= 0 && i < (int) m.articulations.size()) m.articulations[(size_t) i].delayMs = ms;
+        });
+        found = true;
+    }
+    if (found)
+        say (String (which.size() == 1 ? "The articulation" : "The articulations") + " of " + String (name).quoted() + " now play "
+             + (ms == 0 ? String ("on time") : String (std::abs (ms), 0) + (ms < 0 ? " ms early" : " ms late")) + ".", false, inSong);
+    else sendChangeMessage();
+    return found;
+}
+
 //==============================================================================
 // DAWproject (decision 0077).
 bool Controller::exportDawProject (const File& f)
@@ -436,6 +473,11 @@ bool Controller::exportDawProject (const File& f)
         if (src.existsAsFile()) zip.addFile (src, 0, path);
         else ++missing;
     }
+    if (! w.kalibreAutomation.empty())
+    {
+        MemoryBlock m (w.kalibreAutomation.data(), w.kalibreAutomation.size());
+        zip.addEntry (new MemoryInputStream (m, true), 9, dawproject::kalibreAutomationPath, Time::getCurrentTime());
+    }
     for (auto& [path, state] : w.states)
     {
         MemoryBlock m;
@@ -452,8 +494,8 @@ bool Controller::exportDawProject (const File& f)
         }
     }
     if (! part.moveFileTo (f)) { say ("The DAWproject couldn't be written to " + f.getFullPathName() + ".", true); return false; }
-    say ("Exported " + f.getFileName() + ": the tracks, mix, tempo, markers, clips and audio. Plug-ins go by name; "
-         "automation, warping and other programs' plug-in settings aren't carried yet"
+    say ("Exported " + f.getFileName() + ": the tracks, mix, tempo, markers, clips, audio, automation and warping. Plug-ins go by name; "
+         "other programs' plug-in settings aren't carried yet"
          + (missing > 0 ? ". " + String (missing) + " audio files were missing and left out." : String (".")), missing > 0);
     return true;
 }
@@ -474,7 +516,7 @@ bool Controller::importDawProject (const File& f)
     };
     const auto xml = entryText ("project.xml");
     if (xml.empty()) { say (f.getFileName() + " isn't a DAWproject: it has no project.xml.", true); return false; }
-    auto r = dawproject::read (xml, entryText ("metadata.xml"));
+    auto r = dawproject::read (xml, entryText ("metadata.xml"), entryText (dawproject::kalibreAutomationPath));
     if (! r.ok) { say (String (r.error), true); return false; }
     auto& p = r.project;
 
@@ -543,9 +585,11 @@ bool Controller::importDawProject (const File& f)
         fixDevices (t);
     }
     fixDevices (p.master);
+    if (edit::overTrackLimit (p)) { refuseTooManyTracks(); return false; }   // 0088
 
     engine.stop();
     project = std::move (p);
+    beginWorkClock();
     refileEffects (project, engine.plugins());
     history.clear();
     file = File();

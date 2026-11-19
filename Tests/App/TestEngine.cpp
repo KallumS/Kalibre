@@ -861,29 +861,43 @@ TEST ("multi-core: a song played on every core comes out exactly as JUCE's own g
     Engine::RenderOptions o;
     o.start = 0; o.end = 3.0; o.tail = 0.5; o.dither = false; o.bitDepth = 32;
     // Each from a fresh engine: an instrument's voices carry on from one render to the next.
-    auto render = [&] (bool parallel, const File& out)
+    // JUCE's own graph is the reference; Kalibre's plan plays on one thread (Use Every
+    // Core off) or on every core, summing at 64 bits either way (0081).
+    enum Way { Juce, OneThread, EveryCore };
+    auto render = [&] (Way way, const File& out)
     {
         PluginManager plugins;
         Engine engine (plugins);
-        engine.setParallel (parallel);
+        engine.setParallel (way == EveryCore);
+        engine.audioGraph().juceGraphOnly = way == Juce;
         String error;
         CHECK (engine.render (p, tempFolder(), out, o, {}, error));
         return engine.audioGraph().blocksByPlan.load();
     };
+    const auto juce = tempFolder().getChildFile ("graph-juce.wav");
     const auto one = tempFolder().getChildFile ("graph-one-thread.wav");
     const auto many = tempFolder().getChildFile ("graph-every-core.wav");
-    CHECK_EQ (render (false, one), 0);
-    CHECK (render (true, many) > 100);   // played by the plan, not JUCE's graph
+    CHECK_EQ (render (Juce, juce), 0);
+    CHECK (render (OneThread, one) > 100);   // played by the plan, not JUCE's graph
+    CHECK (render (EveryCore, many) > 100);
 
-    const auto a = readAll (one), b = readAll (many);
-    CHECK_EQ (a.getNumSamples(), b.getNumSamples());
-    CHECK (a.getMagnitude (0, a.getNumSamples()) > 0.1f);   // there's something to compare
-    float worst = 0;
-    for (int ch = 0; ch < jmin (a.getNumChannels(), b.getNumChannels()); ++ch)
-        for (int i = 0; i < jmin (a.getNumSamples(), b.getNumSamples()); ++i)
-            worst = jmax (worst, std::abs (a.getSample (ch, i) - b.getSample (ch, i)));
+    auto largest = [] (const AudioBuffer<float>& a, const AudioBuffer<float>& b)
+    {
+        CHECK_EQ (a.getNumSamples(), b.getNumSamples());
+        float worst = 0;
+        for (int ch = 0; ch < jmin (a.getNumChannels(), b.getNumChannels()); ++ch)
+            for (int i = 0; i < jmin (a.getNumSamples(), b.getNumSamples()); ++i)
+                worst = jmax (worst, std::abs (a.getSample (ch, i) - b.getSample (ch, i)));
+        return worst;
+    };
+    const auto r = readAll (juce), a = readAll (one), b = readAll (many);
+    CHECK (r.getMagnitude (0, r.getNumSamples()) > 0.1f);   // there's something to compare
+    // Lined up as JUCE lines it up; only the sums' last bits differ (theirs are 32-bit).
+    const float worst = largest (r, a);
     CHECK (worst < 1.0e-5f);
     if (worst >= 1.0e-5f) std::printf ("  largest difference %g\n", (double) worst);
+    // One thread or every core: the same, sample for sample.
+    CHECK_EQ (largest (a, b), 0.0f);
 }
 
 TEST ("multi-core: heavy plug-ins on several tracks are played on several threads at once, and faster (0078)")
@@ -1062,4 +1076,56 @@ TEST ("32-bit float: imported audio that isn't is copied into the song's Audio f
     }
     CHECK (floatWav (rec));
     CHECK (readAll (rec).getSample (0, 1) > 1.4f);
+}
+
+TEST ("engine: a freeze and a bounce hear the sidechain from another track (0080)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const auto click = clickFile (0.5);
+    const Id kick = edit::addTrack (c.project, TrackKind::Track, "Kick");
+    edit::addClip (c.project, kick, audioClip (click, 0, PPQ * 4));
+    edit::addDevice (c.project, kick, PluginRef { "Kalibre", "test-latency:200", "Latency" }, DeviceRole::AudioFx);
+    c.project.track (kick)->volumeDb = -12;   // the kick's own level and pan don't change what the sidechain hears
+    const Id bass = edit::addTrack (c.project, TrackKind::Track, "Bass");
+    const Id silent = edit::addMidiClip (c.project, bass, 0, PPQ * 4);   // something to freeze and bounce
+    const Id dev = edit::addDevice (c.project, bass, PluginRef { "Kalibre", "test-sidechain", "Sidechain" }, DeviceRole::AudioFx);
+    c.project.device (dev)->sidechainFrom = kick;
+    c.refresh();
+    // The test device adds what its sidechain hears to its output: the kick, through the bass track.
+    c.freeze (bass, true);
+    CHECK (c.project.track (bass)->frozen);
+    auto clicks = clicksIn (File (c.project.track (bass)->frozenFile));
+    CHECK_EQ (clicks.size(), size_t (1));
+    if (! clicks.empty()) CHECK (std::abs (clicks.front() - 24000) <= 1);
+    c.freeze (bass, false);
+    c.bounceInPlace ({ silent });
+    const Track* bounced = nullptr;
+    for (auto& t : c.project.tracks) if (t.name == "Bass Bounce") bounced = &t;
+    CHECK (bounced != nullptr);
+    if (! bounced || bounced->clips().empty()) return;
+    clicks = clicksIn (File (bounced->clips().front().audio.file));
+    CHECK_EQ (clicks.size(), size_t (1));
+    CHECK (c.undo());
+
+    // From a folder (the drums' bus) and from a return fed by a send.
+    for (bool fromReturn : { false, true })
+    {
+        c.project = Project();
+        const Id bus = edit::addTrack (c.project, fromReturn ? TrackKind::Return : TrackKind::Folder, "Drum Bus");
+        const Id k = edit::addTrack (c.project, TrackKind::Track, "Kick", 0, fromReturn ? 0 : bus);
+        edit::addClip (c.project, k, audioClip (click, 0, PPQ * 4));
+        if (fromReturn) { CHECK (edit::addSend (c.project, k, bus, 0.0)); }
+        const Id b = edit::addTrack (c.project, TrackKind::Track, "Bass");
+        edit::addMidiClip (c.project, b, 0, PPQ * 4);
+        const Id d = edit::addDevice (c.project, b, PluginRef { "Kalibre", "test-sidechain", "Sidechain" }, DeviceRole::AudioFx);
+        c.project.device (d)->sidechainFrom = bus;
+        c.refresh();
+        c.freeze (b, true);
+        const auto heard = clicksIn (File (c.project.track (b)->frozenFile));
+        if (heard.size() != 1) check::fail (__FILE__, __LINE__, std::string ("from a ") + (fromReturn ? "return" : "folder") + ": " + std::to_string (heard.size()) + " clicks");
+        c.freeze (b, false);
+    }
 }

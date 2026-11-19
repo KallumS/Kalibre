@@ -316,6 +316,13 @@ void PianoRoll::paint (Graphics& g)
             // Each note's velocity, chance, velocity range or timing range, as a bar.
             const auto kind = noteKind();
             const float top = (float) noteopt::highest (kind);
+            // A signed value (a note's delay) is drawn up or down from the middle.
+            const bool fromMiddle = noteopt::signedValue (kind);
+            if (fromMiddle)
+            {
+                g.setColour (theme::rule);
+                g.fillRect ((float) va.getX(), (float) va.getCentreY(), (float) va.getWidth(), 1.0f);
+            }
             g.setFont (theme::font (theme::smallPoints));
             float lastLabel = -1.0e9f;
             for (auto& n : notes)
@@ -323,11 +330,21 @@ void PianoRoll::paint (Graphics& g)
                 const float x = xOf (n.start);
                 if (x < (float) va.getX() || x > (float) va.getRight()) continue;
                 const double v = noteopt::get (n, kind);
-                const float h = (float) (va.getHeight() - 6) * (float) v / top;
                 const bool chosen = c.selectedNotes.count (n.id) > 0;
                 g.setColour (chosen ? theme::accent : trackCol);
-                g.fillRect (x, (float) va.getBottom() - h - 2, 3.0f, h);
-                g.fillEllipse (x - 2.0f, (float) va.getBottom() - h - 5, 7.0f, 7.0f);
+                if (fromMiddle)
+                {
+                    const float mid = (float) va.getCentreY();
+                    const float y = mid - (float) (va.getHeight() / 2 - 4) * (float) v / top;
+                    g.fillRect (x, jmin (y, mid), 3.0f, std::abs (mid - y));
+                    g.fillEllipse (x - 2.0f, y - 3.5f, 7.0f, 7.0f);
+                }
+                else
+                {
+                    const float h = (float) (va.getHeight() - 6) * (float) v / top;
+                    g.fillRect (x, (float) va.getBottom() - h - 2, 3.0f, h);
+                    g.fillEllipse (x - 2.0f, (float) va.getBottom() - h - 5, 7.0f, 7.0f);
+                }
                 // Its value, where there's room and it's not a plain note's.
                 if (kind != noteopt::Kind::Velocity && noteopt::notPlain (kind, v) && x - lastLabel > (float) theme::px (40))
                 {
@@ -603,7 +620,7 @@ String PianoRoll::laneName() const
 {
     switch (laneKind)
     {
-        case -1: case -2: case -3: case -4: return noteopt::name (noteKind());
+        case -1: case -2: case -3: case -4: case -5: case -6: return noteopt::name (noteKind());
         case 1:   return "Modulation";
         case 2:   return "Breath";
         case 7:   return "Volume";
@@ -622,7 +639,7 @@ void PianoRoll::laneMenu()
 {
     PopupMenu m;
     // Each note's own (decision 0061), then the controllers.
-    noteopt::addTo (m, laneKind < 0 ? noteKind() : (noteopt::Kind) -1, [this] (noteopt::Kind k) { laneKind = -1 - (int) k; repaint(); });
+    noteopt::addTo (m, laneKind < 0 ? noteKind() : (noteopt::Kind) -1, [this] (noteopt::Kind k) { laneKind = -1 - (int) k; repaint(); }, false, true);
     m.addSeparator();
     for (int k : { 1, 11, 64, 128, 129, 2, 7 })
     {

@@ -11,3 +11,5 @@ An audio clip can be warped: Repitch (like tape), Granular (50 ms grains; drums 
 ## Consequences
 
 Long files take a moment to be ready after a change.
+
+Widened by 0081: a clip whose file runs at the song's tempo throughout is copied, never stretched, in every mode (neutral).

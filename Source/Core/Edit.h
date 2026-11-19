@@ -25,6 +25,11 @@ namespace kal::edit
 
 // Adds a track after `after` (0: at the end), inside `parent` (0: top level).
 Id addTrack (Project&, TrackKind, const std::string& name, Id after = 0, Id parent = 0);
+// At most this many tracks (folders, returns and Summing tracks count; the master and
+// the Cue track don't): whatever would make more is refused as a whole (decision 0088).
+inline constexpr int maxTracks = 1000;
+inline constexpr const char* tooManyTracks = "Unable to add more than 1000 tracks";
+inline bool overTrackLimit (const Project& p) { return (int) p.tracks.size() > maxTracks; }
 // The Cue track (decision 0051): there's one at most; returns it if it's there already.
 Id addCue (Project&);
 
@@ -106,7 +111,8 @@ void sortNotes (MidiData&);
 Id addDevice (Project&, Id track, const PluginRef&, DeviceRole, int position = -1);
 void removeDevice (Project&, Id device);
 void moveDevice (Project&, Id device, int newIndex);
-void setDeviceActive (Project&, Id device, bool active, const std::string& stateIfUnloading = {});
+// Switched off, its latency (samples at `rate`) is kept, so a delay can stand in for it (decision 0086).
+void setDeviceActive (Project&, Id device, bool active, const std::string& stateIfUnloading = {}, int latency = 0, double rate = 0);
 void normaliseChain (Track&);
 
 //==============================================================================
@@ -121,6 +127,8 @@ bool addSend (Project&, Id from, Id to, double gainDb = -6.0);
 
 AutomationLane& laneFor (Track&, const AutoTarget&, double defaultValue);
 double valueAt (const AutomationLane&, Tick, double fallback);
+// Between ticks too: the audio thread follows a curve sample by sample.
+double valueAtTicks (const AutomationLane&, double ticks, double fallback);
 void addPoint (AutomationLane&, AutoPoint);
 void removePointsIn (AutomationLane&, Tick from, Tick to);
 // Writes a value at a tick as a performer would: Touch and Latch replace what

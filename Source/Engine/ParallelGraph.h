@@ -54,8 +54,11 @@ public:
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using juce::AudioProcessorGraph::processBlock;
 
-    // Off: JUCE's graph plays everything on the audio thread, as before.
+    // Off: the plan plays everything on the audio thread alone (still summing at
+    // 64 bits, which JUCE's graph doesn't).
     void setParallel (bool);
+    // Tests only: JUCE's own graph plays every block, the reference the plan is held to.
+    std::atomic<bool> juceGraphOnly { false };
     bool isParallel() const { return parallel.load(); }
     // The threads besides the audio thread (0 when off or on one core).
     int workers() const { return workerCount.load(); }

@@ -278,6 +278,110 @@ TEST ("summing: armed, it records the master from where recording starts, in tim
     CHECK_EQ (c.project.track (sum)->clips().size(), size_t (1));
 }
 
+TEST ("summing: recording the master at 32 bits is neutral: the take is the song's sound, sample for sample (0081)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    // A second of 24-bit noise, half a second into the song.
+    AudioBuffer<float> noise (2, 48000);
+    Random rng (5);
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < noise.getNumSamples(); ++i)
+            noise.setSample (ch, i, (float) std::round ((rng.nextFloat() * 1.8f - 0.9f) * 8388608.0f) / 8388608.0f);
+    const auto file = folder().getChildFile ("kinds-noise.wav");
+    file.deleteFile();
+    {
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (file.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (32));
+        w->writeFromAudioSampleBuffer (noise, 0, noise.getNumSamples());
+    }
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Noise");
+    auto clip = audioClip (file, PPQ, PPQ * 2);
+    clip.audio.sourceLength = 1.0;
+    edit::addClip (c.project, t, clip);
+    c.project.track (t)->pan = 0;
+    const Id sum = edit::addTrack (c.project, TrackKind::Summing, "Summing");
+    c.project.track (sum)->armed = true;
+    c.focusTrack = sum;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 2.0);
+    c.stop();
+
+    const auto* s = c.project.track (sum);
+    CHECK_EQ (s->clips().size(), size_t (1));
+    if (s->clips().empty()) return;
+    const auto& take = s->clips().front();
+    const auto recorded = read (File (String (take.audio.file)));
+    const int at = (int) std::llround ((take.audio.sourceStart + 0.5) * 48000);
+    float worst = recorded.getNumSamples() >= at + 48000 ? 0.0f : 1.0f;
+    for (int ch = 0; ch < 2 && worst == 0.0f; ++ch)
+        for (int i = 0; i < 48000; ++i)
+            worst = jmax (worst, std::abs (recorded.getSample (ch, at + i) - noise.getSample (ch, i)));
+    CHECK_EQ (worst, 0.0f);
+}
+
+TEST ("recording: what the interface sends is written as it came, sample for sample, at 32-bit float (0081)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Vocal");
+    c.project.track (t)->armed = true;
+    c.focusTrack = t;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    // A converter's 24-bit words, coming in for a second.
+    const int n = 512, blocks = 94;
+    AudioBuffer<float> sent (2, n * blocks), out (2, n);
+    Random rng (9);
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < sent.getNumSamples(); ++i)
+            sent.setSample (ch, i, (float) std::round ((rng.nextFloat() * 1.9f - 0.95f) * 8388608.0f) / 8388608.0f);
+    for (int b = 0; b < blocks; ++b)
+    {
+        const float* ins[] { sent.getReadPointer (0, b * n), sent.getReadPointer (1, b * n) };
+        float* outs[] { out.getWritePointer (0), out.getWritePointer (1) };
+        engine.audioDeviceIOCallbackWithContext (ins, 2, outs, 2, n, {});
+    }
+    c.stop();
+    const auto* tr = c.project.track (t);
+    CHECK_EQ (tr->clips().size(), size_t (1));
+    if (tr->clips().empty()) return;
+    const File taken (String (tr->clips().front().audio.file));
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (taken));
+    CHECK (r != nullptr);
+    if (! r) return;
+    CHECK_EQ ((int) r->bitsPerSample, 32);
+    CHECK (r->usesFloatingPointData);
+    const auto got = read (taken);
+    CHECK (got.getNumSamples() >= sent.getNumSamples() - 4 * n);
+    // Where the take begins in what was sent (recording starts with the next block).
+    int from = -1;
+    for (int d = 0; d < 4 * n && from < 0; ++d)
+        if (got.getSample (0, 0) == sent.getSample (0, d) && got.getSample (0, 1) == sent.getSample (0, d + 1)) from = d;
+    CHECK (from >= 0);
+    float worst = 0;
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i + from < sent.getNumSamples() && i < got.getNumSamples(); ++i)
+            worst = jmax (worst, std::abs (got.getSample (ch, i) - sent.getSample (ch, i + from)));
+    CHECK_EQ (worst, 0.0f);
+}
+
 TEST ("versions: choosing a number switches every chosen track that has it, and leaves the others")
 {
     PluginManager plugins;
@@ -1167,7 +1271,8 @@ TEST ("top bar: right-click hides what isn't wanted; the Grid is the arrangement
     CHECK (c.followPlayback && ! c.followPages);
     c.followPages = true;      // as a Shift-click leaves it
     bar.resized();
-    MessageManager::getInstance()->runDispatchLoopUntil (60);
+    // The bar's timer shows it; a busy machine (the Mac on CI) can take longer than a few ticks.
+    for (int i = 0; i < 50 && follow->getButtonText() != "Follow: Page"; ++i) MessageManager::getInstance()->runDispatchLoopUntil (20);
     CHECK (follow->getButtonText() == "Follow: Page");
 }
 
@@ -1222,6 +1327,30 @@ TEST ("articulation manager: maps imported into the library, used on a track fro
     bool both = false;
     for (auto& r : view.shownRows()) both |= r.map.name == "Violins" && r.inLibrary && r.inSong;
     CHECK (both);
+
+    // Each imported articulation's own delay (0082): set in the manager, kept in the
+    // library for the next song and in this song's copy, one undo step.
+    const auto steps = c.history.size();
+    CHECK (c.setArticulationDelay ("Violins", { 0, 2 }, -80));
+    CHECK_EQ (c.history.size(), steps + 1);
+    for (auto& m : c.articulationLibrary())
+        if (m.name == "Violins")
+        {
+            CHECK_EQ (m.articulations[0].delayMs, -80.0);
+            CHECK_EQ (m.articulations[1].delayMs, 0.0);
+            CHECK_EQ (m.articulations[2].delayMs, -80.0);
+        }
+    if (const auto* song = c.project.articulationMap (c.project.track (t)->articulationMap))
+        CHECK_EQ (song->articulations[0].delayMs, -80.0);
+    // The manager shows it, and sets it from its own field.
+    view.refresh();
+    for (int i = 0; i < (int) view.shownRows().size(); ++i) if (view.shownRows()[(size_t) i].map.name == "Violins") view.choose (i);
+    view.chooseArticulation (1);
+    view.typeDelay ("25");
+    for (auto& m : c.articulationLibrary()) if (m.name == "Violins") CHECK_EQ (m.articulations[1].delayMs, 25.0);
+    CHECK (c.undo());
+    if (const auto* song = c.project.articulationMap (c.project.track (t)->articulationMap))
+        CHECK_EQ (song->articulations[1].delayMs, 0.0);
 }
 
 #include "CrashReports.h"
@@ -1393,13 +1522,32 @@ TEST ("step input: keys from a MIDI keyboard, a number for the length, written a
     bool drum = false;
     for (auto& n : cl->midi.notes) drum |= n.pitch == 36 && n.from == NoteFrom::Drums && n.length == PPQ * 4;
     CHECK (drum);
+    // A rest: the - key, as long as the length chosen; the cursor moves on, nothing written,
+    // and the clip grows to hold it.
+    const auto notesBefore = c.project.clip (clip)->midi.notes.size();
+    c.locate (PPQ * 8 - PPQ);
+    c.stepDigit (6);
+    CHECK (c.stepRest());
+    CHECK_EQ (c.cursor, Tick (PPQ * 8));
+    c.stepDigit (9);
+    CHECK (c.stepRest());                            // a dotted 1/4
+    CHECK_EQ (c.cursor, Tick (PPQ * 8 + PPQ * 3 / 2));
+    CHECK_EQ (c.project.clip (clip)->length, Tick (PPQ * 12));
+    engine.playIn (MidiMessage::noteOn (1, 72, (uint8) 100));
+    engine.playIn (MidiMessage::noteOff (1, 72));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), notesBefore + 1);
+    bool after = false;
+    for (auto& n : c.project.clip (clip)->midi.notes) after |= n.pitch == 72 && n.start == PPQ * 8 + PPQ * 3 / 2 && n.length == PPQ;
+    CHECK (after);
     // Off: keys are only heard.
     c.setStepInput (false);
     engine.playIn (MidiMessage::noteOn (1, 70, (uint8) 100));
     engine.playIn (MidiMessage::noteOff (1, 70));
     MessageManager::getInstance()->runDispatchLoopUntil (50);
-    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), size_t (3));
+    CHECK_EQ (c.project.clip (clip)->midi.notes.size(), notesBefore + 1);
     CHECK (! c.stepDigit (4));
+    CHECK (! c.stepRest());
 }
 
 TEST ("dawproject: a song exported with its audio and Kalibre's own devices, and opened again as a new song (0077)")
@@ -1468,4 +1616,357 @@ TEST ("multi-core: playing live through an audio device, the plan plays the bloc
     engine.stop();
     CHECK (engine.audioGraph().blocksByPlan.load() > 30);
     CHECK (peak (live, 0).second > 0.5f);
+}
+
+#include "NoteSplitter.h"
+#include "NoteSplitterEditor.h"
+
+TEST ("note splitter: a chord's notes, top to bottom, into four tracks' MIDI inputs, recorded there; the chord still plays on its own track (0083)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id chords = edit::addTrack (c.project, TrackKind::Track, "Chords");
+    const Id clip = edit::addMidiClip (c.project, chords, 0, PPQ * 4);
+    for (int pitch : { 48, 55, 64, 60 }) { Note n; n.start = PPQ / 2; n.length = PPQ; n.pitch = pitch; edit::addNote (c.project, clip, n); }
+    const Id dev = edit::addDevice (c.project, chords, noteSplitterRef(), DeviceRole::MidiFx);
+    CHECK_EQ (c.project.device (dev)->midiTo.size(), size_t (4));
+    std::vector<Id> voices;
+    for (const char* name : { "Violins I", "Violins II", "Violas", "Cellos" })
+    {
+        const Id v = edit::addTrack (c.project, TrackKind::Track, name);
+        c.project.track (v)->armed = true;
+        c.project.track (v)->armFor = ArmFor::MidiInput;
+        voices.push_back (v);
+    }
+    c.project.device (dev)->midiTo = voices;
+    // Kept in the song's file.
+    auto saved = file::load (file::save (c.project));
+    CHECK (saved.has_value());
+    if (saved) CHECK (saved->device (dev)->midiTo == voices);
+
+    c.focusTrack = chords;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 1.5);
+    c.stop();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    const int want[] { 64, 60, 55, 48 };
+    for (size_t i = 0; i < voices.size(); ++i)
+    {
+        const auto* t = c.project.track (voices[i]);
+        int got = -1, count = 0;
+        for (auto& cl : t->clips())
+            for (auto& n : cl.midi.notes) { got = n.pitch; ++count; }
+        if (count != 1 || got != want[i])
+            check::fail (__FILE__, __LINE__, t->name + ": " + std::to_string (count) + " notes, pitch " + std::to_string (got));
+    }
+    // Its panel: an output each, top note first; fewer and more, one undo step each;
+    // New Tracks makes a track for each output without one.
+    auto* splitter = dynamic_cast<NoteSplitterProcessor*> (engine.instance (dev));
+    CHECK (splitter != nullptr);
+    if (! splitter) return;
+    CHECK_EQ (NoteSplitterEditor::noteName (0, 4), String ("Top note"));
+    CHECK_EQ (NoteSplitterEditor::noteName (1, 4), String ("2nd note down"));
+    CHECK_EQ (NoteSplitterEditor::noteName (3, 4), String ("Bottom note"));
+    NoteSplitterEditor panel (*splitter, c);
+    const auto steps = c.history.size();
+    c.setSplitterOutputs (dev, 6);
+    CHECK_EQ (c.history.size(), steps + 1);
+    CHECK_EQ (c.project.device (dev)->midiTo.size(), size_t (6));
+    CHECK_EQ (splitter->outputCount.load(), 6);
+    const auto tracksBefore = c.project.tracks.size();
+    c.makeSplitterTracks (dev);
+    CHECK_EQ (c.project.tracks.size(), tracksBefore + 2);
+    const auto* made = c.project.track (c.project.device (dev)->midiTo[5]);
+    CHECK (made != nullptr);
+    if (made) CHECK_EQ (made->name, std::string ("Chords 6"));
+    CHECK (c.undo());
+    CHECK_EQ (c.project.tracks.size(), tracksBefore);
+}
+
+namespace
+{
+// The sloppy test library's own numbers (MorphProcessor.cpp's SloppyTest).
+double sloppyHash (int n)
+{
+    uint32 x = (uint32) n ^ 0x9e3779b9u;
+    x *= 0x85ebca6bu; x ^= x >> 13; x *= 0xc2b2ae35u; x ^= x >> 16;
+    return x / 4294967296.0;
+}
+double sloppyOnsetMs (int p, int v)
+{
+    const double tau = std::acos (1 - 2 * std::pow (10.0, -12.0 / 20)) / MathConstants<double>::pi;
+    return 45 + 70 * sloppyHash (p * 7 + 1) + (127 - v) * 0.12 + tau * (12 + 30 * sloppyHash (p * 13 + 5));
+}
+
+Id sloppyLine (Controller& c, Id& track)
+{
+    c.project = Project();
+    track = edit::addTrack (c.project, TrackKind::Track, "Violins");
+    edit::addDevice (c.project, track, PluginRef { "Kalibre", "test-sloppy", "Sloppy Library" }, DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (c.project, track, PPQ * 4, PPQ * 12);
+    const int line[] { 60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60, 64, 67, 72, 67, 64 };
+    for (int i = 0; i < 20; ++i)
+    {
+        Note n;
+        n.start = (Tick) i * PPQ / 2;
+        n.length = PPQ / 4;
+        n.pitch = line[i];
+        n.velocity = (int[]) { 70, 90, 110 }[i % 3];
+        edit::addNote (c.project, clip, n);
+    }
+    c.refresh();
+    return clip;
+}
+} // namespace
+
+TEST ("fix note timings and volume: the track rendered quietly, each note given the delay that puts its sound on the grid, the loud and quiet keys evened out with CC7; one undo step (0085)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Id t = 0;
+    const Id clip = sloppyLine (c, t);
+    const auto before = c.project;
+    const auto steps = c.history.size();
+    const auto temps = File::getSpecialLocation (File::tempDirectory).findChildFiles (File::findFiles, false, "Kalibre note fix*").size();
+    CHECK (c.fixNoteTimingsAndVolume (clip, {}));
+    CHECK_EQ (c.history.size(), steps + 1);
+    CHECK_EQ (File::getSpecialLocation (File::tempDirectory).findChildFiles (File::findFiles, false, "Kalibre note fix*").size(), temps);   // the render is gone
+    CHECK (c.message.contains ("Fixed"));
+    const auto* cl = c.project.clip (clip);
+    std::vector<double> err;
+    for (auto& n : cl->midi.notes)
+    {
+        CHECK_EQ (n.start % (PPQ / 2), Tick (0));   // still on the grid
+        err.push_back (std::abs (n.delayMs + sloppyOnsetMs (n.pitch, n.velocity)));
+    }
+    std::sort (err.begin(), err.end());
+    CHECK (err[err.size() / 2] <= 3);
+    CHECK (err.back() <= 12);
+    // CC7 before each note: the loud keys (64, 71) turned down, the quiet one (67) up.
+    auto ccBefore = [&] (const Note& n)
+    {
+        int v = -1;
+        for (auto& e : cl->midi.events) if (e.type == EventType::Controller && e.number == 7 && e.tick <= n.start) v = e.value;
+        return v;
+    };
+    for (auto& n : cl->midi.notes)
+    {
+        if (&n == &cl->midi.notes.front()) continue;   // sent before the clip begins: by velocity
+        const int v = ccBefore (n);
+        CHECK (v > 0);
+        if (n.pitch == 64 || n.pitch == 71) CHECK (v < 90);
+        if (n.pitch == 67) CHECK (v > 110);
+    }
+    // Again: little left to fix.
+    auto delays = [&] { std::map<Id, double> d; for (auto& n : c.project.clip (clip)->midi.notes) d[n.id] = n.delayMs; return d; };
+    const auto once = delays();
+    CHECK (c.fixNoteTimingsAndVolume (clip, {}));
+    std::vector<double> change;
+    for (auto& [id, d] : delays()) change.push_back (std::abs (d - once.at (id)));
+    std::sort (change.begin(), change.end());
+    CHECK (change[change.size() / 2] <= 2);
+    CHECK (c.undo());
+    CHECK (c.undo());
+    CHECK (c.project.clip (clip)->midi == before.clip (clip)->midi);
+}
+
+TEST ("fix note timings and volume: moving the notes instead, and velocity for the volume (0085)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Id t = 0;
+    const Id clip = sloppyLine (c, t);
+    Controller::NoteFixOptions o;
+    o.timing = Controller::NoteFixOptions::Timing::MoveNotes;
+    o.volume = Controller::NoteFixOptions::Volume::Velocity;
+    CHECK (c.fixNoteTimingsAndVolume (clip, o));
+    const auto* cl = c.project.clip (clip);
+    // The first note moved before the clip's old start: the clip starts earlier.
+    CHECK (cl->start < PPQ * 4);
+    // Each sound now heard on the grid it was written on (velocity moves a sample's delay a little).
+    std::vector<double> err;
+    const auto order = cl->midi.notes;
+    for (size_t i = 0; i < order.size(); ++i)
+    {
+        const auto& n = order[i];
+        CHECK_EQ (n.delayMs, 0.0);
+        const double heardMs = c.project.tempo.secondsAt (cl->start - cl->offset + n.start) * 1000 + sloppyOnsetMs (n.pitch, n.velocity);
+        double nearest = 1e9;
+        for (int k = 0; k < 20; ++k) nearest = std::min (nearest, std::abs (heardMs - c.project.tempo.secondsAt (PPQ * 4 + k * PPQ / 2) * 1000));
+        err.push_back (nearest);
+    }
+    std::sort (err.begin(), err.end());
+    CHECK (err[err.size() / 2] <= 5);
+    // Velocities changed for the faulty keys: 64 softer, 67 harder than they were.
+    bool softer = false, harder = false;
+    for (auto& n : cl->midi.notes)
+    {
+        const int was = (int[]) { 70, 90, 110 }[(n.start - cl->midi.notes.front().start + PPQ / 4) / (PPQ / 2) % 3];
+        (void) was;
+        if (n.pitch == 64 && n.velocity < 60) softer = true;    // 64 was played at 110, 70, 70, 90
+        if (n.pitch == 67 && n.velocity > 95) harder = true;    // 67 at 90, 90, 90, 70
+    }
+    CHECK (softer && harder);
+    CHECK (cl->midi.events.empty());
+}
+
+TEST ("fix note timings and volume: with a track delay, each note's own delay makes up the rest (0085)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Id t = 0;
+    const Id clip = sloppyLine (c, t);
+    c.project.track (t)->delayMs = -50;
+    c.refresh();
+    Controller::NoteFixOptions o;
+    o.volume = Controller::NoteFixOptions::Volume::Off;
+    CHECK (c.fixNoteTimingsAndVolume (clip, o));
+    std::vector<double> err;
+    for (auto& n : c.project.clip (clip)->midi.notes) err.push_back (std::abs (-50 + n.delayMs + sloppyOnsetMs (n.pitch, n.velocity)));
+    std::sort (err.begin(), err.end());
+    CHECK (err[err.size() / 2] <= 3);
+    CHECK (c.project.clip (clip)->midi.events.empty());
+}
+
+TEST ("tracks: at most 1000; the 1001st is refused with a message, whatever tried to make it (0088)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    for (int i = 0; i < 999; ++i) edit::addTrack (c.project, TrackKind::Track, "T" + std::to_string (i));
+    c.refresh();
+    const auto steps = c.history.size();
+    CHECK (c.addTrack (TrackKind::Track) != 0);                 // the 1000th
+    CHECK_EQ (c.project.tracks.size(), size_t (1000));
+    CHECK_EQ (c.addTrack (TrackKind::Folder), Id (0));           // the 1001st
+    CHECK_EQ (c.project.tracks.size(), size_t (1000));
+    CHECK_EQ (c.message, String ("Unable to add more than 1000 tracks"));
+    CHECK (c.messageIsWarning);
+    CHECK_EQ (c.history.size(), steps + 1);                       // nothing to undo for it
+    // A command that makes several (here the Note Splitter's New Tracks), all or nothing.
+    const Id clipTrack = c.project.tracks.front().id;
+    const Id dev = edit::addDevice (c.project, clipTrack, noteSplitterRef(), DeviceRole::MidiFx);
+    c.refresh();
+    c.makeSplitterTracks (dev);
+    CHECK_EQ (c.project.tracks.size(), size_t (1000));
+    CHECK_EQ (c.message, String ("Unable to add more than 1000 tracks"));
+    // A script too.
+    const auto script = folder().getChildFile ("add-a-track.lua");
+    script.replaceWithText ("kalibre.addTrack (\"One Too Many\")\n");
+    c.runScript (script);
+    CHECK_EQ (c.project.tracks.size(), size_t (1000));
+    CHECK_EQ (c.message, String ("Unable to add more than 1000 tracks"));
+}
+
+TEST ("fix note timings and volume: the clip's velocities and controllers don't sway what it hears; a dip written with CC7 is kept (0090)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    Id t = 0;
+    const Id clip = sloppyLine (c, t);
+    auto* cl = c.project.clip (clip);
+    // The second note (D, a clean key) played quieter on purpose: CC7 50 for it, back to 100 after.
+    const Tick second = cl->midi.notes[1].start;
+    cl->midi.events.push_back ({ second - 10, EventType::Controller, 0, 7, 50 });
+    cl->midi.events.push_back ({ second + PPQ / 4, EventType::Controller, 0, 7, 100 });
+    c.refresh();
+    std::map<Id, int> velocities;
+    for (auto& n : cl->midi.notes) velocities[n.id] = n.velocity;
+    CHECK (c.fixNoteTimingsAndVolume (clip, {}));
+    cl = c.project.clip (clip);
+    // Velocities as they were (but the first note's: pulled earlier, it's sent before the
+    // clip begins, where no CC7 can go before it, so it is levelled by velocity, 0085).
+    for (auto& n : cl->midi.notes) if (&n != &cl->midi.notes.front()) CHECK_EQ (n.velocity, velocities[n.id]);
+    // The quiet note keeps its quiet level; the faulty keys are still found and evened out.
+    auto ccFor = [&] (const Note& n)
+    {
+        int v = -1;
+        Tick at = -1;
+        for (auto& e : cl->midi.events) if (e.type == EventType::Controller && e.number == 7 && e.tick <= n.start && e.tick >= at) { v = e.value; at = e.tick; }
+        return v;
+    };
+    const auto& d = cl->midi.notes[1];
+    CHECK_EQ (d.pitch, 62);
+    CHECK (std::abs (ccFor (d) - 50) <= 3);
+    for (auto& n : cl->midi.notes)
+    {
+        if (&n == &cl->midi.notes.front()) continue;
+        if (n.pitch == 64 || n.pitch == 71) CHECK (ccFor (n) < 90);
+        if (n.pitch == 67) CHECK (ccFor (n) > 110);
+    }
+    // And the timing as before.
+    std::vector<double> err;
+    for (auto& n : cl->midi.notes) err.push_back (std::abs (n.delayMs + sloppyOnsetMs (n.pitch, n.velocity)));
+    std::sort (err.begin(), err.end());
+    CHECK (err[err.size() / 2] <= 3);
+}
+
+#include "TopBar.h"
+
+TEST ("the timer: the song's music-making time beside the chord, counting while something happens, paused when nothing has for 3 minutes, saved with the song (0091)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    // A song saved after an hour and a minute of work.
+    Project song;
+    edit::addTrack (song, TrackKind::Track, "Piano");
+    song.workSeconds = 3660;
+    const auto f = folder().getChildFile ("timer.kalibre");
+    f.replaceWithText (String (file::save (song)));
+    CHECK (c.open (f));
+    CHECK (std::abs (c.workClock.active - 3660) < 0.01);
+    // Ten minutes of work, a tick every quarter second, then twenty minutes away.
+    double t = Time::getMillisecondCounterHiRes() / 1000.0;
+    c.beginWorkClock();
+    for (int i = 0; i < 2400; ++i) { t += 0.25; if (i % 8 == 0 || i == 2399) c.noteActivity(); c.tickWorkClock (t); }
+    CHECK (std::abs (c.workClock.active - (3660 + 600)) < 1);
+    for (int i = 0; i < 4800; ++i) { t += 0.25; c.tickWorkClock (t); }
+    CHECK (c.workClock.idle);
+    CHECK (std::abs (c.workClock.active - (3660 + 600 + 180)) < 1);
+    // An edit is someone there.
+    c.apply ("Rename", [] (Project& p) { p.tracks.front().name = "Grand"; });
+    t += 0.25;
+    c.tickWorkClock (t);
+    CHECK (! c.workClock.idle);
+    // On the top bar, beside the chord.
+    TopBar bar (c);
+    bar.setSize (1600, 60);
+    MessageManager::getInstance()->runDispatchLoopUntil (120);
+    Component* timer = nullptr;
+    Component* chord = nullptr;
+    for (auto* ch : bar.getChildren())
+    {
+        auto* tip = dynamic_cast<TooltipClient*> (ch);
+        if (! tip) continue;
+        if (tip->getTooltip().startsWith ("How long you've been making music")) timer = ch;
+        if (tip->getTooltip().startsWith ("The chord you're playing")) chord = ch;
+    }
+    CHECK (timer && chord);
+    if (timer && chord)
+    {
+        CHECK (timer->isVisible());
+        CHECK (timer->getX() > chord->getRight() && timer->getX() - chord->getRight() < 20);
+    }
+    // Saved with the song.
+    CHECK (c.saveAs (f));
+    auto back = file::load (f.loadFileAsString().toStdString());
+    CHECK (back.has_value());
+    if (back) CHECK (std::abs (back->workSeconds - c.workClock.active) < 0.01);
+    // A new song starts at nothing.
+    c.newProject();
+    CHECK_EQ (c.workClock.active, 0.0);
 }

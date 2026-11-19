@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "WorkClock.h"
 #include "Edit.h"
 #include "AutoCc.h"
 #include "Engine.h"
@@ -74,7 +75,21 @@ public:
 
     //==========================================================================
     // Changes.
-    void apply (const juce::String& label, std::function<void (Project&)> change);
+    // False when refused (more than 1000 tracks, decision 0088): nothing changed.
+    bool apply (const juce::String& label, std::function<void (Project&)> change);
+
+    // The top bar's timer (decision 0091): how long the user has made music in this
+    // song, DAW Battle Pass's active-time clock. The window tells it when anything
+    // happens; the Controller's timer ticks it; it goes into the song when saved.
+    WorkClock workClock;
+    void noteActivity() { activity = true; }
+    void tickWorkClock (double nowSeconds);
+    void beginWorkClock();      // a song opened or started: its own time so far
+    const Project& stampedForSaving();
+    bool activity = false;
+    juce::uint32 midiHeard = 0;
+    void refuseTooManyTracks();
+    juce::uint32 refusedAt = 0;
     // The project changed in a way the engine needs to hear about but that
     // isn't an undo step (a fader being dragged): sync and repaint.
     void refresh();
@@ -107,6 +122,7 @@ public:
     void setStepInput (bool on);
     void stepKey (int pitch, int velocity, bool on);
     bool stepDigit (int digit);     // false when step input is off
+    bool stepRest();                // the - key: a rest as long as the length chosen
     void sayStepInput();
 
     // Choose the chosen clip's notes by what they are (decision 0075); `only`, one editor's.
@@ -124,6 +140,9 @@ public:
     int importArticulationMaps (const juce::Array<juce::File>&);
     // The map on the track, copied into the song first if it isn't there. One undo step.
     void useArticulationMap (Id track, const ArticulationMap&);
+    // Articulations' own delays (decision 0082), set in the Articulation Manager: in the
+    // library's map of that name and the song's (one undo step). False if none was found.
+    bool setArticulationDelay (const std::string& map, const std::set<int>& articulations, double ms);
     void showArticulationManager() { if (onShowArticulationManager) onShowArticulationManager(); }
     std::function<void()> onShowArticulationManager;     // the window sets this
     // What the pointer is over, told by the arrangement and the piano roll.
@@ -237,10 +256,28 @@ public:
     // Bounce in Place (decision 0080): the clips rendered through their track's plug-ins
     // onto a new audio track under it, made like it; the clips muted. One undo step.
     void bounceInPlace (const std::set<Id>& clips);
+    // Clips on one track into one (decision 0081): MIDI clips' notes into one clip;
+    // audio clips into a new file, normalised, the clip's gain making up for it.
+    void consolidate (const std::set<Id>& clips);
     // The track alone through its own plug-ins at unity (its clips, or just `onlyClips`), from
     // `start` to `end` seconds and `tail` more, into a 32-bit float WAV. Nothing else is unloaded.
     bool renderTrackAudio (Id track, const std::set<Id>& onlyClips, double start, double end, double tail,
-                           const juce::File& out, juce::String& error);
+                           const juce::File& out, juce::String& error, bool instrumentsOnly = false,
+                           std::function<void (Project&)> adjust = {});   // changes to the copy rendered, never the song
+
+    // Fix Note Timings and Volume (decision 0085): Note Position & Volume Fixer,
+    // built in. The clip's track rendered quietly (its instruments, no effects),
+    // each note found in the render, the render deleted, and each note moved so
+    // its sound lands where it's written and turned up or down to match the
+    // other notes of its articulation. One undo step.
+    struct NoteFixOptions
+    {
+        enum class Timing { NoteDelay, MoveNotes, Off } timing = Timing::NoteDelay;
+        enum class Volume { Cc7, Cc11, Velocity, Off } volume = Volume::Cc7;
+        bool toAttack = true;   // line up the attack; false: the very start of the sound
+    };
+    bool fixNoteTimingsAndVolume (Id clip, const NoteFixOptions&);
+    NoteFixOptions lastNoteFix;   // what the dialog chose last
     // After Undo or Redo: a frozen track whose render was deleted by Unfreeze is rendered again.
     void refreezeMissing();
     Id newMidiClip (Id track, Tick start, Tick length);
@@ -278,6 +315,11 @@ public:
     // Devices.
     void addPlugin (Id track, const juce::PluginDescription&, std::optional<DeviceRole> as = {});
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
+    // The Note Splitter (decision 0083): how many outputs, the track each goes to,
+    // and a new track for each output without one. Each one undo step.
+    void setSplitterOutputs (Id device, int count);
+    void setSplitterTarget (Id device, int output, Id track);
+    void makeSplitterTracks (Id device);
     bool placeToolBlock (juce::AudioPluginInstance& from, const struct ToolBlock&);   // decision 0068
     void setDeviceActive (Id device, bool);
     void storeDeviceStates();   // every loaded plug-in's state into the project, before a save
