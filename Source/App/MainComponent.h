@@ -57,6 +57,7 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
 
     // MenuBarModel (Menus.cpp): File, Edit, Track, Transport, Automation, View, Scripts, Help.
     juce::StringArray getMenuBarNames() override;
@@ -79,6 +80,10 @@ public:
     void showArticulationManager();
     void showLibraryFolders();
     LibraryView& library() { return browser.library(); }
+    // What to drag to widen, narrow, shut or open the browser (0094): its right
+    // edge while it's shown; shut, a thin bar at the window's left edge.
+    juce::Rectangle<int> browserHandle() const;
+    juce::Rectangle<int> browserBounds() const { return browser.getBounds(); }
     void firstRun();   // after the window first shows: the questions asked once
 
     Controller& controller() { return c; }
@@ -100,11 +105,10 @@ private:
     std::unique_ptr<ArticulationManagerWindow> articulationWindow;
     std::unique_ptr<LibraryFoldersWindow> libraryWindow;
     int dragStartHeight = 0;
-    bool draggingDivider = false, draggingBrowserEdge = false;
+    bool draggingDivider = false, draggingBrowserEdge = false, browserDragMoved = false, browserWasShown = false;
     int dragStartWidth = 0;
 
     juce::Rectangle<int> dividerArea() const;
-    juce::Rectangle<int> browserEdge() const;
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void showShortcuts();
     void registerKeys();

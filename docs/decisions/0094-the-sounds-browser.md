@@ -25,6 +25,11 @@ its own speed.
   left-hand browser, not a second pane, so there's one place for plug-ins,
   sounds, presets and settings, and ⌘B still shows and hides it. Its width
   is now the musician's: drag its right edge (saved, and in workspaces).
+  Asked next: dragged past its narrowest (240 points) it stops, and past
+  half of that it shuts, leaving a 6-point bar at the window's left edge
+  with three grip dots, as the lower zone's divider has; dragging the bar
+  opens it, following the pointer, and a click on it opens it as wide as it
+  was. No button: the edge and the bar are the controls.
 - **The library's logic is Core** (`Core/Library`, no JUCE, tested): the
   index of what's been scanned, the settings (folders, favourites, the
   view), and `rows`, which turns the two into the list: in folders (the

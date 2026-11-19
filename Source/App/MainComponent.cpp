@@ -169,6 +169,18 @@ void MainComponent::paint (Graphics& g)
     g.setColour (draggingDivider ? theme::control : theme::edge);
     for (int i = -1; i <= 1; ++i)
         g.fillEllipse (Rectangle<float> (3.0f, 3.0f).withCentre (d.getCentre().toFloat().translated ((float) i * 6.0f, 0.0f)));
+    // The browser's handle: three dots down its edge, or, shut, down the bar at the left.
+    const auto h = browserHandle();
+    if (! browserShown)
+    {
+        g.setColour (theme::sunken);
+        g.fillRect (h);
+        g.setColour (theme::rule);
+        g.fillRect (h.withLeft (h.getRight() - 1));
+    }
+    g.setColour (draggingBrowserEdge ? theme::control : theme::edge);
+    for (int i = -1; i <= 1; ++i)
+        g.fillEllipse (Rectangle<float> (3.0f, 3.0f).withCentre (browserHandle().getCentre().toFloat().translated (0.0f, (float) i * 6.0f)));
 }
 
 void MainComponent::resized()
@@ -183,6 +195,7 @@ void MainComponent::resized()
         browser.setBounds (r.removeFromLeft (jlimit (theme::px (240), jmax (theme::px (240), r.getWidth() / 2), browserWidth)));
         r.removeFromLeft (theme::px (5));
     }
+    else r.removeFromLeft (theme::px (6));   // the bar it's opened again from
     // The zone keeps the height it was given; only what's shown is limited by the window.
     const int zone = jlimit (theme::px (120), jmax (theme::px (120), r.getHeight() - theme::px (160)), lowerHeight);
     lower.setBounds (r.removeFromBottom (zone));
@@ -190,31 +203,64 @@ void MainComponent::resized()
     arrange.setBounds (r);
 }
 
-Rectangle<int> MainComponent::browserEdge() const
+Rectangle<int> MainComponent::browserHandle() const
 {
-    if (! browserShown) return {};
+    const int y = top.getBottom();
+    if (! browserShown) return { 0, y, theme::px (6), getHeight() - y };
     return { browser.getRight(), browser.getY(), theme::px (5), browser.getHeight() };
 }
 
 void MainComponent::mouseMove (const MouseEvent& e)
 {
     setMouseCursor (dividerArea().expanded (0, 2).contains (e.getPosition()) ? MouseCursor::UpDownResizeCursor
-                    : browserEdge().contains (e.getPosition()) ? MouseCursor::LeftRightResizeCursor : MouseCursor::NormalCursor);
+                    : browserHandle().contains (e.getPosition()) ? MouseCursor::LeftRightResizeCursor : MouseCursor::NormalCursor);
 }
 
 void MainComponent::mouseDown (const MouseEvent& e)
 {
     draggingDivider = dividerArea().expanded (0, 2).contains (e.getPosition());
-    draggingBrowserEdge = ! draggingDivider && browserEdge().contains (e.getPosition());
+    draggingBrowserEdge = ! draggingDivider && browserHandle().contains (e.getPosition());
+    browserWasShown = browserShown;
+    browserDragMoved = false;
     dragStartHeight = lowerHeight;
-    dragStartWidth = browser.getWidth();
+    dragStartWidth = browserShown ? browser.getWidth() : 0;
+}
+
+void MainComponent::mouseUp (const MouseEvent&)
+{
+    // A click on the bar, not a drag, opens the browser as wide as it was.
+    if (draggingBrowserEdge && ! browserDragMoved && ! browserWasShown)
+    {
+        browserShown = true;
+        browser.setVisible (true);
+        resized();
+        repaint();
+    }
+    draggingBrowserEdge = false;
+    draggingDivider = false;
+    repaint();
 }
 
 void MainComponent::mouseDrag (const MouseEvent& e)
 {
     if (draggingBrowserEdge)
     {
-        browserWidth = jlimit (theme::px (240), jmax (theme::px (240), getWidth() / 2), dragStartWidth + e.getDistanceFromDragStartX());
+        // It follows the drag down to its smallest, stops there, and past
+        // half of that it shuts, leaving the bar; dragged from the bar, it opens.
+        const int least = theme::px (240);
+        const int wanted = dragStartWidth + e.getDistanceFromDragStartX();
+        if (std::abs (e.getDistanceFromDragStartX()) > 3) browserDragMoved = true;
+        if (wanted < least / 2)
+        {
+            browserShown = false;
+            browser.setVisible (false);
+        }
+        else
+        {
+            browserWidth = jlimit (least, jmax (least, getWidth() / 2), wanted);
+            browserShown = true;
+            browser.setVisible (true);
+        }
         resized();
         repaint();
         return;

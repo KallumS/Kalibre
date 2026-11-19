@@ -90,7 +90,7 @@ From top to bottom:
 | **Track headers** | On the left: each track's name, version, I/O, M (mute), S (solo) and arm buttons. [Section 4](#4-tracks). |
 | **The arrangement** | The clips, along the timeline. [Section 5](#5-clips-and-the-arrangement). |
 | **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Launcher** (G), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter. |
-| **The browser** | On the left, shown and hidden with ⌘B: plug-ins, sounds (your samples and MIDI), audio settings, presets, keys and the studio. Drag its right edge to make it wider. [Section 16](#16-the-browser). |
+| **The browser** | On the left: plug-ins, sounds (your samples and MIDI), audio settings, presets, keys and the studio. Drag its right edge to make it wider or narrower; drag it past its narrowest and it shuts, leaving a thin bar at the window's left edge: drag the bar (or click it) to open it again. ⌘B shows and hides it too. [Section 16](#16-the-browser). |
 
 ### Choosing things
 
@@ -888,8 +888,16 @@ the playhead. **File > Remove the Video** takes it away.
 
 ## 16. The Browser
 
-On the left of the window. ⌘B (or View > Browser) shows and hides it; drag
-its right edge to make it wider. Six tabs:
+On the left of the window.
+
+- **Wider or narrower**: drag its right edge (the three dots).
+- **Shut**: keep dragging the edge left past its narrowest, and it shuts. A
+  thin bar with three dots stays at the window's left edge.
+- **Open**: drag that bar to the right, and the browser follows; or click
+  the bar, and it opens as wide as it was.
+- ⌘B (or View > Browser) shows and hides it too.
+
+Six tabs:
 
 | Tab | What's in it |
 | --- | --- |
@@ -1421,7 +1429,8 @@ These aren't in the Keys list: they belong to where you are.
 | Shift-scroll, or sideways | Along the song. |
 | ⌘-scroll, or pinch | Zoom around the pointer. |
 | Two-finger swipe over the device rack | Along the rack. |
-| Drag the browser's right edge | Make it wider or narrower. |
+| Drag the browser's right edge | Make it wider or narrower; past its narrowest, it shuts. |
+| Drag (or click) the bar at the window's left edge | Open the browser again. |
 
 ### Editors
 
