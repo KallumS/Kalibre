@@ -13,7 +13,7 @@
 #include "LuaTool/LuaTool.h"
 #include "NoteSplitter.h"
 #include "PianoRoll.h"
-#include "ToolBox.h"
+#include "ToolPicker.h"
 #include "Arrange.h"
 #include "ArticulationManagerView.h"
 

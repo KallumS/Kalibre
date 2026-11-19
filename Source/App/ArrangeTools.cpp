@@ -1,7 +1,7 @@
 // The arrangement's tools (decision 0092): what a left click in the lanes does
 // when a tool other than Select is chosen from the toolbox (Control-right-click).
 #include "Arrange.h"
-#include "ToolBox.h"
+#include "ToolPicker.h"
 
 using namespace juce;
 

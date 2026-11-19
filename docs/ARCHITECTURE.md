@@ -70,7 +70,7 @@
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp`, `NoteFixing.cpp` | More of the Controller: audio commands, presets and A/B, file commands, Fix Note Timings and Volume (0085). |
-| `App/ToolBox.*`, `ArrangeTools.cpp`, `PianoRollTools.cpp` | The toolbox at the pointer, its icons and pointers; what each tool does in the arrangement and the piano roll (0092). |
+| `App/ToolPicker.*`, `ArrangeTools.cpp`, `PianoRollTools.cpp` | The toolbox at the pointer, its icons and pointers; what each tool does in the arrangement and the piano roll (0092). |
 | `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |
 | `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
 | `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |

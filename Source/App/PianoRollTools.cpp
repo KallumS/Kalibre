@@ -2,7 +2,7 @@
 // when a tool other than Select is chosen from the toolbox (Control-right-click).
 // With Select, the piano roll's own rules (decision 0009) are unchanged.
 #include "PianoRoll.h"
-#include "ToolBox.h"
+#include "ToolPicker.h"
 
 using namespace juce;
 

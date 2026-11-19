@@ -7,7 +7,7 @@
 #include "Engine.h"
 #include "PianoRoll.h"
 #include "PluginManager.h"
-#include "ToolBox.h"
+#include "ToolPicker.h"
 
 using namespace kal;
 using namespace juce;

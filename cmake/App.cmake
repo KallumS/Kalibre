@@ -158,7 +158,7 @@ add_library(KalibreApp STATIC
     Source/App/TopBar.cpp
     Source/App/Arrange.cpp
     Source/App/PianoRoll.cpp
-    Source/App/ToolBox.cpp
+    Source/App/ToolPicker.cpp
     Source/App/ArrangeTools.cpp
     Source/App/PianoRollTools.cpp
     Source/App/CcLanes.cpp
