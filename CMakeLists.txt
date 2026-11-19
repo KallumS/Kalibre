@@ -89,6 +89,7 @@ add_library(KalibreCore STATIC
     Source/Core/NoteFixer.cpp
     Source/Core/WorkClock.cpp
     Source/Core/DawProject.cpp
+    Source/Core/Toolbox.cpp
     ${EMBEDDED_LUA_CPP}
     Source/Script/LuaHost.cpp)
 target_include_directories(KalibreCore PUBLIC Source/Core Source/Script ThirdParty)
@@ -133,7 +134,8 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestNoteSplit.cpp
         Tests/TestNoteFixer.cpp
         Tests/TestWorkClock.cpp
-        Tests/TestDawProject.cpp)
+        Tests/TestDawProject.cpp
+        Tests/TestToolbox.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)

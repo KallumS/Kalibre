@@ -155,6 +155,7 @@ CompiledTrack compile (const Project& p, const Track& t)
             {
                 for (const auto& n : c.midi.notes)
                 {
+                    if (n.muted) continue;
                     if (c.loopLength > 0 && n.start >= c.loopLength) continue;
                     Tick a = base + n.start, b = a + n.length;
                     if (a < c.start || a >= c.end()) continue;
