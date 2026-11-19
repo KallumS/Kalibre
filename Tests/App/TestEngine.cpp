@@ -1129,3 +1129,19 @@ TEST ("engine: a freeze and a bounce hear the sidechain from another track (0080
         c.freeze (b, false);
     }
 }
+
+TEST ("audition: the note-off it schedules is let go if the engine has gone by then")
+{
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+        edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+        engine.sync (p, 0, File::getSpecialLocation (File::tempDirectory));
+        engine.audition (t, 60, 100, 0.05);
+    }
+    // The engine is gone; its note-off comes due here, and must touch nothing.
+    MessageManager::getInstance()->runDispatchLoopUntil (300);
+    CHECK (true);
+}

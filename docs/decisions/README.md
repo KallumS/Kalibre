@@ -94,3 +94,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0090. Fix Note Timings and Volume hears the samples, not the clip's dynamics](0090-the-fixer-hears-the-samples.md)
 - [0091. The top bar's timer: time spent making music in the song](0091-the-music-making-timer.md)
 - [0092. The toolbox: Control-right-click for Cubase's tools, adapted from Right-Click Toolbox](0092-the-toolbox.md)
+- [0093. Five more of the family's devices: Midular, MIDI Production Center, Good Idea, ScaleView, Trombolese](0093-five-more-of-the-familys-devices.md)

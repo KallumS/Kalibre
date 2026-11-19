@@ -41,7 +41,11 @@ grow and shrink with it.
   JSFX REAPER runs); Instant Virtual Instrument; Starting Blocks, Starting
   Blocks Notation and Midi Catalogue, whose Insert at Cursor puts the block
   in the song; and Orchestration Helper beside the track. Each in its own
-  window, as in REAPER.
+  window, as in REAPER. Since 19 November, Midular and MIDI Production
+  Center (MIDI samplers: right-click one, **Load the Chosen MIDI Clip**),
+  Good Idea (ideas for starting a track), ScaleView (the scale, and the chord
+  you play) and **Trombolese**, a physical model of a trombone crossed with an
+  oboe whose bore morphs from cylinder to cone as it plays.
 - **The scale and the chord you're playing** at the top of the window; the
   scale shaded in the piano roll; the chords of the clips you ask
   (**Detect Chords**) in a lane along the timeline.
