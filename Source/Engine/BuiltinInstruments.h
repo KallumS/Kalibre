@@ -28,6 +28,7 @@ namespace kal
 
 PluginRef synthRef();
 PluginRef samplerRef();
+PluginRef tromboleseRef();   // decision 0093
 std::unique_ptr<juce::AudioPluginInstance> makeInstrument (const PluginRef&);
 
 // What both share: parameters by name, state as XML, a knob editor.
@@ -96,6 +97,39 @@ private:
 
     void noteOn (int note, float velocity);
     void noteOff (int note);
+    void render (juce::AudioBuffer<float>&, int start, int n);
+};
+
+//==============================================================================
+// Trombolese (decision 0093): KallumS/Trombolese's physical model, a trombone
+// crossed with an oboe, played one note at a time. Each note finds its partial
+// and slide position; a note played while one sounds slides to it. Bore morphs
+// cylinder to cone (the mod wheel adds to it), Reed lips to double reed; pitch
+// bend moves the slide two semitones.
+class TromboleseInstrument : public BuiltinInstrument
+{
+public:
+    TromboleseInstrument();
+    ~TromboleseInstrument() override;
+    const juce::String getName() const override { return "Trombolese"; }
+    void fillInPluginDescription (juce::PluginDescription&) const override;
+    void prepareToPlay (double, int) override;
+    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    double getTailLengthSeconds() const override { return 1.0; }
+    juce::AudioProcessorEditor* createEditor() override;
+
+    enum P { Bore, Reed, Breath, Attack, Release, Glide, Volume, Count };
+
+private:
+    std::unique_ptr<struct TromboleseVoice> voice;
+    double rate = 48000;
+    std::array<int, 16> held {};
+    int heldCount = 0;
+    int note = -1;
+    float velocity = 0.8f, bend = 0, wheel = 0;
+    double breath = 0, lip = 0, slide = 0, lipTarget = 0, slideTarget = 0, level = 1, levelTarget = 1;
+    std::vector<double> block;
+    void start (int note, float velocity, bool legato);
     void render (juce::AudioBuffer<float>&, int start, int n);
 };
 

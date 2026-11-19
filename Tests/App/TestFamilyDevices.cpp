@@ -340,3 +340,62 @@ TEST ("family devices: ScaleView names the chord played through it, and leaves t
     CHECK (loudest > 0.01f);
     CHECK_EQ (worst, 0.0f);
 }
+
+TEST ("family devices: Trombolese plays a phrase in a song: it speaks, slides between held notes, stays finite, and keeps its settings")
+{
+    auto inst = makeInstrument (tromboleseRef());
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    CHECK (inst->getParameters().size() >= 7);
+    inst->prepareToPlay (48000, 512);
+    AudioBuffer<float> b (2, 512);
+    float loudest = 0;
+    bool finite = true;
+    auto run = [&] (int blocks, std::initializer_list<MidiMessage> at0 = {})
+    {
+        for (int i = 0; i < blocks; ++i)
+        {
+            MidiBuffer m;
+            if (i == 0) for (auto& msg : at0) m.addEvent (msg, 0);
+            b.clear();
+            inst->processBlock (b, m);
+            for (int ch = 0; ch < 2; ++ch)
+                for (int s = 0; s < 512; ++s)
+                {
+                    const float x = b.getSample (ch, s);
+                    finite = finite && std::isfinite (x);
+                    loudest = jmax (loudest, std::abs (x));
+                }
+        }
+    };
+    run (40, { MidiMessage::noteOn (1, 55, (uint8) 100) });
+    CHECK (loudest > 0.01f);
+    run (40, { MidiMessage::noteOn (1, 60, (uint8) 100), MidiMessage::noteOff (1, 55) });   // legato up a fourth
+    run (20, { MidiMessage::controllerEvent (1, 1, 100) });                                  // the mod wheel turns the bore toward a cone
+    run (60, { MidiMessage::noteOff (1, 60) });
+    CHECK (finite);
+    CHECK (loudest < 4.0f);
+    // Let go, it falls silent.
+    float tail = 0;
+    run (20);
+    for (int ch = 0; ch < 2; ++ch) tail = jmax (tail, b.getMagnitude (ch, 0, 512));
+    CHECK (tail < 1e-4f);
+
+    // Its knobs are saved.
+    inst->getParameters()[0]->setValueNotifyingHost (0.7f);
+    MemoryBlock state;
+    inst->getStateInformation (state);
+    auto again = makeInstrument (tromboleseRef());
+    again->setStateInformation (state.getData(), (int) state.getSize());
+    CHECK (std::abs (again->getParameters()[0]->getValue() - 0.7f) < 1e-3f);
+
+    // In a song, rendered: there's sound where the notes are.
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Trombolese");
+    edit::addDevice (p, t, tromboleseRef(), DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (p, t, 0, PPQ * 4);
+    edit::addNote (p, clip, { 0, 0, PPQ * 2, 57, 100 });
+    edit::addNote (p, clip, { 0, PPQ * 2, PPQ * 2, 62, 100 });
+    const auto song = renderSong (p, 2.0, "trombolese");
+    CHECK (song.getMagnitude (0, 0, song.getNumSamples()) > 0.01f);
+}

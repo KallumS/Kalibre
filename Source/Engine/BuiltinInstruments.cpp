@@ -1,4 +1,5 @@
 #include "BuiltinInstruments.h"
+#include "Trombolese.h"
 
 #include "Theme.h"
 
@@ -17,6 +18,14 @@ PluginRef synthRef()
     return r;
 }
 
+PluginRef tromboleseRef()
+{
+    PluginRef r = synthRef();
+    r.identifier = "trombolese";
+    r.name = "Trombolese";
+    return r;
+}
+
 PluginRef samplerRef()
 {
     PluginRef r = synthRef();
@@ -29,6 +38,7 @@ std::unique_ptr<AudioPluginInstance> makeInstrument (const PluginRef& ref)
 {
     if (ref.identifier == "synth") return std::make_unique<KalibreSynth>();
     if (ref.identifier == "sampler") return std::make_unique<KalibreSampler>();
+    if (ref.identifier == "trombolese") return std::make_unique<TromboleseInstrument>();
     return nullptr;
 }
 
@@ -583,4 +593,157 @@ void KalibreSampler::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
 
 AudioProcessorEditor* KalibreSampler::createEditor() { return new SamplerEditor (*this); }
 
+} // namespace kal
+
+//==============================================================================
+// Trombolese (decision 0093).
+namespace kal
+{
+struct TromboleseVoice
+{
+    TromboleseVoice (double rate) : geometry (trombolese::Geometry::forRate (rate)), voice (geometry, rate) {}
+    trombolese::Geometry geometry;
+    trombolese::Voice voice;
+};
+
+namespace
+{
+class TromboleseEditor : public AudioProcessorEditor
+{
+public:
+    explicit TromboleseEditor (TromboleseInstrument& p) : AudioProcessorEditor (p), knobs (p)
+    {
+        addAndMakeVisible (knobs);
+        setResizable (true, false);
+        setResizeLimits (300, 160, 3000, 1600);
+        setSize (620, 220);
+    }
+    void resized() override { knobs.setBounds (getLocalBounds()); }
+
+private:
+    KnobPanel knobs;
+};
+} // namespace
+
+TromboleseInstrument::TromboleseInstrument()
+{
+    auto time = [] (float top) { return NormalisableRange<float> (0.005f, top, 0.0f, 0.4f); };
+    addFloat ("Instrument", "bore", "Bore (Cylinder to Cone)", { 0.0f, 1.0f }, 0.0f);
+    addFloat ("Instrument", "reed", "Reed (Lips to Double Reed)", { 0.0f, 1.0f }, 0.0f);
+    addFloat ("Breath", "breath", "Breath", { 2500.0f, 6000.0f }, 4200.0f, " Pa");
+    addFloat ("Breath", "attack", "Attack", time (1.0f), 0.05f, " s");
+    addFloat ("Breath", "release", "Release", time (2.0f), 0.12f, " s");
+    addFloat ("Output", "glide", "Slide Time", time (1.0f), 0.08f, " s");
+    addFloat ("Output", "volume", "Volume", { -48.0f, 6.0f }, -6.0f, " dB");
+}
+
+TromboleseInstrument::~TromboleseInstrument() = default;
+
+void TromboleseInstrument::fillInPluginDescription (PluginDescription& d) const
+{
+    d.name = "Trombolese";
+    d.manufacturerName = "Kalibre";
+    d.pluginFormatName = "Kalibre";
+    d.fileOrIdentifier = "trombolese";
+    d.isInstrument = true;
+    d.numInputChannels = 0;
+    d.numOutputChannels = 2;
+}
+
+void TromboleseInstrument::prepareToPlay (double r, int)
+{
+    rate = r;
+    voice = std::make_unique<TromboleseVoice> (r);   // the ladder made for this rate, here, not while playing
+    block.assign (trombolese::Voice::blockSize, 0.0);
+    heldCount = 0;
+    note = -1;
+    breath = 0;
+}
+
+void TromboleseInstrument::start (int n, float vel, bool legato)
+{
+    const double alpha = jlimit (0.0, 1.0, (double) value (Bore) + wheel);
+    const auto s = trombolese::settingFor (n, alpha);
+    const double f = 440.0 * std::pow (2.0, (n - 69) / 12.0);
+    lipTarget = f * s.lipRatio;
+    slideTarget = s.slide;
+    levelTarget = s.level > 1e-6 ? 0.12 / s.level : 1.0;
+    // A fresh note starts where it's going; one played over another slides there.
+    if (! legato || note < 0) { lip = lipTarget; slide = slideTarget; level = levelTarget; velocity = vel; }
+    note = n;
+}
+
+void TromboleseInstrument::render (AudioBuffer<float>& audio, int startSample, int n)
+{
+    if (! voice) return;
+    const int bs = trombolese::Voice::blockSize;
+    const double alpha = jlimit (0.0, 1.0, (double) value (Bore) + wheel);
+    const double beta = value (Reed);
+    const double gain = Decibels::decibelsToGain ((double) value (Volume));
+    for (int done = 0; done < n;)
+    {
+        const int count = jmin (bs, n - done);
+        const double dt = count / rate;
+        // The breath: rises while a note is held, falls when let go.
+        if (heldCount > 0) breath = jmin (1.0, breath + dt / jmax (0.005, (double) value (Attack)));
+        else breath = jmax (0.0, breath - dt / jmax (0.005, (double) value (Release)));
+        // Sliding to the next note's position and embouchure.
+        const double glide = jmin (1.0, dt / jmax (0.005, (double) value (Glide)));
+        lip += (lipTarget - lip) * glide;
+        slide += (slideTarget - slide) * glide;
+        level += (levelTarget - level) * glide;
+        trombolese::Controls c;
+        c.pressure = value (Breath) * breath * (0.8 + 0.2 * velocity);
+        c.lipFrequency = jmax (20.0, lip);
+        c.alpha = alpha;
+        c.beta = beta;
+        // Pitch bend moves the slide: two semitones, as length goes.
+        const double length = voice->geometry.boreLengthAt (alpha) + 0.72;
+        c.slide = (length + slide) * std::pow (2.0, -2.0 * bend / 12.0) - length;
+        if (breath <= 0 && heldCount == 0)
+        {
+            std::fill (block.begin(), block.begin() + count, 0.0);
+            voice->voice.reset();   // silent: the next note starts from rest
+        }
+        else voice->voice.block (block.data(), count, c);
+        for (int i = 0; i < count; ++i)
+        {
+            const float x = (float) (block[(size_t) i] * level * gain);
+            for (int ch = 0; ch < audio.getNumChannels(); ++ch) audio.addSample (ch, startSample + done + i, x);
+        }
+        done += count;
+    }
+}
+
+void TromboleseInstrument::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
+{
+    audio.clear();
+    int at = 0;
+    for (const auto m : midi)
+    {
+        const auto msg = m.getMessage();
+        const int pos = jlimit (0, audio.getNumSamples(), m.samplePosition);
+        if (pos > at) { render (audio, at, pos - at); at = pos; }
+        if (msg.isNoteOn())
+        {
+            const bool legato = heldCount > 0;
+            if (heldCount < (int) held.size()) held[(size_t) heldCount++] = msg.getNoteNumber();
+            start (msg.getNoteNumber(), msg.getFloatVelocity(), legato);
+        }
+        else if (msg.isNoteOff())
+        {
+            for (int i = 0; i < heldCount; ++i)
+                if (held[(size_t) i] == msg.getNoteNumber()) { held[(size_t) i] = held[(size_t) --heldCount]; break; }
+            // Back to the note still held, the last played.
+            if (heldCount > 0 && msg.getNoteNumber() == note) start (held[(size_t) heldCount - 1], velocity, true);
+        }
+        else if (msg.isPitchWheel()) bend = (float) (msg.getPitchWheelValue() - 8192) / 8192.0f;
+        else if (msg.isControllerOfType (1)) wheel = (float) msg.getControllerValue() / 127.0f;
+        else if (msg.isAllNotesOff() || msg.isAllSoundOff()) { heldCount = 0; breath = 0; }
+    }
+    if (at < audio.getNumSamples()) render (audio, at, audio.getNumSamples() - at);
+    midi.clear();
+}
+
+AudioProcessorEditor* TromboleseInstrument::createEditor() { return new TromboleseEditor (*this); }
 } // namespace kal
