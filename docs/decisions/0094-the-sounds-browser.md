@@ -30,6 +30,15 @@ its own speed.
   with three grip dots, as the lower zone's divider has; dragging the bar
   opens it, following the pointer, and a click on it opens it as wide as it
   was. No button: the edge and the bar are the controls.
+- **The lower zone does the same, toward the bottom** (asked next): dragged
+  below its shortest (120 points) it stops, past half of that it shuts,
+  leaving a 6-point bar along the bottom with the same three dots; drag the
+  bar up, or click it. Shut, it opens whenever one of its tabs is asked for
+  (D, E, X, G, Y, the View menu, a new plug-in, Edit Samples), so a key
+  never seems to do nothing. View > Lower Zone and a key command (no key
+  until given one) show and hide it. The bar is a handle, not something to
+  read, so "nothing important at the bottom" holds. Saved, and in
+  workspaces.
 - **The library's logic is Core** (`Core/Library`, no JUCE, tested): the
   index of what's been scanned, the settings (folders, favourites, the
   view), and `rows`, which turns the two into the list: in folders (the

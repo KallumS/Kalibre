@@ -41,7 +41,7 @@ Every feature asked for, then the list of basic DAW features
 | A delay for each note | Yes | The piano roll's Velocity ▾ > Note Delay: each note later or earlier, on top of the track's and articulation's; tested (0082) |
 | Plug-in sandboxing | Not yet | A plug-in that crashes while playing still takes Kalibre down (scanning is already safe, 0047). Running plug-ins in helpers is a big change with costs: see the session log of 18 November |
 | Using all the Mac's cores | Yes, to feel on the Mac | Tracks' plug-ins play side by side on every performance core, the workers in the audio device's workgroup; the same sound, sample for sample; Use Every Core in the Audio tab; tested (0078) |
-| Everything in one window | Yes | 0002. Small questions appear over the window, inside it. Settings may have their own window (amended 16 November; the Plug-in Manager) |
+| Everything in one window | Yes | 0002. The browser and the lower zone each shut when dragged past their smallest, to a thin bar (left, bottom) dragged or clicked to open them again (0094). Small questions appear over the window, inside it. Settings may have their own window (amended 16 November; the Plug-in Manager) |
 | App icon | Yes | A K with a calibrated stem and a yellow arm (0048) |
 | Quitting ends the program | Yes, not yet confirmed on the Mac | A watchdog ends it five seconds after shutdown starts, so a plug-in or driver can't keep it running (0049) |
 | Tempo and time signature, automatable | Yes | Top bar; Transport > Ramp the Tempo to Here; View > Tempo Lane. Ramps integrated exactly, tested (0004) |

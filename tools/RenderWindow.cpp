@@ -308,6 +308,10 @@ int main (int argc, char** argv)
             window.browserWidth = 320;
         }
         window.hideBrowser();
+        // The lower zone shut (decision 0094): a bar along the bottom to open it from.
+        window.hideLowerZone();
+        shoot ("36-lower-zone-shut");
+        window.showLowerZone();
         // An audio clip in the sample editor (decision 0036).
         for (auto& t : c.project.tracks)
             if (t.name == "Vocal" && ! t.clips().empty()) c.selectClip (t.clips().front().id);

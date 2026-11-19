@@ -89,8 +89,23 @@ From top to bottom:
 | **Lanes under the ruler** | The **Sections** lane, the **Chord** lane and the **Tempo** lane, each shown or hidden from the View menu. |
 | **Track headers** | On the left: each track's name, version, I/O, M (mute), S (solo) and arm buttons. [Section 4](#4-tracks). |
 | **The arrangement** | The clips, along the timeline. [Section 5](#5-clips-and-the-arrangement). |
-| **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Launcher** (G), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter. |
+| **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Launcher** (G), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter; drag it past its shortest and it shuts, leaving a thin bar along the bottom: drag the bar up (or click it) to open it again. Asking for one of its tabs (D, E, X, G, Y) opens it too, as does View > Lower Zone. |
 | **The browser** | On the left: plug-ins, sounds (your samples and MIDI), audio settings, presets, keys and the studio. Drag its right edge to make it wider or narrower; drag it past its narrowest and it shuts, leaving a thin bar at the window's left edge: drag the bar (or click it) to open it again. ⌘B shows and hides it too. [Section 16](#16-the-browser). |
+
+### Shutting the browser and the lower zone
+
+Both shut the same way, to give the tracks the room:
+
+- **Drag** the browser's right edge left, or the lower zone's top edge down,
+  past its smallest size, and it shuts. A thin bar with three dots is left at
+  the window's left edge, or along its bottom.
+- **Drag the bar** right, or up, to open it again, following the pointer; or
+  **click** the bar, and it opens as it was.
+- ⌘B shows and hides the browser; **View > Lower Zone** the lower zone (give
+  it a key in Help > Keys). Pressing D, E, X, G or Y, or anything that asks
+  for one of the zone's tabs, opens the zone on that tab.
+
+![Both shut: the bar at the left and the bar along the bottom](guide/lower-zone-shut.png)
 
 ### Choosing things
 
@@ -1236,6 +1251,7 @@ there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 | Clip Launcher | G |
 | Meters | Y |
 | Browser | ⌘B |
+| Lower Zone | |
 | Section Lane | |
 | Chord Lane | |
 | Tempo Lane | |
@@ -1317,6 +1333,7 @@ the Mac says ⌘.*
 | G | Clip Launcher |
 | Y | Meters |
 | ⌘B | Show or Hide the Browser |
+| (none) | Show or Hide the Lower Zone |
 | F | Zoom to Fit |
 | ⌘= | Bigger Text |
 | ⌘- | Smaller Text |
@@ -1431,6 +1448,8 @@ These aren't in the Keys list: they belong to where you are.
 | Two-finger swipe over the device rack | Along the rack. |
 | Drag the browser's right edge | Make it wider or narrower; past its narrowest, it shuts. |
 | Drag (or click) the bar at the window's left edge | Open the browser again. |
+| Drag the lower zone's top edge down | Make it shorter; past its shortest, it shuts. |
+| Drag (or click) the bar along the bottom | Open the lower zone again. |
 
 ### Editors
 

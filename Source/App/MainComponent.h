@@ -84,6 +84,12 @@ public:
     // edge while it's shown; shut, a thin bar at the window's left edge.
     juce::Rectangle<int> browserHandle() const;
     juce::Rectangle<int> browserBounds() const { return browser.getBounds(); }
+    // The same for the lower zone: the divider above it while it's shown; shut, a bar along the bottom.
+    juce::Rectangle<int> lowerHandle() const { return dividerArea(); }
+    juce::Rectangle<int> lowerBounds() const { return lower.getBounds(); }
+    void showLowerZone();
+    void hideLowerZone();
+    bool lowerShown = true;
     void firstRun();   // after the window first shows: the questions asked once
 
     Controller& controller() { return c; }
@@ -106,6 +112,8 @@ private:
     std::unique_ptr<LibraryFoldersWindow> libraryWindow;
     int dragStartHeight = 0;
     bool draggingDivider = false, draggingBrowserEdge = false, browserDragMoved = false, browserWasShown = false;
+    bool lowerDragMoved = false, lowerWasShown = true;
+    ZoneTab shownZoneTab = ZoneTab::Devices;
     int dragStartWidth = 0;
 
     juce::Rectangle<int> dividerArea() const;
