@@ -630,7 +630,8 @@ sound is exactly the same either way.
 
 ## 9. Kalibre's Own Devices
 
-All under **+ Add > Kalibre**.
+All under **+ Add > Kalibre**. Every control of every one, and how to get
+what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 
 | Device | Kind | What it is |
 | --- | --- | --- |
