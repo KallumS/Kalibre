@@ -83,6 +83,10 @@ File makeSounds (const String& name)
     return dir;
 }
 
+// A file's path, as a String of its own: getFullPathName() hands back a
+// reference into the File, which a temporary File doesn't outlive.
+String pathOf (const File& dir, const char* name) { return dir.getChildFile (name).getFullPathName(); }
+
 const library::Item* find (const library::Index& ix, const File& f)
 {
     const auto it = ix.items.find (f.getFullPathName().toStdString());
@@ -220,7 +224,7 @@ TEST ("sounds: the player plays the preview through the audio device, starting o
     player.play (*beat, true, 120);
     for (int i = 0; i < 200 && player.progress() < 0; ++i) MessageManager::getInstance()->runDispatchLoopUntil (10);
     CHECK (player.progress() >= 0);
-    CHECK_EQ (player.playingPath(), dir.getChildFile ("Drums/Beat 120bpm.wav").getFullPathName());
+    CHECK_EQ (player.playingPath(), pathOf (dir, "Drums/Beat 120bpm.wav"));
     AudioBuffer<float> out (2, 2400);   // 0.05 s at 48 kHz
     auto block = [&]
     {
@@ -251,21 +255,21 @@ TEST ("sounds: Up and Down hear the next sound; folders open and shut; a star ma
     CHECK (view.shown()[(size_t) first].type == library::Row::Type::Item);
     view.hear (first);
     CHECK_EQ (view.list().getSelectedRow(), first);
-    CHECK_EQ (view.player().playingPath(), dir.getChildFile ("Drums/Beat 120bpm.wav").getFullPathName());
+    CHECK_EQ (view.player().playingPath(), pathOf (dir, "Drums/Beat 120bpm.wav"));
     view.list().keyPressed (KeyPress (KeyPress::downKey));
     CHECK_EQ (view.list().getSelectedRow(), first + 1);
-    CHECK_EQ (view.player().playingPath(), dir.getChildFile ("Drums/Groove.wav").getFullPathName());
+    CHECK_EQ (view.player().playingPath(), pathOf (dir, "Drums/Groove.wav"));
     view.list().keyPressed (KeyPress (KeyPress::downKey));   // onto the Keys folder: nothing new heard
-    CHECK_EQ (view.player().playingPath(), dir.getChildFile ("Drums/Groove.wav").getFullPathName());
+    CHECK_EQ (view.player().playingPath(), pathOf (dir, "Drums/Groove.wav"));
     view.list().keyPressed (KeyPress (KeyPress::leftKey));   // shuts it
     CHECK_EQ ((int) view.shown().size(), 5);
     view.list().keyPressed (KeyPress (KeyPress::rightKey));  // opens it again
     CHECK_EQ ((int) view.shown().size(), 8);
     view.list().keyPressed (KeyPress (KeyPress::downKey));
-    CHECK_EQ (view.player().playingPath(), dir.getChildFile ("Keys/Chords.mid").getFullPathName());
+    CHECK_EQ (view.player().playingPath(), pathOf (dir, "Keys/Chords.mid"));
     view.list().keyPressed (KeyPress (KeyPress::upKey));
     view.list().keyPressed (KeyPress (KeyPress::upKey));
-    CHECK_EQ (view.player().playingPath(), dir.getChildFile ("Drums/Groove.wav").getFullPathName());
+    CHECK_EQ (view.player().playingPath(), pathOf (dir, "Drums/Groove.wav"));
 
     // A favourite, kept in the settings saved; Favourites Only shows just it.
     const auto groove = dir.getChildFile ("Drums/Groove.wav").getFullPathName().toStdString();
