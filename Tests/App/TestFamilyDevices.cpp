@@ -399,3 +399,26 @@ TEST ("family devices: Trombolese plays a phrase in a song: it speaks, slides be
     const auto song = renderSong (p, 2.0, "trombolese");
     CHECK (song.getMagnitude (0, 0, song.getNumSamples()) > 0.01f);
 }
+
+TEST ("family devices: each JSFX's window drawn on the screen for a while, then closed, stops cleanly")
+{
+    for (const char* id : { "midular", "midi-production-center", "reverberator" })
+    {
+        auto inst = makeJsfx (jsfxRef (spec (id)));
+        inst->prepareToPlay (48000, 512);
+        {
+            editors::Owned e (editors::open (*inst));
+            CHECK (e != nullptr);
+            if (! e) continue;
+            e->addToDesktop (ComponentPeer::windowHasTitleBar);
+            e->setVisible (true);
+            const auto until = Time::getMillisecondCounter() + 1500;
+            while (Time::getMillisecondCounter() < until)
+            {
+                MessageManager::getInstance()->runDispatchLoopUntil (20);
+                play (*inst, 2);
+            }
+        }
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+    }
+}
