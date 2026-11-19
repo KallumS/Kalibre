@@ -52,6 +52,10 @@ juce::String jsfxIdOf (juce::AudioPluginInstance&);
 // TrackFX_SetParam take them. False if it isn't a JSFX's slider.
 bool jsfxSliderValue (juce::AudioProcessorParameter&, double& value, double& min, double& max);
 bool setJsfxSlider (juce::AudioProcessorParameter&, double value);
+// What a JSFX exports to the song (REAPER's export_buffer_to_project, as
+// Transient Shuffler's Print does), handed to the message thread (0094).
+using JsfxExport = std::function<void (juce::AudioPluginInstance&, const juce::AudioBuffer<float>&, double sampleRate)>;
+void setJsfxExportHandler (JsfxExport);
 // One of a JSFX's own variables, for the tests to look inside it.
 double jsfxVariable (juce::AudioPluginInstance&, const char* name);
 double jsfxMemory (juce::AudioPluginInstance&, unsigned int address);

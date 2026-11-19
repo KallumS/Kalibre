@@ -80,6 +80,33 @@ string(REPLACE "return (m_buffer->size() > m_pos) ? 1 : 0;"
 if(NOT ysfx_file_api_fixed STREQUAL ysfx_file_api)
     file(WRITE ${YSFX_FILE_API} "${ysfx_file_api_fixed}")
 endif()
+# A second (decision 0094): export_buffer_to_project, a stub in ysfx, hands the
+# buffer to Kalibre (Transient Shuffler's Print), through a hook Kalibre sets.
+set(YSFX_HOST_API ${ysfx_SOURCE_DIR}/sources/ysfx_api_host_interaction_dummy.hpp)
+file(READ ${YSFX_HOST_API} ysfx_host_api)
+string(REPLACE "static EEL_F NSEEL_CGEN_CALL export_buffer_to_project(void *, INT_PTR, EEL_F **)
+{
+    return 0;
+}"
+"extern \"C\" int (*kalibre_export_buffer_to_project) (void* fx, const double* interleaved, long long frames, int channels, double rate, int track);
+int (*kalibre_export_buffer_to_project) (void*, const double*, long long, int, double, int) = nullptr;
+static EEL_F NSEEL_CGEN_CALL export_buffer_to_project(void *opaque, INT_PTR np, EEL_F **parms)
+{
+    if (! kalibre_export_buffer_to_project || np < 4) return 0;
+    ysfx_t *fx = (ysfx_t *)opaque;
+    const int64_t addr = ysfx_eel_round<int64_t>(*parms[0]);
+    const int64_t frames = ysfx_eel_round<int64_t>(*parms[1]);
+    const int32_t channels = ysfx_eel_round<int32_t>(*parms[2]);
+    if (frames <= 0 || channels <= 0 || frames * channels > 64 * 1024 * 1024) return 0;
+    std::vector<double> data ((size_t) (frames * channels));
+    ysfx_eel_ram_reader reader (fx->vm.get(), addr);
+    for (auto &v : data) v = reader.read_next();
+    return kalibre_export_buffer_to_project (fx, data.data(), frames, channels, *parms[3], np > 4 ? ysfx_eel_round<int32_t>(*parms[4]) : -1);
+}"
+       ysfx_host_api_fixed "${ysfx_host_api}")
+if(NOT ysfx_host_api_fixed STREQUAL ysfx_host_api)
+    file(WRITE ${YSFX_HOST_API} "${ysfx_host_api_fixed}")
+endif()
 set(YSFX_PLUGIN OFF CACHE BOOL "" FORCE)
 set(YSFX_GFX ON CACHE BOOL "" FORCE)
 set(YSFX_TESTS OFF CACHE BOOL "" FORCE)

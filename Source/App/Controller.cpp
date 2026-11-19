@@ -3,6 +3,7 @@
 #include "ReaperScripts.h"
 #include "NoteSplitter.h"
 #include "AudioFiles.h"
+#include "JsfxDevice.h"
 
 #include "AudioTools.h"
 #include "Capture.h"
@@ -26,6 +27,7 @@ Controller::Controller (Engine& e) : engine (e)
     engine.onTouched = [this] (const Engine::Touch& t) { touched (t); };
     engine.onMessage = [this] (const String& m) { say (m, true); };
     insertToolBlock = [this] (AudioPluginInstance& from, const ToolBlock& b) { return placeToolBlock (from, b); };
+    setJsfxExportHandler ([this] (AudioPluginInstance& from, const AudioBuffer<float>& audio, double rate) { printFromDevice (from, audio, rate); });
     engine.cache.onReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onAudioReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onLearned = [this] (int channel, int controller)
@@ -97,6 +99,7 @@ bool Controller::loadChosenClipsInto (Id device)
 Controller::~Controller()
 {
     stopTimer();
+    setJsfxExportHandler ({});
     reaperScripts.reset();
     engine.cache.onReady = nullptr;
     engine.onTouched = nullptr;
@@ -1091,6 +1094,43 @@ bool Controller::saveAs (const File& f)
 {
     file = f.withFileExtension (".kalibre");
     return save();
+}
+
+// A device's sound printed into the song (Transient Shuffler's Print, 0094):
+// a 32-bit float WAV in the song's Audio folder, as a clip at the cursor on a
+// new track under the device's own, one undo step.
+bool Controller::printFromDevice (AudioPluginInstance& from, const AudioBuffer<float>& audio, double rate)
+{
+    Id track = 0;
+    String deviceName;
+    for (auto& t : project.tracks)
+        for (auto& d : t.devices)
+            if (engine.instance (d.id) == &from) { track = t.id; deviceName = String (d.plugin.name); }
+    const auto* owner = project.track (track);
+    if (! owner || audio.getNumSamples() == 0 || rate <= 0) { say ("The printed sound couldn't be put in the song: its device wasn't found.", true); return false; }
+    const String name = String (owner->name) + " " + deviceName;
+    const auto file = recordingsFolder().getNonexistentChildFile (File::createLegalFileName (name), ".wav");
+    file.getParentDirectory().createDirectory();
+    {
+        auto writer = audiofile::floatWav (file, rate, audio.getNumChannels());
+        if (! writer || ! writer->writeFromAudioSampleBuffer (audio, 0, audio.getNumSamples()))
+        {
+            say ("The printed sound couldn't be written to the song's Audio folder.", true);
+            return false;
+        }
+    }
+    Id made = 0;
+    const bool ok = importFile (file, 0, cursor, [&] (Project& p)
+    {
+        made = edit::addTrack (p, TrackKind::Track, name.toStdString(), track);
+        return made;
+    }, "Print " + deviceName);
+    if (! ok) return false;
+    focusOn (made);
+    selectedTracks = { made };
+    say ("Printed " + deviceName + "'s sound onto a new track, " + name.quoted() + ", at the cursor.");
+    sendChangeMessage();
+    return true;
 }
 
 double Controller::tempoOfAudioFile (const File& f)
