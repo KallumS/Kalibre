@@ -95,6 +95,8 @@ public:
     // The same for the lower zone: the divider above it while it's shown; shut, a bar along the bottom.
     juce::Rectangle<int> lowerHandle() const { return dividerArea(); }
     juce::Rectangle<int> lowerBounds() const { return lower.getBounds(); }
+    juce::Rectangle<int> transportBounds() const { return transport.getBounds(); }
+    TransportBar& transportBar() { return transport; }
     void showLowerZone();
     void hideLowerZone();
     bool lowerShown = true;
@@ -109,6 +111,7 @@ private:
     Controller& c;
     ActivityWatch activity { c };
     TopBar top;
+    TransportBar transport;   // along the bottom, under the lower zone (0095)
     Arrange arrange;
     LowerZone lower;
     Browser browser;

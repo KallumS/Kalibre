@@ -24,15 +24,12 @@ void TopBar::Readout::paint (Graphics& g)
 
 TopBar::TopBar (Controller& ctrl) : c (ctrl)
 {
-    for (auto* b : { &start, &playButton, &recordButton, &loop, &punch, &click, &countIn, &follow, &tap })
+    for (auto* b : { &follow, &tap })
     {
         addAndMakeVisible (b);
         b->onRightClick = [this] { showMenu(); };
     }
     addAndMakeVisible (undoMessage);
-    playButton.setTitle ("Play");
-    recordButton.setTitle ("Record");
-    start.setTitle ("Go to Start");
     for (auto* r : { &position, &tempo, &signature, &grid, &scale, &chord, &timer, &cpu, &load })
     {
         addAndMakeVisible (r);
@@ -63,13 +60,6 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     chord.setTooltip (theme::wrapTip ("The chord you're playing on a MIDI keyboard. The chords of clips are shown in the chord lane: right-click clips > Detect Chords."));
     cpu.setTooltip (theme::wrapTip ("How much the plug-ins delay the sound in all. Kalibre lines every track up by this much (plug-in delay compensation)."));
 
-    start.onClick = [this] { c.goToStart(); };
-    playButton.onClick = [this] { c.togglePlay(); };
-    recordButton.onClick = [this] { c.record(); };
-    loop.onClick = [this] { c.toggleLoop(); };
-    punch.onClick = [this] { c.apply ("Punch", [] (Project& p) { p.punch.on = ! p.punch.on; }); };
-    click.onClick = [this] { c.apply ("Metronome", [] (Project& p) { p.metronome.on = ! p.metronome.on; }); };
-    countIn.onClick = [this] { c.apply ("Count-in", [] (Project& p) { p.metronome.countIn = ! p.metronome.countIn; }); };
     follow.onClick = [this]
     {
         // Click: scroll along (or stop following); Shift-click: turn the page at the edge (0070).
@@ -138,9 +128,9 @@ static int widthOf (const String& name)
 // The bar's width on one row; narrower than this, it takes two (wrapped, never cropped).
 static int oneRowWidth (const StringArray& hidden)
 {
-    int w = 32 + 40 + 32, n = 4;
+    int w = 0, n = 1;
     for (auto& name : TopBar::hideable())
-        if (! hidden.contains (name)) { w += widthOf (name); ++n; }
+        if (! hidden.contains (name) && ! TopBar::inTransport (name)) { w += widthOf (name); ++n; }
     return theme::px (w) + theme::px (6) * n;
 }
 
@@ -176,19 +166,12 @@ void TopBar::paint (Graphics& g)
     }
     g.setColour (theme::rule);
     g.fillRect (0, getHeight() - 1, getWidth(), 1);
-    // The record button is red while recording: shape (a ring) and colour.
-    if (c.engine.isRecording())
-    {
-        g.setColour (theme::warn);
-        g.drawRoundedRectangle (recordButton.getBounds().toFloat().expanded (1.5f), 6.0f, 2.0f);
-    }
 }
 
 Component* TopBar::itemNamed (const String& name)
 {
-    static const char* names[] { "Loop", "Punch", "Click", "Count-in", "Position", "Tempo", "Tap", "Time Signature",
-                                 "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay" };
-    Component* items[] { &loop, &punch, &click, &countIn, &position, &tempo, &tap, &signature, &grid, &scale, &chord, &timer, &follow, &load, &cpu };
+    static const char* names[] { "Position", "Tempo", "Tap", "Time Signature", "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay" };
+    Component* items[] { &position, &tempo, &tap, &signature, &grid, &scale, &chord, &timer, &follow, &load, &cpu };
     for (size_t i = 0; i < std::size (names); ++i) if (name == names[i]) return items[i];
     return nullptr;
 }
@@ -205,25 +188,15 @@ void TopBar::resized()
     auto shown = [&] (const char* name) { return ! hidden.contains (name); };
     auto place = [&] (Component& comp, int w) { comp.setBounds (r.removeFromLeft (w).withSizeKeepingCentre (w, ch)); r.removeFromLeft (gap); };
     auto readout = [&] (Component& comp, int w) { comp.setBounds (r.removeFromLeft (w)); r.removeFromLeft (gap); };
-    place (start, theme::px (32));
-    place (playButton, theme::px (40));
-    place (recordButton, theme::px (32));
-    r.removeFromLeft (gap);
-    if (shown ("Loop")) place (loop, loop.idealWidth());
-    if (shown ("Punch")) place (punch, punch.idealWidth());
-    if (shown ("Click")) place (click, click.idealWidth());
-    if (shown ("Count-in")) place (countIn, countIn.idealWidth());
-    if (twoRows)
-    {
-        // The second row: where the song is, and what it's in.
-        r = getLocalBounds().withTop (rowH).removeFromTop (rowH).reduced (theme::px (8), theme::px (6));
-    }
-    else r.removeFromLeft (gap);
+    // Where the song is, and what it's in (the transport is at the bottom of the window, 0095).
     if (shown ("Position")) readout (position, theme::px (130));
     if (shown ("Tempo")) { tempo.setBounds (r.removeFromLeft (theme::px (80))); r.removeFromLeft (gap / 2); }
     if (shown ("Tap")) place (tap, tap.idealWidth());
     if (shown ("Time Signature")) readout (signature, theme::px (56));
     if (shown ("Grid")) readout (grid, theme::px (64));
+    // Too narrow for one row: the scale, the chord and the rest take a second.
+    if (twoRows) r = getLocalBounds().withTop (rowH).removeFromTop (rowH).reduced (theme::px (8), theme::px (6));
+    else r.removeFromLeft (gap);
 
     if (shown ("Delay")) { cpu.setBounds (r.removeFromRight (theme::px (76))); r.removeFromRight (gap); }
     if (shown ("CPU")) { load.setBounds (r.removeFromRight (theme::px (56))); r.removeFromRight (gap); }
@@ -311,14 +284,6 @@ void TopBar::update()
     const bool undoable = lineIsMessage && c.messageCanUndo && c.history.canUndo();
     if (undoMessage.isVisible() != undoable) undoMessage.setVisible (undoable);
 
-    playButton.setToggleState (c.engine.isPlaying(), dontSendNotification);
-    playButton.setButtonText (c.engine.isPlaying() ? String::fromUTF8 ("\xe2\x96\xa0") : String::fromUTF8 ("\xe2\x96\xb6"));
-    playButton.setTitle (c.engine.isPlaying() ? "Stop" : "Play");
-    recordButton.setToggleState (c.engine.isRecording(), dontSendNotification);
-    loop.setToggleState (p.loop.on, dontSendNotification);
-    punch.setToggleState (p.punch.on, dontSendNotification);
-    click.setToggleState (p.metronome.on, dontSendNotification);
-    countIn.setToggleState (p.metronome.countIn, dontSendNotification);
     follow.setToggleState (c.followPlayback, dontSendNotification);
     const auto followText = c.followPlayback && c.followPages ? String ("Follow: Page") : String ("Follow");
     if (follow.getButtonText() != followText) { follow.setButtonText (followText); resized(); }
@@ -385,6 +350,98 @@ void TopBar::showMenu()
                       [this, mins] { c.workClock.setAwayMinutes (mins); update(); });
     m.addSubMenu ("Pause the Timer After", away);
     m.showMenuAsync (PopupMenu::Options());
+}
+
+//==============================================================================
+bool TopBar::inTransport (const String& name)
+{
+    return name == "Loop" || name == "Punch" || name == "Click" || name == "Count-in";
+}
+
+TransportBar::TransportBar (Controller& ctrl) : c (ctrl)
+{
+    setTitle ("Transport");
+    for (auto* b : { &start, &playButton, &recordButton, &loop, &punch, &click, &countIn })
+    {
+        addAndMakeVisible (b);
+        b->onRightClick = [this] { if (onMenu) onMenu(); };
+    }
+    playButton.setTitle ("Play");
+    recordButton.setTitle ("Record");
+    start.setTitle ("Go to Start");
+    start.onClick = [this] { c.goToStart(); };
+    playButton.onClick = [this] { c.togglePlay(); };
+    recordButton.onClick = [this] { c.record(); };
+    loop.onClick = [this] { c.toggleLoop(); };
+    punch.onClick = [this] { c.apply ("Punch", [] (Project& p) { p.punch.on = ! p.punch.on; }); };
+    click.onClick = [this] { c.apply ("Metronome", [] (Project& p) { p.metronome.on = ! p.metronome.on; }); };
+    countIn.onClick = [this] { c.apply ("Count-in", [] (Project& p) { p.metronome.countIn = ! p.metronome.countIn; }); };
+    c.addChangeListener (this);
+    startTimerHz (20);
+    update();
+}
+
+TransportBar::~TransportBar() { c.removeChangeListener (this); }
+
+void TransportBar::mouseDown (const MouseEvent& e)
+{
+    if (e.mods.isPopupMenu() && onMenu) onMenu();
+}
+
+void TransportBar::update()
+{
+    const auto& p = c.project;
+    playButton.setToggleState (c.engine.isPlaying(), dontSendNotification);
+    playButton.setButtonText (c.engine.isPlaying() ? String::fromUTF8 ("\xe2\x96\xa0") : String::fromUTF8 ("\xe2\x96\xb6"));
+    playButton.setTitle (c.engine.isPlaying() ? "Stop" : "Play");
+    const bool recording = c.engine.isRecording();
+    if (recordButton.getToggleState() != recording) { recordButton.setToggleState (recording, dontSendNotification); repaint(); }
+    loop.setToggleState (p.loop.on, dontSendNotification);
+    punch.setToggleState (p.punch.on, dontSendNotification);
+    click.setToggleState (p.metronome.on, dontSendNotification);
+    countIn.setToggleState (p.metronome.countIn, dontSendNotification);
+    bool changed = false;
+    for (auto* b : { &loop, &punch, &click, &countIn })
+        changed |= b->isVisible() == c.hiddenInTopBar.contains (b->getButtonText());
+    if (changed) resized();
+}
+
+void TransportBar::paint (Graphics& g)
+{
+    g.fillAll (theme::ground);
+    g.setColour (theme::rule);
+    g.fillRect (0, 0, getWidth(), 1);
+    // The record button is red while recording: shape (a ring) and colour.
+    if (c.engine.isRecording())
+    {
+        g.setColour (theme::warn);
+        g.drawRoundedRectangle (recordButton.getBounds().toFloat().expanded (1.5f), 6.0f, 2.0f);
+    }
+}
+
+void TransportBar::resized()
+{
+    // In the middle: Go to Start, Play, Record; a gap; Loop, Punch, Click, Count-in.
+    const int gap = theme::px (6);
+    const int ch = theme::px (28);
+    std::vector<std::pair<Component*, int>> row { { &start, theme::px (32) }, { &playButton, theme::px (40) }, { &recordButton, theme::px (32) } };
+    std::vector<std::pair<Component*, int>> toggles;
+    for (auto* b : { &loop, &punch, &click, &countIn })
+    {
+        const bool shown = ! c.hiddenInTopBar.contains (b->getButtonText());
+        b->setVisible (shown);
+        if (shown) toggles.push_back ({ b, b->idealWidth() });
+    }
+    int total = 0;
+    for (auto& [comp, w] : row) total += w + gap;
+    if (! toggles.empty()) total += gap * 2;
+    for (auto& [comp, w] : toggles) total += w + gap;
+    total -= gap;
+    int x = (getWidth() - total) / 2;
+    const int y = (getHeight() - ch) / 2 + 1;
+    for (auto& [comp, w] : row) { comp->setBounds (x, y, w, ch); x += w + gap; }
+    x += gap * 2;
+    for (auto& [comp, w] : toggles) { comp->setBounds (x, y, w, ch); x += w + gap; }
 }
 
 // The arrangement's grid (0070): 1/1 to 1/64, triplets, or off.

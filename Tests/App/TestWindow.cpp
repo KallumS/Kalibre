@@ -216,7 +216,7 @@ TEST ("lower zone: dragged lower than its smallest it shuts, leaving a bar at th
         dragUpBy (w, handle.getCentre(), -100);
         CHECK (! w.lowerShown);
         handle = w.lowerHandle();
-        CHECK_EQ (handle.getBottom(), w.getHeight());
+        CHECK_EQ (handle.getBottom(), w.transportBounds().getY());   // just above the transport (0095)
         CHECK (handle.getHeight() > 0 && handle.getHeight() <= theme::px (8));
         CHECK (handle.getWidth() > 600);
         // Dragging the bar up opens it, as tall as the drag.
@@ -269,6 +269,50 @@ TEST ("lower zone and browser: a double-click on their dots opens them at their 
         CHECK (w.browserShown);
         CHECK_EQ (w.browserBounds().getWidth(), MainComponent::defaultBrowserWidth);
         w.hideBrowser();   // as it was: the window saves it for the next one
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("transport: Go to Start, Play, Record, Loop, Punch, Click and Count-in sit in the middle along the bottom, under the lower zone (0095)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        w.lowerHeight = 320;
+        w.showLowerZone();
+        const auto bar = w.transportBounds();
+        CHECK_EQ (bar.getBottom(), w.getHeight());
+        CHECK_EQ (bar.getX(), 0);
+        CHECK_EQ (bar.getWidth(), w.getWidth());
+        CHECK (w.lowerBounds().getBottom() <= bar.getY());
+        auto& t = w.transportBar();
+        // Centred: as much room either side.
+        const int left = t.start.getX(), right = t.getWidth() - t.countIn.getRight();
+        CHECK (std::abs (left - right) <= 2);
+        for (auto* b : { &t.start, &t.playButton, &t.recordButton, &t.loop, &t.punch, &t.click, &t.countIn })
+            CHECK (b->isVisible());
+        // They do what they did at the top.
+        CHECK (! c.project.metronome.on);
+        t.click.triggerClick();
+        MessageManager::getInstance()->runDispatchLoopUntil (20);
+        CHECK (c.project.metronome.on);
+        // Hidden from the bars' right-click menu, it leaves the row, still centred.
+        c.hiddenInTopBar = { "Punch", "Count-in" };
+        t.update();
+        CHECK (! t.punch.isVisible() && ! t.countIn.isVisible());
+        CHECK (std::abs (t.start.getX() - (t.getWidth() - t.click.getRight())) <= 2);
+        c.hiddenInTopBar.clear();
+        // Shut, the lower zone's bar sits just above it.
+        w.hideLowerZone();
+        CHECK_EQ (w.lowerHandle().getBottom(), bar.getY());
+        w.lowerHeight = 320;
+        w.showLowerZone();
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

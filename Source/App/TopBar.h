@@ -1,6 +1,6 @@
 /*
     TopBar - the transport and what the song is in, along the top of the
-    window: Play, Stop, Record, Loop, Punch, the metronome and count-in; the
+    window (the transport buttons are in the TransportBar at the bottom, 0095): the
     position (bars and beats, or minutes, samples or timecode - click it to
     change); tempo and time signature (drag or double-click to type; both
     are automatable from the tempo lane); the scale, and the chord sounding
@@ -22,6 +22,48 @@
 namespace kal
 {
 
+// A button whose right-click opens the bar's menu instead of pressing it.
+struct BarButton : public theme::HouseButton
+{
+    using theme::HouseButton::HouseButton;
+    std::function<void()> onRightClick;
+    void mouseDown (const juce::MouseEvent& e) override { if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(); return; } HouseButton::mouseDown (e); }
+    void mouseUp (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) HouseButton::mouseUp (e); }
+};
+
+/*
+    TransportBar - Go to Start, Play, Record, Loop, Punch, Click and Count-in,
+    in the middle of a bar along the bottom of the window, under the lower
+    zone (asked for, 0095: the top bar keeps where the song is and what it's
+    in, and the message line). Right-click it for the same menu as the top
+    bar's: Loop, Punch, Click and Count-in can be hidden.
+*/
+class TransportBar : public juce::Component, private juce::ChangeListener, private juce::Timer
+{
+public:
+    explicit TransportBar (Controller&);
+    ~TransportBar() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
+    int preferredHeight() const { return theme::px (44); }
+    std::function<void()> onMenu;   // the bar's right-click menu (the top bar's)
+    void update();
+
+    BarButton start { juce::String::fromUTF8 ("\xe2\x8f\xae"), "Go to the start. (Return)" };
+    BarButton playButton { juce::String::fromUTF8 ("\xe2\x96\xb6"), "Play from the cursor, or stop. (Space)" };
+    BarButton recordButton { juce::String::fromUTF8 ("\xe2\x97\x8f"), "Record onto the armed tracks, or the chosen one. (R)" };
+    BarButton loop { "Loop", "Repeat the loop range while playing. (L)", true };
+    BarButton punch { "Punch", "Record only inside the punch range.", true };
+    BarButton click { "Click", "The metronome, while playing.", true };
+    BarButton countIn { "Count-in", "A bar of clicks before recording starts.", true };
+
+private:
+    Controller& c;
+    void changeListenerCallback (juce::ChangeBroadcaster*) override { update(); }
+    void timerCallback() override { update(); }
+};
+
 class TopBar : public juce::Component, private juce::ChangeListener, private juce::Timer
 {
 public:
@@ -35,6 +77,7 @@ public:
 
     // What can be hidden, by the names the right-click menu uses.
     static const juce::StringArray& hideable();
+    static bool inTransport (const juce::String& name);   // Loop, Punch, Click, Count-in: in the TransportBar (0095)
     void showMenu();
     juce::String shownLine() const { return line; }    // what the message line says (tests)
 
@@ -43,21 +86,6 @@ public:
 
 private:
     Controller& c;
-    // A button whose right-click opens the bar's menu instead of pressing it.
-    struct BarButton : public theme::HouseButton
-    {
-        using theme::HouseButton::HouseButton;
-        std::function<void()> onRightClick;
-        void mouseDown (const juce::MouseEvent& e) override { if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(); return; } HouseButton::mouseDown (e); }
-        void mouseUp (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) HouseButton::mouseUp (e); }
-    };
-    BarButton start { juce::String::fromUTF8 ("\xe2\x8f\xae"), "Go to the start. (Return)" };
-    BarButton playButton { juce::String::fromUTF8 ("\xe2\x96\xb6"), "Play from the cursor, or stop. (Space)" };
-    BarButton recordButton { juce::String::fromUTF8 ("\xe2\x97\x8f"), "Record onto the armed tracks, or the chosen one. (R)" };
-    BarButton loop { "Loop", "Repeat the loop range while playing. (L)", true };
-    BarButton punch { "Punch", "Record only inside the punch range.", true };
-    BarButton click { "Click", "The metronome, while playing.", true };
-    BarButton countIn { "Count-in", "A bar of clicks before recording starts.", true };
     BarButton follow { "Follow", "Click: the view scrolls with the playhead. Shift-click: it turns the page when the playhead reaches the edge.", true };
     BarButton tap { "Tap", "Tap a few times on the beat to set the tempo." };
 
