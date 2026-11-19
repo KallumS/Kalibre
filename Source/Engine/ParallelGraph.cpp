@@ -201,15 +201,19 @@ struct ParallelGraph::Plan
 class ParallelGraph::Worker : public Thread
 {
 public:
-    Worker (ParallelGraph& g, int i) : Thread ("Kalibre audio " + String (i)), owner (g), index (i) {}
+    // `started`: the generation when it was made. A worker that begins after
+    // a stop has already counted up sees the count moved on, and stops; one
+    // that read the count only once it began would wait for ever (run 149).
+    Worker (ParallelGraph& g, int i, std::uint32_t started)
+        : Thread ("Kalibre audio " + String (i)), owner (g), index (i), seen (started) {}
 
     void run() override
     {
         WorkgroupToken token;
         int joined = -1;
-        std::uint32_t seen = owner.generation.load();
         for (;;)
         {
+            if (owner.quitting.load() || threadShouldExit()) break;
             owner.generation.wait (seen);
             seen = owner.generation.load();
             if (owner.quitting.load() || threadShouldExit()) break;
@@ -231,6 +235,7 @@ public:
 private:
     ParallelGraph& owner;
     const int index;
+    std::uint32_t seen;
 };
 
 //==============================================================================
@@ -266,7 +271,7 @@ void ParallelGraph::startWorkers()
     quitting = false;
     for (int i = 1; i <= count; ++i)
     {
-        auto w = std::make_unique<Worker> (*this, i);
+        auto w = std::make_unique<Worker> (*this, i, generation.load());
         if (! w->startRealtimeThread (Thread::RealtimeOptions().withPriority (10)))
             w->startThread (Thread::Priority::highest);
         threads.push_back (std::move (w));

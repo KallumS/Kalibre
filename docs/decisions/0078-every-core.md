@@ -64,3 +64,12 @@ safe to run beside other instances on other threads would show here first;
 Use Every Core turns it off.
 
 Since 0081 the plan plays with Use Every Core off too, on the audio thread alone, so every mix point sums at 64 bits either way.
+
+Mended 19 November: a worker read the generation it waits on only once it
+had begun running. Started and stopped at once (Use Every Core switched on
+and straight off, as the speed test does), the stop's count could come
+first; the worker then waited for a count that never came, `stopThread`
+killed it after two seconds, and the Mac's app tests crashed (run 149). Each
+worker is now given the count when it's made, and checks for the stop
+before it waits. A test switches the cores on and off 200 times, each stop
+quick; it failed first (4 s and a thread killed), and passes.

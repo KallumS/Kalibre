@@ -900,6 +900,24 @@ TEST ("multi-core: a song played on every core comes out exactly as JUCE's own g
     CHECK_EQ (largest (a, b), 0.0f);
 }
 
+TEST ("multi-core: Use Every Core switched on and straight off again, many times, stops its workers every time")
+{
+    // A worker started and stopped before it had begun could miss the stop
+    // and wait for ever: stopThread then killed it, and the app tests crashed
+    // on the Mac (run 149). Each stop here must be quick.
+    PluginManager plugins;
+    Engine engine (plugins);
+    if (ParallelGraph::coresToUse() < 2) { std::printf ("  (one core here: no workers)\n"); return; }
+    for (int i = 0; i < 200; ++i)
+    {
+        engine.setParallel (true);
+        const auto start = Time::getMillisecondCounterHiRes();
+        engine.setParallel (false);
+        const double took = Time::getMillisecondCounterHiRes() - start;
+        if (took > 500) { CHECK (took < 500); std::printf ("  stop %d took %.0f ms\n", i, took); return; }
+    }
+}
+
 TEST ("multi-core: heavy plug-ins on several tracks are played on several threads at once, and faster (0078)")
 {
     PluginManager plugins;
