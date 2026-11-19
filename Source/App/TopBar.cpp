@@ -50,7 +50,8 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     chord.big = true;
     timer.label = "Making Music";
     timer.setTooltip (theme::wrapTip ("How long you've been making music in this song: it counts while you edit, play, record or move the mouse in Kalibre, "
-                                      "and pauses after 3 minutes with nothing happening (8 minutes while the song plays). Saved with the song."));
+                                      "and pauses after 3 minutes with nothing happening (8 minutes while the song plays), or the minutes you choose: right-click the bar. "
+                                      "The mouse counts only while Kalibre is the app in front. Saved with the song."));
     cpu.label = "Delay";
     load.label = "CPU";
     load.setTooltip (theme::wrapTip ("How busy the audio is: how much of the time it has for each block it uses, the highest in the last few seconds. "
@@ -376,6 +377,13 @@ void TopBar::showMenu()
                        [this, s] { c.cpuEverySeconds = s; cpuSince = 0; update(); });
     m.addSeparator();
     m.addSubMenu ("Change the CPU Reading", every);
+    // The timer's "minutes before you count as away", as the battle pass's Stats page has it (0091).
+    PopupMenu away;
+    const int now = (int) std::lround (c.workClock.awayAfter / 60.0);
+    for (int mins : { 1, 2, 3, 5, 10, 15 })
+        away.addItem (mins == 1 ? String ("1 Minute") : String (mins) + " Minutes", true, now == mins,
+                      [this, mins] { c.workClock.setAwayMinutes (mins); update(); });
+    m.addSubMenu ("Pause the Timer After", away);
     m.showMenuAsync (PopupMenu::Options());
 }
 

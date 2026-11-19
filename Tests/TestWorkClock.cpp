@@ -67,3 +67,24 @@ TEST ("work clock: shown as a stopwatch")
     CHECK_EQ (WorkClock::format (3729), std::string ("1:02:09"));
     CHECK_EQ (WorkClock::format (-5), std::string ("0:00"));
 }
+
+TEST ("work clock: the minutes before away are the musician's, 1 to 15")
+{
+    WorkClock w;
+    w.setAwayMinutes (1);
+    double tp = 0;
+    w.begin (0, tp);
+    run (w, tp, 10, true);
+    run (w, tp, 300, false);
+    CHECK (w.idle);
+    CHECK (std::abs (w.active - (10 + 60)) < 0.5);
+    w.setAwayMinutes (99);
+    CHECK_EQ (w.awayAfter, 900.0);
+    w.setAwayMinutes (0);
+    CHECK_EQ (w.awayAfter, 60.0);
+    // Listening back still allows 8 minutes when away is shorter.
+    w.setAwayMinutes (2);
+    w.begin (0, tp);
+    run (w, tp, 400, false, true);
+    CHECK (! w.idle);
+}

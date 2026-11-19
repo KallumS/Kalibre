@@ -36,6 +36,10 @@ struct WorkClock
 
     double active = 0;                             // seconds of music-making in the song
     bool idle = false;
+    // The musician's own "minutes before you count as away" (the battle pass's
+    // Stats page): 1 to 15 minutes, 3 unless changed.
+    double awayAfter = idleSeconds;
+    void setAwayMinutes (int minutes);
 
     // A song opened or started: its time so far, the clock running from now.
     void begin (double seconds, double tp);

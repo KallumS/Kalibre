@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <functional>
 
@@ -128,7 +129,26 @@ double tempoFromName (const std::string& name)
 
 bool needsScan (const Item* cached, std::int64_t size, std::int64_t modified)
 {
-    return cached == nullptr || cached->size != size || cached->modified != modified;
+    return cached == nullptr || cached->size != size || cached->modified != modified
+           || (cached->kind == Kind::Audio && cached->readable && cached->analysis < analysisVersion);
+}
+
+std::string noteName (int note, double cents)
+{
+    if (note < 0 || note > 127) return {};
+    static const char* names[] { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    std::string s = std::string (names[note % 12]) + std::to_string (note / 12 - 2);   // middle C (60) is C3
+    const int c = (int) std::lround (cents);
+    if (c != 0) s += (c > 0 ? " +" : " ") + std::to_string (c);
+    return s;
+}
+
+std::string loudnessText (const Item& it)
+{
+    char buf[48];
+    if (it.lufs > -70) { std::snprintf (buf, sizeof buf, "%.1f LUFS", it.lufs); return buf; }
+    if (it.peakDb > -90) { std::snprintf (buf, sizeof buf, "Peak %.1f dB", it.peakDb); return buf; }
+    return {};
 }
 
 bool isFavourite (const Settings& s, const std::string& path)
@@ -283,8 +303,14 @@ std::string toJson (const Index& index)
         j["modified"] = it.modified;
         j["readable"] = it.readable;
         j["bpm"] = it.bpm;
+        j["bpmFrom"] = (int) it.bpmFrom;
         if (it.kind == Kind::Audio)
         {
+            j["lufs"] = it.lufs;
+            j["peakDb"] = it.peakDb;
+            j["note"] = it.note;
+            j["cents"] = it.cents;
+            j["analysis"] = it.analysis;
             j["seconds"] = it.seconds;
             j["rate"] = it.sampleRate;
             j["channels"] = it.channels;
@@ -319,6 +345,12 @@ bool fromJson (const std::string& text, Index& index)
         it.modified = e.value ("modified", (std::int64_t) 0);
         it.readable = e.value ("readable", true);
         it.bpm = e.value ("bpm", 0.0);
+        it.bpmFrom = (Item::TempoFrom) std::clamp (e.value ("bpmFrom", it.bpm > 0 ? 1 : 0), 0, 3);
+        it.lufs = e.value ("lufs", silentDb);
+        it.peakDb = e.value ("peakDb", silentDb);
+        it.note = e.value ("note", -1);
+        it.cents = e.value ("cents", 0.0);
+        it.analysis = e.value ("analysis", 0);
         it.seconds = e.value ("seconds", 0.0);
         it.sampleRate = e.value ("rate", 0.0);
         it.channels = e.value ("channels", 0);

@@ -42,6 +42,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
         browserWidth = s->getIntValue ("browserWidth", 320);
         browserShown = s->getBoolValue ("browser", false);
         c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
+        c.workClock.setAwayMinutes (s->getIntValue ("awayMinutes", 3));
         c.hiddenInTopBar.addTokens (s->getValue ("hiddenInTopBar"), "|", {});
         c.hiddenInTopBar.removeEmptyStrings();
         c.cpuEverySeconds = jlimit (1, 5, s->getIntValue ("cpuEverySeconds", 2));
@@ -80,6 +81,7 @@ MainComponent::~MainComponent()
         s->setValue ("browserWidth", browserWidth);
         s->setValue ("browser", browserShown);
         s->setValue ("zeroCrossings", c.zeroCrossings);
+        s->setValue ("awayMinutes", (int) std::lround (c.workClock.awayAfter / 60.0));
         s->setValue ("hiddenInTopBar", c.hiddenInTopBar.joinIntoString ("|"));
         s->setValue ("cpuEverySeconds", c.cpuEverySeconds);
         s->setValue ("arrangeGrid", (int) c.arrangeGrid);

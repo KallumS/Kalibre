@@ -80,4 +80,20 @@ double pitchOf (const float* samples, int n, double rate, double threshold = 0.1
 // The nearest note to a frequency, and how far off it is in cents.
 void nearestNote (double hz, int& midiNote, double& cents, double a4 = 440.0);
 
+//==============================================================================
+// What the Sounds browser's scan hears in a sample (decision 0095), from one
+// channel (the channels mixed).
+
+// The tempo it was played at, from how its hits repeat (the onsets'
+// autocorrelation over 60 to 200 BPM, leaning towards 120): 0 when it has no
+// steady beat. `loop` when its length is a whole number of bars at that tempo
+// (within 3%), which is then exact: a loop is cut to its bars. Only a loop's
+// tempo is trusted enough to stretch it.
+struct TempoGuess { double bpm = 0; bool loop = false; };
+TempoGuess tempoOf (const float* mono, int n, double rate);
+
+// The note it plays most (YIN on stretches of its sounding part, their
+// median): -1 when most of it has no one pitch (drums, chords, noise).
+int noteOf (const float* mono, int n, double rate, double* cents = nullptr);
+
 } // namespace kal::audiotools

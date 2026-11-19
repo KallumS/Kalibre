@@ -36,10 +36,15 @@ struct ActivityWatch : public juce::MouseListener
 {
     explicit ActivityWatch (Controller& ctrl) : c (ctrl) {}
     Controller& c;
-    void mouseMove (const juce::MouseEvent&) override { c.noteActivity(); }
-    void mouseDown (const juce::MouseEvent&) override { c.noteActivity(); }
-    void mouseDrag (const juce::MouseEvent&) override { c.noteActivity(); }
-    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override { c.noteActivity(); }
+    // As the battle pass does with js_ReaScriptAPI: only while Kalibre is the app
+    // in front. JUCE tells a global listener of every move of the pointer, even
+    // over another app's window lying on top of Kalibre's, which kept the timer
+    // running while the musician was elsewhere.
+    static bool inFront() { return juce::Process::isForegroundProcess(); }
+    void mouseMove (const juce::MouseEvent&) override { if (inFront()) c.noteActivity(); }
+    void mouseDown (const juce::MouseEvent&) override { if (inFront()) c.noteActivity(); }
+    void mouseDrag (const juce::MouseEvent&) override { if (inFront()) c.noteActivity(); }
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override { if (inFront()) c.noteActivity(); }
 };
 
 class MainComponent : public juce::Component,

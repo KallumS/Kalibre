@@ -164,6 +164,7 @@ TEST ("library: a file is read again only when its size or date changes")
     Item it = audio ("/M/a.wav");
     it.size = 100;
     it.modified = 5;
+    it.analysis = library::analysisVersion;
     CHECK (needsScan (nullptr, 100, 5));
     CHECK (! needsScan (&it, 100, 5));
     CHECK (needsScan (&it, 101, 5));
@@ -213,4 +214,33 @@ TEST ("library: the settings and the index are saved and read back as they were"
     Index ib;
     CHECK (fromJson (toJson (ix), ib));
     CHECK (ib.items == ix.items);
+}
+
+TEST ("library: the scan's loudness, note and tempo are kept; an older scan's item is read again (0095)")
+{
+    library::Index index;
+    library::Item it;
+    it.path = "/s/Pad.wav";
+    it.size = 10;
+    it.modified = 20;
+    it.lufs = -14.25;
+    it.peakDb = -0.5;
+    it.note = 57;
+    it.cents = -12;
+    it.bpm = 120;
+    it.bpmFrom = library::Item::TempoFrom::Heard;
+    it.analysis = library::analysisVersion;
+    index.items[it.path] = it;
+    library::Index back;
+    CHECK (library::fromJson (library::toJson (index), back));
+    CHECK (back.items[it.path] == it);
+    CHECK (! library::needsScan (&back.items[it.path], 10, 20));
+    back.items[it.path].analysis = 1;
+    CHECK (library::needsScan (&back.items[it.path], 10, 20));
+    CHECK_EQ (library::noteName (57, -12), std::string ("A2 -12"));
+    CHECK_EQ (library::noteName (60, 0.2), std::string ("C3"));
+    CHECK_EQ (library::noteName (-1, 0), std::string());
+    CHECK_EQ (library::loudnessText (it), std::string ("-14.2 LUFS"));
+    it.lufs = library::silentDb;
+    CHECK_EQ (library::loudnessText (it), std::string ("Peak -0.5 dB"));
 }

@@ -170,3 +170,77 @@ TEST ("audio tools: the nearest zero crossing, across both channels, within reac
     const float* q[] { quiet.data() };
     CHECK_EQ (audiotools::nearestZeroCrossing (q, 1, 100, 50, 10), 50);
 }
+
+namespace
+{
+// A drum loop: a low thump on every beat, a click on every off-beat, `bars` bars of 4/4.
+std::vector<float> drumLoop (double bpm, double seconds, double rate)
+{
+    std::vector<float> x ((size_t) (seconds * rate), 0.0f);
+    const double beat = 60.0 / bpm;
+    for (int b = 0; b * beat < seconds; ++b)
+        for (int half = 0; half < 2; ++half)
+        {
+            const auto start = (size_t) ((b + half * 0.5) * beat * rate);
+            for (size_t i = 0; i < (size_t) (0.12 * rate) && start + i < x.size(); ++i)
+            {
+                const double t = (double) i / rate;
+                x[start + i] += half == 0 ? (float) (0.8 * std::sin (2 * M_PI * 60 * t) * std::exp (-t * 30))
+                                          : (float) (0.3 * std::sin (2 * M_PI * 3000 * t + std::sin (i * 1.7)) * std::exp (-t * 80));
+            }
+        }
+    return x;
+}
+} // namespace
+
+TEST ("audio tools: a loop's tempo is heard, and made exact by its length (0095)")
+{
+    const double rate = 44100;
+    for (auto [bpm, bars] : std::vector<std::pair<double, int>> { { 120, 2 }, { 93, 2 }, { 140, 2 }, { 75, 2 }, { 100, 1 },
+                                                                    { 128, 4 }, { 170, 2 }, { 85, 1 }, { 110, 8 } })
+    {
+        const double seconds = bars * 4 * 60.0 / bpm;
+        auto x = drumLoop (bpm, seconds, rate);
+        const auto g = audiotools::tempoOf (x.data(), (int) x.size(), rate);
+        CHECK (g.loop);
+        CHECK (std::abs (g.bpm - bpm) < 0.01);
+        if (std::abs (g.bpm - bpm) >= 0.01) std::printf ("    %.1f (%d bars) heard as %.2f\n", bpm, bars, g.bpm);
+    }
+    // Not cut to its bars: heard, roughly, and not called a loop.
+    auto y = drumLoop (128, 5.3, rate);
+    const auto g = audiotools::tempoOf (y.data(), (int) y.size(), rate);
+    CHECK (! g.loop);
+    CHECK (std::abs (g.bpm - 128) < 2.0);
+    // Noise has no beat; a one-shot is too short to have one.
+    std::vector<float> noise ((size_t) (rate * 4));
+    unsigned seed = 1;
+    for (auto& v : noise) { seed = seed * 1664525u + 1013904223u; v = (float) ((seed >> 8) / 16777216.0 - 0.5); }
+    CHECK_EQ (audiotools::tempoOf (noise.data(), (int) noise.size(), rate).bpm, 0.0);
+    CHECK_EQ (audiotools::tempoOf (y.data(), (int) (rate * 0.5), rate).bpm, 0.0);
+}
+
+TEST ("audio tools: a sample's note is heard; drums and noise have none (0095)")
+{
+    const double rate = 48000;
+    std::vector<float> a3 ((size_t) rate * 2);
+    for (size_t i = 0; i < a3.size(); ++i)
+    {
+        const double t = (double) i / rate;
+        a3[i] = (float) (0.5 * std::sin (2 * M_PI * 220 * t) + 0.2 * std::sin (2 * M_PI * 440 * t)) * (float) std::exp (-t);
+    }
+    double cents = 99;
+    CHECK_EQ (audiotools::noteOf (a3.data(), (int) a3.size(), rate, &cents), 57);
+    CHECK (std::abs (cents) < 5);
+    // A quarter-tone sharp of C4 says so.
+    std::vector<float> c4 ((size_t) rate);
+    const double hz = 261.6256 * std::pow (2.0, 30.0 / 1200.0);
+    for (size_t i = 0; i < c4.size(); ++i) c4[i] = (float) (0.5 * std::sin (2 * M_PI * hz * (double) i / rate));
+    CHECK_EQ (audiotools::noteOf (c4.data(), (int) c4.size(), rate, &cents), 60);
+    CHECK (std::abs (cents - 30) < 5);
+    std::vector<float> noise ((size_t) rate);
+    unsigned seed = 7;
+    for (auto& v : noise) { seed = seed * 1664525u + 1013904223u; v = (float) ((seed >> 8) / 16777216.0 - 0.5); }
+    CHECK_EQ (audiotools::noteOf (noise.data(), (int) noise.size(), rate), -1);
+    std::vector<float> silence ((size_t) rate, 0.0f);
+    CHECK_EQ (audiotools::noteOf (silence.data(), (int) silence.size(), rate), -1);
+}

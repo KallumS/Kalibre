@@ -15,13 +15,18 @@ void WorkClock::begin (double seconds, double tp)
     idle = false;
 }
 
+void WorkClock::setAwayMinutes (int minutes)
+{
+    awayAfter = 60.0 * std::clamp (minutes, 1, 15);
+}
+
 void WorkClock::tick (double tp, bool input, bool playing, bool recording)
 {
     // As G.tick: the step since the last call, never negative and never more than a second.
     const double dt = std::isnan (now) ? 0.0 : std::clamp (tp - now, 0.0, longestStep);
     now = tp;
     if (input || recording) lastInput = tp;
-    const double limit = playing ? std::max (idleSeconds, idlePlaying) : idleSeconds;
+    const double limit = playing ? std::max (awayAfter, idlePlaying) : awayAfter;
     idle = (tp - lastInput) > limit;
     if (idle || dt <= 0) return;
     active += dt;
