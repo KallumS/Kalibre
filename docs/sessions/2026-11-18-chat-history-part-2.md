@@ -1,6 +1,6 @@
-# 18 November, evening to night: the audio engine's document, Note Position & Volume Fixer built in, and more
+# 18 November, evening, to 19 November: the audio engine's document, Note Position & Volume Fixer built in, and more
 
-The audio engine's document (64-bit summing, neutral operations), rests in step input, sidechains in freezes, articulation and note delays, the Note Splitter, DAWproject automation, warping and curves, Fix Note Timings and Volume, every automation lane sample accurate, at most 1000 tracks, the fixer hearing the samples, the music-making timer.
+The audio engine's document (64-bit summing, neutral operations), rests in step input, sidechains in freezes, articulation and note delays, the Note Splitter, DAWproject automation, warping and curves, Fix Note Timings and Volume, every automation lane sample accurate, at most 1000 tracks, the fixer hearing the samples, the music-making timer, pull request 5.
 Kept so the reasons and the route aren't lost when the session's context is
 compacted. Your messages and Claude's replies are in full; each tool call (a
 command, a file written, a search) is listed in one line by what it did,
@@ -8,7 +8,7 @@ without its output. Private details (an email address) and the harness's
 internal reminders are removed, as are the automatic "background task
 finished" notices. Messages you sent while Claude was working are marked so.
 
-7 messages from you, 109 replies, 400 tool calls.
+10 messages from you, 113 replies, 409 tool calls.
 
 ## You (2026-11-18 17:20)
 
@@ -1074,3 +1074,68 @@ Passes. Rendering the top bar to see it.
 
 - *Bash*: Full tests; commit timer
 - *Bash*: Docs for the timer, chat backup, push
+- *mcp__claude-code-remote__send_later*: 25
+- *SendUserFile*: docs/top-bar-timer.png
+
+## Claude (2026-11-19 00:03)
+
+The top bar now has a timer just to the right of Chord, showing how long you've been making music in the song. It's pushed with all tests passing on Linux (181 core, 107 app). The Mac build is running; I'll check it in about 25 minutes.
+
+**How it counts**
+
+I used your DAW Battle Pass clock, the `G.tick` rule in `bp_game.lua` (the Ableton branch runs the same code):
+- It only counts time when you're actually working: editing, moving or clicking the mouse in Kalibre, pressing keys, playing your MIDI keyboard, or starting and stopping playback.
+- After 3 minutes with nothing happening it pauses, and its label changes from "Making Music" to "Paused". While the song plays back it allows 8 minutes, so you can listen through without it stopping.
+- Recording always counts, and if the Mac sleeps or Kalibre stalls, that gap isn't counted.
+- As in the battle pass, the 3 minutes after you walk away are counted rather than taken back, so the timer never runs backwards.
+- Moving the mouse over another app doesn't count. Moving it over a plug-in's own window on the Mac may not count either, because that window belongs to the plug-in.
+
+**Per song**
+
+The time is saved in the song's file and carries on when you open it again. A new song, one started from a template, or an opened DAWproject starts at 0:00, and Undo doesn't change it. It reads like a stopwatch (12:05, then 1:02:09 once there are hours), and you can hide it by right-clicking the top bar, like the other items.
+
+Decision 0091, the feature list, README (with this screenshot), session log and chat backup are updated.
+
+## You (2026-11-19 00:03)
+
+Ensure that it resets when a new project is started but that the time is carried over when saving and reopening the same project
+
+## Claude (2026-11-19 00:03)
+
+Both should already hold. Checking every path that replaces the song, then proving it with a test that goes through the real File menu commands.
+
+- *Bash*: Find every song replacement and the clock calls
+*(Interrupted, 2026-11-19 00:03: Claude stopped there, before doing any of it.)*
+
+## You (2026-11-19 00:05)
+
+Thanks. That's great, can you open a pull request please?
+
+## Claude (2026-11-19 00:05)
+
+- *ToolSearch*: select:mcp__github__create_pull_request,mcp__github__list_pull_requests
+- *mcp__github__list_pull_requests*: KallumS
+- *Bash*: Check PR template and branch state
+- *Bash*: See main vs branch
+
+## Claude (2026-11-19 00:05)
+
+Main already has last session's branch merged (#4), so this PR holds just this session's 22 commits. Opening it.
+
+- *mcp__github__create_pull_request*: KallumS
+
+## Claude (2026-11-19 00:05)
+
+I've opened the pull request: [KallumS/Kalibre#5](https://github.com/KallumS/Kalibre/pull/5). It has this session's 22 commits; last session's work was already merged into main as #4. It describes each change in plain words and lists the tests, which all pass on Linux; the newest Mac build is still running.
+
+On your last message, about the timer: it already behaves as you described, so I didn't change anything. Starting a new song (or one from a template, or opening a DAWproject) sets it to 0:00. Saving writes the time into the song's file, and opening that file carries on from where it was. Its test covers both. One thing to know: any time since your last save is lost if you close without saving, like any other unsaved change.
+
+Want me to watch the PR and fix anything the Mac build turns up?
+
+## You (2026-11-19 00:06)
+
+Please backup the chat and update the docs on the repo as I'm about to compact
+
+## Claude (2026-11-19 00:07)
+
+- *Bash*: Close the session log; export chat backup
