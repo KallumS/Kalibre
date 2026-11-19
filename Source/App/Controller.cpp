@@ -75,6 +75,7 @@ Controller::Controller (Engine& e) : engine (e)
     MorphProcessor::choosePlugin = nullptr;
     NoteSplitterProcessor::makeEditor = nullptr;
     newProject();
+    beginWorkClock();
     startTimerHz (30);
 }
 
@@ -103,6 +104,7 @@ bool Controller::apply (const String& label, std::function<void (Project&)> chan
     storeDeviceStates();
     Project before = project;
     change (project);
+    activity = true;   // an edit is music-making (0091)
     // Never more than 1000 tracks (0088): the whole change is refused.
     if (edit::overTrackLimit (project) && project.tracks.size() > before.tracks.size())
     {
@@ -838,6 +840,7 @@ void Controller::newProject()
 {
     engine.stop();
     project = Project();
+    beginWorkClock();
     history.clear();
     file = File();
     dirty = false;
@@ -882,7 +885,7 @@ void Controller::autosave()
 {
     if (! dirty || project.tracks.empty()) return;
     storeDeviceStates();
-    autosaveFile().replaceWithText (String (file::save (project)));
+    autosaveFile().replaceWithText (String (file::save (stampedForSaving())));
 }
 
 File Controller::backupsFolder() const
@@ -905,7 +908,7 @@ bool Controller::backup()
 {
     if (project.tracks.empty()) return false;
     storeDeviceStates();
-    const String text (file::save (project));
+    const String text (file::save (stampedForSaving()));
     if (text == lastBackupText) return false;
     auto folder = backupsFolder();
     folder.createDirectory();
@@ -977,6 +980,7 @@ bool Controller::open (const File& f)
     if (edit::overTrackLimit (*loaded)) { refuseTooManyTracks(); return false; }   // 0088
     engine.stop();
     project = std::move (*loaded);
+    beginWorkClock();   // the song's own time so far (0091)
     refileEffects (project, engine.plugins());
     history.clear();
     file = f;
@@ -1028,7 +1032,7 @@ bool Controller::save()
     if (! file.getFullPathName().endsWith (".kalibre")) return false;
     storeDeviceStates();
     project.name = file.getFileNameWithoutExtension().toStdString();
-    if (! file.replaceWithText (String (file::save (project))))
+    if (! file.replaceWithText (String (file::save (stampedForSaving()))))
     {
         say ("The project couldn't be saved. Check the folder can be written to.", true);
         return false;
@@ -2204,8 +2208,31 @@ void Controller::runScript (const File& f)
 }
 
 //==============================================================================
+// The song as saved: with how long it has been worked on so far.
+const Project& Controller::stampedForSaving()
+{
+    project.workSeconds = workClock.active;
+    return project;
+}
+
+void Controller::beginWorkClock()
+{
+    workClock.begin (project.workSeconds, Time::getMillisecondCounterHiRes() / 1000.0);
+    activity = false;
+}
+
+void Controller::tickWorkClock (double now)
+{
+    // A note played on a MIDI keyboard counts as much as a click.
+    const auto heard = engine.notesPlayedIn.load();
+    if (heard != midiHeard) { midiHeard = heard; activity = true; }
+    workClock.tick (now, activity, engine.isPlaying(), engine.isRecording());
+    activity = false;
+}
+
 void Controller::timerCallback()
 {
+    tickWorkClock (Time::getMillisecondCounterHiRes() / 1000.0);
     // Every three minutes, while not recording.
     const auto now = Time::getMillisecondCounter();
     if (now - lastAutosave > 180000 && ! wasRecording)
@@ -2226,6 +2253,7 @@ void Controller::timerCallback()
     if (playing != lastPlaying)
     {
         lastPlaying = playing;
+        activity = true;
         if (! playing && wasRecording) finishRecording();
         if (onTransportChanged) onTransportChanged();
     }

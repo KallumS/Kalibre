@@ -607,6 +607,7 @@ struct Project
     Video video;
     SurroundFormat surround = SurroundFormat::Stereo;   // decision 0040
     double sampleRate = 48000;
+    double workSeconds = 0;             // how long the user has made music in it (decision 0091); written when saved
     Id nextId = 1;
 
     Project();

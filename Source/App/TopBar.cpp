@@ -33,7 +33,7 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     playButton.setTitle ("Play");
     recordButton.setTitle ("Record");
     start.setTitle ("Go to Start");
-    for (auto* r : { &position, &tempo, &signature, &grid, &scale, &chord, &cpu, &load })
+    for (auto* r : { &position, &tempo, &signature, &grid, &scale, &chord, &timer, &cpu, &load })
     {
         addAndMakeVisible (r);
         r->setRepaintsOnMouseActivity (true);
@@ -48,6 +48,9 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     scale.label = "Scale";
     chord.label = "Chord";
     chord.big = true;
+    timer.label = "Making Music";
+    timer.setTooltip (theme::wrapTip ("How long you've been making music in this song: it counts while you edit, play, record or move the mouse in Kalibre, "
+                                      "and pauses after 3 minutes with nothing happening (8 minutes while the song plays). Saved with the song."));
     cpu.label = "Delay";
     load.label = "CPU";
     load.setTooltip (theme::wrapTip ("How busy the audio is: how much of the time it has for each block it uses, the highest in the last few seconds. "
@@ -117,7 +120,7 @@ TopBar::~TopBar() { c.removeChangeListener (this); }
 const StringArray& TopBar::hideable()
 {
     static const StringArray names { "Loop", "Punch", "Click", "Count-in", "Position", "Tempo", "Tap", "Time Signature",
-                                     "Grid", "Scale", "Chord", "Follow", "CPU", "Delay" };
+                                     "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay" };
     return names;
 }
 
@@ -126,7 +129,7 @@ static int widthOf (const String& name)
 {
     static const std::map<String, int> w { { "Loop", 52 }, { "Punch", 64 }, { "Click", 56 }, { "Count-in", 82 }, { "Position", 130 },
                                            { "Tempo", 80 }, { "Tap", 46 }, { "Time Signature", 56 }, { "Grid", 64 }, { "Scale", 150 },
-                                           { "Chord", 170 }, { "Follow", 70 }, { "CPU", 56 }, { "Delay", 76 } };
+                                           { "Chord", 170 }, { "Timer", 104 }, { "Follow", 70 }, { "CPU", 56 }, { "Delay", 76 } };
     auto it = w.find (name);
     return it == w.end() ? 0 : it->second;
 }
@@ -183,8 +186,8 @@ void TopBar::paint (Graphics& g)
 Component* TopBar::itemNamed (const String& name)
 {
     static const char* names[] { "Loop", "Punch", "Click", "Count-in", "Position", "Tempo", "Tap", "Time Signature",
-                                 "Grid", "Scale", "Chord", "Follow", "CPU", "Delay" };
-    Component* items[] { &loop, &punch, &click, &countIn, &position, &tempo, &tap, &signature, &grid, &scale, &chord, &follow, &load, &cpu };
+                                 "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay" };
+    Component* items[] { &loop, &punch, &click, &countIn, &position, &tempo, &tap, &signature, &grid, &scale, &chord, &timer, &follow, &load, &cpu };
     for (size_t i = 0; i < std::size (names); ++i) if (name == names[i]) return items[i];
     return nullptr;
 }
@@ -229,9 +232,12 @@ void TopBar::resized()
         follow.setBounds (r.removeFromRight (fw).withSizeKeepingCentre (fw, ch));
         r.removeFromRight (gap);
     }
-    const int each = jmax (theme::px (100), (r.getWidth() - gap) / 2);
+    // The timer just right of the chord (0091), its room kept before the chord takes the rest.
+    const int timerWidth = shown ("Timer") ? theme::px (104) + gap : 0;
+    const int each = jmax (theme::px (100), (r.getWidth() - gap - timerWidth) / 2);
     if (shown ("Scale")) { scale.setBounds (r.removeFromLeft (jmin (each, theme::px (190)))); r.removeFromLeft (gap); }
-    if (shown ("Chord")) chord.setBounds (r.removeFromLeft (jmin (r.getWidth(), theme::px (220))));
+    if (shown ("Chord")) { chord.setBounds (r.removeFromLeft (jmax (0, jmin (r.getWidth() - timerWidth, theme::px (220))))); r.removeFromLeft (gap); }
+    if (shown ("Timer")) timer.setBounds (r.removeFromLeft (jmin (r.getWidth(), theme::px (104))));
 
     // Hidden by choice; and anything that still can't fit is hidden rather than squashed.
     for (auto& name : hideable())
@@ -276,6 +282,12 @@ void TopBar::update()
     auto name = String (harmony::chordName (pitches, p.scale));
     if (name.isEmpty() && pitches.size() == 1) name = String (harmony::noteName (p.scale, pitches.front()));
     chord.value = name.isEmpty() ? ui::u8 ("\xe2\x80\x94") : name;
+    {
+        // The timer (0091): a stopwatch of the song's music-making; "Paused" while away.
+        const String shown (WorkClock::format (c.workClock.active));
+        const String label = c.workClock.idle ? "Paused" : "Making Music";
+        if (timer.value != shown || timer.label != label) { timer.value = shown; timer.label = label; timer.repaint(); }
+    }
     chord.setTitle ("Chord: " + (name.isEmpty() ? String ("none") : name));
 
     const int latency = c.engine.latencySamples();

@@ -115,6 +115,7 @@ std::string save (const Project& p)
     j["sections"] = p.sections;
     j["scenes"] = p.scenes;
     j["metadata"] = p.metadata;
+    j["workSeconds"] = p.workSeconds;
     j["video"] = p.video;
     j["surround"] = p.surround;
     j["sampleRate"] = p.sampleRate;
@@ -175,6 +176,7 @@ std::optional<Project> load (const std::string& text, std::string* error)
         if (j.contains ("sections")) p.sections = j.at ("sections").get<std::vector<Section>>();
         if (j.contains ("scenes")) p.scenes = j.at ("scenes").get<std::vector<std::string>>();
         if (j.contains ("metadata")) p.metadata = j.at ("metadata").get<Metadata>();
+        if (j.contains ("workSeconds") && j.at ("workSeconds").is_number()) p.workSeconds = j.at ("workSeconds").get<double>();
         if (j.contains ("video")) p.video = j.at ("video").get<Video>();
         if (j.contains ("surround")) p.surround = j.at ("surround").get<SurroundFormat>();
         p.sampleRate = j.value ("sampleRate", p.sampleRate);

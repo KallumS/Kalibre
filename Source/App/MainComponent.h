@@ -30,6 +30,17 @@
 namespace kal
 {
 
+// Tells the Controller when the mouse does anything in Kalibre (the top bar's timer, 0091).
+struct ActivityWatch : public juce::MouseListener
+{
+    explicit ActivityWatch (Controller& ctrl) : c (ctrl) {}
+    Controller& c;
+    void mouseMove (const juce::MouseEvent&) override { c.noteActivity(); }
+    void mouseDown (const juce::MouseEvent&) override { c.noteActivity(); }
+    void mouseDrag (const juce::MouseEvent&) override { c.noteActivity(); }
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override { c.noteActivity(); }
+};
+
 class MainComponent : public juce::Component,
                       public juce::DragAndDropContainer,
                       public juce::MenuBarModel,
@@ -72,6 +83,7 @@ public:
 
 private:
     Controller& c;
+    ActivityWatch activity { c };
     TopBar top;
     Arrange arrange;
     LowerZone lower;

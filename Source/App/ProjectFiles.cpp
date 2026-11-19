@@ -97,6 +97,7 @@ bool Controller::archive (const File& zip)
     projecttools::replaceFiles (copy, inside);
     const String song = file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Untitled");
     ZipFile::Builder builder;
+    copy.workSeconds = workClock.active;
     const auto projectText = String (file::save (copy));
     builder.addEntry (new MemoryInputStream (projectText.toRawUTF8(), projectText.getNumBytesAsUTF8(), true), 9, song + "/" + song + ".kalibre", Time::getCurrentTime());
     for (auto& [src, name] : files) builder.addFile (src, 0, song + "/Audio/" + name);   // audio is stored, not squeezed
@@ -132,6 +133,8 @@ bool Controller::newFromTemplate (const File& f)
     if (edit::overTrackLimit (*loaded)) { refuseTooManyTracks(); return false; }   // 0088
     engine.stop();
     project = std::move (*loaded);
+    project.workSeconds = 0;   // a new song from a template starts its own time
+    beginWorkClock();
     refileEffects (project, engine.plugins());
     history.clear();
     file = File();
@@ -586,6 +589,7 @@ bool Controller::importDawProject (const File& f)
 
     engine.stop();
     project = std::move (p);
+    beginWorkClock();
     refileEffects (project, engine.plugins());
     history.clear();
     file = File();

@@ -1913,3 +1913,60 @@ TEST ("fix note timings and volume: the clip's velocities and controllers don't 
     std::sort (err.begin(), err.end());
     CHECK (err[err.size() / 2] <= 3);
 }
+
+#include "TopBar.h"
+
+TEST ("the timer: the song's music-making time beside the chord, counting while something happens, paused when nothing has for 3 minutes, saved with the song (0091)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    // A song saved after an hour and a minute of work.
+    Project song;
+    edit::addTrack (song, TrackKind::Track, "Piano");
+    song.workSeconds = 3660;
+    const auto f = folder().getChildFile ("timer.kalibre");
+    f.replaceWithText (String (file::save (song)));
+    CHECK (c.open (f));
+    CHECK (std::abs (c.workClock.active - 3660) < 0.01);
+    // Ten minutes of work, a tick every quarter second, then twenty minutes away.
+    double t = Time::getMillisecondCounterHiRes() / 1000.0;
+    c.beginWorkClock();
+    for (int i = 0; i < 2400; ++i) { t += 0.25; if (i % 8 == 0 || i == 2399) c.noteActivity(); c.tickWorkClock (t); }
+    CHECK (std::abs (c.workClock.active - (3660 + 600)) < 1);
+    for (int i = 0; i < 4800; ++i) { t += 0.25; c.tickWorkClock (t); }
+    CHECK (c.workClock.idle);
+    CHECK (std::abs (c.workClock.active - (3660 + 600 + 180)) < 1);
+    // An edit is someone there.
+    c.apply ("Rename", [] (Project& p) { p.tracks.front().name = "Grand"; });
+    t += 0.25;
+    c.tickWorkClock (t);
+    CHECK (! c.workClock.idle);
+    // On the top bar, beside the chord.
+    TopBar bar (c);
+    bar.setSize (1600, 60);
+    MessageManager::getInstance()->runDispatchLoopUntil (120);
+    Component* timer = nullptr;
+    Component* chord = nullptr;
+    for (auto* ch : bar.getChildren())
+    {
+        auto* tip = dynamic_cast<TooltipClient*> (ch);
+        if (! tip) continue;
+        if (tip->getTooltip().startsWith ("How long you've been making music")) timer = ch;
+        if (tip->getTooltip().startsWith ("The chord you're playing")) chord = ch;
+    }
+    CHECK (timer && chord);
+    if (timer && chord)
+    {
+        CHECK (timer->isVisible());
+        CHECK (timer->getX() > chord->getRight() && timer->getX() - chord->getRight() < 20);
+    }
+    // Saved with the song.
+    CHECK (c.saveAs (f));
+    auto back = file::load (f.loadFileAsString().toStdString());
+    CHECK (back.has_value());
+    if (back) CHECK (std::abs (back->workSeconds - c.workClock.active) < 0.01);
+    // A new song starts at nothing.
+    c.newProject();
+    CHECK_EQ (c.workClock.active, 0.0);
+}

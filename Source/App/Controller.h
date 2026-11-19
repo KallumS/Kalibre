@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "WorkClock.h"
 #include "Edit.h"
 #include "AutoCc.h"
 #include "Engine.h"
@@ -76,6 +77,17 @@ public:
     // Changes.
     // False when refused (more than 1000 tracks, decision 0088): nothing changed.
     bool apply (const juce::String& label, std::function<void (Project&)> change);
+
+    // The top bar's timer (decision 0091): how long the user has made music in this
+    // song, DAW Battle Pass's active-time clock. The window tells it when anything
+    // happens; the Controller's timer ticks it; it goes into the song when saved.
+    WorkClock workClock;
+    void noteActivity() { activity = true; }
+    void tickWorkClock (double nowSeconds);
+    void beginWorkClock();      // a song opened or started: its own time so far
+    const Project& stampedForSaving();
+    bool activity = false;
+    juce::uint32 midiHeard = 0;
     void refuseTooManyTracks();
     juce::uint32 refusedAt = 0;
     // The project changed in a way the engine needs to hear about but that

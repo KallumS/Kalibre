@@ -104,6 +104,7 @@ public:
     // Playing a note to hear it (clicking in the piano roll).
     // A message as if played on a keyboard (the tests play notes in with it).
     void playIn (const juce::MidiMessage& m) { handleIncomingMidiMessage (nullptr, m); }
+    std::atomic<juce::uint32> notesPlayedIn { 0 };   // notes from MIDI keyboards, for the top bar's timer (0091)
     void audition (Id track, int pitch, int velocity = 100, double seconds = 0.3);
 
     //==========================================================================

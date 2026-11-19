@@ -233,6 +233,7 @@ void Engine::setMappings (std::vector<MidiMapping> maps)
 void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
 {
     if (m.isActiveSense()) return;
+    if (m.isNoteOn()) notesPlayedIn.fetch_add (1, std::memory_order_relaxed);
     const String from = source ? source->getIdentifier() : String();
     // A control surface's own port (decision 0034).
     if (surfaceInput && surfaceInput (from, m)) return;
