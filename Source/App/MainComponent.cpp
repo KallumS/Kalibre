@@ -304,6 +304,14 @@ void MainComponent::registerKeys()
     keys.add ("mute", "Mute the Chosen Tracks", K ('m'), [this] { c.apply ("Mute", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->mute = ! t->mute; }); });
     keys.add ("solo", "Solo the Chosen Tracks", K ('s'), [this] { c.apply ("Solo", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->solo = ! t->solo; }); });
     keys.add ("fit", "Zoom to Fit", K ('f'), [this] { arrange.zoomToFit(); });
+    // The tools (decision 0092), in Cubase's order on 1 to 9; the rest without a key until given one.
+    for (int i = 0; i < tools::toolCount; ++i)
+    {
+        const auto tool = (tools::Tool) i;
+        const String name (tools::info (tool).name);
+        keys.add ("tool" + name.removeCharacters (" "), "Tool: " + name, i < 9 ? K ((juce_wchar) ('1' + i)) : K(),
+                  [this, tool] { c.chooseToolEverywhere (tool); });
+    }
     keys.file = settingsStore().getUserSettings() ? settingsStore().getUserSettings()->getFile().getSiblingFile ("Keys.json") : File();
     keys.load();
 }

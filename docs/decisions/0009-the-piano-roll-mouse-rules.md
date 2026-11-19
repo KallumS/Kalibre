@@ -19,6 +19,11 @@ note added, clicked or stretched (the grid's length until there's one), so
 after drawing a 1/8 note the next click makes a 1/8; click a 1/16 note and
 the next is a 1/16.
 
+Amended by the user, 19 November 2026 (0092): these are the rules with the
+**Select** tool. Control-right-click opens the toolbox; with another tool a
+left click is that tool's (Draw, Erase, Split, Drumstick...). Right-click
+still removes notes whatever the tool.
+
 ## Consequences
 
-There's no pencil or eraser tool: the buttons are the tools.
+There's no pencil or eraser tool: the buttons are the tools. (Since 0092 there are, chosen from the toolbox; Select keeps these rules.)

@@ -235,8 +235,19 @@ void Arrange::toolDragTo (const MouseEvent& e)
             c.viewChanged();
             break;
         }
-        case Tool::Erase: eraseAt (e.getPosition()); break;
-        case Tool::Mute:  muteAt (e.getPosition()); break;
+        case Tool::Erase:
+        case Tool::Mute:
+        {
+            // Every point along the way, so a quick drag misses nothing.
+            const auto to = e.getPosition();
+            const int steps = jmax (1, roundToInt (prev.getDistanceFrom (to) / 3.0f));
+            for (int i = 1; i <= steps; ++i)
+            {
+                const auto p = prev + (to - prev) * i / steps;
+                if (d.tool == Tool::Erase) eraseAt (p); else muteAt (p);
+            }
+            break;
+        }
         case Tool::Zoom:
             if (d.mode == tools::zoommode::Horizontally)
             {
@@ -523,7 +534,7 @@ void Arrange::paintTool (Graphics& g)
         {
             // The beat being moved, and where it's going.
             const float from = xOf (d.downTick), to = (float) d.at.x;
-            g.setColour (theme::accent);
+            g.setColour (theme::edge);
             g.fillRect (from - 1.0f, 0.0f, 2.0f, (float) getHeight());
             if (d.moved)
             {

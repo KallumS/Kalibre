@@ -25,6 +25,7 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/Toolbox.*` | The tools Control-right-click chooses, each area's, their modes; Split into pieces, Glue, clearing a range, Line's shapes, Time Warp (0092). |
 | `Core/WorkClock.*` | The top bar's timer: DAW Battle Pass's active-time clock (0091). |
 | `Core/NoteFixer.*` | Note Position & Volume Fixer's engine: where each note is heard in a render, and how loud (0085). |
 | `Core/NoteSplit.*` | The Note Splitter's rule: a chord's notes, top to bottom, an output each (0083). |
@@ -69,6 +70,7 @@
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp`, `NoteFixing.cpp` | More of the Controller: audio commands, presets and A/B, file commands, Fix Note Timings and Volume (0085). |
+| `App/ToolBox.*`, `ArrangeTools.cpp`, `PianoRollTools.cpp` | The toolbox at the pointer, its icons and pointers; what each tool does in the arrangement and the piano roll (0092). |
 | `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |
 | `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
 | `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
@@ -121,7 +123,8 @@ performance core, each as soon as what feeds it is done (0078).
   Source's `blockTicks`, never once a block.
 - At most 1000 tracks, checked in `Controller::apply` (0088): a change that
   adds tracks some other way (a script, opening a file) checks too.
-- A gesture is one `Controller::apply` (one undo step).
+- A gesture is one `Controller::apply` (one undo step). A tool's drag that shows its change as it goes ends in `Controller::applyLive` (0092).
+- A tool other than Select takes only the left click; right-clicks keep their menus, and Control-right-click is the toolbox's (0092).
 - A track's devices stay MIDI effects, instruments, audio effects (`edit::normaliseChain`).
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).
 - A plug-in's window is deleted before its instance: the engine keeps removed instances for a second and a half.

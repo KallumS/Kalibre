@@ -49,6 +49,11 @@ grow and shrink with it.
   under the pointer: a note's pitch, velocity and length, a clip's length and
   notes. **The top bar** shows what you choose (right-click it), with the
   arrangement's **grid** and **Follow** that scrolls or turns the page.
+- **Cubase's toolbox**: hold Control and right-click over the tracks or the
+  piano roll, and pick a tool: Select, Range, Split, Glue, Erase, Zoom, Mute,
+  Draw, Line, Play, Hand, Drumstick or Time Warp. The pointer becomes the
+  tool; the keys 1 to 9 choose them too. Adapted from Right-Click Toolbox
+  for REAPER.
 - **Five ways to write notes**: the piano roll (click to add, right-click to
   remove, drag to move or stretch, right-drag to clear an area, Shift-drag to
   choose; a new note is as long as the last one), a drum grid, a step
@@ -141,6 +146,7 @@ grow and shrink with it.
 ![Fix Note Timings and Volume: how to fix them](docs/fix-note-timings-and-volume.png)
 ![The top bar, its Grid, and the message line telling what's chosen; I/O on each track](docs/top-bar-and-io.png)
 ![The top bar's timer, right of the chord](docs/top-bar-timer.png)
+![The toolbox, opened with Control-right-click: Split in use, the pointer on Mute](docs/toolbox.png)
 ![The sample editor](docs/sample-editor.png)
 ![Kalibre Synth and Sampler](docs/synth-and-sampler.png)
 ![A plug-in shown smaller to fit a short rack](docs/fitted-to-the-rack.png)

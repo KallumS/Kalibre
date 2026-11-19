@@ -29,12 +29,13 @@ void click (Component& comp, Point<int> p, ModifierKeys mods = left)
     comp.mouseUp (event (comp, p, mods, p, false));
 }
 
-void drag (Component& comp, Point<int> from, Point<int> to, ModifierKeys mods = left)
+// `moves`: how many mouse events the drag is; a quick drag is only one or two.
+void drag (Component& comp, Point<int> from, Point<int> to, ModifierKeys mods = left, int moves = 8)
 {
     comp.mouseDown (event (comp, from, mods, from, false));
-    for (int i = 1; i <= 8; ++i)
+    for (int i = 1; i <= moves; ++i)
     {
-        const auto p = from + (to - from) * i / 8;
+        const auto p = from + (to - from) * i / moves;
         comp.mouseDrag (event (comp, p, mods, from, true));
     }
     comp.mouseUp (event (comp, to, mods, from, true));
@@ -144,7 +145,7 @@ TEST ("tools: Split, Glue, Mute and Erase in the arrangement, each one undo step
     // Erase: one drag over both clips takes both, one undo step.
     c.chooseTool (tools::Area::Arrange, Tool::Erase);
     steps = c.history.size();
-    drag (a.view, a.at (PPQ, 0), a.at (PPQ * 14, 0));
+    drag (a.view, a.at (PPQ, 0), a.at (PPQ * 14, 0), left, 1);   // quick: one move, both still erased
     CHECK (c.project.track (s.one)->clips().empty());
     CHECK_EQ (c.history.size(), steps + 1);
     CHECK (c.undo());
@@ -266,7 +267,7 @@ TEST ("tools: in the piano roll, Draw, Erase, Mute, Split, Drumstick and Line; S
     // Drumstick: a hit every grid step dragged over, one undo step; a click on one takes it away.
     c.chooseTool (tools::Area::Roll, Tool::Drumstick);
     steps = c.history.size();
-    drag (roll, at (10, 36), at (PPQ * 2 - 10, 36));
+    drag (roll, at (10, 36), at (PPQ * 2 - 10, 36), left, 1);   // quick: one move, every step still hit
     CHECK_EQ (notes().size(), size_t (4));
     CHECK_EQ (c.history.size(), steps + 1);
     for (auto& n : notes()) { CHECK_EQ (n.pitch, 36); CHECK_EQ (n.length, PPQ / 2); }
@@ -279,4 +280,35 @@ TEST ("tools: in the piano roll, Draw, Erase, Mute, Split, Drumstick and Line; S
     int run = 0;
     for (auto& n : notes()) if (n.start >= PPQ * 4) ++run;
     CHECK_EQ (run, 5);
+}
+
+#include "MainComponent.h"
+
+TEST ("tools: the number keys choose tools in Cubase's order, in each area that has the tool")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        Song s;
+        MainComponent w (s.c);
+        s.c.keys.file = File();   // not kept
+        s.c.keys.resetAll();
+        CHECK (s.c.keys.handle (KeyPress ('3')));
+        CHECK (s.c.arrangeTool.tool == Tool::Split);
+        CHECK (s.c.rollTool.tool == Tool::Split);
+        CHECK (s.c.keys.handle (KeyPress ('8')));
+        CHECK (s.c.arrangeTool.tool == Tool::Draw);
+        CHECK (s.c.keys.handle (KeyPress ('1')));
+        CHECK (s.c.arrangeTool.tool == Tool::Select && s.c.rollTool.tool == Tool::Select);
+        // Every tool is in the Keys tab; the Drumstick, given a key, is the piano roll's alone.
+        int listed = 0;
+        for (auto& k : s.c.keys.all()) listed += k.name.startsWith ("Tool: ") ? 1 : 0;
+        CHECK_EQ (listed, tools::toolCount);
+        s.c.keys.set ("toolDrumstick", KeyPress ('k'));
+        CHECK (s.c.keys.handle (KeyPress ('k')));
+        CHECK (s.c.rollTool.tool == Tool::Drumstick);
+        CHECK (s.c.arrangeTool.tool == Tool::Select);
+        s.c.keys.resetAll();
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

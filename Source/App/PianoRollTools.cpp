@@ -209,9 +209,22 @@ void PianoRoll::toolDragTo (const MouseEvent& e)
     const bool free = e.mods.isCommandDown();
     switch (d.tool)
     {
-        case Tool::Erase: eraseNoteAt (e.getPosition()); break;
-        case Tool::Mute:  muteNoteAt (e.getPosition()); break;
-        case Tool::Drumstick: paintHitAt (e.getPosition()); break;
+        case Tool::Erase:
+        case Tool::Mute:
+        case Tool::Drumstick:
+        {
+            // Every point along the way, so a quick drag misses nothing.
+            const auto to = e.getPosition();
+            const int steps = jmax (1, roundToInt (prev.getDistanceFrom (to) / 3.0f));
+            for (int i = 1; i <= steps; ++i)
+            {
+                const auto p = prev + (to - prev) * i / steps;
+                if (d.tool == Tool::Erase) eraseNoteAt (p);
+                else if (d.tool == Tool::Mute) muteNoteAt (p);
+                else paintHitAt ({ p.x, to.y });
+            }
+            break;
+        }
         case Tool::Draw:
         {
             auto& n = d.adding.front();

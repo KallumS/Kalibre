@@ -7,6 +7,9 @@
     Shift-drag to choose an area. The project's scale shades its rows (the
     root's darker still) when Shade the Scale is on (decision 0015).
 
+    Control-right-click opens the toolbox (decision 0092): with a tool other
+    than Select, a left click is the tool's (PianoRollTools.cpp).
+
     Under the notes, the velocity lane (drag to set how hard each note is
     played; click its name for each note's chance of playing, random velocity
     range or random timing (decision 0061), or to draw a controller there

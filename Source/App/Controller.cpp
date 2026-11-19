@@ -116,6 +116,18 @@ void Controller::chooseTool (tools::Area area, tools::Tool tool, std::optional<i
     viewChanged();
 }
 
+void Controller::chooseToolEverywhere (tools::Tool tool)
+{
+    const bool inArrange = arrangeTool.choose (tool, tools::Area::Arrange);
+    const bool inRoll = rollTool.choose (tool, tools::Area::Roll);
+    if (! inArrange && ! inRoll) return;
+    if (tool != tools::Tool::Range) range = {};
+    const auto& state = inArrange ? arrangeTool : rollTool;
+    say ("Tool: " + String (state.describe()) + (inArrange && inRoll ? "" : inArrange ? " (in the arrangement)" : " (in the piano roll)")
+         + ". " + String (tools::info (tool).help));
+    viewChanged();
+}
+
 bool Controller::apply (const String& label, std::function<void (Project&)> change)
 {
     storeDeviceStates();

@@ -80,6 +80,7 @@ public:
     tools::State arrangeTool, rollTool;
     tools::State& toolsFor (tools::Area a) { return a == tools::Area::Arrange ? arrangeTool : rollTool; }
     void chooseTool (tools::Area, tools::Tool, std::optional<int> mode = std::nullopt);
+    void chooseToolEverywhere (tools::Tool);   // a tool's key: in each area that has it
     // The Range tool's stretch of time on some tracks: Delete clears what's in it.
     struct Range
     {

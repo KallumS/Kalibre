@@ -8,6 +8,9 @@
     copy, double-click empty space for a new MIDI clip a bar long. Right-click
     a clip for what else it can do: split, loop, warp, offline effects.
 
+    Tools (decision 0092): Control-right-click opens the toolbox; a tool
+    other than Select takes the left click in the lanes (ArrangeTools.cpp).
+
     Tracks: right-click a header for New Version (decision 0006) and the
     rest; the version number on the header chooses between versions.
     Folders fold with their triangle. Audio and MIDI files dropped from the
