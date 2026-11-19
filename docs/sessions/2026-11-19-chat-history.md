@@ -8,7 +8,7 @@ without its output. Private details (an email address) and the harness's
 internal reminders are removed, as are the automatic "background task
 finished" notices. Messages you sent while Claude was working are marked so.
 
-6 messages from you, 131 replies, 432 tool calls.
+7 messages from you, 136 replies, 442 tool calls.
 
 ## You (2026-11-19 00:29)
 
@@ -1185,3 +1185,70 @@ Now backing up this chat with the repo's exporter.
 
 - *Bash*: Find this session's transcript
 - *Bash*: Export the chat backup
+
+## Claude (2026-11-19 09:30)
+
+No email in it. Committing and pushing the backup.
+
+- *Bash*: Commit and push the chat backup
+- *TaskUpdate*: 9
+- *TaskUpdate*: 6
+- *mcp__github__actions_list*: list_workflow_runs
+
+## Claude (2026-11-19 09:30)
+
+Runs 128 and 129, from before the fix, failed. Checking 129's log to confirm it was this crash and not something else.
+
+- *mcp__github__get_job_logs*: KallumS
+- *mcp__github__get_job_logs*: KallumS
+
+## Claude (2026-11-19 09:30)
+
+Same crash on the Mac, in the same place: the window test running the message loop. The fix is in the run now going (132). I'll check it when it finishes.
+
+- *mcp__claude-code-remote__send_later*: 22
+
+## Claude (2026-11-19 09:30)
+
+I've written the update guide and tool, updated the rest of the docs, backed up this chat and pushed the MIDI Production Center fix to its own repo. All tests pass here (194 core, 120 app); the Mac build with the latest fixes is still running, and I'll check it in about 20 minutes.
+
+**MIDI Production Center fix.** It's on a new branch, `fix-pad-stride-case`, in that repo, not merged; merging is yours. Fixing it there turned up two more bugs of the same kind, so there were three:
+- **The cause:** the plug-in's code language ignores capital letters, so two names that differ only in case are one variable, in REAPER too.
+- **Every pad was one empty pad.** The setting that spaces the 64 pads out was the same variable as the Stutter switch, so all 64 pads collapsed into one. The repo's notes say your first REAPER try played nothing; this is very likely why.
+- **Pads played the wrong notes.** The code that builds a pad's notes mixed up the pad's start and end with each note's start and end.
+- **The pad view drew the wrong notes**, for the same reason.
+
+Its own tests never caught this because their test copy of the language does care about case. They now match REAPER, and a new check fails on any two spellings of one name. Both of its test suites pass, and the plug-in runs and plays in Kalibre. It hasn't been tried in REAPER yet. Kalibre uses that branch for now; once you merge it, say so and I'll switch Kalibre back to `main`.
+
+**Updating the devices.** `docs/UPDATING-ENGINES.md` explains it in plain words. In practice, ask me "update Midular in Kalibre" or "update all the engines". The tool behind it (`tools/update_engines.py`) copies a repo's new version in and lists anything that needs a closer look:
+- a slider removed or renumbered, which would change what saved songs mean
+- the capital-letters problem above
+- a REAPER or ReaImGui call Kalibre doesn't answer yet
+- a REAPER-facing file changed that Kalibre replaces with its own version
+- a new file it isn't carrying yet
+- Trombolese's model changed, which means updating the C++ by hand
+
+Right now every engine matches its repo. Pointed at MIDI Production Center's `main`, it named all three bugs.
+
+**Mac crashes.** Two problems were found and fixed this session:
+- **The toolbox broke the Mac build.** Two files differing only by a capital letter count as one file on a Mac, so the toolbox's window file is now named `ToolPicker`. The Mac build has passed since.
+- **The Mac tests crashed now and then.** When you click a key in the piano roll, Kalibre schedules the note to stop a moment later. In the tests, that stop could arrive after its test had already shut its audio engine down, and crash. A test reproduced the crash before I fixed it. This was in the tests only: the real app keeps its engine for the whole session.
+
+**Docs and backup.** Decision 0093 records the five devices and the fixes found on the way. The features list, architecture notes, README and today's session log are updated. The chat is saved as `docs/sessions/2026-11-19-chat-history.md`.
+
+The five new devices haven't been tried on your Mac yet. Once the build passes, the `.dmg` will be at Actions > Build > Kalibre-macOS.
+
+## You (2026-11-19 09:31)
+
+Please backup the chat and update all the docs, I'm about to compact it
+
+## Claude (2026-11-19 09:32)
+
+- *Bash*: Re-export the chat backup
+- *mcp__github__actions_get*: get_workflow_run
+
+## Claude (2026-11-19 09:32)
+
+Still running. Adding what's left open to the session log so it survives the compaction, then committing.
+
+- *Bash*: Note open items, re-export, commit and push
