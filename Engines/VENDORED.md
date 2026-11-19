@@ -1,5 +1,9 @@
 # The engines, and where they came from
 
+To bring one up to date: `python3 tools/update_engines.py` (docs/UPDATING-ENGINES.md).
+The exact commits and which file goes where are in `engines.json`; this table is
+the same, for reading.
+
 Copied **unchanged** from their own repositories, as Miderator does
 (its decision 0003): fix them there, then copy them here again and update
 this table. Embedded in the app by `cmake/EmbedLua.cmake`; run by

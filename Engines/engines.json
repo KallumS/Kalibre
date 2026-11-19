@@ -1,0 +1,271 @@
+{
+  "about": "Every engine Kalibre carries from the family's repositories: where it comes from, the exact commit, which file in the repository becomes which file here, and what to look at when it changes. Read by tools/update_engines.py; docs/UPDATING-ENGINES.md explains it. Paths here are from Kalibre's root; a list copies one file to several places.",
+  "engines": [
+    {
+      "name": "Good Idea",
+      "repo": "KallumS/Good-Idea",
+      "ref": "main",
+      "commit": "91500c5ae130f6c765cb9a9549afb998f8d44939",
+      "kind": "lua-window",
+      "decision": "0062, 0093",
+      "files": {
+        "reascripts/Good Idea.lua": "Engines/tools/good-idea/Good Idea.lua",
+        "reascripts/gi_idea.lua": [
+          "Engines/tools/good-idea/gi_idea.lua",
+          "Engines/good-idea/gi_idea.lua"
+        ],
+        "reascripts/gi_theory.lua": [
+          "Engines/tools/good-idea/gi_theory.lua",
+          "Engines/good-idea/gi_theory.lua"
+        ],
+        "reascripts/gi_midi.lua": "Engines/tools/good-idea/gi_midi.lua",
+        "LICENSE": "Engines/tools/good-idea/LICENSE"
+      },
+      "standins": {
+        "reascripts/gi_place.lua": "Engines/tools/gi_place.lua"
+      }
+    },
+    {
+      "name": "Midi Evolver",
+      "repo": "KallumS/Midi-Evolver",
+      "ref": "main",
+      "commit": "3a2707528d8fb8cf99288f6bc4898703bb1eb9b5",
+      "kind": "jsfx",
+      "decision": "0066",
+      "files": {
+        "Midi Evolver.jsfx": "Engines/jsfx/Midi Evolver.jsfx"
+      },
+      "ignore": [
+        "reascripts/Midi Evolver Helper.lua",
+        "reascripts/me_midi.lua",
+        "reascripts/me_place.lua"
+      ]
+    },
+    {
+      "name": "Transient Shuffler",
+      "repo": "KallumS/Transient-Shuffler",
+      "ref": "main",
+      "commit": "77e0d2c8a7d458ff42f1c259b6fb7ed44c3567e4",
+      "kind": "jsfx",
+      "decision": "0066",
+      "files": {
+        "TransientShuffler.jsfx": "Engines/jsfx/Transient Shuffler.jsfx"
+      }
+    },
+    {
+      "name": "Reese Basser",
+      "repo": "KallumS/Reese-Basser",
+      "ref": "main",
+      "commit": "b251c94bda7e477685e1cbc7f29b629e0f2a339a",
+      "kind": "jsfx",
+      "decision": "0066",
+      "files": {
+        "ReeseBasser.jsfx": "Engines/jsfx/Reese Basser.jsfx"
+      }
+    },
+    {
+      "name": "Reverberator",
+      "repo": "KallumS/Reverberator",
+      "ref": "main",
+      "commit": "e286efcb42ca2084f1050a1bc7c4bc90ad8a237c",
+      "kind": "jsfx",
+      "decision": "0066",
+      "files": {
+        "Reverberator.jsfx": "Engines/jsfx/Reverberator.jsfx"
+      }
+    },
+    {
+      "name": "Instrument Creator",
+      "repo": "KallumS/Instrument-Creator",
+      "ref": "main",
+      "commit": "0ca9a1690fe735bbf84606c849e2b07deefc60dd",
+      "kind": "jsfx",
+      "decision": "0066",
+      "files": {
+        "Instrument-Creator.jsfx": "Engines/jsfx/Instrument Creator.jsfx"
+      }
+    },
+    {
+      "name": "Midular",
+      "repo": "KallumS/Midular",
+      "ref": "main",
+      "commit": "cd0c7caf10d70473c7a4fc2bf1f4cf4901d91927",
+      "kind": "jsfx",
+      "decision": "0093",
+      "files": {
+        "Midular.jsfx": "Engines/jsfx/midular/Midular.jsfx",
+        "midular_core.jsfx-inc": "Engines/jsfx/midular/midular_core.jsfx-inc",
+        "midular_engine.jsfx-inc": "Engines/jsfx/midular/midular_engine.jsfx-inc",
+        "midular_ui.jsfx-inc": "Engines/jsfx/midular/midular_ui.jsfx-inc",
+        "Data/midular/default.txt": "Engines/jsfx/Data/midular/default.txt",
+        "Scripts/midular_import.lua": "Engines/scripts/midular/midular_import.lua",
+        "LICENSE": "Engines/jsfx/midular/LICENSE"
+      }
+    },
+    {
+      "name": "MIDI Production Center",
+      "repo": "KallumS/MIDI-Production-Center",
+      "ref": "fix-pad-stride-case",
+      "commit": "fe59f2b1f291582591bc9769fda2b5bb712ed028",
+      "kind": "jsfx",
+      "decision": "0093",
+      "note": "Taken from its fix-pad-stride-case branch until that is merged; then set ref to main.",
+      "files": {
+        "Effects/MIDI Production Center/MIDI_Production_Center.jsfx": "Engines/jsfx/midi-production-center/MIDI_Production_Center.jsfx",
+        "Effects/MIDI Production Center/mpc_core.jsfx-inc": "Engines/jsfx/midi-production-center/mpc_core.jsfx-inc",
+        "Effects/MIDI Production Center/mpc_engine.jsfx-inc": "Engines/jsfx/midi-production-center/mpc_engine.jsfx-inc",
+        "Effects/MIDI Production Center/mpc_ui.jsfx-inc": "Engines/jsfx/midi-production-center/mpc_ui.jsfx-inc",
+        "Scripts/MIDI Production Center/mpc_loader_lib.lua": "Engines/scripts/midi-production-center/mpc_loader_lib.lua",
+        "Scripts/MIDI Production Center/MPC - Load selected MIDI item.lua": "Engines/scripts/midi-production-center/MPC - Load selected MIDI item.lua",
+        "Scripts/MIDI Production Center/MPC - Loader (background).lua": "Engines/scripts/midi-production-center/MPC - Loader (background).lua",
+        "LICENSE": "Engines/jsfx/midi-production-center/LICENSE"
+      }
+    },
+    {
+      "name": "Starting Blocks",
+      "repo": "KallumS/Starting-Blocks",
+      "ref": "plugin",
+      "commit": "02e87c10b0c104fc96ae2bb42a2c5e259f4e7f5e",
+      "kind": "lua-window",
+      "decision": "0068",
+      "files": {
+        "reascripts/Starting Blocks.lua": "Engines/tools/starting-blocks/Starting Blocks.lua",
+        "reascripts/sb_engine.lua": "Engines/tools/starting-blocks/sb_engine.lua",
+        "reascripts/sb_midi.lua": "Engines/tools/starting-blocks/sb_midi.lua",
+        "plugin/lua/imgui.lua": "Engines/tools/imgui.lua",
+        "LICENSE": "Engines/tools/starting-blocks/LICENSE"
+      },
+      "standins": {
+        "plugin/lua/sb_place.lua": "Engines/tools/sb_place.lua"
+      },
+      "hosts": [
+        "plugin/source/ImGuiLua.cpp",
+        "plugin/source/Session.cpp",
+        "plugin/source/Plugin.cpp"
+      ],
+      "ignore": [
+        "reascripts/sb_place.lua"
+      ]
+    },
+    {
+      "name": "Starting Blocks Notation",
+      "repo": "KallumS/Starting-Blocks-Notation",
+      "ref": "plugin",
+      "commit": "2b7de1495427adea47f38e3effa5f4ed9e9d6577",
+      "kind": "lua-window",
+      "decision": "0068",
+      "files": {
+        "reascripts/Starting Blocks Notation.lua": "Engines/tools/starting-blocks-notation/Starting Blocks Notation.lua",
+        "reascripts/sb_draw.lua": "Engines/tools/starting-blocks-notation/sb_draw.lua",
+        "reascripts/sb_engine.lua": "Engines/tools/starting-blocks-notation/sb_engine.lua",
+        "reascripts/sb_glyphs.lua": "Engines/tools/starting-blocks-notation/sb_glyphs.lua",
+        "reascripts/sb_glyphs-OFL.txt": "Engines/tools/starting-blocks-notation/sb_glyphs-OFL.txt",
+        "reascripts/sb_midi.lua": "Engines/tools/starting-blocks-notation/sb_midi.lua",
+        "reascripts/sb_notate.lua": "Engines/tools/starting-blocks-notation/sb_notate.lua",
+        "LICENSE": "Engines/tools/starting-blocks-notation/LICENSE"
+      },
+      "standins": {
+        "plugin/lua/sb_place.lua": "Engines/tools/sb_place.lua"
+      },
+      "hosts": [
+        "plugin/source/ImGuiLua.cpp",
+        "plugin/source/Session.cpp",
+        "plugin/source/Plugin.cpp"
+      ],
+      "ignore": [
+        "reascripts/sb_place.lua"
+      ]
+    },
+    {
+      "name": "Midi Catalogue",
+      "repo": "KallumS/Midi-Catalogue",
+      "ref": "main",
+      "commit": "4eb91a83e5229a81b95ccfc35feb87772f98d7e7",
+      "kind": "lua-window",
+      "decision": "0068",
+      "files": {
+        "reascripts/Midi Catalogue.lua": "Engines/tools/midi-catalogue/Midi Catalogue.lua",
+        "reascripts/mc_catalogue.lua": "Engines/tools/midi-catalogue/mc_catalogue.lua",
+        "reascripts/mc_midi.lua": "Engines/tools/midi-catalogue/mc_midi.lua",
+        "reascripts/mc_orchestra.lua": "Engines/tools/midi-catalogue/mc_orchestra.lua",
+        "reascripts/mc_theory.lua": "Engines/tools/midi-catalogue/mc_theory.lua",
+        "LICENSE": "Engines/tools/midi-catalogue/LICENSE"
+      },
+      "standins": {
+        "reascripts/mc_place.lua": "Engines/tools/mc_place.lua"
+      }
+    },
+    {
+      "name": "Orchestration Helper",
+      "repo": "KallumS/Orchestration-Helper",
+      "ref": "main",
+      "commit": "5b851a6bdcf1e94acd5edc2057c9273a8eca2bba",
+      "kind": "lua-gfx",
+      "decision": "0068",
+      "files": {
+        "Orchestration Helper.lua": "Engines/tools/orchestration-helper/Orchestration Helper.lua",
+        "orchestration_data.lua": "Engines/tools/orchestration-helper/orchestration_data.lua",
+        "orchestration_composers.lua": "Engines/tools/orchestration-helper/orchestration_composers.lua",
+        "LICENSE": "Engines/tools/orchestration-helper/LICENSE"
+      },
+      "hosts": [
+        "macos/host.c",
+        "macos/mac.m",
+        "macos/backend.h"
+      ]
+    },
+    {
+      "name": "Instant Virtual Instrument",
+      "repo": "KallumS/Instant-Virtual-Instrument",
+      "ref": "main",
+      "commit": "5c267933755f41a794546579207f3f8de9297adf",
+      "kind": "juce",
+      "decision": "0067",
+      "folders": {
+        "Source": "ThirdParty/InstantVirtualInstrument/Source"
+      },
+      "files": {
+        "LICENSE": "ThirdParty/InstantVirtualInstrument/LICENSE",
+        "README.md": "ThirdParty/InstantVirtualInstrument/README.md"
+      }
+    },
+    {
+      "name": "ScaleView",
+      "repo": "KallumS/ScaleView",
+      "ref": "main",
+      "commit": "4efb93df1431e73b199fcf3e35e3ae43ab35fa75",
+      "kind": "juce",
+      "decision": "0015, 0093",
+      "files": {
+        "Source/PluginProcessor.cpp": "ThirdParty/ScaleView/Source/PluginProcessor.cpp",
+        "Source/PluginProcessor.h": "ThirdParty/ScaleView/Source/PluginProcessor.h",
+        "Source/PluginEditor.cpp": "ThirdParty/ScaleView/Source/PluginEditor.cpp",
+        "Source/PluginEditor.h": "ThirdParty/ScaleView/Source/PluginEditor.h",
+        "Source/ScaleModel.h": [
+          "ThirdParty/ScaleView/Source/ScaleModel.h",
+          "Source/Core/ScaleModel.h"
+        ],
+        "LICENSE": "ThirdParty/ScaleView/LICENSE"
+      },
+      "built": "cmake/App.cmake"
+    },
+    {
+      "name": "Trombolese",
+      "repo": "KallumS/Trombolese",
+      "ref": "main",
+      "commit": "f57b50fae1978e51c3e68b4cbf617171c89c1fdd",
+      "kind": "port",
+      "decision": "0093",
+      "watch": [
+        "src/trombolese/synth.py",
+        "src/trombolese/waveguide.py",
+        "src/trombolese/reed.py",
+        "src/trombolese/bore.py",
+        "src/trombolese/constants.py",
+        "src/trombolese/analysis.py",
+        "src/trombolese/acoustics.py"
+      ],
+      "port": "Source/Core/Trombolese.cpp"
+    }
+  ]
+}
