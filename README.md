@@ -136,7 +136,7 @@ grow and shrink with it.
 - **Audio tools**: normalise, strip silence, quantise audio to the grid, a
   sample editor with a spectrogram, **snap to zero crossings**.
 - **Sections** you move (Shift-drag one to any bar) and duplicate with all their music, ripple editing, **alias clips** (edit one, every copy follows),
-  track groups, and a **clip launcher** for playing ideas in loops.
+  and track groups.
 - **Kalibre Synth and Sampler**, **presets** and **A/B** for every plug-in,
   hardware inserts, instruments' extra outputs on their own tracks,
   **surround** up to 7.1, **MPE**.
@@ -168,7 +168,6 @@ grow and shrink with it.
 ![Starting Blocks](docs/starting-blocks.png)
 ![Midi Catalogue](docs/midi-catalogue.png)
 ![Orchestration Helper, "trombone" searched](docs/orchestration-helper.png)
-![The clip launcher](docs/launcher.png)
 ![The Meters tab](docs/meters.png)
 
 How to use it, every menu, key and click: **[the User Guide](docs/USER-GUIDE.md)**.

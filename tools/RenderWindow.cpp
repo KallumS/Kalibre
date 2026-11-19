@@ -108,11 +108,9 @@ int main (int argc, char** argv)
             v.takesShown = true;
             for (auto& cl : v.clips) { cl.audio.fadeIn = 0.15; cl.audio.fadeOut = 0.3; }
         }
-        // Sections and two scenes in the launcher (decision 0037).
+        // Sections (decision 0037).
         song::addSection (c.project, "Intro", 0, PPQ * 8);
         song::addSection (c.project, "Verse", PPQ * 8, PPQ * 16);
-        song::captureScene (c.project, 0, PPQ * 8, "Intro");
-        song::captureScene (c.project, PPQ * 8, PPQ * 16, "Verse");
         c.focusTrack = c.project.tracks[1].id;
         c.selectedTracks = { c.focusTrack };
         c.cursor = PPQ * 6;
@@ -318,10 +316,6 @@ int main (int argc, char** argv)
         c.zoneTab = ZoneTab::Editor;
         c.viewChanged();
         shoot ("11-sample-editor");
-        c.zoneTab = ZoneTab::Launcher;
-        song::launch (c.project, c.project.tracks[1].id, 0, 0);
-        c.refresh();
-        shoot ("12-launcher");
         // The analysers, while a sine plays out of the master (decision 0044).
         if (auto* f = c.engine.fader (c.project.master.id))
             for (int i = 0; i < Fader::tapSize; ++i)
@@ -374,7 +368,6 @@ int main (int argc, char** argv)
             std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
             c.dismiss();
         }
-        song::backToArrangement (c.project);
         // The Container (decision 0055): three plug-ins, one on a band, one on the sides.
         {
             const Id t = edit::addTrack (c.project, TrackKind::Track, "Drums Bus");

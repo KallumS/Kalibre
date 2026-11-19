@@ -31,7 +31,8 @@ void refileEffects (Project&, const PluginManager&);
 
 
 enum class EditorKind { PianoRoll, Drums, Steps, Euclid, Notation };
-enum class ZoneTab { Devices, Editor, Mixer, Launcher, Meters, Video };
+// The numbers are kept in saved workspaces: 3 was the clip launcher, taken out (0098).
+enum class ZoneTab { Devices = 0, Editor = 1, Mixer = 2, Meters = 4, Video = 5 };
 
 class Controller : public juce::ChangeBroadcaster, private juce::Timer
 {
@@ -337,12 +338,6 @@ public:
     void renderOfflineFx (Id clip);
 
     //==========================================================================
-    // The clip launcher (decision 0037): not undo steps.
-    void launchSlot (Id track, int slot);   // -1 stops the track
-    void launchScene (int scene);
-    void backToArrangement();
-
-    //==========================================================================
     // Devices.
     // `position`: where in the track's devices (its role's place still kept); -1, after its kind.
     void addPlugin (Id track, const juce::PluginDescription&, std::optional<DeviceRole> as = {}, int position = -1);
@@ -439,10 +434,8 @@ private:
     Writing writing;
 
     void syncEngine();
-    std::map<Id, Track::Launch> launchStates() const;
     std::map<Id, int> deviceStates() const;
     void reloadChangedStates (const std::map<Id, int>&);
-    void restoreLaunches (const std::map<Id, Track::Launch>&);
     std::vector<song::TrackMix> lastMix;   // the mix as last synced, for grouped tracks
     void timerCallback() override;
     void finishRecording();

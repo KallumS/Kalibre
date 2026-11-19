@@ -347,3 +347,42 @@ TEST ("export: Export the Mix asks first, with Record the Tail and Export the Se
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("lower zone: the clip launcher is gone; a workspace saved showing it opens on Devices (0098)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        // No Launcher tab, and G does nothing to the zone.
+        std::function<bool (Component&)> hasLauncher = [&] (Component& comp)
+        {
+            if (auto* b = dynamic_cast<Button*> (&comp); b && b->getButtonText() == "Launcher") return true;
+            for (auto* ch : comp.getChildren()) if (hasLauncher (*ch)) return true;
+            return false;
+        };
+        CHECK (! hasLauncher (w));
+        c.zoneTab = ZoneTab::Mixer;
+        w.keyPressed (KeyPress ('g'));
+        CHECK (c.zoneTab == ZoneTab::Mixer);
+        // A workspace from before, saved with the launcher (3) showing.
+        const auto f = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-old-workspace.json");
+        DynamicObject::Ptr o = new DynamicObject();
+        o->setProperty ("zoneTab", 3);
+        f.replaceWithText (JSON::toString (var (o.get())));
+        c.zoneTab = ZoneTab::Mixer;
+        CHECK (w.loadWorkspace (f));
+        CHECK (c.zoneTab == ZoneTab::Devices);
+        o->setProperty ("zoneTab", 4);   // the meters, as numbered before
+        f.replaceWithText (JSON::toString (var (o.get())));
+        CHECK (w.loadWorkspace (f));
+        CHECK (c.zoneTab == ZoneTab::Meters);
+        f.deleteFile();
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

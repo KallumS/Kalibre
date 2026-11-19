@@ -9,7 +9,6 @@
 
 #include "Controller.h"
 #include "DeviceRack.h"
-#include "LauncherView.h"
 #include "MetersView.h"
 #include "Mixer.h"
 #include "VideoView.h"
@@ -38,7 +37,6 @@ private:
     theme::HouseButton devicesTab { "Devices", "The chosen track's plug-ins. (D)" };
     theme::HouseButton editorTab { "Editor", "The chosen clip's notes. (E)" };
     theme::HouseButton mixerTab { "Mixer", "Every track's volume, pan and sends. (X)" };
-    theme::HouseButton launcherTab { "Launcher", "Clips to play in loops, scene by scene. (G)" };
     theme::HouseButton metersTab { "Meters", "Spectrum, oscilloscope, phase and a tuner. (Y)" };
     theme::HouseButton videoTab { "Video", "The song's video, following the playhead." };
     theme::HouseButton rollTab { "Piano Roll", "Notes on a piano roll." };
@@ -65,7 +63,6 @@ private:
     NotationView notation;
     Mixer mixer;
     SampleEditor sample;
-    LauncherView launcher;
     OfflineFxView offline;
     MetersView meters;
     VideoView videoView;

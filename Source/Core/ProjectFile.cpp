@@ -68,7 +68,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Track, id, name, colour, kind, 
                                                  armed, monitor, phaseInvert, mono, locked, hidden, enabled, frozen, frozenFile,
                                                  delayMs, group, input, output, versions, activeVersion, devices, sends,
                                                  automation, autoMode, modulators, articulationMap,
-                                                 slots, mpe, sourceDevice, sourcePair, frontBack, ccLanes, armFor)
+                                                 mpe, sourceDevice, sourcePair, frontBack, ccLanes, armFor)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Marker, id, tick, name)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Section, id, name, start, end, colour)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (Metadata, title, artist, album, genre, comment, isrc, year, trackNumber)
@@ -113,7 +113,6 @@ std::string save (const Project& p)
     j["articulationMaps"] = p.articulationMaps;
     j["midiMappings"] = p.midiMappings;
     j["sections"] = p.sections;
-    j["scenes"] = p.scenes;
     j["metadata"] = p.metadata;
     j["workSeconds"] = p.workSeconds;
     j["video"] = p.video;
@@ -174,7 +173,6 @@ std::optional<Project> load (const std::string& text, std::string* error)
         if (j.contains ("articulationMaps")) p.articulationMaps = j.at ("articulationMaps").get<std::vector<ArticulationMap>>();
         if (j.contains ("midiMappings")) p.midiMappings = j.at ("midiMappings").get<std::vector<MidiMapping>>();
         if (j.contains ("sections")) p.sections = j.at ("sections").get<std::vector<Section>>();
-        if (j.contains ("scenes")) p.scenes = j.at ("scenes").get<std::vector<std::string>>();
         if (j.contains ("metadata")) p.metadata = j.at ("metadata").get<Metadata>();
         if (j.contains ("workSeconds") && j.at ("workSeconds").is_number()) p.workSeconds = j.at ("workSeconds").get<double>();
         if (j.contains ("video")) p.video = j.at ("video").get<Video>();
@@ -196,7 +194,6 @@ std::optional<Project> load (const std::string& text, std::string* error)
                 for (auto& c : v.clips) { see (c.id); see (c.link); for (auto& n : c.midi.notes) see (n.id); }
                 for (auto& tk : v.takes) { see (tk.id); for (auto& c : tk.clips) { see (c.id); for (auto& n : c.midi.notes) see (n.id); } }
             }
-            for (auto& c : t.slots) { see (c.id); for (auto& n : c.midi.notes) see (n.id); }
             for (auto& d : t.devices) see (d.id);
             for (auto& a : t.automation) see (a.id);
             for (auto& m : t.modulators) see (m.id);

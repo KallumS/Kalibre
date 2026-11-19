@@ -21,3 +21,5 @@ Arranging a song by its parts, and playing ideas in loops before arranging them.
 - Launching is quantised to the bar; there's no other quantisation choice yet.
 
 Renamed by 0074: linked clips are alias clips (Create Alias Clip, Duplicate as Alias, Make Independent), marked with a chain.
+
+The clip launcher was taken out on 19 November (0098): the musician isn't a fan of it.

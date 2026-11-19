@@ -486,17 +486,6 @@ struct Track
     // The CC lanes shown under its notes, in the piano roll and notation (decision 0060).
     std::vector<int> ccLanes { 1, 11 };
 
-    // The clip launcher (decision 0037): one slot a scene; a slot whose length is 0 is empty.
-    std::vector<Clip> slots;
-    struct Launch
-    {
-        int slot = -1;         // the slot playing, or -1: the arrangement plays
-        Tick from = 0;         // where it took over (or stopped), on the next bar after it was asked
-        bool stopped = false;  // silent from `from` until Back to Arrangement
-        bool operator== (const Launch&) const = default;
-    };
-    Launch launch;             // not saved: what's playing now
-
     bool mpe = false;          // plays each note on its own channel with its own expression (decision 0042)
     Id sourceDevice = 0;       // an instrument output track (decision 0040): plays this instrument's
     int sourcePair = 0;        //   outputs 2*pair and 2*pair+1 instead of clips
@@ -605,7 +594,6 @@ struct Project
     std::vector<ArticulationMap> articulationMaps;
     std::vector<MidiMapping> midiMappings;
     std::vector<Section> sections;      // sorted by start
-    std::vector<std::string> scenes;    // the launcher's rows, named
     Metadata metadata;
     Video video;
     SurroundFormat surround = SurroundFormat::Stereo;   // decision 0040

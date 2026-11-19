@@ -416,7 +416,11 @@ bool MainComponent::loadWorkspace (const File& f)
     lowerShown = (bool) v.getProperty ("lowerShown", true);
     lower.setVisible (lowerShown);
     browserWidth = (int) v.getProperty ("browserWidth", browserWidth);
-    c.zoneTab = (ZoneTab) jlimit (0, 4, (int) v.getProperty ("zoneTab", 0));
+    {
+        // A workspace saved with the clip launcher showing (3, taken out, 0098) opens on Devices.
+        const int tab = (int) v.getProperty ("zoneTab", 0);
+        c.zoneTab = tab == 1 || tab == 2 || tab == 4 || tab == 5 ? (ZoneTab) tab : ZoneTab::Devices;
+    }
     c.editor = (EditorKind) jlimit (0, 4, (int) v.getProperty ("editor", 0));
     c.showChordLane = (bool) v.getProperty ("chordLane", c.showChordLane);
     c.showTempoLane = (bool) v.getProperty ("tempoLane", c.showTempoLane);
@@ -478,7 +482,6 @@ void MainComponent::registerKeys()
     keys.add ("devices", "Devices", K ('d'), zone (ZoneTab::Devices));
     keys.add ("editor", "Editor", K ('e'), zone (ZoneTab::Editor));
     keys.add ("mixer", "Mixer", K ('x'), zone (ZoneTab::Mixer));
-    keys.add ("launcher", "Clip Launcher", K ('g'), zone (ZoneTab::Launcher));
     keys.add ("meters", "Meters", K ('y'), zone (ZoneTab::Meters));
     keys.add ("mute", "Mute the Chosen Tracks", K ('m'), [this] { c.apply ("Mute", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->mute = ! t->mute; }); });
     keys.add ("solo", "Solo the Chosen Tracks", K ('s'), [this] { c.apply ("Solo", [this] (Project& p) { for (auto id : c.selectedTracks) if (auto* t = p.track (id)) t->solo = ! t->solo; }); });

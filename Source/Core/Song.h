@@ -12,8 +12,6 @@
         edit to one's notes or audio is made to every clip linked with it.
       - Track groups: tracks in one group move together; a volume or pan
         change keeps their differences, mute, solo and arm are shared.
-      - The clip launcher: slots of clips, one row a scene, each track
-        playing a slot in a loop from the next bar instead of its arrangement.
 
     No JUCE in here.
 */
@@ -80,18 +78,5 @@ struct TrackMix
 };
 std::vector<TrackMix> mixOf (const Project&);
 void propagateGroups (const std::vector<TrackMix>& before, Project& after);
-
-//==============================================================================
-// The launcher
-int sceneCount (const Project&);
-void setSlot (Project&, Id track, int slot, Clip);
-void clearSlot (Project&, Id track, int slot);
-// Every slot from the arrangement's clips in [from, to): one scene.
-int captureScene (Project&, Tick from, Tick to, const std::string& name);
-// Starts a slot at the next bar from `now`; -1 stops the track there.
-void launch (Project&, Id track, int slot, Tick now);
-void launchScene (Project&, int scene, Tick now);
-void backToArrangement (Project&);
-bool anyLaunched (const Project&);
 
 } // namespace kal::song

@@ -124,44 +124,6 @@ TEST ("song: grouped tracks move together, keeping their differences")
     CHECK (! p.track (c)->mute);
 }
 
-TEST ("song: a launched slot takes over from the next bar, looping")
-{
-    Id a, b;
-    auto p = twoTracks (a, b);
-    Clip loop;
-    loop.length = bar;
-    loop.midi.notes.push_back ({ .id = 1, .start = 0, .length = PPQ, .pitch = 72 });
-    song::setSlot (p, a, 0, loop);
-    CHECK_EQ (song::sceneCount (p), 1);
-    song::launch (p, a, 0, PPQ);                  // asked in bar 1: plays from bar 2
-    CHECK_EQ (p.track (a)->launch.from, bar);
-    const auto out = playback::compile (p, *p.track (a));
-    const double from = p.tempo.secondsAt (bar);
-    int before = 0, slotNotes = 0;
-    for (auto& m : out.midi)
-    {
-        if ((m.bytes[0] & 0xF0) != 0x90) continue;
-        if (m.seconds < from) ++before;
-        else { CHECK_EQ ((int) m.bytes[1], 72); ++slotNotes; }
-    }
-    CHECK_EQ (before, 1);         // the arrangement's note in bar 1
-    CHECK (slotNotes > 100);      // the slot, bar after bar
-    song::backToArrangement (p);
-    CHECK (! song::anyLaunched (p));
-}
-
-TEST ("song: a scene is captured from the arrangement")
-{
-    Id a, b;
-    auto p = twoTracks (a, b);
-    const int scene = song::captureScene (p, 0, bar, "Intro");
-    CHECK_EQ (scene, 0);
-    CHECK_EQ (p.scenes[0], std::string ("Intro"));
-    CHECK_EQ (p.track (a)->slots[0].midi.notes.size(), (size_t) 1);
-    CHECK_EQ (p.track (a)->slots[0].loopLength, bar);
-    CHECK (p.track (b)->slots.empty());          // nothing in bar 1 on the bass
-}
-
 TEST ("song: moving the Chorus from bar 65 to bar 49 takes its piano, guitar and strings; what was at 49 follows it")
 {
     Project p;

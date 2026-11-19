@@ -5,9 +5,9 @@ namespace kal
 using namespace juce;
 
 LowerZone::LowerZone (Controller& ctrl)
-    : c (ctrl), devices (ctrl), roll (ctrl), drums (ctrl), steps (ctrl), euclid (ctrl), notation (ctrl), mixer (ctrl), sample (ctrl), launcher (ctrl), offline (ctrl), meters (ctrl), videoView (ctrl)
+    : c (ctrl), devices (ctrl), roll (ctrl), drums (ctrl), steps (ctrl), euclid (ctrl), notation (ctrl), mixer (ctrl), sample (ctrl), offline (ctrl), meters (ctrl), videoView (ctrl)
 {
-    for (auto* b : { &devicesTab, &editorTab, &mixerTab, &launcherTab, &metersTab, &videoTab })
+    for (auto* b : { &devicesTab, &editorTab, &mixerTab, &metersTab, &videoTab })
     {
         b->setRadioGroupId (1);
         b->setClickingTogglesState (true);
@@ -25,7 +25,7 @@ LowerZone::LowerZone (Controller& ctrl)
     stepButton.onClick = [this] { c.setStepInput (stepButton.getToggleState()); };
     ccLanes.onClick = [this] { CcLanes::lanesMenu (c, &ccLanes); };
     autoCc.onClick = [this] { c.autoCc(); };
-    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample, &launcher, &offline, &meters, &videoView })
+    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &sample, &offline, &meters, &videoView })
         addChildComponent (comp);
     drumsView.setViewedComponent (&drums, false);
     euclidView.setViewedComponent (&euclid, false);
@@ -34,7 +34,6 @@ LowerZone::LowerZone (Controller& ctrl)
     devicesTab.onClick = [this] { c.zoneTab = ZoneTab::Devices; show(); };
     editorTab.onClick = [this] { c.zoneTab = ZoneTab::Editor; show(); };
     mixerTab.onClick = [this] { c.zoneTab = ZoneTab::Mixer; show(); };
-    launcherTab.onClick = [this] { c.zoneTab = ZoneTab::Launcher; show(); };
     metersTab.onClick = [this] { c.zoneTab = ZoneTab::Meters; show(); };
     videoTab.onClick = [this] { c.zoneTab = ZoneTab::Video; show(); };
     rollTab.onClick = [this] { c.editor = EditorKind::PianoRoll; show(); };
@@ -91,8 +90,6 @@ void LowerZone::show()
     devicesTab.setToggleState (c.zoneTab == ZoneTab::Devices, dontSendNotification);
     editorTab.setToggleState (c.zoneTab == ZoneTab::Editor, dontSendNotification);
     mixerTab.setToggleState (c.zoneTab == ZoneTab::Mixer, dontSendNotification);
-    launcherTab.setToggleState (c.zoneTab == ZoneTab::Launcher, dontSendNotification);
-    launcher.setVisible (c.zoneTab == ZoneTab::Launcher);
     metersTab.setToggleState (c.zoneTab == ZoneTab::Meters, dontSendNotification);
     meters.setVisible (c.zoneTab == ZoneTab::Meters);
     // The Video tab is there when the song has a video (decision 0046).
@@ -226,7 +223,6 @@ void LowerZone::resized()
     place (devicesTab);
     place (editorTab);
     place (mixerTab);
-    place (launcherTab);
     place (metersTab);
     if (videoTab.isVisible()) place (videoTab);
     bar.removeFromLeft (theme::px (12));
@@ -243,7 +239,7 @@ void LowerZone::resized()
             place (autoCc);
         }
     }
-    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &launcher, &offline, &meters, &videoView })
+    for (auto* comp : std::initializer_list<Component*> { &devices, &roll, &drumsView, &steps, &euclidView, &notation, &mixer, &offline, &meters, &videoView })
         comp->setBounds (r);
     sample.setBounds (r);
     // These two scroll when there's more than fits.

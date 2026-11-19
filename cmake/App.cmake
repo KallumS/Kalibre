@@ -184,7 +184,6 @@ add_library(KalibreApp STATIC
     Source/App/ProjectFiles.cpp
     Source/App/NoteFixing.cpp
     Source/App/SampleEditor.cpp
-    Source/App/LauncherView.cpp
     Source/App/OfflineFxView.cpp
     Source/App/MetersView.cpp
     Source/App/PluginManagerView.cpp
