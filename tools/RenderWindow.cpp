@@ -593,6 +593,47 @@ int main (int argc, char** argv)
             c.refresh();
             window.lowerHeight = 380;
             shoot ("13-synth-and-sampler");
+            // Kalibre Sampler cutting a drum loop at its hits, a key each (0095).
+            {
+                const Id slicer = edit::addTrack (c.project, TrackKind::Track, "Slicer");
+                const Id dev = edit::addDevice (c.project, slicer, samplerRef(), DeviceRole::Instrument);
+                c.focusTrack = slicer;
+                c.refresh();
+                MessageManager::getInstance()->runDispatchLoopUntil (100);
+                const auto loopFile = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-break.wav");
+                {
+                    AudioBuffer<float> b (2, 96000);
+                    Random rnd (3);
+                    const double pi = MathConstants<double>::pi;
+                    for (int i = 0; i < b.getNumSamples(); ++i)
+                    {
+                        const double t = i / 48000.0, beat = std::fmod (t * 2, 1.0), eighth = std::fmod (t * 4, 1.0);
+                        const bool kick = ((int) (t * 2) % 2) == 0;
+                        const float v = (float) ((kick ? 0.9 * std::sin (2 * pi * 55 * t) : 0.6 * (rnd.nextFloat() * 2 - 1)) * std::exp (-beat * 9)
+                                                 + 0.25 * (rnd.nextFloat() * 2 - 1) * std::exp (-eighth * 30));
+                        b.setSample (0, i, v);
+                        b.setSample (1, i, v);
+                    }
+                    loopFile.deleteFile();
+                    WavAudioFormat wavOut;
+                    std::unique_ptr<OutputStream> os (loopFile.createOutputStream().release());
+                    if (auto w = wavOut.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (24)))
+                        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+                }
+                if (auto* sampler = dynamic_cast<KalibreSampler*> (c.engine.instance (dev)))
+                {
+                    String error;
+                    sampler->load (loopFile, error);
+                    if (auto* mode = dynamic_cast<RangedAudioParameter*> (sampler->getParameters()[KalibreSampler::Mode]))
+                        mode->setValueNotifyingHost (mode->convertTo0to1 (1.0f));
+                }
+                MessageManager::getInstance()->runDispatchLoopUntil (300);
+                shoot ("37-sampler-slices");
+                edit::removeTrack (c.project, slicer);
+                c.focusTrack = synthTrack;
+                c.refresh();
+                loopFile.deleteFile();
+            }
             // A short zone: shown smaller to fit, its shape kept (decision 0058).
             window.lowerHeight = 250;
             shoot ("18-fitted-to-a-short-zone");

@@ -96,3 +96,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0092. The toolbox: Control-right-click for Cubase's tools, adapted from Right-Click Toolbox](0092-the-toolbox.md)
 - [0093. Five more of the family's devices: Midular, MIDI Production Center, Good Idea, ScaleView, Trombolese](0093-five-more-of-the-familys-devices.md)
 - [0094. The Sounds browser: the musician's samples and MIDI, scanned once, heard in time](0094-the-sounds-browser.md)
+- [0095. The timer's away rules, what the scan hears, clips backwards and upside down, the Sampler's slices and grains, the transport at the bottom](0095-timer-sounds-clips-sampler-transport.md)

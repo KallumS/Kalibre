@@ -20,7 +20,7 @@
 | `Core/Loudness.*` | BS.1770 / R128 loudness, true peak, correlation (0033). |
 | `Core/Sync.*`, `ControlSettings.*` | MIDI clock, MTC, clock following; the studio's settings (0034). |
 | `Core/Mackie.*` | The Mackie Control protocol (0035). |
-| `Core/AudioTools.*` | Peaks, silence, transients, audio quantise markers, sample edits, FFT, YIN pitch (0036, 0044). |
+| `Core/AudioTools.*` | Peaks, silence, transients (as candidates a sensitivity chooses from, for the Sampler's slices), audio quantise markers, sample edits, FFT, YIN pitch; a sample's tempo and note (0036, 0044, 0095). |
 | `Core/Song.*` | Time edits, sections, ripple, linked clips, track groups, the clip launcher (0037). |
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
@@ -69,7 +69,7 @@
 | `Engine/Mp3Writer.*` | MP3 export through Shine (0041). |
 | `Engine/NetworkMidi*` | The Mac's network MIDI session (0043). |
 | `Source/App/` | The window (0002). `Controller` owns the project, undo, the selection and every command; the views ask it. |
-| `App/TopBar`, `Arrange`, `LowerZone`, `PianoRoll`, `PatternEditors`, `NotationView`, `DeviceRack`, `Mixer`, `Browser`, `Menus` | What they say. |
+| `App/TopBar` (and `TransportBar`, along the bottom, 0095), `Arrange`, `LowerZone`, `PianoRoll`, `PatternEditors`, `NotationView`, `DeviceRack`, `Mixer`, `Browser`, `Menus` | What they say. |
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp`, `NoteFixing.cpp` | More of the Controller: audio commands, presets and A/B, file commands, Fix Note Timings and Volume (0085). |
@@ -148,6 +148,8 @@ performance core, each as soon as what feeds it is done (0078).
 - A looped clip's content is its loop, from 0 (`patterns::windowOf`): editors write there, not from the offset. Loop Its Content (`edit::loopContent`) moves a MIDI clip's content to offset 0 first.
 - The arrangement snaps with `arrangeSnap` (the top bar's Grid), the editors with `snapTick` (the lower zone's) (0070).
 - A plug-in's role is `PluginManager::roleOf` (the user's filing, what the scan learned, then the description), never the static `roleFor` alone (0069).
+- Nothing important along the bottom but the transport (0095, asked for): the message line stays at the top.
+- Kalibre Sampler's slices are found on the audio thread from `candidates`, made when the sample loads: never call `transients` there (it allocates).
 - The crash handler may only use calls safe in a signal handler: no allocation, no JUCE (0073).
 - Audio Kalibre writes for itself goes through `audiofile::floatWav` (0079); audio brought in that isn't 32-bit float WAV is copied as one.
 - Rendering one track (`Engine::renderTrack`, freeze and bounce, 0080) wires only it out; an offline plan leaves out what can't reach the output.
