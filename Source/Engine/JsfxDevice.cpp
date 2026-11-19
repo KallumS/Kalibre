@@ -6,7 +6,14 @@
 
 #include <array>
 #include <atomic>
+#include <mutex>
 #include <cmath>
+
+// ysfx's own: the shared memory a JSFX is attached to (sources/ysfx_gmem.hpp), and
+// EEL2's allocator for it, which makes a slot as the JSFX's `gmem[i]` does.
+void** get_gmem_address (ysfx_t*);
+std::string get_gmem_identifier (ysfx_t*);
+extern "C" double* __NSEEL_RAMAllocGMEM (double*** blocks, unsigned int w);
 
 namespace kal
 {
@@ -25,6 +32,11 @@ const std::vector<JsfxSpec>& jsfxDevices()
           "A reverb through odd materials instead of a room." },
         { "instrument-creator", "Instrument Creator", "Instrument Creator.jsfx", DeviceRole::Instrument, 10, 800, 480, 0xff1b1c20,
           "Instruments that don't exist, built from parts: a glass trumpet, a violin of ice." },
+        // Asked for on 19 November (decision 0093): each a folder, its imports beside it.
+        { "midular", "Midular", "midular/Midular.jsfx", DeviceRole::MidiFx, 0, 920, 600, 0xff23272e,
+          "A MIDI sampler: a phrase played from the keys, looped, sliced or in grains. Load a chosen MIDI clip from its menu." },
+        { "midi-production-center", "MIDI Production Center", "midi-production-center/MIDI_Production_Center.jsfx", DeviceRole::MidiFx, 0, 1000, 660, 0xff23272e,
+          "Sixteen pads of MIDI: a phrase chopped onto pads, with filters, delay and stutter for notes. Load Item takes the chosen MIDI clip." },
     };
     return list;
 }
@@ -131,15 +143,22 @@ private:
 };
 
 //==============================================================================
+class JsfxProcessor;
+std::mutex liveLock;
+std::vector<JsfxProcessor*> live;   // every JSFX open, for their shared memory
+
 class JsfxProcessor : public AudioPluginInstance, private Timer
 {
 public:
     explicit JsfxProcessor (const JsfxSpec& s) : AudioPluginInstance (busesFor (s.role)), spec (s)
     {
+        { const std::lock_guard<std::mutex> g (liveLock); live.push_back (this); }
         const File path = writeJsfx();
         ysfx_config_u config { ysfx_config_new() };
         ysfx_register_builtin_audio_formats (config.get());
-        ysfx_guess_file_roots (config.get(), path.getFullPathName().toRawUTF8());
+        // Its imports beside it; its data (a demo phrase) in JSFX/Data, as REAPER's resource folder has them.
+        ysfx_set_import_root (config.get(), (path.getParentDirectory().getFullPathName() + "/").toRawUTF8());
+        ysfx_set_data_root (config.get(), (jsfxFolder().getChildFile ("Data").getFullPathName() + "/").toRawUTF8());
         auto log = [] (intptr_t user, ysfx_log_level level, const char* message)
         {
             if (level == ysfx_log_error) *(String*) user += String (CharPointer_UTF8 (message)) + "\n";
@@ -154,8 +173,8 @@ public:
             ysfx_set_sample_rate (fx, 48000);
             ysfx_set_block_size (fx, 512);
             ysfx_init (fx);
-            // Once through @serialize, so what it saves is what it would load.
-            if (ysfx_state_u fresh { ysfx_save_state (fx) }) ysfx_load_state (fx, fresh.get());
+            // Not run through @serialize until a song gives it a state, as in REAPER: a
+            // new one starts as @init leaves it (MIDI Production Center's demo on its pads, 0093).
             for (int i = 0; i < ysfx_max_sliders; ++i)
             {
                 if (! ysfx_slider_exists (fx, (uint32_t) i)) continue;
@@ -170,6 +189,7 @@ public:
 
     ~JsfxProcessor() override
     {
+        { const std::lock_guard<std::mutex> g (liveLock); live.erase (std::remove (live.begin(), live.end(), this), live.end()); }
         stopTimer();
         ysfx_free (fx);
     }
@@ -341,23 +361,36 @@ private:
         return BusesProperties().withInput ("Input", AudioChannelSet::stereo(), true).withOutput ("Output", AudioChannelSet::stereo(), true);
     }
 
-    // ysfx loads from a path (where it looks for imports and data), so the
-    // file carried in the app is written to Kalibre's own folder first.
-    File writeJsfx() const
+    static File jsfxFolder()
     {
-        const embedded::File* found = nullptr;
-        for (auto& f : embedded::files()) if (String (f.name) == "jsfx/" + String (spec.file)) found = &f;
-        if (! found) return {};
-        auto dir = File::getSpecialLocation (File::userApplicationDataDirectory)
+        return File::getSpecialLocation (File::userApplicationDataDirectory)
        #if JUCE_MAC
                        .getChildFile ("Application Support")
        #endif
                        .getChildFile ("Kalibre").getChildFile ("JSFX");
-        dir.createDirectory();
-        const auto out = dir.getChildFile (spec.file);
-        MemoryBlock want (found->data, found->size), have;
-        if (! out.loadFileAsData (have) || have != want) out.replaceWithData (found->data, found->size);
-        return out;
+    }
+
+    // ysfx loads from a path (where it looks for imports and data), so the
+    // file carried in the app is written to Kalibre's own folder first: with
+    // the files beside it when it has a folder of its own, and the data.
+    File writeJsfx() const
+    {
+        const String file ("jsfx/" + String (spec.file));
+        const String folder = file.upToLastOccurrenceOf ("/", true, false);
+        const bool ownFolder = folder != "jsfx/";
+        bool found = false;
+        for (auto& f : embedded::files())
+        {
+            const String name (f.name);
+            const bool wanted = name == file || (ownFolder && name.startsWith (folder)) || name.startsWith ("jsfx/Data/");
+            if (! wanted) continue;
+            found = found || name == file;
+            const auto out = jsfxFolder().getChildFile (name.fromFirstOccurrenceOf ("/", false, false));
+            out.getParentDirectory().createDirectory();
+            MemoryBlock want (f.data, f.size), have;
+            if (! out.loadFileAsData (have) || have != want) out.replaceWithData (f.data, f.size);
+        }
+        return found ? jsfxFolder().getChildFile (spec.file) : File();
     }
 
     void syncFromSlider (int i)
@@ -478,6 +511,52 @@ private:
 
 AudioProcessorEditor* JsfxProcessor::createEditor() { return new JsfxEditor (*this); }
 } // namespace
+
+double* jsfxGmem (const String& name, unsigned int index)
+{
+    const std::lock_guard<std::mutex> g (liveLock);
+    for (auto* p : live)
+        if (auto* fx = p->effect(); fx && String (get_gmem_identifier (fx)) == name)
+            if (auto** blocks = get_gmem_address (fx)) return __NSEEL_RAMAllocGMEM ((double***) blocks, index);
+    return nullptr;
+}
+
+bool jsfxSliderValue (AudioProcessorParameter& p, double& value, double& min, double& max)
+{
+    auto* s = dynamic_cast<SliderParameter*> (&p);
+    if (! s) return false;
+    value = s->sliderValue();
+    min = s->toYsfx (0.0);
+    max = s->toYsfx (1.0);
+    return true;
+}
+
+bool setJsfxSlider (AudioProcessorParameter& p, double value)
+{
+    auto* s = dynamic_cast<SliderParameter*> (&p);
+    if (! s) return false;
+    // Set as the plug-in's own value, not as a hand on a control: not "last touched".
+    s->setValue ((float) s->fromYsfx (value));
+    return true;
+}
+
+double jsfxVariable (AudioPluginInstance& p, const char* name)
+{
+    auto* j = dynamic_cast<JsfxProcessor*> (&p);
+    return j && j->effect() ? (double) ysfx_read_var (j->effect(), name) : 0.0;
+}
+
+double jsfxMemory (AudioPluginInstance& p, unsigned int address)
+{
+    auto* j = dynamic_cast<JsfxProcessor*> (&p);
+    return j && j->effect() ? (double) ysfx_read_vmem_single (j->effect(), address) : 0.0;
+}
+
+String jsfxIdOf (AudioPluginInstance& p)
+{
+    if (auto* j = dynamic_cast<JsfxProcessor*> (&p)) return j->specification().id;
+    return {};
+}
 
 std::unique_ptr<AudioPluginInstance> makeJsfx (const PluginRef& ref)
 {

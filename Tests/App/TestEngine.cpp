@@ -562,7 +562,7 @@ TEST ("chance and timing: an export plays each note as often as its chance says,
 #include "JsfxDevice.h"
 #include "Editors.h"
 
-TEST ("jsfx: the family's five JSFX load, each with its sliders as parameters, and keep their state")
+TEST ("jsfx: the family's JSFX load, each with its sliders as parameters, and keep their state")
 {
     for (auto& s : jsfxDevices())
     {

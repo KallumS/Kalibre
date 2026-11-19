@@ -346,6 +346,12 @@ public:
                 });
                 m.addSeparator();
             }
+        // Midular and MIDI Production Center take a phrase from a MIDI clip (decision 0093).
+        if (d->plugin.identifier == "jsfx:midular" || d->plugin.identifier == "jsfx:midi-production-center")
+        {
+            m.addItem ("Load the Chosen MIDI Clip", [this] { c.loadChosenClipsInto (id); });
+            m.addSeparator();
+        }
         m.addItem ("Automate the Last Touched Control", c.lastTouched.device == id, false, [this] { c.automateLastTouched(); });
         PopupMenu mods;
         const char* kinds[] { "LFO", "ADSR", "ADR", "Envelope Follower", "Wavetable" };

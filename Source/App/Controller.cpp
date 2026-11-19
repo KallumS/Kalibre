@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "ReaperScripts.h"
 #include "NoteSplitter.h"
 #include "AudioFiles.h"
 
@@ -76,12 +77,26 @@ Controller::Controller (Engine& e) : engine (e)
     NoteSplitterProcessor::makeEditor = nullptr;
     newProject();
     beginWorkClock();
+    reaperScripts = std::make_unique<ReaperScripts> (*this);
     startTimerHz (30);
+}
+
+bool Controller::loadChosenClipsInto (Id device)
+{
+    std::vector<Id> clips;
+    for (auto id : selectedClips) if (auto* cl = project.clip (id); cl && cl->isMidi()) clips.push_back (id);
+    if (clips.empty() && ! (clip() && clip()->isMidi()))
+    {
+        say ("Choose a MIDI clip first (click it in the arrangement), then load it.", true);
+        return false;
+    }
+    return reaperScripts->loadChosenClips (device);
 }
 
 Controller::~Controller()
 {
     stopTimer();
+    reaperScripts.reset();
     engine.cache.onReady = nullptr;
     engine.onTouched = nullptr;
     engine.onMessage = nullptr;
@@ -2269,6 +2284,7 @@ void Controller::tickWorkClock (double now)
 void Controller::timerCallback()
 {
     tickWorkClock (Time::getMillisecondCounterHiRes() / 1000.0);
+    if (reaperScripts) reaperScripts->sync();   // MIDI Production Center's loader while there's one (0093)
     // Every three minutes, while not recording.
     const auto now = Time::getMillisecondCounter();
     if (now - lastAutosave > 180000 && ! wasRecording)

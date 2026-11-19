@@ -411,6 +411,11 @@ public:
     // The engine's state of mind, for the window.
     std::function<void()> onTransportChanged;
 
+    // The family's REAPER scripts that hand phrases to Midular and MIDI Production
+    // Center, run as they are (decision 0093). The chosen MIDI clips into the device.
+    std::unique_ptr<class ReaperScripts> reaperScripts;
+    bool loadChosenClipsInto (Id device);
+
 private:
     std::vector<double> taps;
     bool wasRecording = false;

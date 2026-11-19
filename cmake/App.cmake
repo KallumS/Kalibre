@@ -69,6 +69,17 @@ FetchContent_GetProperties(ysfx)
 if(NOT ysfx_POPULATED)
     FetchContent_Populate(ysfx)
 endif()
+# One correction (decision 0093): in @serialize, file_avail says how many values
+# are left to read, as REAPER's does; ysfx said only 1 or 0, so a JSFX checking
+# for at least so many (Midular) never read its saved phrase back.
+set(YSFX_FILE_API ${ysfx_SOURCE_DIR}/sources/ysfx_api_file.cpp)
+file(READ ${YSFX_FILE_API} ysfx_file_api)
+string(REPLACE "return (m_buffer->size() > m_pos) ? 1 : 0;"
+               "return (m_buffer->size() > m_pos) ? (int32_t) ((m_buffer->size() - m_pos) / 4) : 0;"
+               ysfx_file_api_fixed "${ysfx_file_api}")
+if(NOT ysfx_file_api_fixed STREQUAL ysfx_file_api)
+    file(WRITE ${YSFX_FILE_API} "${ysfx_file_api_fixed}")
+endif()
 set(YSFX_PLUGIN OFF CACHE BOOL "" FORCE)
 set(YSFX_GFX ON CACHE BOOL "" FORCE)
 set(YSFX_TESTS OFF CACHE BOOL "" FORCE)
@@ -140,6 +151,7 @@ add_library(KalibreApp STATIC
     Source/Engine/SyncDevices.cpp
     Source/App/Theme.cpp
     Source/App/Controller.cpp
+    Source/App/ReaperScripts.cpp
     Source/App/AudioEditing.cpp
     Source/App/Presets.cpp
     Source/App/ProjectFiles.cpp
@@ -256,7 +268,7 @@ target_link_libraries(Kalibre PRIVATE
 if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp
-    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp Tests/App/TestTools.cpp
+    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp Tests/App/TestTools.cpp Tests/App/TestFamilyDevices.cpp
     Tests/App/TestNeutral.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1 KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
