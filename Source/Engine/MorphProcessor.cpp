@@ -342,6 +342,7 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "note-splitter") return std::make_unique<NoteSplitterProcessor>();   // decision 0083
     if (auto j = makeJsfx (ref)) return j;   // the family's JSFX (decision 0066)
     if (ref.identifier == "instant-virtual-instrument") return makeInstantVirtualInstrument();   // decision 0067
+    if (ref.identifier == "scaleview") return makeScaleView();   // decision 0093
     if (auto t = makeLuaTool (ref)) return t;   // the family's ReaImGui tools (decision 0068)
     if (ref.identifier == "test-sidechain") return std::make_unique<SidechainTest>();
     if (ref.identifier == "test-multiout") return std::make_unique<MultiOutTest>();

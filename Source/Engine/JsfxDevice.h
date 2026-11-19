@@ -65,4 +65,8 @@ std::unique_ptr<juce::AudioPluginInstance> makeInstantVirtualInstrument();
 bool loadInstantVirtualInstrumentDemo (juce::AudioPluginInstance&);
 PluginRef instantVirtualInstrumentRef();
 
+// ScaleView, built in (decision 0093; ScaleViewDevice.cpp): the scale, and the chord being played.
+std::unique_ptr<juce::AudioPluginInstance> makeScaleView();
+PluginRef scaleViewRef();
+
 } // namespace kal

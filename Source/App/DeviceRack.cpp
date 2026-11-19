@@ -738,6 +738,8 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
         kalibre.addItem (String (s.name) + "  (" + kinds[(int) s.role] + ")", [&c, track, &s] { c.addBuiltIn (track, jsfxRef (s), s.role); });
     }
     kalibre.addItem ("Instant Virtual Instrument  (Instrument)", [&c, track] { c.addBuiltIn (track, instantVirtualInstrumentRef(), DeviceRole::Instrument); });
+    // ScaleView reads what's played: before the instrument, where the notes are (decision 0093).
+    kalibre.addItem ("ScaleView  (MIDI Effect)", [&c, track] { c.addBuiltIn (track, scaleViewRef(), DeviceRole::MidiFx); });
     // The family's ReaImGui tools, built in (decision 0068).
     for (auto& s : luaTools())
         kalibre.addItem (String (s.name) + "  (MIDI Effect)", [&c, track, &s] { c.addBuiltIn (track, luaToolRef (s), DeviceRole::MidiFx); });

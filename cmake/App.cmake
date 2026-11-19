@@ -184,6 +184,16 @@ add_library(KalibreApp STATIC
     Source/App/Menus.cpp
     Source/App/Surfaces.cpp
     Source/App/StudioPanel.cpp)
+# ScaleView (KallumS/ScaleView, GPL-3.0, decision 0093), the same way: its source
+# unchanged, its folder its include root (its ScaleModel.h is Kalibre's own, the
+# same file), its plug-in entry point renamed so it doesn't meet IVI's.
+set(SCALEVIEW_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ScaleView/Source/PluginProcessor.cpp
+                      ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ScaleView/Source/PluginEditor.cpp)
+target_sources(KalibreApp PRIVATE ${SCALEVIEW_SOURCES} Source/Engine/ScaleViewDevice.cpp)
+set_source_files_properties(${SCALEVIEW_SOURCES} Source/Engine/ScaleViewDevice.cpp Tests/App/TestFamilyDevices.cpp PROPERTIES
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/ScaleView/Source
+    COMPILE_DEFINITIONS "JucePlugin_Name=\"ScaleView\";createPluginFilter=scaleViewPluginFilter")
+
 # Instant Virtual Instrument (KallumS/Instant-Virtual-Instrument, GPL-3.0), its
 # source unchanged, compiled into the app library as a built-in instrument
 # (decision 0067). Its own folder is its include root, and its plug-in name

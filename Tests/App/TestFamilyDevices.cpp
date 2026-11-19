@@ -269,3 +269,74 @@ TEST ("family devices: Good Idea's own engine makes an idea; it auditions, plays
         for (auto& n : clips[0].midi.notes) CHECK_EQ (n.channel, 9);
     }
 }
+
+#include "Editors.h"
+#include "HostedProcessor.h"
+#include "PluginProcessor.h"   // ScaleView's own (ThirdParty/ScaleView/Source)
+
+namespace
+{
+// Each render in an engine of its own, so no plug-in carries anything from one to the next.
+AudioBuffer<float> renderSong (const Project& p, double seconds, const String& name)
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    const auto dir = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-family-devices");
+    dir.createDirectory();
+    const auto out = dir.getChildFile (name + ".wav");
+    Engine::RenderOptions o;
+    o.start = 0; o.end = seconds; o.tail = 0; o.bitDepth = 32;
+    String error;
+    CHECK (engine.render (p, dir, out, o, {}, error));
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (out));
+    AudioBuffer<float> b (2, r ? (int) r->lengthInSamples : 0);
+    if (r) r->read (&b, 0, b.getNumSamples(), 0, true, true);
+    return b;
+}
+} // namespace
+
+TEST ("family devices: ScaleView names the chord played through it, and leaves the sound exactly as it was")
+{
+    // The chord held, as its window reads it.
+    auto sv = makeScaleView();
+    CHECK (sv != nullptr);
+    sv->prepareToPlay (48000, 512);
+    AudioBuffer<float> b (2, 512);
+    b.clear();
+    MidiBuffer m;
+    for (int k : { 60, 63, 67, 70 }) m.addEvent (MidiMessage::noteOn (1, k, (uint8) 100), 0);
+    sv->processBlock (b, m);
+    int passed = 0;
+    for (const auto meta : m) passed += meta.getMessage().isNoteOn() ? 1 : 0;
+    CHECK_EQ (passed, 4);   // the notes go on to the instrument
+    auto* hosted = dynamic_cast<HostedProcessor*> (sv.get());
+    auto* view = hosted ? dynamic_cast<ScaleViewProcessor*> (&hosted->inner()) : nullptr;
+    CHECK (view != nullptr);
+    if (view) CHECK_EQ (view->getHeldNotes(), (std::vector<int> { 60, 63, 67, 70 }));
+    {
+        editors::Owned e (editors::open (*sv));
+        CHECK (e != nullptr && e->getWidth() > 100);
+    }
+
+    // In a song, before Kalibre Synth: the render is the same, sample for sample.
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (p, t, 0, PPQ * 4);
+    for (int k : { 60, 63, 67, 70 }) edit::addNote (p, clip, { 0, 0, PPQ * 2, k, 100 });
+    const auto without = renderSong (p, 2.0, "without-scaleview");
+    edit::addDevice (p, t, scaleViewRef(), DeviceRole::MidiFx);
+    const auto with = renderSong (p, 2.0, "with-scaleview");
+    CHECK (without.getNumSamples() > 0 && without.getNumSamples() == with.getNumSamples());
+    float worst = 0, loudest = 0;
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < jmin (without.getNumSamples(), with.getNumSamples()); ++i)
+        {
+            worst = jmax (worst, std::abs (without.getSample (ch, i) - with.getSample (ch, i)));
+            loudest = jmax (loudest, std::abs (with.getSample (ch, i)));
+        }
+    CHECK (loudest > 0.01f);
+    CHECK_EQ (worst, 0.0f);
+}
