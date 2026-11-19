@@ -922,10 +922,16 @@ TEST ("multi-core: heavy plug-ins on several tracks are played on several thread
         CHECK (engine.render (p, tempFolder(), tempFolder().getChildFile ("busy.wav"), o, {}, error));
         return Time::getMillisecondCounterHiRes() - start;
     };
-    const double serial = timed (false);
-    const double spread = timed (true);
-    CHECK (engine.audioGraph().threadsInLastBlock.load() >= 2);
-    std::printf ("  %d threads; 4 x 1 ms a block: %.0f ms on one, %.0f ms on every core\n", engine.audioThreads(), serial, spread);
+    // The fastest of three each, taken in turn: on a shared machine (the CI's Mac) one
+    // render can be held up by whatever else is running, and a single timing says so.
+    double serial = 1.0e9, spread = 1.0e9;
+    for (int i = 0; i < 3; ++i)
+    {
+        serial = jmin (serial, timed (false));
+        spread = jmin (spread, timed (true));
+        CHECK (engine.audioGraph().threadsInLastBlock.load() >= 2);
+    }
+    std::printf ("  %d threads; 4 x 1 ms a block: %.0f ms on one, %.0f ms on every core (the fastest of three)\n", engine.audioThreads(), serial, spread);
     CHECK (spread < serial * 0.8);
 }
 

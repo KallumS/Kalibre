@@ -1,0 +1,1396 @@
+# Kalibre User Guide
+
+Everything Kalibre does, where to find it, and every key and click.
+
+Kalibre is a music program for Apple silicon Macs. Everything happens in one
+window: your tracks at the top, and under them the **lower zone**, where your
+plug-ins, editors and mixer sit side by side. Only settings (the Plug-in
+Manager, the Articulation Manager) get windows of their own.
+
+> On the Mac, menus are in the menu bar at the top of the screen. Key commands
+> are written as on the Mac: ⌘ is Command, ⇧ Shift, ⌥ Option, ⌃ Control.
+> Every key can be changed: **Help > Keys**.
+
+**Contents**
+
+1. [Getting Started](#1-getting-started)
+2. [The Window](#2-the-window)
+3. [The Top Bar](#3-the-top-bar)
+4. [Tracks](#4-tracks)
+5. [Clips and the Arrangement](#5-clips-and-the-arrangement)
+6. [The Toolbox](#6-the-toolbox)
+7. [Writing Notes: the Editors](#7-writing-notes-the-editors)
+8. [Plug-ins and Devices](#8-plug-ins-and-devices)
+9. [Kalibre's Own Devices](#9-kalibres-own-devices)
+10. [The Mixer](#10-the-mixer)
+11. [Recording](#11-recording)
+12. [Automation and Modulation](#12-automation-and-modulation)
+13. [Audio Editing](#13-audio-editing)
+14. [The Clip Launcher](#14-the-clip-launcher)
+15. [Meters and Video](#15-meters-and-video)
+16. [The Browser](#16-the-browser)
+17. [Orchestral Tools](#17-orchestral-tools)
+18. [Songs, Files, Import and Export](#18-songs-files-import-and-export)
+19. [Sync, Control Surfaces and Scripts](#19-sync-control-surfaces-and-scripts)
+20. [Every Menu, Item by Item](#20-every-menu-item-by-item)
+21. [Every Key Command](#21-every-key-command)
+22. [Every Mouse Gesture](#22-every-mouse-gesture)
+23. [When Something Goes Wrong](#23-when-something-goes-wrong)
+
+---
+
+## 1. Getting Started
+
+### Installing
+
+1. On GitHub, open **Actions > Build**, choose the newest run with a green
+   tick, and download **Kalibre-macOS** from its Artifacts.
+2. Open the `.dmg` and drag **Kalibre** onto **Applications**.
+3. The first time, **right-click Kalibre > Open** (it isn't signed with an
+   Apple Developer ID yet). After that it opens normally.
+
+### The first few minutes
+
+1. **Choose your audio interface.** Kalibre > Audio and MIDI Settings… (⌘,)
+   opens the browser's **Audio** tab: the interface, sample rate and buffer
+   size. Every MIDI keyboard is listened to without setting anything up.
+2. **Find your plug-ins.** Kalibre > Plug-in Manager… > **Scan for New
+   Plug-ins**. Each plug-in is opened in a separate helper, so one that
+   crashes is turned off, with the reason, and the scan carries on. It's only
+   needed once, and again after you install new ones.
+3. **Make a track.** ⌘T, or right-click under the tracks > Add Track.
+4. **Give it an instrument.** Choose the track, press **D** for Devices, click
+   **+ Add** and pick one: your own plug-ins, or Kalibre Synth from Add >
+   Kalibre.
+5. **Write some notes.** Double-click the track's lane for a one-bar MIDI
+   clip, press **E** for the Editor, and click in the piano roll to add notes.
+6. **Play.** Space plays and stops; Return goes back to the start.
+7. **Save.** ⌘S. A song is a `.kalibre` file in its own folder, with its
+   audio in an **Audio** folder beside it.
+
+---
+
+## 2. The Window
+
+![The whole window: the top bar, tracks with the chord lane, and the device rack in the lower zone](guide/window.png)
+
+From top to bottom:
+
+| Part | What it is |
+| --- | --- |
+| **Top bar** | The transport, the song's position, tempo, time signature, grid, scale, chord, a timer, Follow, CPU and delay. [Section 3](#3-the-top-bar). |
+| **The message line** | Under the top bar: what just happened (with **Undo** beside it), then what's chosen, or what the pointer is over: a note's pitch, velocity and length, a clip's length and notes. |
+| **The ruler** | Bars and beats. Click the upper half to move the cursor; drag along the lower half to draw the loop range. Double-click it to add a marker. |
+| **Lanes under the ruler** | The **Sections** lane, the **Chord** lane and the **Tempo** lane, each shown or hidden from the View menu. |
+| **Track headers** | On the left: each track's name, version, I/O, M (mute), S (solo) and arm buttons. [Section 4](#4-tracks). |
+| **The arrangement** | The clips, along the timeline. [Section 5](#5-clips-and-the-arrangement). |
+| **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Launcher** (G), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter. |
+| **The browser** | On the right, shown and hidden with ⌘B: plug-ins, files, audio settings, presets, keys and the studio. [Section 16](#16-the-browser). |
+
+### Choosing things
+
+Choosing works the same way for tracks (in the arrangement and the mixer),
+their buttons, clips, notes and the Plug-in Manager's list:
+
+| Click | Does |
+| --- | --- |
+| Click | Chooses just this one. |
+| **Shift**-click | Chooses everything from the last one clicked to this one. |
+| **⌥ Option**-click | Adds this one. |
+| **⇧⌥ Shift-Option**-click | Takes this one out. |
+| **⌘ Command**-click | Adds this one, or takes it out. |
+| **Esc** | Lets go of everything chosen. |
+
+### Text size
+
+**View > Text Size** (100%, 125%, 150%, 200%), or ⌘= bigger, ⌘- smaller,
+⌘0 back to 100%. Everything grows with it.
+
+![The window at 200% text, with the tempo lane shown](guide/text-200.png)
+
+### Workspaces
+
+**View > Workspaces > Save This Layout as a Workspace…** remembers the
+browser, the lower zone's tab and height, the editor, the lanes, Follow, the
+zoom and the text size, by name. Choose it from the same menu to bring the
+layout back; **Delete a Workspace** removes one.
+
+---
+
+## 3. The Top Bar
+
+From left to right:
+
+| Item | What it does |
+| --- | --- |
+| **⏮ Go to Start** | The cursor to the start (Return). |
+| **▶ Play / ■ Stop** | Space. Playing starts from the cursor. |
+| **● Record** | R. Records on armed tracks ([Section 11](#11-recording)). |
+| **Loop** | L. Plays the loop range round and round. Draw the range in the lower half of the ruler. |
+| **Punch** | Records only inside the punch range (Transport > Set the Punch Range to the Loop). |
+| **Click** | The metronome. Its subdivisions are in Transport > Metronome Clicks. |
+| **Count-in** | A bar of clicks before recording starts. |
+| **Position** | Where the playhead is. Click to switch between bars and beats, minutes, samples and timecode. |
+| **Tempo** | Drag up or down to change it, or double-click to type it. With tempo changes in the song it reads "Tempo (changes)": draw them in the Tempo lane (View > Tempo Lane). |
+| **Tap** | Tap it in time to set the tempo. |
+| **Time** | The time signature. Double-click to change it from the bar the cursor is in. |
+| **Grid** | The arrangement's grid (1/1 to 1/64, with triplets): what clips, the cursor and the loop snap to. Click to choose, or turn **Snap to the Grid** off. The editors have their own grid, in the lower zone. |
+| **Scale** | The song's key and scale. Its notes are shaded in the piano roll (View > Shade the Scale in the Piano Roll) and chords are spelt for it. Click for **Root** and **Scale**. |
+| **Chord** | The chord you're playing on a MIDI keyboard, named as you play. |
+| **Making Music** | How long you've worked on this song. It counts while you edit, play, record or move the mouse in Kalibre, and pauses after 3 minutes with nothing happening (8 minutes while the song plays); it then says **Paused**. Saved with the song. |
+| **Follow** | Click: the view scrolls to keep the playhead in sight. **Shift**-click: it turns the page instead, when the playhead reaches the right edge ("Follow: Page"). |
+| **CPU** | How busy the audio is: the highest in the last 2 seconds. Right-click > **Change the CPU Reading** for every 1 or 5 seconds. The mixer shows each track's share. |
+| **Delay** | How much the plug-ins delay the sound in all. Kalibre lines every track up by this much (plug-in delay compensation). |
+
+**Right-click the top bar** to hide any of these: **Show in the Bar** lists
+them with ticks; **Show Everything** brings them all back.
+
+---
+
+## 4. Tracks
+
+### Kinds of track
+
+| Kind | What it is | How to add |
+| --- | --- | --- |
+| **Track** | Holds audio and MIDI clips, on the same track. | ⌘T, Track > Add Track |
+| **Folder** | Holds other tracks (and other folders) and sums them, with plug-ins of its own. | ⇧⌘T, Track > Add Folder |
+| **Return** | Takes sends from other tracks (reverbs, delays). | Track > Add Return |
+| **Summing Track** | Armed, it records the master as it plays, from where recording starts. | Track > Add Summing Track |
+| **Cue Track** | After the master: its plug-ins, pan and mono are heard but never exported. One per song. | Track > Add Cue Track |
+| **Master** | Where everything ends. Always there. | |
+
+You can have up to 1000 tracks. Right-click in the empty space under the
+tracks to add any kind.
+
+### The track header
+
+| Button | Click | Notes |
+| --- | --- | --- |
+| **Name** | Double-click to rename. | |
+| **▾** (folders) | Fold the folder shut or open. | |
+| **v1** (version) | The track's versions: choose one, or make a new one. | Up to four. |
+| **I/O** | Where the track listens and where it plays to (below). | |
+| **M** | Mute. | Also M on the keyboard, for the chosen tracks. |
+| **S** | Solo. | Also S on the keyboard. |
+| **R** (arm) | Click: arm for audio (red). Right-click: for MIDI (blue). Shift-click: both. Shift-right-click: MIDI as it comes in, before any plug-in ("In"). The same again disarms. | [Section 11](#11-recording). |
+
+**⌥ Option-click** any header button to add the track to the choice instead
+of pressing the button.
+
+### The I/O button
+
+One menu for everything going in and out, each choice ticked:
+
+- **Audio In**: None, a stereo pair of inputs, or one input (Mono).
+- **MIDI In**: Every Keyboard, None, or one port.
+- **MIDI Channel**: Every, or one of 1 to 16; **MPE (a Channel for Each
+  Note)** for MPE controllers, each note with its own bend, pressure and
+  slide.
+- **Monitor Input**: Auto (while armed), On or Off.
+- **Out**: Its Folder, The Master, or a hardware output.
+- **Send To**: a send to a return (add a return first).
+
+### The track menu (right-click a header)
+
+| Item | Does |
+| --- | --- |
+| **New Version** | A new version of the track: its own clips and its own plug-ins. |
+| **Show Takes / Hide Takes** | The lanes of recorded takes, for comping ([Section 11](#comping-takes)). |
+| **Add Track, Folder, Return, Summing Track, Cue Track** | A new track under this one. |
+| **Put in a Folder / Take Out of Its Folder** | |
+| **Rename…** | |
+| **Colour** | The track's colour. |
+| **Track Delay…** | In milliseconds; negative plays the track early, for sounds that are slow to start (-125 ms for a slow string library). |
+| **Automation** | The track's mode: Off, Read, Touch, Latch, Write or Trim ([Section 12](#12-automation-and-modulation)). |
+| **Articulation Map** | Which articulation map the track's notes use ([Section 17](#17-orchestral-tools)). |
+| **Group** | Tracks in a group move together: volume, pan, mute, solo and arm. |
+| **Freeze / Unfreeze** | Freeze renders the track quietly, without reloading anything else, and unloads its plug-ins, keeping their settings. Unfreeze deletes the render and loads them back as they were. |
+| **Lock** | Its clips can't be moved or edited. |
+| **Duplicate**, **Delete** | |
+
+### Versions
+
+A track can have up to four versions, each with its own clips and its own
+plug-ins: try a part two ways and switch between them. The version button on
+the header (and the 1 to 4 buttons on the mixer strip) chooses which plays.
+Shift-click a version number in the mixer to switch every chosen track at
+once. The versions not playing wait loaded, and come back exactly as they
+were.
+
+### Folders
+
+Drag a track onto a folder to put it in. A folder sums its tracks and can
+have its own plug-ins; muting it silences everything inside. Folders can sit
+inside folders. A folded folder shows where its tracks have clips.
+
+---
+
+## 5. Clips and the Arrangement
+
+### Moving around
+
+| Do | To |
+| --- | --- |
+| Scroll | Move up and down the tracks. |
+| **Shift**-scroll, or scroll sideways | Move along the song. |
+| **⌘**-scroll, or pinch | Zoom in and out, around the pointer. |
+| **F** | Zoom to fit the whole song. |
+| The Hand and Zoom tools | [Section 6](#6-the-toolbox). |
+
+### Making clips
+
+- **Double-click** an empty part of a track's lane: a new one-bar MIDI clip.
+- **Drag files** in from the Finder or the browser's Files tab: audio and
+  MIDI files go where you drop them. Several files go on new tracks.
+- **File > Import Audio or MIDI…** (⌘I): onto the chosen track, at the
+  cursor.
+- Right-click an empty lane: **New MIDI Clip Here**, **Capture MIDI Here**,
+  **Paste Here**.
+
+### Editing clips with the mouse
+
+| Do | To |
+| --- | --- |
+| Click | Choose it (Shift, Option and Command as in [Choosing things](#choosing-things)). |
+| Drag its middle | Move it, onto the grid; to another track too. |
+| **⌥ Option**-drag | Copy it. |
+| **⌘ Command** while dragging | Move it freely, off the grid. |
+| Drag its left or right edge | Trim it. |
+| Drag a fade handle | The small handles at the top corners of an audio clip: fade in and fade out. Where two audio clips overlap they crossfade, equal power. |
+| Drag a warp marker | Move that moment of the audio ([Warping](#warping)). |
+
+### Editing clips with keys
+
+| Key | Does |
+| --- | --- |
+| ⌘D | Duplicate the chosen clips, just after themselves. |
+| ⌘E | Split at the cursor. |
+| ⌫ or Delete | Delete them. With **Edit > Ripple Editing** on, the later clips on the track move back to close the gap. |
+
+### The clip menu (right-click a clip)
+
+For every clip:
+
+| Item | Does |
+| --- | --- |
+| **Split at Cursor** | |
+| **Duplicate** | |
+| **Create Alias Clip** | Duplicates of an alias clip (⌘D or Option-drag) share their notes or audio: edit one, every copy changes. They wear a chain at the top right. **Make Independent** breaks the link; **Duplicate as Alias** makes a linked copy straight away. |
+| **Put in the Launcher** | Into the next empty scene of the clip launcher. |
+| **Set the Loop to the Clip(s)** | The loop range from the first clip's start to the last one's end. |
+| **Delete** | |
+| **Loop Its Content** | The clip's notes or audio repeat as you lengthen it. |
+| **Mute**, **Lock** | |
+| **Consolidate the Chosen Clips** | Several clips on a track into one. Audio becomes a new file, normalised, the clip's gain making up for it. |
+
+For MIDI clips, also:
+
+| Item | Does |
+| --- | --- |
+| **Explode Chords to Tracks** | A track for each voice of the chords, each with the track's plug-ins. |
+| **Fix Note Timings and Volume…** | [Section 17](#fix-note-timings-and-volume). |
+| **Bounce in Place** | Renders the clip through the track's plug-ins onto a new audio track under it; the clip is muted, not deleted. 32-bit float. |
+| **Detect Chords** | Their chords appear in the Chord lane (several clips at once). |
+| **Transpose** | Up or down a semitone, a fifth or an octave. |
+
+For audio clips, also:
+
+| Item | Does |
+| --- | --- |
+| **Warp** | Granular, spectral or repitch; **The File's Tempo…**; **Add a Warp Marker at the Cursor**. |
+| **Transpose** | Pitch-shift. |
+| **Normalise** | The clip's gain so its loudest peak is at -0.3 dB. The file isn't changed. |
+| **Strip Silence** | One clip for each stretch with sound in it. |
+| **Quantise Audio to the Grid** | Every hit moved onto the grid with warp markers. |
+| **Edit Samples** | Opens the sample editor ([Section 13](#13-audio-editing)). |
+| **Reverse** | |
+| **Fade In and Out (10 ms)** | |
+| **Offline Effects** | Plug-ins rendered into the clip: **Add** one, **Edit Their Settings**, **Render**, or go **Back to the Original**. |
+
+### Warping
+
+Audio follows the song's tempo when it's warped. Choose the way in **Warp**:
+**granular**, **spectral** or **repitch** (faster is higher, like tape). Kalibre
+works from the file's own tempo (**The File's Tempo…**) or from warp markers:
+right-click > Warp > **Add a Warp Marker at the Cursor**, then drag a marker
+along the clip to move that moment.
+
+### The loop, markers and the cursor
+
+- **The cursor** is where playing starts: click the upper half of the ruler,
+  or an empty lane.
+- **The loop range**: drag along the lower half of the ruler (or Shift-drag
+  anywhere on it). L turns looping on and off.
+- **Markers**: double-click the ruler.
+
+### Sections and the song's shape
+
+The **Sections** lane (View > Section Lane) names stretches of the song:
+Intro, Verse, Chorus.
+
+| Do | To |
+| --- | --- |
+| Right-click the lane | **Add a Section from the Loop Range** or **Add a Four-Bar Section Here**. |
+| Right-click a section | **Rename…**, **Loop It**, **Duplicate**, **Move Earlier**, **Move Later**, **Delete the Section and Its Bars**, **Delete the Section Only**. |
+| **Shift**-drag a section | Move it, and everything in it, to any bar. An outline shows where it lands. What was there moves out of its way. |
+
+The Edit menu changes the song's length:
+
+- **Insert Bars at the Cursor…**: empty bars; everything after moves later.
+- **Delete the Loop Range's Bars**: and closes the gap.
+- **Duplicate the Loop Range**.
+
+Clips crossing an edge are split; automation, markers, sections and tempo
+changes move with them.
+
+### The Chord lane
+
+View > Chord Lane. Right-click clips > **Detect Chords** and their chords are
+written along the lane, spelt for the song's scale.
+
+### The Tempo lane
+
+View > Tempo Lane. Drag a tempo point up or down; **⌥ Option**-drag to ramp
+to it from the point before. **Transport > Ramp the Tempo to Here** adds a
+point at the cursor that the one before ramps to. The Time Warp tool moves a
+beat to where it falls in the audio ([Section 6](#6-the-toolbox)).
+
+---
+
+## 6. The Toolbox
+
+Hold **⌃ Control** and **right-click** over the arrangement or the piano roll:
+the toolbox opens under the pointer. Click a tool to use it; the pointer
+becomes that tool. Each area keeps its own tool. Esc closes the toolbox.
+Right-click a tool in the box for its modes.
+
+![The toolbox over the arrangement](guide/toolbox-arrangement.png)
+![The toolbox over the piano roll](guide/toolbox-piano-roll.png)
+
+| Key | Tool | In | What a click does | Modes |
+| --- | --- | --- | --- | --- |
+| **1** | **Select** | Both | Choose, move and trim, as always. In the piano roll: the rules in [Section 7](#the-piano-roll). | Normal; Click Adds or Takes Away; Everything at the Click (every clip or note playing at that moment). |
+| **2** | **Range** | Both | Drag across tracks to choose a stretch of time; Delete clears what's in it. In the piano roll, drag to choose an area of notes. | |
+| **3** | **Split** | Both | Click a clip or note to cut it there. **⌥ Option**-click cuts it into pieces as long as from its start to the click. | Split the Clicked One; Split Every Chosen One. |
+| **4** | **Glue** | Both | Click a clip to join it to the next on its track, or a note to the next of its pitch. | |
+| **5** | **Erase** | Both | Click or drag over clips, notes and automation points to delete them. | |
+| **6** | **Zoom** | Both | Click to zoom in, ⌥ Option-click to zoom out. | Zoom to the Dragged Area; Zoom Horizontally (drag right in, left out); Zoom Vertically (rows taller, Option shorter). |
+| **7** | **Mute** | Both | Click or drag over clips or notes to mute or unmute them. Muted notes are drawn hollow. | |
+| **8** | **Draw** | Both | Drag in an empty lane for a new MIDI clip; drag over automation to draw it. In the piano roll, click or drag to draw notes, even over others. | |
+| **9** | **Line** | Both | Drag a straight line of automation, or a run of notes in the piano roll. | Linear; Curve; S-Curve; Fast Start; Fast End; Steps. |
+| | **Play** | Both | Play from where you click. | Play While Held (notes in the piano roll play as the pointer passes); Play from the Click (click again to stop). |
+| | **Hand** | Both | Drag to move around without zooming. | |
+| | **Drumstick** | Piano roll | Click or drag to paint hits a grid step long; click a hit to take it away. | |
+| | **Time Warp** | Arrangement | Click to put a tempo change on the nearest grid line. Drag a beat to where it falls in the audio: the tempo before it changes to fit. | |
+
+The number keys choose tools in both areas at once (an area that hasn't the
+tool keeps its own). Play, Hand, Drumstick and Time Warp have no key until
+you give them one in **Help > Keys**. Right-click still removes notes in the
+piano roll, whatever the tool.
+
+![A range across two tracks, and muted notes drawn hollow](guide/range-muted.png)
+
+---
+
+## 7. Writing Notes: the Editors
+
+Press **E** (or click **Editor** in the lower zone) with a MIDI clip chosen.
+Five editors, chosen along the top of the zone, all write into the **same
+clip**: the piano roll shows every note; the others show their own.
+
+### The editor bar
+
+| Control | Does |
+| --- | --- |
+| **Piano Roll, Drums, Steps, Euclidean, Notation** | The editor. |
+| **1/16** | The editor's grid: what notes snap to, and how long a new note is (with triplets). |
+| **Snap** | Snap to the grid. Hold ⌘ while dragging to move freely. |
+| **Quantise** (Q) | Move the chosen notes (or all of them) onto the grid. |
+| **Legato** | Lengthen the chosen notes up to the next one. |
+| **Step Input** | Write notes from a MIDI keyboard (below). |
+| **Select ▾** | Choose notes by what they are (below). |
+| **CC Lanes…** | Which controller lanes are shown under the notes. |
+| **Auto** | Draw the CC lanes as AutoCC would play these notes ([Section 17](#17-orchestral-tools)). |
+
+Under the notes, **Velocity ▾** (at the left of the lane) chooses what the
+lane shows and sets; in Drums and Steps it's a button on the bar.
+
+### The piano roll
+
+![The piano roll, with the scale shaded](guide/piano-roll.png)
+
+**The mouse rules** (with the Select tool):
+
+| Do | To |
+| --- | --- |
+| Click empty space | Add a note. Drag to make it longer. A new note is as long as the last one added, clicked or stretched. |
+| **Right-click** a note | Remove it. |
+| **Right-drag** over an area | Remove everything in it. |
+| Drag a note's body | Move it, with every chosen note. |
+| Drag a note's edge | Stretch or shorten it. |
+| **Shift**-drag | Choose an area. |
+| **Shift**-click | Choose every note from the last one clicked to this one. |
+| **⌥ Option**-click | Add a note to the choice. |
+| **⇧⌥ Shift-Option**-click | Take a note out. **Shift-Option**-drag takes an area out. |
+| **⌥ Option**-drag | Copy the notes. |
+| **⌘ Command** while dragging | Off the grid. |
+| Click a key on the keyboard | Hear the note. |
+
+**Keys in the piano roll:**
+
+| Key | Does |
+| --- | --- |
+| ↑ / ↓ | The chosen notes up or down a semitone. |
+| ⇧↑ / ⇧↓ | Up or down an octave. |
+| ← / → | Earlier or later by a grid step. |
+| ⇧← / ⇧→ | Earlier or later by a bar. |
+| ⌫ or Delete | Delete the chosen notes. |
+| ⌘A | Choose every note. |
+| Esc | Let go of the notes (again: leave the piano roll). |
+
+**Edit menu, for notes:** Quantise, Legato, Humanise, **Join the Chosen
+Notes**, **Split the Chosen Notes at the Cursor**, **Transpose** (up or down
+1, 7 or 12).
+
+**Velocity ▾** chooses what the lane under the notes shows and sets:
+
+| Option | Is |
+| --- | --- |
+| **Velocity** | How hard the note is played. |
+| **Note Chance** | How often the note plays, out of 100: at 50% about every other time. |
+| **Random Velocity Range** | How much softer or harder it may play, chosen afresh each time. |
+| **Random Timing** | How many milliseconds early or late it may play, chosen afresh each time. |
+| **Note Delay** | How many milliseconds later (or earlier, below the middle) the note plays, on top of its track's and articulation's delays. |
+| **Articulation Map** | The track's map ([Section 17](#17-orchestral-tools)). |
+
+Chance, random velocity and random timing are chosen afresh every time a note
+plays, in exports too.
+
+![Each note's own delay in the lane under the notes](guide/note-delay-lane.png)
+
+### Select ▾
+
+| Item | Chooses |
+| --- | --- |
+| **Select Roots, 3rds, 5ths, 7ths, 9ths, 11ths, 13ths** | That note of each chord. |
+| **Select Every Beat / Every Off Beat** | Notes on (or off) the beat. |
+| **Select the Bottom Notes / the Top Notes** | The bass line or the top line. |
+| **Select All**, **Select None** | |
+| **Explode Chords to Tracks** | A track a voice. |
+
+### Step input
+
+Click **Step Input**, then on a MIDI keyboard **hold the notes** of a chord,
+**press a number** for its length, and **let go**: the notes are written at
+the cursor, and the cursor moves on.
+
+| Key | Length |
+| --- | --- |
+| 1 | 1/128 |
+| 2 | 1/64 |
+| 3 | 1/32 |
+| 4 | 1/16 |
+| 5 | 1/8 |
+| 6 | 1/4 |
+| 7 | 1/2 |
+| 8 | 1/1 (a whole note) |
+| 9 | Dotted (half as long again) |
+| 0 | Triplet (two-thirds as long) |
+| - | A rest that long |
+
+It works in the piano roll, notation and the drum grid.
+
+### CC lanes
+
+Under the piano roll and notation: any of the 128 controllers by their
+standard names (Modulation, Breath, Volume, Expression, Sustain), pitch bend,
+pressure, and each note's MPE bend, pressure and slide. **CC Lanes…** chooses
+them. Draw in a lane with the mouse. Right-click a lane: **Clear Lane**,
+**Remove Lane**, **Show Lanes**.
+
+![CC lanes drawn by Auto, under a violin line](guide/auto-cc.png)
+
+### Drums
+
+![The drum grid](guide/drums.png)
+
+A grid of drum hits, a row a drum.
+
+| Do | To |
+| --- | --- |
+| Click an empty cell | A hit (velocity 100). **Shift**-click: velocity 127. |
+| Drag a hit up or down | Its velocity (or what **Velocity ▾** chooses). |
+| Click a hit | Take it away. |
+| Right-click | Take it away. |
+| **Swing**, **Gate** | Every second step played late; how long each hit sounds. |
+| **Random** | A new groove from Good Idea, every click (Undo puts the old one back). |
+
+**Velocity ▾** here also has **Repeat**: 2 is two quick notes in the step, 4
+a roll.
+
+### Steps
+
+![The step sequencer](guide/steps.png)
+
+One note a step. Height is pitch; the bar inside is velocity.
+
+| Do | To |
+| --- | --- |
+| Click a step | Turn it on (starting on the step before's pitch, so lines draw quickly). Click again to turn it off. |
+| Drag up or down | Its pitch (in the scale, when it's shaded). |
+| **⌥ Option**-drag | Its velocity (or what **Velocity ▾** chooses). |
+| Double-click | Tie it to the next step. |
+| Right-click | Turn it off. |
+| **Swing**, **Gate** | Every second step played late; how long each note sounds. |
+| **Random** | A new tune from Good Idea in the song's key. |
+
+### Euclidean
+
+![The Euclidean sequencer](guide/euclidean.png)
+
+Rhythms spread as evenly as possible over a number of steps: each row is a
+drum, with **Steps**, **Hits** and **Rotate** dials. Turn a dial and let go:
+the rhythm is written into the clip. **Add Drum** adds a row; click a row's
+name to choose its drum. **Random** rolls new rhythms for every drum.
+
+### Notation
+
+![Notation](guide/notation.png)
+
+The notes on a staff, spelt for the song's key.
+
+| Do | To |
+| --- | --- |
+| The note buttons | The value of the next note: whole to thirty-second. |
+| **.** | Dotted. |
+| **3** | Triplet. |
+| **Rest** | Move the cursor on by the value, leaving a rest. |
+| Click on the staff | A note at the cursor, at that line or space. **⌥ Option**-click: sharpened; **Shift**-click: flattened. |
+| Click a note | Choose it. |
+
+---
+
+## 8. Plug-ins and Devices
+
+Press **D** for the Devices tab: the chosen track's plug-ins, side by side,
+in the order the sound passes through them. MIDI effects always come before
+the instrument, then the audio effects.
+
+![The device rack](guide/window.png)
+
+### Adding plug-ins
+
+Click **+ Add** (or Track > Add a Plug-in…): **MIDI Effects**,
+**Instruments**, **Audio Effects** and **Kalibre** (Kalibre's own devices,
+[Section 9](#9-kalibres-own-devices)). Or drag one from the browser's
+Plug-ins tab onto a track.
+
+### Each plug-in's buttons
+
+| Button | Does |
+| --- | --- |
+| **⏻** | Switch it off: unloaded from memory, its settings kept. Switch it on to load it again. Its delay is kept in its place, so the tracks stay lined up. |
+| **B** | Bypass: the sound passes untouched, the plug-in still loaded. |
+| **Set A / Set B** | Two settings to compare: click to switch. Copy one to the other in Presets. |
+| **Presets** | **Save Preset…**, your saved presets, and **The Plug-in's Own** programs. |
+| **Match** | Match Loudness: keeps what comes out as loud as what goes in (short-term loudness, LUFS-S). The amount is shown beside it. |
+| **⧉** | Move its window out of the rack into a window of its own, and back. |
+| **…** | **Move Left**, **Move Right**, **Sidechain From** (another track), **Its Other Outputs as Tracks**, **Automate the Last Touched Control**, **Modulate the Last Touched Control**, **Remove**. |
+
+Each plug-in's window is drawn inside the rack, fitted to the lower zone:
+resizable ones take the size, others are shown smaller, never stretched or
+bigger than they are. **Swipe sideways with two fingers** to move along the
+rack. Every action on a plug-in is one undo step.
+
+![A plug-in shown smaller to fit a short zone](guide/fitted.png)
+
+### Sidechains
+
+**…** > **Sidechain From** chooses the track a compressor (or any plug-in with
+a sidechain input) listens to. It's heard in freezes and bounces too.
+
+### Instruments with several outputs
+
+**…** > **Its Other Outputs as Tracks**: each further output of a
+multi-output instrument (a drum sampler) plays on its own track.
+
+### Plug-in delay compensation
+
+Every track is lined up for the plug-ins' delays; the top bar's **Delay** says
+how much in all.
+
+### Using every core
+
+Tracks' plug-ins play side by side on all the Mac's performance cores. It's
+on by default: **Use Every Core** in the browser's Audio tab switches it. The
+sound is exactly the same either way.
+
+---
+
+## 9. Kalibre's Own Devices
+
+All under **+ Add > Kalibre**. Every control of every one, and how to get
+what it makes into your song, is in **[the devices manual](DEVICES.md)**.
+
+| Device | Kind | What it is |
+| --- | --- | --- |
+| **Kalibre Synth** | Instrument | A simple synthesiser. |
+| **Kalibre Sampler** | Instrument | Plays a sample across the keys. |
+| **Trombolese** | Instrument | A physical model of a trombone crossed with an oboe: one note at a time, sliding between held notes; Bore and Reed morph, the mod wheel on the bore. In tune from note 34 to 84. |
+| **Hardware Insert** | Effect | Outboard gear in the chain: out to the interface and back, its round trip measured. |
+| **X/Y Morph** | Instrument or effect | Four corners, each a plug-in or a sample, mixed by where the dot is on a pad. Sample corners play the track's notes. X and Y can be automated and modulated. |
+| **Container** | Effect | Up to eight plug-ins in a row, each on a band, the mid or the sides. |
+| **Note Splitter** | MIDI effect | A chord's notes, top to bottom, each to another track. |
+| **Instant Virtual Instrument** | Instrument | Builds an instrument from a sample, in its own window. |
+| **ScaleView** | MIDI effect | Shows the scale and names the chord played through it; the sound is unchanged. Put it before the instrument. |
+| **Midi Evolver**, **Transient Shuffler**, **Reese Basser**, **Reverberator**, **Instrument Creator** | Various | The family's JSFX, exactly as REAPER runs them, each with its own window. Their sliders are parameters you can automate. |
+| **Midular**, **MIDI Production Center** | MIDI effects | MIDI samplers: right-click > **Load the Chosen MIDI Clip** (MIDI Production Center's own **Load Item** button works too). The phrase is saved with the song. |
+| **Starting Blocks**, **Starting Blocks Notation**, **Midi Catalogue** | MIDI effects | Ideas to start from, in their own windows. **Audition** and **Play with the Song** play through the instrument after them; **Insert at Cursor** puts the block on the track at the playhead (Midi Catalogue's sections a track per instrument). |
+| **Good Idea** | MIDI effect | Ideas for starting a track. **Insert** puts the idea in the song at the playhead; drums on channel 10. |
+| **Orchestration Helper** | Tool | Its database beside the track: search, pages, Text Size. |
+
+![Kalibre Synth and Kalibre Sampler](guide/synth-sampler.png)
+![Reese Basser and Reverberator, the family's JSFX](guide/jsfx.png)
+
+### The Container
+
+![The Container: three plug-ins, one on a band, one on the sides](guide/container.png)
+
+Each plug-in in it has:
+
+- **On**, and **S** (solo: with any soloed, only those play);
+- **Stereo / Mid / Side**: what it hears and changes;
+- **a band** (low and high edges; double-click for none): it changes only
+  those frequencies;
+- its own **Volume** and **Pan**.
+
+Its **⋯** menu: Show Its Window, Replace…, Move Up, Move Down, Remove.
+**Match Loudness** brings what goes out to the loudness of what came in.
+
+### The Note Splitter
+
+![The Note Splitter's panel](guide/note-splitter.png)
+
+Play a four-note chord on one track and the top note goes to the violins,
+the next to the violas, and so on. **+** and **-** set how many outputs (1 to
+16); choose a track for each, or **New Tracks** makes them under this one.
+The chord still plays on its own track too.
+
+---
+
+## 10. The Mixer
+
+Press **X** for the mixer.
+
+![The mixer](guide/mixer.png)
+
+Each strip, top to bottom:
+
+| Control | Does |
+| --- | --- |
+| **Pan** | The knob at the top. Double-click for the centre. The pan law is constant power, 0 dB in the middle. |
+| **Front to Back** | In a surround mix (Track > Mix Format). |
+| **M**, **S** | Mute, solo. |
+| **Ø** | Invert the polarity. |
+| **Mono** | Both sides play the two mixed together (on the Cue track: heard only, exports stay stereo). |
+| **1 2 3 4** | The track's versions: click to play one (the lit one plays). Shift-click to switch every chosen track. |
+| Sends | A small knob for each send. |
+| The fader | Volume, in dB underneath. |
+| Meters | Peak and RMS, beside the fader. |
+| **CPU** | The track's share of the load. |
+
+The **Loudness** panel beside the master: Momentary, Short-term and
+Integrated loudness (LUFS), Range, True Peak and Correlation. **Reset**
+starts measuring again.
+
+![Versions in the mixer, and the Cue track after the master](guide/mixer-versions-cue.png)
+
+### Surround
+
+**Track > Mix Format**: Stereo, Quad, 5.1 or 7.1. Pan places a track left to
+right; **Front to Back** from front to back. Exports have every channel.
+
+---
+
+## 11. Recording
+
+### Arming
+
+| On the arm button | Records |
+| --- | --- |
+| Click (red) | Audio, from the track's audio input. |
+| Right-click (blue) | MIDI: what the instrument is played, arpeggiators and MIDI effects included. |
+| Shift-click (half and half) | Both. |
+| Shift-right-click ("In") | MIDI as it comes in, before any plug-in. |
+
+The same in **Track > Arm for Recording Audio / MIDI / Audio and MIDI /
+MIDI Input**.
+
+### Recording
+
+Press **R** (or ● Record). Recording adds clips; it never removes what's
+there. **Loop** on: one take each time round. **Punch** on: only inside the
+punch range (**Transport > Set the Punch Range to the Loop**). **Count-in**
+plays a bar first. The **Metronome** (**Click**) has an accent and
+subdivisions (Transport > Metronome Clicks: beats, or beats in 2, 3 or 4).
+
+Everything Kalibre records is 32-bit float WAV.
+
+### Capturing what you just played
+
+Kalibre is always listening.
+
+- **Capture MIDI** (⇧⌘R): what you last played on a MIDI keyboard becomes a
+  clip, back to a pause of three seconds. Where it was played if the song was
+  playing; otherwise at the cursor.
+- **Capture Audio (the Last 30 Seconds)**: from an armed or monitored track,
+  at the cursor.
+
+### Comping takes
+
+![A vocal recorded three times, its takes shown](guide/takes.png)
+
+Each pass round the loop is a take. Track menu > **Show Takes** opens a lane
+for each under the track.
+
+- **Drag across a take's lane** to use that take there.
+- **Click** a take's clip to use all of it.
+- Right-click a take lane: **Use This Take Everywhere**, **Delete This
+  Take**, **Flatten the Comp** (into ordinary clips), **Hide Takes**.
+
+Joins between takes get a short fade.
+
+### The Summing track
+
+Track > Add Summing Track, then arm it: it records the master as you play,
+from where recording starts, sample for sample.
+
+---
+
+## 12. Automation and Modulation
+
+### The last touched control
+
+Kalibre remembers the last control you moved by hand: a plug-in's parameter,
+a fader or a pan knob. The Automation menu works on it:
+
+- **Automate (its name)**: a lane for it under the track.
+- **Modulate (its name)**: LFO, ADSR Envelope, ADR Envelope, Envelope
+  Follower, or Wavetable (draw it, or load a sample as the shape).
+- **MIDI Learn (its name)…** (⌘L): move a knob on a MIDI controller and it's
+  mapped. **MIDI Mappings** lists them; choose one to forget it.
+
+### Lanes
+
+Right-click a track's lane: **Show Volume Automation**, **Show Pan
+Automation**, any other parameter, or **Automate the Last Touched Control**.
+Click in a lane to add a point; drag points; the Draw and Line tools draw
+shapes. Right-click a lane: **Paste Here**, **Hide This Lane**, **Delete This
+Lane**. Every lane is followed sample by sample.
+
+### Modes
+
+Automation > **Mode** (or the track menu > Automation):
+
+| Mode | Does |
+| --- | --- |
+| **Off** | The lanes are ignored. |
+| **Read** | The lanes play. |
+| **Touch** | While playing, moving a control writes; letting go returns to the lane. |
+| **Latch** | Like Touch, but keeps writing the last value after you let go. |
+| **Write** | Writes everything while playing. |
+| **Trim** | Moves the lane's shape up and down by your hand, keeping the shape. |
+
+### Modulators
+
+Shown in the device rack. Each pushes a parameter up and down by an
+**Amount** from where it sits:
+
+- **LFO**: six shapes (Sine, Triangle, Saw Up, Saw Down, Square, Random),
+  free or **Sync to the Tempo**.
+- **ADSR / ADR envelopes**, started by the track's notes.
+- **Envelope Follower**: the level of this track or another.
+- **Wavetable**: a cycle drawn, or a sample's shape.
+
+---
+
+## 13. Audio Editing
+
+### The sample editor
+
+Right-click an audio clip > **Edit Samples**, or choose it and press **E**.
+
+![The sample editor](guide/sample-editor.png)
+
+Drag across the waveform to choose a range, then:
+
+| Button | Does |
+| --- | --- |
+| **Waveform / Spectrum** | The file as a waveform, or a spectrogram (pitch up, loudness as brightness). |
+| **Normalise** | The clip's gain so its loudest peak is at -0.3 dB (the file isn't changed). |
+| **Gain…** | The range louder or quieter. |
+| **Silence** | The range silent. |
+| **Reverse** | The range backwards. |
+| **Fade In / Fade Out** | |
+| **Invert** | The range's polarity. |
+| **Remove DC** | Centres the waveform on zero. |
+| **Strip Silence** | One clip for each stretch with sound in it. |
+| **Quantise Audio** | Every hit onto the grid with warp markers. |
+| **Zero Crossings** | Range ends, clip edges and cuts land where the waveform crosses zero, so there's no click (also Edit > Snap to Zero Crossings). |
+
+Right-click the range: **Normalise the Range to -0.3 dB**.
+
+Edits make a new 32-bit float file; the original is kept.
+
+### Offline effects
+
+Right-click an audio clip > **Offline Effects** > **Add** a plug-in. **Edit
+Their Settings** shows their windows in the Devices tab; **Render** renders
+the clip through them; **Back to the Original** undoes it.
+
+---
+
+## 14. The Clip Launcher
+
+Press **G**. Slots, a track a column and a scene a row.
+
+![The clip launcher](guide/launcher.png)
+
+| Do | To |
+| --- | --- |
+| Click a slot | Play it: it replaces the track's arrangement from the next bar, looped. |
+| Right-click a slot | **Play**, **Edit**, **Copy to the Arrangement at the Cursor**, **Empty the Slot**, **Put the Chosen Clip Here**, **New MIDI Clip (One Bar)**. |
+| Right-click a scene | **Rename…**, **Delete Scene**. |
+| **Capture Scene** | Copy what plays inside the loop range into a new scene. |
+| **Add Scene** | An empty row. |
+| **Back to Arrangement** | Every track plays its arrangement again. |
+
+---
+
+## 15. Meters and Video
+
+**Y** opens the Meters: a spectrum, an oscilloscope, a phase scope and a
+tuner, on the master or the chosen track.
+
+![The meters](guide/meters.png)
+
+**File > Import Video…** puts a video on the timeline at the cursor, its
+sound on a track of its own. The **Video** tab shows the picture, following
+the playhead. **File > Remove the Video** takes it away.
+
+---
+
+## 16. The Browser
+
+⌘B shows and hides it. Six tabs:
+
+| Tab | What's in it |
+| --- | --- |
+| **Plug-ins** | Every plug-in found, by kind. Search; drag one onto a track or into the rack. **Scan** looks for new ones. |
+| **Files** | Audio and MIDI files: **↑** goes to the folder above. Drag into the arrangement. |
+| **Audio** | The audio interface, sample rate and buffer size, inputs and outputs; **Use Every Core** (on unless you switch it off). |
+| **Presets** | Saved presets for the chosen track's plug-ins. |
+| **Keys** | Every command and its key ([Section 21](#21-every-key-command)). |
+| **Studio** | Sync and control surfaces ([Section 19](#19-sync-control-surfaces-and-scripts)). |
+
+![The browser's Plug-ins tab](guide/browser-plugins.png)
+![The browser's Audio tab](guide/browser-audio.png)
+
+### The Plug-in Manager
+
+**Kalibre > Plug-in Manager…**, in a window of its own.
+
+![The Plug-in Manager](guide/plugin-manager.png)
+
+| Control | Does |
+| --- | --- |
+| Search, sort | By name, maker, kind or format. |
+| **Scan for New Plug-ins** | Plug-ins installed since the last scan, each opened in a helper. |
+| **Scan Again** | The chosen ones again, as if new: for one that crashed and has been updated since. |
+| **Turn Off** | Leave them out of the browser and the menus, and never load them. |
+| **Turn On** | Back on. One that crashed or hung is scanned again first. |
+| **Show in Finder** | The plug-in's file. |
+| **Only Turned Off** | Just those, each with why: crashed, hung, couldn't open, or turned off by hand. |
+| Right-click > **File As** | MIDI Effect, Instrument or Audio Effect, by hand. |
+
+An instrument that also sends MIDI (Riffer, Scaler) is listed under MIDI
+Effects too.
+
+---
+
+## 17. Orchestral Tools
+
+### Articulation maps
+
+An articulation map says which keyswitch plays which articulation (legato,
+staccato, pizzicato), and how many milliseconds late each one speaks, so
+Kalibre can play it early by that much.
+
+- **Track > Articulation Maps > New Articulation Map…** makes a map with six
+  string articulations to start from. Its submenu edits each one's name,
+  keyswitch and delay, or **Add an Articulation**.
+- **The articulation lane** in the piano roll gives each note its
+  articulation.
+- **Velocity ▾ > Articulation Map** in the piano roll chooses the track's map,
+  from the song or from the library.
+
+### The Articulation Manager
+
+**File > Articulation Manager…**, in a window of its own.
+
+![The Articulation Manager](guide/articulation-manager.png)
+
+| Control | Does |
+| --- | --- |
+| **Import…** | Cubase expression maps (`.expressionmap`), Logic articulation sets (`.plist`) and Reaticulate banks (`.reabank`) into the library. |
+| **Use on Track** | The chosen map on the chosen track. |
+| **Remove from Library** | Songs that use it keep their own copy. |
+| **Delay** | Each articulation's delay, kept in the library. |
+
+### Fix Note Timings and Volume
+
+Right-click a MIDI clip > **Fix Note Timings and Volume…**: Note Position &
+Volume Fixer, built in. For sample libraries whose notes speak late or
+unevenly.
+
+![Fix Note Timings and Volume's question](guide/fix-note-timings.png)
+
+Kalibre renders the track quietly, finds where each note is really heard and
+how loud, and then:
+
+- gives each note the **delay** that puts its sound on the grid (or **moves**
+  the notes instead);
+- evens out the **volume** within each articulation, with CC7, CC11 or
+  velocity.
+
+It's one undo step, and safe to run again.
+
+### AutoCC
+
+On a track named for an instrument AutoCC knows (Violin, Horn, Flute…),
+click **Auto** on the editor bar: CC1, CC11, CC7 and CC21 are drawn as
+AutoCC would play these notes.
+
+---
+
+## 18. Songs, Files, Import and Export
+
+### Saving, autosave and backups
+
+- **Save** (⌘S), **Save As…** (⇧⌘S).
+- An **autosave** every three minutes while there are changes: **File > Open
+  the Last Autosave**.
+- A **backup** every 15 minutes while it has changed, the newest 48 kept:
+  **File > Open a Backup** (and **Show Backups in Finder**).
+- **Templates**: **File > Save as Template…** (**Tracks and Plug-ins**, or
+  **With the Music Too**); **File > New from Template** starts from one.
+
+### Files and folders
+
+- **Collect All Files and Save**: copies every file the song uses into its
+  folder.
+- **Relink Missing Files…**: choose the folder they're in now (folders inside
+  it are searched too).
+- **Archive the Project…**: the song and all its files in one `.zip`.
+- **Song Details…**: title, artist and the rest, written into WAV and MP3
+  exports.
+
+### Import
+
+| Menu item | Takes |
+| --- | --- |
+| **Import Audio or MIDI…** (⌘I) | WAV, AIFF, FLAC, MP3, OGG, MIDI. Audio is copied into the song's Audio folder as 32-bit float WAV. |
+| **Import MusicXML…** | `.musicxml`, `.xml`, `.mxl`: each part becomes a track, with the tempo and key. |
+| **Open a DAWproject…** | A song from Bitwig, Studio One, Cubase or another program, as a new song: tracks, folders, returns, the mix, sends, tempo, time signatures, markers, clips, plug-ins by name, automation and warping. |
+| **Import Video…** | `.mov`, `.mp4`, `.m4v`. |
+| **Import Final Cut XML…** | Clips placed as they were. |
+
+### Export
+
+Exports cover the loop range when the loop is on, otherwise the whole song.
+
+| Menu item | Makes |
+| --- | --- |
+| **Export the Mix…** (⇧⌘E) | WAV, AIFF, FLAC or MP3 (320 kb/s), by the name you give it. 16, 24 or 32-bit, with dither where it's fewer bits. |
+| **Export the Mix at a Loudness** | **For Streaming (-14 LUFS)**, **For Apple Music (-16 LUFS)**, **For Broadcast (-23 LUFS)**. |
+| **Export Every Track…** | A file per track (stems). |
+| **Export MIDI…** | A MIDI file. |
+| **Export MusicXML…** | For Dorico, MuseScore, Sibelius or Finale. |
+| **Export a DAWproject…** | For Bitwig, Studio One, Cubase and others. |
+| **Export Several at Once…** | Tick what you want (The Mix as WAV, The Mix as MP3, Every Track as WAV, The MIDI, The Mix at -14 LUFS) and choose a folder. |
+| **Export Final Cut XML…** | The audio clips, for Final Cut, Resolve, Premiere or Logic. |
+
+---
+
+## 19. Sync, Control Surfaces and Scripts
+
+**Kalibre > Sync and Control Surfaces…** opens the browser's **Studio** tab.
+
+![The Studio tab, and the loudness panel](guide/studio-loudness.png)
+
+- **Sync**: MIDI clock and Song Position out, MIDI timecode out, follow
+  another machine's clock, chase MTC, MIDI Machine Control in and out,
+  **Ableton Link**, and the Mac's **network MIDI** session.
+- **Control surfaces**: **Mackie Control** and **HUI** (choose their ports),
+  and **OSC**.
+
+Everything each one does is in [CONTROL.md](CONTROL.md).
+
+**Scripts**: Lua scripts in the **Scripts** menu. **Show the Scripts Folder**
+is where they go; **Add the Example Scripts** copies Kalibre's examples
+there. How to write them: [SCRIPTING.md](SCRIPTING.md).
+
+---
+
+## 20. Every Menu, Item by Item
+
+### Kalibre
+
+| Item | Key | Does |
+| --- | --- | --- |
+| Audio and MIDI Settings… | ⌘, | The browser's Audio tab. |
+| Sync and Control Surfaces… | | The browser's Studio tab. |
+| Plug-in Manager… | | [Section 16](#the-plug-in-manager). |
+| Quit Kalibre | ⌘Q | Asks to save first. Kalibre always ends within five seconds, even if a plug-in won't let go. |
+
+### File
+
+| Item | Key |
+| --- | --- |
+| New | ⌘N |
+| Open… | ⌘O |
+| Open the Last Autosave | |
+| Open a Backup ▸ | |
+| New from Template ▸ | |
+| Save | ⌘S |
+| Save As… | ⇧⌘S |
+| Save as Template… | |
+| Articulation Manager… | |
+| Collect All Files and Save | |
+| Relink Missing Files… | |
+| Archive the Project… | |
+| Song Details… | |
+| Import Audio or MIDI… | ⌘I |
+| Import MusicXML… | |
+| Open a DAWproject… | |
+| Import Video… | |
+| Remove the Video | |
+| Export the Mix… | ⇧⌘E |
+| Export the Mix at a Loudness ▸ | |
+| Export Every Track… | |
+| Export MIDI… | |
+| Export MusicXML… | |
+| Export a DAWproject… | |
+| Export Several at Once… | |
+| Export Final Cut XML… | |
+| Import Final Cut XML… | |
+
+### Edit
+
+| Item | Key | Does |
+| --- | --- | --- |
+| Undo (what) | ⌘Z | Every gesture is one step. |
+| Redo (what) | ⇧⌘Z | |
+| Delete | ⌫ | The chosen notes, clips or range. |
+| Duplicate | ⌘D | |
+| Split at the Cursor | ⌘E | |
+| Snap to Zero Crossings | | Edges and cuts land where the waveform crosses zero. |
+| Choose Every Note | ⌘A | |
+| Quantise | Q | |
+| Legato | | |
+| Humanise | | Small random changes in timing and velocity. |
+| Join the Chosen Notes | | |
+| Split the Chosen Notes at the Cursor | | |
+| Transpose ▸ | | Up 12, 7, 1; Down 1, 7, 12. |
+| Consolidate the Chosen Clips | | |
+| Ripple Editing | | Deleting a clip pulls the later clips on its track back. |
+| Insert Bars at the Cursor… | | |
+| Delete the Loop Range's Bars | | |
+| Duplicate the Loop Range | | |
+| Add a Section from the Loop Range | | |
+
+### Track
+
+| Item | Key |
+| --- | --- |
+| Add Track | ⌘T |
+| Add Folder | ⇧⌘T |
+| Mix Format ▸ (Stereo, Quad, 5.1, 7.1) | |
+| Add Return | |
+| Add Summing Track | |
+| Add Cue Track | |
+| Put the Chosen Tracks in a Folder | |
+| New Version | |
+| Add a Plug-in… | |
+| Duplicate | |
+| Delete | |
+| Arm for Recording Audio / MIDI / Audio and MIDI / MIDI Input | |
+| Articulation Maps ▸ | |
+
+### Transport
+
+| Item | Key |
+| --- | --- |
+| Play / Stop | Space |
+| Record | R |
+| Go to the Start | Return |
+| Loop | L |
+| Punch In and Out | |
+| Set the Punch Range to the Loop | |
+| Metronome | |
+| Count-in | |
+| Metronome Clicks ▸ (Beats, Beats in 2, 3, 4) | |
+| Capture MIDI | ⇧⌘R |
+| Capture Audio (the Last 30 Seconds) | |
+| Tap Tempo | |
+| Ramp the Tempo to Here | |
+
+### Automation
+
+| Item | Key |
+| --- | --- |
+| Automate (the last touched control) | |
+| Modulate (the last touched control) ▸ | |
+| MIDI Learn (the last touched control)… | ⌘L |
+| MIDI Mappings ▸ | |
+| Mode: Off, Read, Touch, Latch, Write, Trim | |
+
+### View
+
+| Item | Key |
+| --- | --- |
+| Devices | D |
+| Editor | E |
+| Mixer | X |
+| Clip Launcher | G |
+| Meters | Y |
+| Browser | ⌘B |
+| Section Lane | |
+| Chord Lane | |
+| Tempo Lane | |
+| Shade the Scale in the Piano Roll | |
+| Follow Playback | |
+| Zoom to Fit | F |
+| Workspaces ▸ | |
+| Text Size ▸ | ⌘0 for 100% |
+
+### Scripts
+
+Your scripts, then **Show the Scripts Folder** and **Add the Example
+Scripts**.
+
+### Help
+
+| Item | Does |
+| --- | --- |
+| Keys | The browser's Keys tab. |
+| Show Crash Reports | The folder of crash reports. |
+| Kalibre on GitHub | |
+
+---
+
+## 21. Every Key Command
+
+These are the keys Kalibre starts with. Change any of them in **Help > Keys**:
+click a command, then press its new key. Esc leaves it as it was; Delete takes
+its key away; **Default Key** puts one back, **All Defaults** puts them all
+back. A key does one thing: giving it to a command takes it from any other.
+The menus always show the key a command has now.
+
+![The browser's Keys tab](guide/browser-keys.png)
+
+*The pictures in this guide are drawn on Linux, so this list says Ctrl+ where
+the Mac says ⌘.*
+
+### Playing
+
+| Key | Command |
+| --- | --- |
+| Space | Play or Stop |
+| Return | Go to the Start |
+| R | Record |
+| L | Loop |
+| ⇧⌘R | Capture MIDI |
+
+### Editing
+
+| Key | Command |
+| --- | --- |
+| ⌘Z | Undo |
+| ⇧⌘Z | Redo |
+| ⌫ | Delete |
+| Delete (forward) | Delete |
+| ⌘D | Duplicate |
+| ⌘E | Split at the Cursor |
+| ⌘A | Choose Every Note |
+| Q | Quantise |
+| Esc | Let Go of the Choice |
+
+### Tracks
+
+| Key | Command |
+| --- | --- |
+| ⌘T | Add Track |
+| ⇧⌘T | Add Folder |
+| M | Mute the Chosen Tracks |
+| S | Solo the Chosen Tracks |
+| ⌘L | MIDI Learn (the last touched control) |
+
+### Views
+
+| Key | Command |
+| --- | --- |
+| D | Devices |
+| E | Editor |
+| X | Mixer |
+| G | Clip Launcher |
+| Y | Meters |
+| ⌘B | Show or Hide the Browser |
+| F | Zoom to Fit |
+| ⌘= | Bigger Text |
+| ⌘- | Smaller Text |
+| ⌘0 | Text at 100% |
+
+### Files
+
+| Key | Command |
+| --- | --- |
+| ⌘N | New |
+| ⌘O | Open |
+| ⌘S | Save |
+| ⇧⌘S | Save As |
+| ⌘I | Import Audio or MIDI |
+| ⇧⌘E | Export the Mix |
+| ⌘, | Audio and MIDI Settings |
+| ⌘Q | Quit |
+
+### Tools
+
+| Key | Tool |
+| --- | --- |
+| 1 | Select |
+| 2 | Range |
+| 3 | Split |
+| 4 | Glue |
+| 5 | Erase |
+| 6 | Zoom |
+| 7 | Mute |
+| 8 | Draw |
+| 9 | Line |
+| (none) | Play, Hand, Drumstick, Time Warp: give them keys in Help > Keys. |
+
+### Keys that work in one place
+
+These aren't in the Keys list: they belong to where you are.
+
+| Where | Key | Does |
+| --- | --- | --- |
+| Piano roll | ↑ / ↓ | Chosen notes up or down a semitone |
+| Piano roll | ⇧↑ / ⇧↓ | Up or down an octave |
+| Piano roll | ← / → | Earlier or later by a grid step |
+| Piano roll | ⇧← / ⇧→ | Earlier or later by a bar |
+| Piano roll | Esc | Let go of the notes; again, leave the piano roll |
+| Step input on | 1 to 8 | Write the held notes: 1/128, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1/1 |
+| Step input on | 9 / 0 | Dotted / triplet |
+| Step input on | - | A rest |
+| The toolbox | Esc | Close it |
+| Questions Kalibre asks | Return / Esc | The default button / Cancel |
+| Keys tab | Esc / Delete | Leave the key / take it away |
+
+---
+
+## 22. Every Mouse Gesture
+
+### Anywhere
+
+| Gesture | Does |
+| --- | --- |
+| ⌃ Control-right-click (arrangement, piano roll) | The toolbox. |
+| Control-click alone | The Mac's right-click, as always. |
+| Hover | The message line says what's under the pointer; tooltips say what a control does. |
+
+### The ruler and the lanes under it
+
+| Gesture | Does |
+| --- | --- |
+| Click the upper half of the ruler | Move the cursor. |
+| Drag along the lower half (or Shift-drag) | Draw the loop range. |
+| Double-click the ruler | Add a marker. |
+| Right-click the Sections lane | Add a section. |
+| Right-click a section | Its menu. |
+| Shift-drag a section | Move it, and everything in it, to another bar. |
+| Drag a tempo point | Change it. **⌥ Option**-drag: ramp to it. |
+
+### Track headers
+
+| Gesture | Does |
+| --- | --- |
+| Click | Choose the track. Shift, Option, Command as everywhere. |
+| Double-click the name | Rename. |
+| Right-click | The track menu. |
+| Drag onto a folder | Put it in the folder. |
+| ⌥ Option-click a button | Add the track to the choice instead. |
+| Arm: click / right-click / Shift-click / Shift-right-click | Audio / MIDI / both / MIDI input. |
+| Right-click under the tracks | Add a track. |
+
+### Clips
+
+| Gesture | Does |
+| --- | --- |
+| Double-click an empty lane | A new one-bar MIDI clip. |
+| Click | Choose. |
+| Drag | Move. **⌥** copies; **⌘** off the grid. |
+| Drag an edge | Trim. |
+| Drag a top corner handle (audio) | Fade in or out. |
+| Drag a warp marker | Move that moment of the audio. |
+| Right-click | The clip menu. |
+| Drag across a take's lane | Use that take there. |
+| Drop files | Import them there. |
+
+### Scrolling and zooming
+
+| Gesture | Does |
+| --- | --- |
+| Scroll | Up and down the tracks. |
+| Shift-scroll, or sideways | Along the song. |
+| ⌘-scroll, or pinch | Zoom around the pointer. |
+| Two-finger swipe over the device rack | Along the rack. |
+
+### Editors
+
+The piano roll, drums, steps, Euclidean and notation have their own tables in
+[Section 7](#7-writing-notes-the-editors).
+
+### Knobs and faders
+
+| Gesture | Does |
+| --- | --- |
+| Drag | Change it. |
+| Double-click pan | Back to the centre. |
+| Moving one by hand | It becomes the last touched control ([Section 12](#12-automation-and-modulation)). |
+
+---
+
+## 23. When Something Goes Wrong
+
+- **A plug-in crashed while scanning.** It's turned off, with the reason, in
+  the Plug-in Manager (**Only Turned Off**). After updating it, choose it and
+  click **Scan Again**.
+- **Kalibre crashed.** A crash report is written, naming the plug-in that was
+  playing; you're told on the next start. **Help > Show Crash Reports**.
+  **File > Open a Backup** or **Open the Last Autosave** brings your work
+  back.
+- **Files are missing.** File > **Relink Missing Files…** and choose the
+  folder they're in.
+- **Something's too quiet or loud on export.** File > Export the Mix at a
+  Loudness.
+- **It sounds different with Use Every Core.** It shouldn't: switch it off in
+  the Audio tab, and say which plug-in.
+- **Undo.** Every gesture is one step: ⌘Z, or **Undo** beside the message.
+
+---
+
+*This guide describes Kalibre as it is. What's built and what isn't is in
+[FEATURES.md](FEATURES.md); why it works as it does is in
+[decisions](decisions/README.md).*
