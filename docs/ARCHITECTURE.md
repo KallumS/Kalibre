@@ -25,6 +25,7 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/WorkClock.*` | The top bar's timer: DAW Battle Pass's active-time clock (0091). |
 | `Core/NoteFixer.*` | Note Position & Volume Fixer's engine: where each note is heard in a render, and how loud (0085). |
 | `Core/NoteSplit.*` | The Note Splitter's rule: a chord's notes, top to bottom, an output each (0083). |
 | `Core/Ideas.*` | Good Idea's engine (Lua, `Engines/good-idea/`, embedded by `cmake/EmbedLua.cmake`): drum grooves and motifs for the Random buttons (0062). |

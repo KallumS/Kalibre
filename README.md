@@ -61,6 +61,9 @@ grow and shrink with it.
   out, automation and warping included.
 - **Note Splitter**: a chord's notes, top to bottom, each to another track's
   MIDI input, so one chord plays four string sections.
+- **A timer of your music-making** beside the chord in the top bar: how long
+  you've worked on the song, pausing when you're away (DAW Battle Pass's
+  clock), saved with it.
 - **Fix Note Timings and Volume** (right-click a MIDI clip): Note Position &
   Volume Fixer built in. For sloppily edited orchestral libraries, it listens
   to the track, finds where each note is really heard and how loud, and puts
@@ -137,6 +140,7 @@ grow and shrink with it.
 ![The Note Splitter: a chord's notes to Violins I, Violins II and Violas](docs/note-splitter.png)
 ![Fix Note Timings and Volume: how to fix them](docs/fix-note-timings-and-volume.png)
 ![The top bar, its Grid, and the message line telling what's chosen; I/O on each track](docs/top-bar-and-io.png)
+![The top bar's timer, right of the chord](docs/top-bar-timer.png)
 ![The sample editor](docs/sample-editor.png)
 ![Kalibre Synth and Sampler](docs/synth-and-sampler.png)
 ![A plug-in shown smaller to fit a short rack](docs/fitted-to-the-rack.png)
