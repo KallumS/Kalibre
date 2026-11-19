@@ -47,6 +47,16 @@ std::vector<Span> sounding (const float* const* channels, int numChannels, int n
 std::vector<int> transients (const float* const* channels, int numChannels, int numSamples, double rate,
                              double sensitivity = 0.5);
 
+// Every moment that could be a hit at the highest sensitivity, with how much
+// it rises and how loud it is, so a sensitivity can be chosen later without
+// looking again (Kalibre Sampler's slices, on the audio thread, 0095).
+struct HitCandidate { int at = 0; int frame = 0; double rise = 0, levelDb = -120; };
+std::vector<HitCandidate> hitCandidates (const float* const* channels, int numChannels, int numSamples, double rate);
+// The frames between hits at least this far apart, at this rate.
+int hitGapFrames (double rate);
+// Whether a candidate is a hit at `sensitivity`, given the frame of the last one taken.
+bool isHit (const HitCandidate&, double sensitivity, int lastFrame, int gapFrames);
+
 //==============================================================================
 // Where a moment of the file plays, in ticks from the clip's content start,
 // and back (decision 0022): through the markers, the file's tempo, or the song's.

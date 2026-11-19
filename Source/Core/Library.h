@@ -51,6 +51,9 @@ struct Item
     double bpm = 0;
     enum class TempoFrom { Unknown, Name, File, Heard };
     TempoFrom bpmFrom = TempoFrom::Unknown;
+    bool loop = false;     // heard: its length a whole number of bars at that tempo
+    // Sure enough to stretch it to the song: written down, or heard in a loop.
+    bool tempoTrusted() const { return bpm > 0 && (bpmFrom != TempoFrom::Heard || loop); }
 
     // Audio, as heard by the scan (0095): how loud (integrated LUFS, and the
     // loudest sample in dBFS; `silent` when there's no reading), and the note
@@ -89,6 +92,7 @@ struct Settings
     bool shuffled = false;
     std::uint32_t seed = 1;              // the shuffle: a new one each time it's asked for
     bool sync = true;                    // previews follow the song's tempo
+    bool autoPlay = true;                // choosing a sound plays it (off: click its picture to hear it)
     std::set<std::string> open;          // folders shown open
     bool operator== (const Settings&) const = default;
 };

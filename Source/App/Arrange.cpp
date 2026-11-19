@@ -1779,6 +1779,26 @@ void Arrange::clipMenu (Id id)
     {
         c.apply ("Loop Clip", [id] (Project& p) { edit::loopContent (p, id); });
     });
+    // Reverse and Invert (0095), on every chosen clip: MIDI backwards and upside
+    // down (its highest note its lowest); audio backwards and its polarity flipped.
+    {
+        auto chosen = c.selectedClips;
+        if (! chosen.count (id)) chosen = { id };
+        const bool audio = ! clip->isMidi();
+        m.addItem ("Reverse", true, audio && clip->audio.reversed, [this, chosen]
+        {
+            c.apply ("Reverse", [chosen] (Project& p) { for (auto cid : chosen) edit::reverseClip (p, cid); });
+        });
+        m.addItem (audio ? "Invert (Polarity, Upside Down)" : "Invert (Upside Down)", true, audio && clip->audio.inverted, [this, chosen]
+        {
+            c.apply ("Invert", [chosen] (Project& p) { for (auto cid : chosen) edit::invertClip (p, cid); });
+        });
+        if (audio)
+            m.addItem ("Split at Transients", clip->loopLength == 0 && ! clip->audio.reversed, false, [this, chosen]
+            {
+                for (auto cid : chosen) c.splitAtTransients (cid);
+            });
+    }
     m.addItem ("Mute", true, clip->muted, [this, id] { c.apply ("Mute Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->muted = ! cl->muted; }); });
     m.addItem ("Lock", true, clip->locked, [this, id] { c.apply ("Lock Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->locked = ! cl->locked; }); });
     m.addItem ("Consolidate the Chosen Clips", ! c.selectedClips.empty(), false, [this] { c.consolidate (c.selectedClips); });
@@ -1850,7 +1870,6 @@ void Arrange::clipMenu (Id id)
         m.addItem ("Strip Silence", [this, id] { c.stripSilence (id); });
         m.addItem ("Quantise Audio to the Grid", [this, id] { c.quantiseAudio (id); });
         m.addItem ("Edit Samples", [this, id] { c.selectClip (id); c.zoneTab = ZoneTab::Editor; c.viewChanged(); });
-        m.addItem ("Reverse", true, clip->audio.reversed, [this, id] { c.apply ("Reverse", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->audio.reversed = ! cl->audio.reversed; }); });
         m.addItem ("Fade In and Out (10 ms)", [this, id] { c.apply ("Fades", [id] (Project& p) { if (auto* cl = p.clip (id)) { cl->audio.fadeIn = 0.01; cl->audio.fadeOut = 0.01; } }); });
 
         // Offline effects (decision 0026).
@@ -1967,6 +1986,16 @@ void Arrange::laneMenu (const Row& row, Point<int> at)
             c.newMidiClip (id, tm.barStart (bar), tm.meterAtBar (bar).barTicks());
         });
         m.addItem ("Capture MIDI Here", [this, tick] { c.locate (tick); c.captureMidi(); });
+        // A sample brought in as a clip for each of its hits (0095).
+        m.addItem (ui::u8 ("Import Audio Here, Split at Transients\xe2\x80\xa6"), [this, id = t->id, tick]
+        {
+            chooser = std::make_unique<FileChooser> ("Import, Split at Transients", File::getSpecialLocation (File::userMusicDirectory),
+                                                     "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.m4a;*.caf");
+            chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, [this, id, tick] (const FileChooser& fc)
+            {
+                if (fc.getResult().existsAsFile()) c.importSplit (fc.getResult(), id, tick);
+            });
+        });
     }
     m.addItem ("Show Volume Automation", [this, id = t->id]
     {

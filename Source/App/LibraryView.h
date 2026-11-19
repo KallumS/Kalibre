@@ -60,8 +60,11 @@ public:
     // What's shown, and doing what a click or a key does (also for tests).
     const std::vector<library::Row>& shown() const { return rows; }
     juce::ListBox& list() { return listBox; }
+    juce::Button& autoPlayToggle() { return autoPlayButton; }
     void refreshRows();
-    void hear (int row);
+    // Chooses the row's sound and, with Auto-Play on (or `play`), plays it.
+    void hear (int row, bool play = false);
+    void playChosen();                           // the chosen sound, or stop it if it's playing
     void toggleOpen (int row);
     void toggleFavourite (const std::string& path);
     enum class NewTrack { Sampler, Synth, Clip };
@@ -86,6 +89,7 @@ private:
     theme::HouseButton orderButton { juce::String::fromUTF8 ("A to Z \xe2\x96\xbe"), "The order: A to Z, or shuffled (within each folder, or the whole list)." };
     theme::HouseButton syncButton { "Sync", "Previews play at the song's tempo: MIDI always, a sample when its tempo is known "
                                             "(in its name, like \"Drums 96bpm\", or in the file). Off: as they were made.", true };
+    theme::HouseButton autoPlayButton { "Auto-Play", "Choosing a sound plays it. Off: choosing is silent; click the sound's picture above the list to hear it.", true };
     theme::HouseButton editFolders { juce::String::fromUTF8 ("Folders\xe2\x80\xa6"), "Choose the folders Kalibre looks in for sounds, or take one out." };
     theme::HouseButton chooseButton { juce::String::fromUTF8 ("Choose Folders\xe2\x80\xa6"), "Choose the folders with your samples and MIDI files." };
     std::unique_ptr<juce::FileChooser> chooser;

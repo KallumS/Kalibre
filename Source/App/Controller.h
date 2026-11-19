@@ -217,7 +217,10 @@ public:
     juce::File recordingsFolder() const;
     // Audio or MIDI. With `makeTrack`, it runs first, in the same undo step, and
     // the clip goes on the track it returns (the browser's New Track with..., 0094).
-    bool importFile (const juce::File&, Id track, Tick at, std::function<Id (Project&)> makeTrack = {}, const juce::String& label = {});
+    bool importFile (const juce::File&, Id track, Tick at, std::function<Id (Project&)> makeTrack = {}, const juce::String& label = {},
+                     bool splitAtTransients = false);
+    // A sample on the timeline split into a clip for each hit (0095): one undo step.
+    bool importSplit (const juce::File& f, Id track, Tick at) { return importFile (f, track, at, {}, "Import Split at Transients", true); }
     // The tempo an audio file was made at: from its name ("Drums 96bpm") or its ACID chunk; 0 when unknown.
     static double tempoOfAudioFile (const juce::File&);
     // A device's printed sound (a JSFX's export_buffer_to_project) on a new track under its own.
@@ -329,6 +332,7 @@ public:
     void stripSilence (Id clip, double thresholdDb = -48.0);
     void quantiseAudio (Id clip, double strength = 1.0);
     std::vector<double> hitsIn (Id clip, double sensitivity = 0.5);   // seconds into its file
+    int splitAtTransients (Id clip, double sensitivity = 0.5);        // the pieces made (0095)
     void renderOfflineFx (Id clip);
 
     //==========================================================================

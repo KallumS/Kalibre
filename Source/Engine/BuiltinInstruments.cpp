@@ -172,7 +172,8 @@ private:
 
 class SamplerEditor : public AudioProcessorEditor,
                       public FileDragAndDropTarget,
-                      public DragAndDropTarget
+                      public DragAndDropTarget,
+                      private Timer
 {
 public:
     explicit SamplerEditor (KalibreSampler& p) : AudioProcessorEditor (p), proc (p), knobs (p)
@@ -190,9 +191,20 @@ public:
         proc.onLoaded = [sp = SafePointer<SamplerEditor> (this)] { if (sp) sp->repaint(); };
         setResizable (true, false);
         setResizeLimits (360, 200, 3000, 1600);
-        setSize (900, 300);
+        setSize (1000, 300);
+        startTimerHz (10);
     }
     ~SamplerEditor() override { proc.onLoaded = nullptr; }
+
+    // The marks follow the knobs: drawn again when one that moves them changes.
+    void timerCallback() override
+    {
+        String now;
+        for (int i : { (int) KalibreSampler::Start, (int) KalibreSampler::End, (int) KalibreSampler::Loop, (int) KalibreSampler::LoopStart,
+                       (int) KalibreSampler::Mode, (int) KalibreSampler::Sensitivity, (int) KalibreSampler::Position })
+            now << proc.value (i) << ",";
+        if (now != shown) { shown = now; slices = proc.mode() == KalibreSampler::PlayMode::Slices ? proc.slicePoints() : std::vector<int>(); repaint(); }
+    }
 
     void loadFile (const File& f)
     {
@@ -235,11 +247,31 @@ public:
             g.setColour (c);
             g.fillRect ((float) w.getX() + v * (float) w.getWidth() - 1.0f, (float) w.getY(), 2.0f, (float) w.getHeight());
         };
+        // Slices: a line where each starts, numbered from the root note (0095).
+        const auto how = proc.mode();
+        if (how == KalibreSampler::PlayMode::Slices)
+            for (size_t k = 0; k < slices.size(); ++k)
+            {
+                const float x = (float) w.getX() + (float) slices[k] / (float) n * (float) w.getWidth();
+                g.setColour (theme::edge);
+                g.fillRect (x, (float) w.getY(), 1.0f, (float) w.getHeight());
+                g.setColour (theme::textSecondary);
+                g.drawText (MidiMessage::getMidiNoteName (roundToInt (proc.value (KalibreSampler::Root)) + (int) k, true, true, 4),
+                            Rectangle<float> (x + 2.0f, (float) w.getBottom() - 16.0f, 40.0f, 14.0f), Justification::centredLeft, false);
+            }
+        if (how == KalibreSampler::PlayMode::Granular)
+        {
+            const float s0 = proc.value (KalibreSampler::Start), s1 = proc.value (KalibreSampler::End);
+            mark (s0 + proc.value (KalibreSampler::Position) * (s1 - s0), theme::edge);
+        }
         mark (proc.value (KalibreSampler::Start), theme::playhead);
         mark (proc.value (KalibreSampler::End), theme::playhead);
         if (proc.value (KalibreSampler::Loop) > 0.5f) mark (proc.value (KalibreSampler::LoopStart), theme::edge);
         g.setColour (theme::text);
-        g.drawText (proc.file().getFileName(), w.reduced (6, 4), Justification::topLeft, true);
+        const String modeName = how == KalibreSampler::PlayMode::Slices ? "Slices: " + String ((int) slices.size()) + ", a key each from the root"
+                              : how == KalibreSampler::PlayMode::Granular ? String ("Granular: the grains start at Position")
+                              : String ("Keys: across the keyboard from the root");
+        g.drawText (proc.file().getFileName() + "   " + modeName, w.reduced (6, 4), Justification::topLeft, true);
     }
 
     Rectangle<int> waveArea() const { return getLocalBounds().removeFromTop (getHeight() * 2 / 5).reduced (6).withTrimmedRight (loadButton.getWidth() + 8); }
@@ -258,6 +290,8 @@ public:
 
 private:
     KalibreSampler& proc;
+    String shown;
+    std::vector<int> slices;
     KnobPanel knobs;
     theme::HouseButton loadButton { ui::u8 ("Load Sample\xe2\x80\xa6"), "Choose the sample to play." };
     std::unique_ptr<FileChooser> chooser;
@@ -466,6 +500,52 @@ KalibreSampler::KalibreSampler()
     addFloat ("Envelope", "s", "Sustain", { 0.0f, 1.0f }, 1.0f);
     addFloat ("Envelope", "r", "Release", time (8.0f), 0.2f, " s");
     addFloat ("Envelope", "volume", "Volume", { -48.0f, 6.0f }, -3.0f, " dB");
+    // How it's played (0095): Keys, Slices (cut at its hits), Granular; and how fast.
+    addChoice ("Play", "mode", "Mode", { "Keys", "Slices", "Granular" }, 0);
+    NormalisableRange<float> speed (0.0f, 4.0f);
+    speed.setSkewForCentre (1.0f);
+    addFloat ("Play", "speed", "Speed", speed, 1.0f, "x");
+    addFloat ("Play", "sensitivity", "Slice Sensitivity", { 0.0f, 1.0f }, 0.5f);
+    addFloat ("Grains", "grainsize", "Grain Size", { 0.01f, 0.5f, 0.0f, 0.5f }, 0.08f, " s");
+    addFloat ("Grains", "density", "Density", { 2.0f, 100.0f, 0.0f, 0.5f }, 24.0f, "/s");
+    addFloat ("Grains", "spray", "Spray", { 0.0f, 1.0f }, 0.1f);
+    addFloat ("Grains", "position", "Position", { 0.0f, 1.0f }, 0.0f);
+    jassert ((int) params.size() == Count);
+}
+
+std::vector<int> KalibreSampler::slicePoints()
+{
+    const SpinLock::ScopedLockType lock (swapLock);
+    std::vector<int> out;
+    const int len = data.getNumSamples();
+    if (len == 0) return out;
+    const double start = value (Start) * len, end = jmax (start + 1.0, (double) value (End) * len);
+    double from = 0, to = 0;
+    for (int k = 0; sliceBounds (k, start, end, from, to); ++k) out.push_back ((int) from);
+    return out;
+}
+
+bool KalibreSampler::sliceBounds (int index, double start, double end, double& from, double& to) const
+{
+    if (index < 0) return false;
+    const double sens = value (Sensitivity);
+    const int gap = audiotools::hitGapFrames (fileRate);
+    const double nearStart = fileRate * 0.01;   // a hit at the very start doesn't make an empty slice
+    int last = -gap - 1, k = 0;
+    from = start;
+    for (const auto& h : candidates)
+    {
+        if (! audiotools::isHit (h, sens, last, gap)) continue;
+        last = h.frame;
+        if (h.at <= start + nearStart) continue;
+        if (h.at >= end) break;
+        if (k == index) { to = h.at; return true; }
+        from = h.at;
+        ++k;
+    }
+    if (k != index) return false;
+    to = end;
+    return to - from >= 1.0;
 }
 
 void KalibreSampler::fillInPluginDescription (PluginDescription& d) const
@@ -495,9 +575,12 @@ bool KalibreSampler::load (const File& f, String& error)
     AudioBuffer<float> b (2, (int) reader->lengthInSamples);
     reader->read (&b, 0, b.getNumSamples(), 0, true, true);
     if (reader->numChannels == 1) b.copyFrom (1, 0, b, 0, 0, b.getNumSamples());
+    // Its hits, found once here, so a slice sensitivity can be chosen while it plays (0095).
+    auto hits = audiotools::hitCandidates (b.getArrayOfReadPointers(), 2, b.getNumSamples(), reader->sampleRate);
     {
         const SpinLock::ScopedLockType lock (swapLock);
         data = std::move (b);
+        candidates = std::move (hits);
         fileRate = reader->sampleRate;
         sampleFile = f;
         for (auto& v : voices) { v.env.reset(); v.note = -1; }
@@ -529,25 +612,91 @@ void KalibreSampler::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
     const float gain = Decibels::decibelsToGain (value (Volume));
     const double base = fileRate / rate;
     const float root = value (Root), tune = value (Tune);
+    const auto how = mode();
+    const double speed = value (Speed);
+    const double tapeSpeed = jmax (0.05, speed);   // Keys and Slices: faster is higher, as tape
+    // Granular (0095): grains of `grainLength` output samples, one every `grainEvery`.
+    const int grainLength = jmax (16, (int) (value (GrainSize) * rate));
+    const double grainEvery = rate / jmax (1.0f, value (Density));
+    const double spray = value (Spray);
+    const float grainGain = 1.0f / std::sqrt (jmax (1.0f, (float) grainLength / (float) grainEvery * 0.5f));
+    const double fadeSamples = fileRate * 0.003;   // a slice's last 3 ms fade, so its cut never clicks
+
+    auto read = [&] (int ch, double pos)
+    {
+        if (pos < 0 || pos >= len - 1) return 0.0f;
+        const int i0 = (int) pos;
+        const float frac = (float) (pos - i0);
+        return data.getSample (ch, i0) + (data.getSample (ch, i0 + 1) - data.getSample (ch, i0)) * frac;
+    };
 
     auto renderTo = [&] (int from, int to)
     {
+        const double bendStep = std::pow (2.0, bend * 2.0 / 12.0);
         for (auto& v : voices)
         {
             if (! v.env.isActive()) continue;
-            const double bendStep = std::pow (2.0, bend * 2.0 / 12.0);
             for (int i = from; i < to; ++i)
             {
-                if (v.pos >= end)
+                float sl = 0, sr = 0;
+                if (how == PlayMode::Granular)
                 {
-                    if (looping) v.pos = loopStart + std::fmod (v.pos - end, jmax (1.0, end - loopStart));
-                    else { v.env.reset(); break; }
+                    // The reading head moves at Speed; each grain plays at the key's pitch.
+                    if (--v.untilGrain <= 0)
+                    {
+                        v.untilGrain += grainEvery;
+                        for (auto& gr : v.grains)
+                            if (! gr.on)
+                            {
+                                gr.on = true;
+                                gr.age = 0;
+                                gr.length = grainLength;
+                                gr.step = v.step * bendStep;
+                                const double reach = spray * grainLength * gr.step;
+                                gr.pos = jlimit (start, end - 1.0, v.head + (v.random.nextDouble() * 2.0 - 1.0) * reach);
+                                break;
+                            }
+                    }
+                    for (auto& gr : v.grains)
+                    {
+                        if (! gr.on) continue;
+                        const float w = 0.5f - 0.5f * std::cos (MathConstants<float>::twoPi * (float) gr.age / (float) gr.length);
+                        sl += read (0, gr.pos) * w;
+                        sr += read (1, gr.pos) * w;
+                        gr.pos += gr.step;
+                        if (++gr.age >= gr.length || gr.pos >= end) gr.on = false;
+                    }
+                    sl *= grainGain;
+                    sr *= grainGain;
+                    v.head += base * speed;
+                    if (v.head >= end)
+                    {
+                        if (looping) v.head = loopStart + std::fmod (v.head - end, jmax (1.0, end - loopStart));
+                        else
+                        {
+                            v.head = end - 1.0;
+                            if (! v.released) { v.env.noteOff(); v.released = true; }
+                        }
+                    }
                 }
-                const int i0 = (int) v.pos;
-                const float frac = (float) (v.pos - i0);
-                const int i1 = jmin (len - 1, i0 + 1);
-                float sl = data.getSample (0, i0) + (data.getSample (0, i1) - data.getSample (0, i0)) * frac;
-                float sr = data.getSample (1, i0) + (data.getSample (1, i1) - data.getSample (1, i0)) * frac;
+                else
+                {
+                    const double stop = how == PlayMode::Slices ? v.sliceEnd : end;
+                    if (v.pos >= stop)
+                    {
+                        if (looping && how == PlayMode::Keys) v.pos = loopStart + std::fmod (v.pos - end, jmax (1.0, end - loopStart));
+                        else { v.env.reset(); break; }
+                    }
+                    sl = read (0, v.pos);
+                    sr = read (1, v.pos);
+                    if (how == PlayMode::Slices && stop - v.pos < fadeSamples)
+                    {
+                        const float f = (float) jmax (0.0, (stop - v.pos) / fadeSamples);
+                        sl *= f;
+                        sr *= f;
+                    }
+                    v.pos += v.step * bendStep;
+                }
                 if (cutoff < 19999.0f)
                 {
                     sl = lowPass (sl, cutoff, res, rate, v.ic1, v.ic2);
@@ -556,7 +705,6 @@ void KalibreSampler::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
                 const float a = v.env.getNextSample() * (1.0f - sense + sense * v.velocity) * gain;
                 audio.addSample (0, i, sl * a);
                 audio.addSample (1, i, sr * a);
-                v.pos += v.step * bendStep;
             }
         }
     };
@@ -569,20 +717,29 @@ void KalibreSampler::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
         if (pos > at) { renderTo (at, pos); at = pos; }
         if (msg.isNoteOn())
         {
+            // Slices: the root plays the first slice, each key up the next; past the last, nothing.
+            double sliceFrom = start, sliceTo = end;
+            if (how == PlayMode::Slices && ! sliceBounds (msg.getNoteNumber() - roundToInt (root), start, end, sliceFrom, sliceTo)) continue;
             Voice* chosen = nullptr;
             for (auto& v : voices) if (! v.env.isActive()) { chosen = &v; break; }
             if (! chosen) chosen = &voices[(size_t) (msg.getNoteNumber() % (int) voices.size())];
             chosen->note = msg.getNoteNumber();
             chosen->velocity = msg.getFloatVelocity();
-            chosen->pos = start;
-            chosen->step = base * std::pow (2.0, (msg.getNoteNumber() - root + tune) / 12.0);
+            chosen->released = false;
+            chosen->pos = sliceFrom;
+            chosen->sliceEnd = sliceTo;
+            const double pitch = how == PlayMode::Slices ? tune : msg.getNoteNumber() - root + tune;
+            chosen->step = base * std::pow (2.0, pitch / 12.0) * (how == PlayMode::Granular ? 1.0 : tapeSpeed);
+            chosen->head = start + (double) value (Position) * (end - start);
+            chosen->untilGrain = 0;
+            for (auto& gr : chosen->grains) gr.on = false;
             chosen->ic1 = chosen->ic2 = chosen->ic1r = chosen->ic2r = 0;
             chosen->env.setParameters (adsr (value (A), value (D), value (S), value (R)));
             chosen->env.noteOn();
         }
         else if (msg.isNoteOff())
         {
-            for (auto& v : voices) if (v.note == msg.getNoteNumber()) { v.env.noteOff(); v.note = -1; }
+            for (auto& v : voices) if (v.note == msg.getNoteNumber()) { v.env.noteOff(); v.released = true; v.note = -1; }
         }
         else if (msg.isPitchWheel()) bend = (float) (msg.getPitchWheelValue() - 8192) / 8192.0f;
         else if (msg.isAllNotesOff() || msg.isAllSoundOff()) for (auto& v : voices) { v.env.reset(); v.note = -1; }

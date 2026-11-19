@@ -85,9 +85,22 @@ std::vector<Span> sounding (const float* const* ch, int numChannels, int numSamp
     return out;
 }
 
-std::vector<int> transients (const float* const* ch, int numChannels, int numSamples, double rate, double sensitivity)
+int hitGapFrames (double rate)
+{
+    const int hop = std::max (16, (int) (rate * 0.005));
+    return (int) (0.05 * rate / hop);
+}
+
+bool isHit (const HitCandidate& h, double sensitivity, int lastFrame, int gapFrames)
 {
     sensitivity = std::clamp (sensitivity, 0.0, 1.0);
+    const double rise = 12.0 - 8.0 * sensitivity;          // dB above the frames just before
+    const double floorDb = -50.0 - 20.0 * sensitivity;     // and loud enough to be a hit
+    return h.levelDb >= floorDb && h.rise >= rise && h.frame - lastFrame >= gapFrames;
+}
+
+std::vector<HitCandidate> hitCandidates (const float* const* ch, int numChannels, int numSamples, double rate)
+{
     const int hop = std::max (16, (int) (rate * 0.005));
     const int frames = numSamples / hop;
     std::vector<double> energy ((size_t) std::max (0, frames));
@@ -98,17 +111,13 @@ std::vector<int> transients (const float* const* ch, int numChannels, int numSam
             for (int i = f * hop; i < (f + 1) * hop; ++i) e += (double) ch[c][i] * ch[c][i];
         energy[(size_t) f] = 10.0 * std::log10 (e / (hop * std::max (1, numChannels)) + 1e-12);
     }
-    const double rise = 12.0 - 8.0 * sensitivity;          // dB above the frames just before
-    const double floorDb = -50.0 - 20.0 * sensitivity;     // and loud enough to be a hit
-    const int minGap = (int) (0.05 * rate / hop);
-    std::vector<int> out;
-    int last = -minGap - 1;
+    std::vector<HitCandidate> out;
     for (int f = 1; f < frames; ++f)
     {
         double before = -120;
         for (int k = std::max (0, f - 4); k < f; ++k) before = std::max (before, energy[(size_t) k]);
         const double now = energy[(size_t) f];
-        if (now < floorDb || now - before < rise || f - last < minGap) continue;
+        if (now < -70.0 || now - before < 4.0) continue;   // not a hit at any sensitivity
         // The frame's first sample louder than a tenth of its loudest.
         float top = 0;
         for (int c = 0; c < numChannels; ++c)
@@ -120,9 +129,18 @@ std::vector<int> transients (const float* const* ch, int numChannels, int numSam
             for (int c = 0; c < numChannels; ++c) v = std::max (v, std::abs (ch[c][i]));
             if (v >= top * 0.1f) { at = i; break; }
         }
-        out.push_back (at);
-        last = f;
+        out.push_back ({ at, f, now - before, now });
     }
+    return out;
+}
+
+std::vector<int> transients (const float* const* ch, int numChannels, int numSamples, double rate, double sensitivity)
+{
+    const int gap = hitGapFrames (rate);
+    std::vector<int> out;
+    int last = -gap - 1;
+    for (const auto& h : hitCandidates (ch, numChannels, numSamples, rate))
+        if (isHit (h, sensitivity, last, gap)) { out.push_back (h.at); last = h.frame; }
     return out;
 }
 

@@ -1,5 +1,7 @@
 #include "Check.h"
 #include "AudioTools.h"
+#include "Edit.h"
+#include "Playback.h"
 
 #include <cmath>
 #include <vector>
@@ -243,4 +245,68 @@ TEST ("audio tools: a sample's note is heard; drums and noise have none (0095)")
     CHECK_EQ (audiotools::noteOf (noise.data(), (int) noise.size(), rate), -1);
     std::vector<float> silence ((size_t) rate, 0.0f);
     CHECK_EQ (audiotools::noteOf (silence.data(), (int) silence.size(), rate), -1);
+}
+
+TEST ("audio tools: Split at Transients cuts a clip where each hit is heard, side by side (0095)")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Drums");
+    Clip c;
+    c.kind = Clip::Kind::Audio;
+    c.start = PPQ * 4;            // at 120 BPM: 2 s in
+    c.length = PPQ * 8;           // 4 s of a file
+    c.audio.sourceLength = 4;
+    const Id id = edit::addClip (p, t, c);
+    // Hits at 0 (the clip's own start: no cut), 1 s, 2.5 s, and past its end.
+    const auto ids = edit::splitAtSource (p, id, { 0.0, 1.0, 2.5, 6.0 });
+    CHECK_EQ (ids.size(), (size_t) 3);
+    CHECK_EQ (ids.front(), id);
+    const auto& clips = p.track (t)->clips();
+    CHECK_EQ (clips.size(), (size_t) 3);
+    CHECK_EQ (clips[0].start, PPQ * 4);
+    CHECK_EQ (clips[0].length, PPQ * 2);
+    CHECK_EQ (clips[1].start, PPQ * 6);
+    CHECK_EQ (clips[1].offset, PPQ * 2);
+    CHECK_EQ (clips[1].length, PPQ * 3);
+    CHECK_EQ (clips[2].start, PPQ * 9);
+    CHECK_EQ (clips[2].end(), PPQ * 12);
+    for (size_t i = 0; i < 3; ++i) CHECK_EQ (clips[i].id, ids[i]);
+}
+
+TEST ("edit: Reverse and Invert, for MIDI and audio clips (0095)")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    const Id m = edit::addMidiClip (p, t, 0, PPQ * 4);
+    edit::addNote (p, m, { 0, 0, PPQ, 60, 100 });          // C, the first beat
+    edit::addNote (p, m, { 0, PPQ * 2, PPQ * 2, 67, 90 });  // G, the second half
+    p.clip (m)->midi.events.push_back ({ PPQ, EventType::Controller, 0, 1, 64 });
+    edit::reverseClip (p, m);
+    const auto& notes = p.clip (m)->midi.notes;
+    CHECK_EQ (notes[0].pitch, 67);
+    CHECK_EQ (notes[0].start, Tick (0));
+    CHECK_EQ (notes[1].pitch, 60);
+    CHECK_EQ (notes[1].start, PPQ * 3);
+    CHECK_EQ (p.clip (m)->midi.events[0].tick, PPQ * 3 - 1);
+    edit::invertClip (p, m);
+    CHECK_EQ (p.clip (m)->midi.notes[0].pitch, 60);   // highest and lowest swap
+    CHECK_EQ (p.clip (m)->midi.notes[1].pitch, 67);
+    // Twice is back where it was.
+    edit::reverseClip (p, m);
+    CHECK_EQ (p.clip (m)->midi.notes[0].start, Tick (0));
+    CHECK_EQ (p.clip (m)->midi.notes[0].pitch, 67);
+
+    Clip a;
+    a.kind = Clip::Kind::Audio;
+    a.length = PPQ;
+    a.audio.sourceLength = 0.5;
+    const Id id = edit::addClip (p, t, a);
+    edit::invertClip (p, id);
+    edit::reverseClip (p, id);
+    CHECK (p.clip (id)->audio.inverted);
+    CHECK (p.clip (id)->audio.reversed);
+    // Played upside down: its region's gain is negative.
+    const auto compiled = playback::compile (p, *p.track (t));
+    CHECK_EQ (compiled.audio.size(), (size_t) 1);
+    CHECK (compiled.audio[0].gain < 0);
 }

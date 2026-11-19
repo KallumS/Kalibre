@@ -114,6 +114,20 @@ std::vector<double> Controller::hitsIn (Id clipId, double sensitivity)
     return out;
 }
 
+int Controller::splitAtTransients (Id clipId, double sensitivity)
+{
+    const auto* cl = project.clip (clipId);
+    if (! cl || cl->isMidi()) return 0;
+    if (cl->loopLength > 0 || cl->audio.reversed) { say ("Split at Transients works on clips that don't loop and aren't reversed."); return 0; }
+    const auto hits = hitsIn (clipId, sensitivity);
+    size_t made = 0;
+    if (! hits.empty())
+        apply ("Split at Transients", [clipId, hits, &made] (Project& p) { made = edit::splitAtSource (p, clipId, hits).size(); });
+    if (made < 2) { say ("No hits were found in the clip to split it at."); return (int) made; }
+    say ("Split into " + String ((int) made) + " clips, one for each hit.", false, true);
+    return (int) made;
+}
+
 void Controller::quantiseAudio (Id clipId, double strength)
 {
     const auto* cl = project.clip (clipId);

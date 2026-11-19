@@ -1,4 +1,6 @@
 #include "LibraryScanner.h"
+#include "AudioTools.h"
+#include "Loudness.h"
 
 namespace kal
 {
@@ -39,6 +41,37 @@ void LibraryScanner::scan (const std::vector<std::string>& toScan)
     read = 0;
     analysed = 0;
     startThread (Thread::Priority::low);
+}
+
+// What the scan hears in a sample (0095): its loudness (BS.1770, as the
+// master's meter), its loudest sample, its note, and, when its name and file
+// don't say, its tempo. The first minute is enough.
+void LibraryScanner::listen (AudioFormatReader& r, library::Item& it)
+{
+    const int n = (int) jmin<int64> (r.lengthInSamples, (int64) (r.sampleRate * 60.0));
+    AudioBuffer<float> buf (jmax (1, jmin (2, (int) r.numChannels)), n);
+    if (! r.read (&buf, 0, n, 0, true, buf.getNumChannels() > 1)) return;
+    if (buf.getNumChannels() == 2 && r.numChannels == 1) buf.copyFrom (1, 0, buf, 0, 0, n);
+
+    const float top = buf.getMagnitude (0, n);
+    it.peakDb = top > 0 ? 20.0 * std::log10 ((double) top) : library::silentDb;
+    loudness::Meter meter;
+    meter.prepare (r.sampleRate);
+    const float* left = buf.getReadPointer (0);
+    const float* right = buf.getReadPointer (buf.getNumChannels() > 1 ? 1 : 0);
+    for (int at = 0; at < n; at += 4096) meter.process (left + at, right + at, jmin (4096, n - at));
+    // A mono file was measured on both sides: counted once, as BS.1770 counts its one channel.
+    const double lufs = meter.integrated() - (r.numChannels == 1 ? 3.0103 : 0.0);
+    it.lufs = lufs > -70 ? lufs : library::silentDb;
+
+    std::vector<float> mono ((size_t) n);
+    for (int i = 0; i < n; ++i) mono[(size_t) i] = buf.getNumChannels() > 1 ? 0.5f * (left[i] + right[i]) : left[i];
+    it.note = audiotools::noteOf (mono.data(), n, r.sampleRate, &it.cents);
+    if (it.bpm <= 0)
+    {
+        const auto g = audiotools::tempoOf (mono.data(), n, r.sampleRate);
+        if (g.bpm > 0) { it.bpm = g.bpm; it.bpmFrom = library::Item::TempoFrom::Heard; it.loop = g.loop; }
+    }
 }
 
 bool LibraryScanner::analyse (const File& f, library::Item& it, AudioFormatManager& fm)
@@ -98,13 +131,18 @@ bool LibraryScanner::analyse (const File& f, library::Item& it, AudioFormatManag
         const auto from = total * i / stretches;
         auto count = total * (i + 1) / stretches - from;
         if (sampled) count = jmin<int64> (count, 4096);
-        Range<float> levels[2];
+        juce::Range<float> levels[2];
         r->readMaxLevels (from, count, levels, channels);
         float m = 0;
         for (int c = 0; c < channels; ++c) m = jmax (m, std::abs (levels[c].getStart()), std::abs (levels[c].getEnd()));
         loudest.push_back (m);
     }
     it.peaks = library::peaksFrom (loudest);
+    it.bpmFrom = it.bpm > 0 ? (library::tempoFromName (f.getFileNameWithoutExtension().toStdString()) > 0 ? library::Item::TempoFrom::Name
+                                                                                                       : library::Item::TempoFrom::File)
+                            : library::Item::TempoFrom::Unknown;
+    listen (*r, it);
+    it.analysis = library::analysisVersion;
     it.readable = true;
     return true;
 }

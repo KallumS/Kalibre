@@ -269,6 +269,7 @@ std::string toJson (const Settings& s)
     j["shuffled"] = s.shuffled;
     j["seed"] = s.seed;
     j["sync"] = s.sync;
+    j["autoPlay"] = s.autoPlay;
     j["open"] = std::vector<std::string> (s.open.begin(), s.open.end());
     return j.dump (1);
 }
@@ -286,6 +287,7 @@ bool fromJson (const std::string& text, Settings& s)
     d.shuffled = j.value ("shuffled", false);
     d.seed = j.value ("seed", (std::uint32_t) 1);
     d.sync = j.value ("sync", true);
+    d.autoPlay = j.value ("autoPlay", true);
     for (auto& f : j.value ("open", std::vector<std::string>())) d.open.insert (f);
     s = d;
     return true;
@@ -304,6 +306,7 @@ std::string toJson (const Index& index)
         j["readable"] = it.readable;
         j["bpm"] = it.bpm;
         j["bpmFrom"] = (int) it.bpmFrom;
+        j["loop"] = it.loop;
         if (it.kind == Kind::Audio)
         {
             j["lufs"] = it.lufs;
@@ -346,6 +349,7 @@ bool fromJson (const std::string& text, Index& index)
         it.readable = e.value ("readable", true);
         it.bpm = e.value ("bpm", 0.0);
         it.bpmFrom = (Item::TempoFrom) std::clamp (e.value ("bpmFrom", it.bpm > 0 ? 1 : 0), 0, 3);
+        it.loop = e.value ("loop", false);
         it.lufs = e.value ("lufs", silentDb);
         it.peakDb = e.value ("peakDb", silentDb);
         it.note = e.value ("note", -1);

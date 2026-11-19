@@ -271,7 +271,7 @@ CompiledTrack compile (const Project& p, const Track& t)
                 r.endSeconds = tempo.secondsAt (b) + endFine + trackDelay;
                 const double into = tempo.secondsAt (a) - tempo.secondsAt (base);
                 r.sourceSeconds = (plain ? c.audio.sourceStart + into : into) + startFine;
-                r.gain = std::pow (10.0, c.audio.gainDb / 20.0);
+                r.gain = std::pow (10.0, c.audio.gainDb / 20.0) * (c.audio.inverted ? -1.0 : 1.0);
                 // Fades at the clip's own ends, not at every pass.
                 r.fadeIn = a == c.start ? c.audio.fadeIn : 0.0;
                 r.fadeOut = b == c.end() ? c.audio.fadeOut : 0.0;

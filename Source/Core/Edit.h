@@ -85,6 +85,16 @@ void sortClips (Track&);
 // Strip Silence (decision 0036): an audio clip becomes one clip for each
 // stretch of its file (seconds) that has sound, each in its place, with short fades.
 std::vector<Id> keepSourceSpans (Project&, Id clip, const std::vector<std::pair<double, double>>& sourceSpans);
+// Split at Transients (0095): an audio clip cut where each hit (seconds into
+// its file) is heard, the pieces side by side as it played. The pieces' ids,
+// first to last (the first keeps the clip's id). Hits within 10 ms of an edge are passed over.
+std::vector<Id> splitAtSource (Project&, Id clip, const std::vector<double>& hitSeconds);
+// Reverse (0095): a MIDI clip's notes and controllers played backwards within
+// what it plays; an audio clip played backwards (its `reversed`).
+void reverseClip (Project&, Id clip);
+// Invert, upside down (0095): a MIDI clip's notes mirrored, its highest made
+// its lowest; an audio clip's polarity flipped (its `inverted`).
+void invertClip (Project&, Id clip);
 
 //==============================================================================
 // Notes (in a MIDI clip; ticks are the clip's own, from its content start)
