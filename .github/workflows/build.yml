@@ -36,9 +36,9 @@ jobs:
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
           cmake --build build --target Kalibre KalibreAppTests KalibreRender
       - name: App tests (engine, window)
-        run: xvfb-run -a -s "-screen 0 1600x1000x24" ./build/KalibreAppTests_artefacts/Debug/KalibreAppTests
+        run: xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreAppTests_artefacts/Debug/KalibreAppTests
       - name: Render the window
-        run: xvfb-run -a -s "-screen 0 1600x1000x24" ./build/KalibreRender_artefacts/Debug/KalibreRender renders 1
+        run: xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreRender_artefacts/Debug/KalibreRender renders 1
       - uses: actions/upload-artifact@v4
         with:
           name: window-renders
