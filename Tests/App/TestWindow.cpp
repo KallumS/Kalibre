@@ -341,9 +341,11 @@ TEST ("export: Export the Mix asks first, with Record the Tail and Export the Se
             CHECK (ticks.contains ("Record the Tail"));
             CHECK (ticks.contains ("Export the Second Pass"));
             asked->exitModalState (0);   // Cancel: nothing exported, nothing asked after
-            MessageManager::getInstance()->runDispatchLoopUntil (50);
         }
-        for (auto* ch : w.getChildren()) CHECK (dynamic_cast<AlertWindow*> (ch) == nullptr);
+        // The question is let go of on the message loop: a busy machine (the Mac on CI) takes longer.
+        auto asking = [&w] { for (auto* ch : w.getChildren()) if (dynamic_cast<AlertWindow*> (ch)) return true; return false; };
+        for (int i = 0; i < 100 && asking(); ++i) MessageManager::getInstance()->runDispatchLoopUntil (20);
+        CHECK (! asking());
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
