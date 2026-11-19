@@ -679,7 +679,7 @@ function u_draw_tabs() local(i, x)
   u_col(0.14, 0.14, 0.16); u_rect(TX, TY + 26, TW, UI_H - TY - 34);
 );
 
-function u_draw_minilist(x, y, w, h) local(a, S, E, L, rev, i, i1, lo, hi, rowh, n, s, e, cs, ce)
+function u_draw_minilist(x, y, w, h) local(a, S, E, L, rev, i, i1, lo, hi, rowh, n, ns, ne, cs, ce)
 (
   u_col(0.09, 0.09, 0.10); u_rect(x, y, w, h);
   mpc_pad_has(ui_pad) ? (
@@ -694,9 +694,9 @@ function u_draw_minilist(x, y, w, h) local(a, S, E, L, rev, i, i1, lo, hi, rowh,
     i = mpc_src_find(S - EPS);
     u_slice_col(a[PF_SLICE], 0.55, 0.95, 1);
     loop(i1 - i,
-      s = SRC[i * N_ST]; e = s + SRC[i * N_ST + 1];
-      cs = s - S; ce = min(e, E) - S;
-      rev ? ( cs = L - ce; ce = L - (s - S); );
+      ns = SRC[i * N_ST]; ne = ns + SRC[i * N_ST + 1];
+      cs = ns - S; ce = min(ne, E) - S;
+      rev ? ( cs = L - ce; ce = L - (ns - S); );
       u_rect(x + cs / L * w, y + (hi - SRC[i * N_ST + 2]) * rowh + (h - (hi - lo + 1) * rowh) / 2,
              max((ce - cs) / L * w, 2), max(rowh - 1, 2));
       i += 1;

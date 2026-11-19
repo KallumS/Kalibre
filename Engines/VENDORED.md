@@ -14,7 +14,7 @@ this table. Embedded in the app by `cmake/EmbedLua.cmake`; run by
 | `jsfx/` | KallumS/Reverberator | e286efc | Reverberator.jsfx |
 | `jsfx/` | KallumS/Instrument-Creator | 0ca9a16 | Instrument Creator.jsfx (Instrument-Creator.jsfx) |
 | `jsfx/midular/`, `jsfx/Data/midular/` | KallumS/Midular | cd0c7ca | Midular.jsfx, midular_core/engine/ui.jsfx-inc; its demo phrase, Data/midular/default.txt |
-| `jsfx/midi-production-center/` | KallumS/MIDI-Production-Center | c5d1e61 | MIDI_Production_Center.jsfx, mpc_core/engine/ui.jsfx-inc, **with one change waiting to go back** (below) |
+| `jsfx/midi-production-center/` | KallumS/MIDI-Production-Center, `fix-pad-stride-case` branch | fe59f2b | MIDI_Production_Center.jsfx, mpc_core/engine/ui.jsfx-inc |
 | `scripts/midular/` | KallumS/Midular | cd0c7ca | Scripts/midular_import.lua |
 | `scripts/midi-production-center/` | KallumS/MIDI-Production-Center | c5d1e61 | the three loader scripts |
 | `tools/starting-blocks/` | KallumS/Starting-Blocks, `plugin` branch | 02e87c1 | Starting Blocks.lua, sb_engine.lua, sb_midi.lua; `tools/imgui.lua` from its plugin/lua |
@@ -36,9 +36,8 @@ Midular's importer and MIDI Production Center's loaders (`scripts/`, decision
 0093) are run by `Source/App/ReaperScripts.cpp`, with a `reaper` that answers
 about the song in Kalibre.
 
-**Waiting to go back to its repository**: MIDI Production Center's pad stride
-was named `P_ST` and its stutter switch `p_st`. EEL2's names don't mind case
-(in REAPER as in ysfx), so reading the stutter switch set the stride to 0 and
-every pad was the same empty pad. Here the stride is `PAD_STRIDE`;
-`patches/midi-production-center-pad-stride.patch` is the change, ready for
-KallumS/MIDI-Production-Center. Copy the files again once it's there.
+MIDI Production Center comes from its `fix-pad-stride-case` branch until that
+is merged: EEL2's names ignore case, and the pad stride (`P_ST`) was the
+stutter switch (`p_st`), so every pad was one empty pad; two functions mixed a
+region's `S, E` with a note's `s, e` the same way (its ADR 0010). Once merged,
+take it from `main`.

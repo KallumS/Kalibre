@@ -348,15 +348,15 @@ function mpc_chop_starts() local(n, i, j, s, str, maxs, thr, last, g, k, cnt, m)
 // held notes crossing S included when "Held notes" is on. Reversed, a note
 // [q, q+len] plays at L - (q + len), so its length survives. Returns the
 // count; rl_lo / rl_hi get the pitch range.
-function mpc_region_list(dst, maxn, S, E, rev) local(i, a, b, s, e, cs, ce, n, L)
+function mpc_region_list(dst, maxn, S, E, rev) local(i, a, b, ns, ne, cs, ce, n, L)
 (
   n = 0; rl_lo = 128; rl_hi = -1; L = E - S;
   i = mpc_src_find(S - src_maxlen - EPS);
   while (i < src_n && SRC[i * N_ST] < E - EPS && n < maxn) (
     a = SRC + i * N_ST;
-    s = a[0]; e = s + a[1];
-    s >= S - EPS || (p_tails && e > S + TAIL_MIN) ? (
-      cs = max(s, S); ce = min(e, E);
+    ns = a[0]; ne = ns + a[1];
+    ns >= S - EPS || (p_tails && ne > S + TAIL_MIN) ? (
+      cs = max(ns, S); ce = min(ne, E);
       ce < cs + MINLEN ? ce = cs + MINLEN;
       b = dst + n * L_ST;
       b[0] = rev ? max(L - (ce - S), 0) : cs - S;
