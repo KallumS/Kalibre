@@ -1,6 +1,6 @@
 # 18 November, evening to night: the audio engine's document, Note Position & Volume Fixer built in, and more
 
-The audio engine's document (64-bit summing, neutral operations), rests in step input, sidechains in freezes, articulation and note delays, the Note Splitter, DAWproject automation, warping and curves, Fix Note Timings and Volume, pan automation per sample, a switched-off plug-in's delay kept, every automation lane sample accurate, at most 1000 tracks, the fixer hearing the samples.
+The audio engine's document (64-bit summing, neutral operations), rests in step input, sidechains in freezes, articulation and note delays, the Note Splitter, DAWproject automation, warping and curves, Fix Note Timings and Volume, every automation lane sample accurate, at most 1000 tracks, the fixer hearing the samples, the music-making timer.
 Kept so the reasons and the route aren't lost when the session's context is
 compacted. Your messages and Claude's replies are in full; each tool call (a
 command, a file written, a search) is listed in one line by what it did,
@@ -8,7 +8,7 @@ without its output. Private details (an email address) and the harness's
 internal reminders are removed, as are the automatic "background task
 finished" notices. Messages you sent while Claude was working are marked so.
 
-6 messages from you, 99 replies, 363 tool calls.
+7 messages from you, 109 replies, 400 tool calls.
 
 ## You (2026-11-18 17:20)
 
@@ -953,3 +953,124 @@ Mac builds 107 and 108 both passed, so the `.dmg` is there with the 1000-track l
 Updating the chat backup to include this part.
 
 - *Bash*: Refresh chat backup and push
+- *TaskUpdate*: 14
+- *mcp__claude-code-remote__send_later*: 25
+
+## Claude (2026-11-18 22:12)
+
+All automation is now sample accurate, Kalibre is capped at 1000 tracks with your message, and the fixer no longer lets velocities and CCs sway its volume detection. Everything is pushed with tests passing on Linux (177 core, 106 app). The Mac build that includes the 1000-track limit passed and has a `.dmg`. The build with the other two changes is still running; I'll check it in about 25 minutes.
+
+**Sample-accurate automation**
+- Volume and pan already were. Mute and send levels now change on the exact sample too.
+- **Plug-in settings:** plug-ins only read a setting once per chunk of audio, so for any plug-in with automated settings Kalibre now plays each chunk in short pieces:
+  - A step lands on its exact sample.
+  - A ramp is followed in 16-sample steps (about a third of a millisecond).
+  - It costs a little extra processor time, and plug-ins that smooth their own settings still smooth.
+- Tests caught a mute or step placed exactly on a sample being missed by a rounding hair; that's fixed.
+
+**Track count**
+- There was no limit before. Now it's 1000, counting folders, returns and Summing tracks but not the master or Cue track.
+- The 1001st shows "Unable to add more than 1000 tracks". Commands that add several tracks at once (like the Note Splitter's New Tracks) add none rather than some. Scripts, opening a song or template, and opening a DAWproject over the limit are refused the same way.
+
+**Fix Note Timings and Volume**
+- I took your cleaner option: it ignores the clip's velocities and CCs entirely.
+- The quiet render is made from a copy of the song, so your clip is never touched and nothing needs restoring.
+- **Volume** is measured from a render with every note at velocity 80 and the clip's CCs removed. I set CC1 80, CC7 100 and CC11 127 at the start of that render, because an instrument otherwise keeps whatever values it was last sent.
+- **Timing** is still measured from a separate render with your velocities left in, because these libraries' delays change with how hard a note is played.
+- The catch is that it now renders twice, so it takes about twice as long.
+- I tested it with a note deliberately played quieter with CC7 at 50: before, the fixer turned it back up to about 100; now it keeps 50.
+- I corrected one line of my new test: the first note is still levelled by velocity, as designed. Once it's pulled earlier it plays before the clip begins, where no CC7 can be placed in front of it.
+
+Decisions 0088–0090, the feature list, architecture notes, README, session log and chat backup are updated.
+
+- *ReadNotifications*: 
+- *ToolSearch*: select:mcp__github__actions_list,mcp__github__get_job_logs
+- *mcp__github__actions_list*: list_workflow_runs
+
+## Claude (2026-11-18 22:38)
+
+The Mac build with everything from tonight passed, so the latest `.dmg` is ready: Actions > Build > Kalibre-macOS, run 114.
+
+That download includes:
+- sample-accurate automation for every lane
+- the 1000-track limit with your message
+- the fixer measuring volume at velocity 80 with your CCs ignored
+
+## You (2026-11-18 23:54)
+
+Can we add a timer next to the chord display in the header that displays how long the user has been making music in the project for? I have another repo with branches called DAW Battle Pass that has the perfect timer algorithm
+
+## Claude (2026-11-18 23:54)
+
+- *mcp__claude-code-remote__list_repos*: battle
+- *Bash*: Clone DAW Battle Pass and list branches
+- *Bash*: Read README and find the timer
+- *Bash*: Read the timer decisions and bp_watch
+
+## Claude (2026-11-18 23:54)
+
+Now the clock rule itself, in `bp_game`, and what the ableton branch changed about it.
+
+- *Bash*: Find the clock algorithm in bp_game
+- *Bash*: Read the tick and the ableton branch's version
+- *Bash*: Battle pass time format; top bar chord item
+- *Bash*: Read top bar layout and readouts
+- *Bash*: Timer, save sites, MIDI-in hooks
+- *Bash*: Read timerCallback, collect, MIDI input, open paths
+
+## Claude (2026-11-18 23:55)
+
+Writing the core clock and its tests first (the battle pass's rules, a fake clock like its own tests use).
+
+- *Bash*: Core WorkClock with tests
+
+## Claude (2026-11-18 23:56)
+
+Core clock passes. Now wiring: the song keeps its time, the Controller ticks it, the window reports activity, the top bar shows it.
+
+- *Bash*: Readout paint, Project fields, JSON
+- *Bash*: How Project is serialised
+- *Bash*: Rest of Project and its JSON fields
+- *Bash*: Model field, controller clock, save stamping, MIDI counter
+- *Bash*: Begin the clock wherever a song is replaced
+
+## Claude (2026-11-18 23:56)
+
+Now the window reporting activity, and the readout beside Chord.
+
+- *Bash*: MainComponent constructor/destructor
+- *Bash*: Global mouse listener and key activity
+- *Bash*: See MainComponent members
+- *Bash*: Timer readout in the top bar; build
+
+## Claude (2026-11-18 23:59)
+
+Builds. Checking the top-bar update placement, then an app test.
+
+- *Bash*: Check where timer refresh sits
+- *Bash*: App-level timer test
+- *Bash*: Build and run the timer test
+- *Bash*: Find readouts via TooltipClient; rerun
+
+## Claude (2026-11-19 00:00)
+
+The away phase started 2 seconds after the last activity in my test loop, so the expected total was off by those 2 seconds. Fixing the test's arithmetic.
+
+- *Bash*: Activity on the last work tick; rerun
+
+## Claude (2026-11-19 00:00)
+
+Passes. Rendering the top bar to see it.
+
+- *Bash*: Find the top-bar render
+- *Bash*: Render the window and crop the top bar
+- *Read*: /tmp/claude-0/-home-user-Kalibre/3486e625-4104-5769-8859-0ad8b13962eb/scratchpad/renders/top.png
+- *Bash*: Crop both top-bar rows
+- *Read*: /tmp/claude-0/-home-user-Kalibre/3486e625-4104-5769-8859-0ad8b13962eb/scratchpad/renders/top.png
+
+## Claude (2026-11-19 00:01)
+
+"Making Music" sits right beside Chord. Committing, then docs.
+
+- *Bash*: Full tests; commit timer
+- *Bash*: Docs for the timer, chat backup, push
