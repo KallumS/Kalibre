@@ -132,7 +132,7 @@ performance core, each as soon as what feeds it is done (0078).
 - Automation is drawn sample by sample by the track's Source, which plays
   before everything it moves (0089). A plug-in's block is cut into pieces at
   its lanes' points by `TimedPlugin`; anything that adds automation reads the
-  Source's `blockTicks`, never once a block.
+  Source's ticks (`ticksFor`, with its delay), never once a block.
 - At most 1000 tracks, checked in `Controller::apply` (0088): a change that
   adds tracks some other way (a script, opening a file) checks too.
 - A gesture is one `Controller::apply` (one undo step). A tool's drag that shows its change as it goes ends in `Controller::applyLive` (0092).
