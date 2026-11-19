@@ -165,6 +165,8 @@ grow and shrink with it.
 ![The clip launcher](docs/launcher.png)
 ![The Meters tab](docs/meters.png)
 
+How to use it, every menu, key and click: **[the User Guide](docs/USER-GUIDE.md)**.
+
 What's done and what isn't, feature by feature: **[docs/FEATURES.md](docs/FEATURES.md)**.
 **ARA** (Melodyne) is built in, but hasn't been tried with Melodyne on a Mac yet.
 

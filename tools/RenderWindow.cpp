@@ -214,6 +214,15 @@ int main (int argc, char** argv)
         c.zoneTab = ZoneTab::Mixer;
         c.viewChanged();
         shoot ("10-studio-and-loudness");
+        // The browser's other tabs, for the user guide (docs/USER-GUIDE.md).
+        c.zoneTab = ZoneTab::Devices;
+        c.viewChanged();
+        window.showBrowser (Browser::Tab::Plugins);
+        shoot ("31-browser-plugins");
+        window.showBrowser (Browser::Tab::Audio);
+        shoot ("32-browser-audio");
+        window.showBrowser (Browser::Tab::Keys);
+        shoot ("33-browser-keys");
         window.hideBrowser();
         // An audio clip in the sample editor (decision 0036).
         for (auto& t : c.project.tracks)

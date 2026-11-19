@@ -10,6 +10,7 @@ renders of what changed, and make sure every change reaches them as the CI's
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the shape, how sound flows, rules easy to break. Start here.
 - [`docs/decisions/`](docs/decisions/README.md): one record per choice, by number: **(0009)** is the piano roll's mouse rules.
 - [`docs/FEATURES.md`](docs/FEATURES.md): what's done, what's partly done, what isn't. Keep it true.
+- [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md): for the musician: every function, menu, key and click, with pictures (`docs/guide/`, from KalibreRender). Change it when what they see or press changes.
 - [`docs/sessions/`](docs/sessions/): one log per working session.
 - [`docs/UPDATING-ENGINES.md`](docs/UPDATING-ENGINES.md): bringing the family's engines up to date (`tools/update_engines.py`).
 
