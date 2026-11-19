@@ -1169,3 +1169,197 @@ TEST ("audition: the note-off it schedules is let go if the engine has gone by t
     MessageManager::getInstance()->runDispatchLoopUntil (300);
     CHECK (true);
 }
+
+#include "AudioTools.h"
+
+namespace
+{
+void setParam (KalibreSampler& s, int index, float value)
+{
+    auto* p = dynamic_cast<RangedAudioParameter*> (s.getParameters()[index]);
+    p->setValueNotifyingHost (p->convertTo0to1 (value));
+}
+
+// Plays one note for `seconds` (held throughout) and returns the left channel.
+std::vector<float> playNote (KalibreSampler& s, int note, double seconds, double rate = 48000)
+{
+    s.prepareToPlay (rate, 512);
+    std::vector<float> out;
+    const int total = (int) (seconds * rate);
+    for (int at = 0; at < total; at += 512)
+    {
+        AudioBuffer<float> b (2, 512);
+        MidiBuffer m;
+        if (at == 0) m.addEvent (MidiMessage::noteOn (1, note, (uint8) 127), 0);
+        s.processBlock (b, m);
+        for (int i = 0; i < 512; ++i) out.push_back (b.getSample (0, i));
+    }
+    return out;
+}
+
+double pitchIn (const std::vector<float>& x, double from, double rate = 48000)
+{
+    const int at = (int) (from * rate);
+    return audiotools::pitchOf (x.data() + at, 4096, rate);
+}
+
+// Four notes a quarter of a second apart, each a different pitch.
+File fourHits()
+{
+    const double rate = 48000;
+    const auto f = tempFolder().getChildFile ("fourhits.wav");
+    f.deleteFile();
+    AudioBuffer<float> b (2, (int) rate);
+    b.clear();
+    const double hz[] { 220, 330, 440, 550 };
+    for (int k = 0; k < 4; ++k)
+        for (int i = 0; i < (int) (rate * 0.2); ++i)
+        {
+            const float v = (float) (0.8 * std::sin (MathConstants<double>::twoPi * hz[k] * i / rate) * std::exp (-i / rate * 3.0));
+            b.setSample (0, k * 12000 + i, v);
+            b.setSample (1, k * 12000 + i, v);
+        }
+    WavAudioFormat wav;
+    std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+    auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (rate).withNumChannels (2).withBitsPerSample (32));
+    w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    return f;
+}
+
+File sineFile (double hz, double seconds)
+{
+    const double rate = 48000;
+    const auto f = tempFolder().getChildFile ("sine" + String (hz) + ".wav");
+    f.deleteFile();
+    AudioBuffer<float> b (2, (int) (rate * seconds));
+    for (int i = 0; i < b.getNumSamples(); ++i)
+    {
+        const float v = (float) (0.5 * std::sin (MathConstants<double>::twoPi * hz * i / rate));
+        b.setSample (0, i, v);
+        b.setSample (1, i, v);
+    }
+    WavAudioFormat wav;
+    std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+    auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (rate).withNumChannels (2).withBitsPerSample (32));
+    w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    return f;
+}
+} // namespace
+
+TEST ("sampler: Slices cuts the sample at its hits, a key each from the root (0095)")
+{
+    KalibreSampler s;
+    String err;
+    CHECK (s.load (fourHits(), err));
+    setParam (s, KalibreSampler::Mode, 1);
+    const auto points = s.slicePoints();
+    CHECK_EQ (points.size(), (size_t) 4);
+    for (size_t k = 0; k < points.size() && k < 4; ++k) CHECK (std::abs (points[k] - (int) k * 12000) < 300);
+    // The root's third key up plays the third hit (440 Hz), and only it.
+    const auto third = playNote (s, 60 + 2, 0.4);
+    CHECK (std::abs (pitchIn (third, 0.02) - 440) < 3);
+    float after = 0;
+    for (size_t i = 13000; i < third.size(); ++i) after = std::max (after, std::abs (third[i]));
+    CHECK (after < 1e-4f);   // its slice ended at the next hit
+    // Past the last slice, nothing.
+    const auto none = playNote (s, 60 + 4, 0.2);
+    CHECK (*std::max_element (none.begin(), none.end()) == 0.0f);
+    // A low sensitivity hears fewer hits: the quieter last two are left in.
+    setParam (s, KalibreSampler::Sensitivity, 0.0f);
+    CHECK (s.slicePoints().size() <= 4);
+}
+
+TEST ("sampler: Speed in Keys is tape; Granular keeps the pitch at half speed, and Speed 0 holds still (0095)")
+{
+    KalibreSampler s;
+    String err;
+    CHECK (s.load (sineFile (440, 2.0), err));
+    setParam (s, KalibreSampler::Speed, 2.0f);
+    const auto fast = playNote (s, 60, 0.5);
+    CHECK (std::abs (pitchIn (fast, 0.1) - 880) < 5);
+    setParam (s, KalibreSampler::Mode, 2);
+    setParam (s, KalibreSampler::Speed, 0.5f);
+    const auto grains = playNote (s, 60, 3.0);
+    CHECK (std::abs (pitchIn (grains, 1.0) - 440) < 5);
+    // At half speed the two seconds last four: still sounding at three.
+    float late = 0;
+    for (size_t i = (size_t) (2.8 * 48000); i < grains.size(); ++i) late = std::max (late, std::abs (grains[i]));
+    CHECK (late > 0.05f);
+    // An octave up, the grains are an octave up, the speed unchanged.
+    const auto up = playNote (s, 72, 1.0);
+    CHECK (std::abs (pitchIn (up, 0.5) - 880) < 8);
+    setParam (s, KalibreSampler::Speed, 0.0f);
+    const auto held = playNote (s, 60, 3.0);
+    float end = 0;
+    for (size_t i = (size_t) (2.8 * 48000); i < held.size(); ++i) end = std::max (end, std::abs (held[i]));
+    CHECK (end > 0.05f);
+}
+
+namespace
+{
+// An interface that says it runs at `rate`, as one at 192 kHz would.
+struct FakeDevice : public AudioIODevice
+{
+    explicit FakeDevice (double r) : AudioIODevice ("Fake", "Fake"), rate (r) {}
+    double rate;
+    StringArray getOutputChannelNames() override { return { "1", "2" }; }
+    StringArray getInputChannelNames() override { return {}; }
+    Array<double> getAvailableSampleRates() override { return { 44100, 48000, 88200, 96000, 176400, 192000 }; }
+    Array<int> getAvailableBufferSizes() override { return { 512 }; }
+    int getDefaultBufferSize() override { return 512; }
+    String open (const BigInteger&, const BigInteger&, double, int) override { return {}; }
+    void close() override {}
+    bool isOpen() override { return true; }
+    void start (AudioIODeviceCallback*) override {}
+    void stop() override {}
+    bool isPlaying() override { return false; }
+    String getLastError() override { return {}; }
+    int getCurrentBufferSizeSamples() override { return 512; }
+    double getCurrentSampleRate() override { return rate; }
+    int getCurrentBitDepth() override { return 32; }
+    BigInteger getActiveOutputChannels() const override { return 3; }
+    BigInteger getActiveInputChannels() const override { return 0; }
+    int getOutputLatencyInSamples() override { return 0; }
+    int getInputLatencyInSamples() override { return 0; }
+};
+} // namespace
+
+TEST ("192 kHz: an interface running at 192 kHz plays and exports the song at 192 kHz, in tune and in time (0095)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device (192000);
+    engine.audioDeviceAboutToStart (&device);
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (engine.sampleRate(), 192000.0);
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Sampler");
+    const Id dev = edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument);
+    KalibreSampler loader;
+    String err;
+    CHECK (loader.load (sineFile (440, 2.0), err));
+    MemoryBlock m;
+    loader.getStateInformation (m);
+    p.device (dev)->state = m.toBase64Encoding().toStdString();
+    const Id clip = edit::addMidiClip (p, t, 0, PPQ * 4);
+    edit::addNote (p, clip, { .start = PPQ, .length = PPQ * 2, .pitch = 60, .velocity = 127 });   // 0.5 s to 1.5 s at 120
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 2.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("192k.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (out));
+    CHECK (r != nullptr);
+    if (! r) return;
+    CHECK_EQ (r->sampleRate, 192000.0);
+    CHECK (std::abs ((double) r->lengthInSamples - 2.0 * 192000) < 512);
+    AudioBuffer<float> b (2, (int) r->lengthInSamples);
+    r->read (&b, 0, b.getNumSamples(), 0, true, true);
+    CHECK (b.getMagnitude (0, 0, (int) (0.45 * 192000)) < 1e-4f);     // silent before the note
+    CHECK (b.getMagnitude (0, (int) (0.55 * 192000), 19200) > 0.1f);  // sounding just after it starts
+    const double hz = audiotools::pitchOf (b.getReadPointer (0, (int) (1.0 * 192000)), 16384, 192000);
+    CHECK (std::abs (hz - 440) < 2);
+    engine.audioDeviceStopped();
+}

@@ -36,10 +36,15 @@ struct ActivityWatch : public juce::MouseListener
 {
     explicit ActivityWatch (Controller& ctrl) : c (ctrl) {}
     Controller& c;
-    void mouseMove (const juce::MouseEvent&) override { c.noteActivity(); }
-    void mouseDown (const juce::MouseEvent&) override { c.noteActivity(); }
-    void mouseDrag (const juce::MouseEvent&) override { c.noteActivity(); }
-    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override { c.noteActivity(); }
+    // As the battle pass does with js_ReaScriptAPI: only while Kalibre is the app
+    // in front. JUCE tells a global listener of every move of the pointer, even
+    // over another app's window lying on top of Kalibre's, which kept the timer
+    // running while the musician was elsewhere.
+    static bool inFront() { return juce::Process::isForegroundProcess(); }
+    void mouseMove (const juce::MouseEvent&) override { if (inFront()) c.noteActivity(); }
+    void mouseDown (const juce::MouseEvent&) override { if (inFront()) c.noteActivity(); }
+    void mouseDrag (const juce::MouseEvent&) override { if (inFront()) c.noteActivity(); }
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override { if (inFront()) c.noteActivity(); }
 };
 
 class MainComponent : public juce::Component,
@@ -58,6 +63,9 @@ public:
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+    // The sizes a double-click on a handle's dots brings back (0095).
+    static constexpr int defaultLowerHeight = 320, defaultBrowserWidth = 320;
 
     // MenuBarModel (Menus.cpp): File, Edit, Track, Transport, Automation, View, Scripts, Help.
     juce::StringArray getMenuBarNames() override;
@@ -87,6 +95,8 @@ public:
     // The same for the lower zone: the divider above it while it's shown; shut, a bar along the bottom.
     juce::Rectangle<int> lowerHandle() const { return dividerArea(); }
     juce::Rectangle<int> lowerBounds() const { return lower.getBounds(); }
+    juce::Rectangle<int> transportBounds() const { return transport.getBounds(); }
+    TransportBar& transportBar() { return transport; }
     void showLowerZone();
     void hideLowerZone();
     bool lowerShown = true;
@@ -101,6 +111,7 @@ private:
     Controller& c;
     ActivityWatch activity { c };
     TopBar top;
+    TransportBar transport;   // along the bottom, under the lower zone (0095)
     Arrange arrange;
     LowerZone lower;
     Browser browser;

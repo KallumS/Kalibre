@@ -109,7 +109,7 @@ std::unique_ptr<AudioBuffer<float>> PreviewPlayer::render (const library::Item& 
 
     // Stretched to the song's tempo, as a warped clip is, when Sync is on and its tempo is known.
     const double seconds = frames / rate;
-    if (sync && item.bpm > 0 && songBpm > 0 && std::abs (songBpm / item.bpm - 1.0) > 0.002)
+    if (sync && item.tempoTrusted() && songBpm > 0 && std::abs (songBpm / item.bpm - 1.0) > 0.002)
     {
         TempoMap tempo;
         tempo.setTempoAt (0, songBpm);

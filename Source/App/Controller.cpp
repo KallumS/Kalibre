@@ -1141,7 +1141,8 @@ double Controller::tempoOfAudioFile (const File& f)
     return audioFileTempo (f.getFileName(), r ? r->metadataValues : StringPairArray());
 }
 
-bool Controller::importFile (const File& original, Id trackId, Tick at, std::function<Id (Project&)> makeTrack, const String& label)
+bool Controller::importFile (const File& original, Id trackId, Tick at, std::function<Id (Project&)> makeTrack, const String& label,
+                             bool splitAtTransients)
 {
     auto f = original;
     const auto ext = f.getFileExtension().toLowerCase();
@@ -1202,6 +1203,17 @@ bool Controller::importFile (const File& original, Id trackId, Tick at, std::fun
     int channels = 0;
     if (! AudioCache::describe (f, seconds, sr, channels)) { say ("Kalibre can't read that file.", true); return false; }
     const double fileTempo = tempoOfAudioFile (original);
+    // Split at Transients as it comes in (0095): the hits, in seconds into the file.
+    std::vector<double> hits;
+    size_t pieces = 0;
+    if (splitAtTransients)
+    {
+        AudioBuffer<float> buf;
+        double rate = 0;
+        if (readAudio (original, buf, rate))
+            for (int s : audiotools::transients (buf.getArrayOfReadPointers(), buf.getNumChannels(), buf.getNumSamples(), rate, 0.5))
+                hits.push_back (s / rate);
+    }
     // Kept as a 32-bit float WAV, copied into the song's Audio folder if it isn't one (decision 0079).
     if (! audiofile::isFloatWav (f))
     {
@@ -1233,8 +1245,11 @@ bool Controller::importFile (const File& original, Id trackId, Tick at, std::fun
                 c.length = (Tick) std::llround (seconds * bpm / 60.0 * PPQ);
             }
         }
-        edit::addClip (p, target, c);
+        const Id made = edit::addClip (p, target, c);
+        if (! hits.empty()) pieces = edit::splitAtSource (p, made, hits).size();
     });
+    if (splitAtTransients) say (pieces < 2 ? String ("No hits were found in it: it's one clip.")
+                                           : "Split into " + String ((int) pieces) + " clips, one for each hit.", false, true);
     return true;
 }
 
@@ -1868,7 +1883,7 @@ void Controller::selectAllNotes()
 }
 
 //==============================================================================
-void Controller::addPlugin (Id track, const PluginDescription& d, std::optional<DeviceRole> as)
+void Controller::addPlugin (Id track, const PluginDescription& d, std::optional<DeviceRole> as, int position)
 {
     const auto ref = PluginManager::refFor (d);
     const auto role = as ? *as : engine.plugins().roleOf (d);
@@ -1878,7 +1893,7 @@ void Controller::addPlugin (Id track, const PluginDescription& d, std::optional<
         return;
     }
     Id made = 0;
-    apply ("Add " + d.name, [&] (Project& p) { made = edit::addDevice (p, track, ref, role); });
+    apply ("Add " + d.name, [&] (Project& p) { made = edit::addDevice (p, track, ref, role, position); });
     if (made && ! engine.instance (made))
         say (d.name + " couldn't be loaded.", true);
     zoneTab = ZoneTab::Devices;

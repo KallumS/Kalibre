@@ -312,3 +312,31 @@ TEST ("tools: the number keys choose tools in Cubase's order, in each area that 
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("arrange: Shift-drag anywhere on a clip resizes it from its nearer edge, one undo step; a Shift-click only chooses (0095)")
+{
+    Song s;
+    ArrangeView a (s.c);
+    s.c.apply ("Clip", [&] (Project& p) { edit::addMidiClip (p, s.one, PPQ * 4, PPQ * 8); });   // beats 4 to 12
+    const Id id = s.c.project.track (s.one)->clips().front().id;
+    const ModifierKeys shift (ModifierKeys::leftButtonModifier | ModifierKeys::shiftModifier);
+    const auto before = s.c.history.size();
+    // From three quarters along, two beats right: the end follows, by two beats.
+    drag (a.view, a.at (PPQ * 10, 0), a.at (PPQ * 12, 0), shift);
+    CHECK_EQ (s.c.project.clip (id)->start, PPQ * 4);
+    CHECK_EQ (s.c.project.clip (id)->end(), PPQ * 14);
+    CHECK_EQ (s.c.history.size(), before + 1);
+    // From near its start, a beat right: the start follows.
+    drag (a.view, a.at (PPQ * 5, 0), a.at (PPQ * 6, 0), shift);
+    CHECK_EQ (s.c.project.clip (id)->start, PPQ * 5);
+    CHECK_EQ (s.c.project.clip (id)->end(), PPQ * 14);
+    // A Shift-click changes nothing.
+    const auto now = s.c.history.size();
+    click (a.view, a.at (PPQ * 8, 0), shift);
+    CHECK_EQ (s.c.history.size(), now);
+    CHECK_EQ (s.c.project.clip (id)->length, PPQ * 9);
+    // Without Shift, the same drag still moves it.
+    drag (a.view, a.at (PPQ * 8, 0), a.at (PPQ * 9, 0));
+    CHECK_EQ (s.c.project.clip (id)->start, PPQ * 6);
+    CHECK_EQ (s.c.project.clip (id)->length, PPQ * 9);
+}

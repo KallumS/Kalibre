@@ -15,7 +15,7 @@ Manager, the Articulation Manager) get windows of their own.
 
 1. [Getting Started](#1-getting-started)
 2. [The Window](#2-the-window)
-3. [The Top Bar](#3-the-top-bar)
+3. [The Top Bar and the Transport](#3-the-top-bar-and-the-transport)
 4. [Tracks](#4-tracks)
 5. [Clips and the Arrangement](#5-clips-and-the-arrangement)
 6. [The Toolbox](#6-the-toolbox)
@@ -53,7 +53,10 @@ Manager, the Articulation Manager) get windows of their own.
 
 1. **Choose your audio interface.** Kalibre > Audio and MIDI Settings… (⌘,)
    opens the browser's **Audio** tab: the interface, sample rate and buffer
-   size. Every MIDI keyboard is listened to without setting anything up.
+   size. The sample rates listed are the ones your interface can run at:
+   up to 192 kHz on one that offers it (the Mac's own speakers stop lower).
+   Kalibre plays, records and exports at the rate chosen. Every MIDI
+   keyboard is listened to without setting anything up.
 2. **Choose your sound folders.** Kalibre asks which folders hold your
    samples and MIDI files (only those are looked through): click **Choose
    Folders…**. They appear in the browser's **Sounds** tab
@@ -77,13 +80,13 @@ Manager, the Articulation Manager) get windows of their own.
 
 ## 2. The Window
 
-![The whole window: the top bar, tracks with the chord lane, and the device rack in the lower zone](guide/window.png)
+![The whole window: the top bar, tracks with the chord lane, the device rack in the lower zone, and the transport along the bottom](guide/window.png)
 
 From top to bottom:
 
 | Part | What it is |
 | --- | --- |
-| **Top bar** | The transport, the song's position, tempo, time signature, grid, scale, chord, a timer, Follow, CPU and delay. [Section 3](#3-the-top-bar). |
+| **Top bar** | The song's position, tempo, time signature, grid, scale, chord, a timer, Follow, CPU and delay. [Section 3](#3-the-top-bar-and-the-transport). |
 | **The message line** | Under the top bar: what just happened (with **Undo** beside it), then what's chosen, or what the pointer is over: a note's pitch, velocity and length, a clip's length and notes. |
 | **The ruler** | Bars and beats. Click the upper half to move the cursor; drag along the lower half to draw the loop range. Double-click it to add a marker. |
 | **Lanes under the ruler** | The **Sections** lane, the **Chord** lane and the **Tempo** lane, each shown or hidden from the View menu. |
@@ -91,6 +94,7 @@ From top to bottom:
 | **The arrangement** | The clips, along the timeline. [Section 5](#5-clips-and-the-arrangement). |
 | **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Launcher** (G), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter; drag it past its shortest and it shuts, leaving a thin bar along the bottom: drag the bar up (or click it) to open it again. Asking for one of its tabs (D, E, X, G, Y) opens it too, as does View > Lower Zone. |
 | **The browser** | On the left: plug-ins, sounds (your samples and MIDI), audio settings, presets, keys and the studio. Drag its right edge to make it wider or narrower; drag it past its narrowest and it shuts, leaving a thin bar at the window's left edge: drag the bar (or click it) to open it again. ⌘B shows and hides it too. [Section 16](#16-the-browser). |
+| **The transport** | Along the very bottom, in the middle: **⏮ Go to Start**, **▶ Play**, **● Record**, **Loop**, **Punch**, **Click** and **Count-in**. [Section 3](#the-transport-along-the-bottom). |
 
 ### Shutting the browser and the lower zone
 
@@ -101,6 +105,9 @@ Both shut the same way, to give the tracks the room:
   the window's left edge, or along its bottom.
 - **Drag the bar** right, or up, to open it again, following the pointer; or
   **click** the bar, and it opens as it was.
+- **Double-click the three dots** (on the bar, or on the edge while it's
+  open) to open it at its first size: 320 points wide, or tall. The way back
+  after dragging it too far.
 - ⌘B shows and hides the browser; **View > Lower Zone** the lower zone (give
   it a key in Help > Keys). Pressing D, E, X, G or Y, or anything that asks
   for one of the zone's tabs, opens the zone on that tab.
@@ -137,19 +144,32 @@ layout back; **Delete a Workspace** removes one.
 
 ---
 
-## 3. The Top Bar
+## 3. The Top Bar and the Transport
+
+### The transport, along the bottom
+
+The buttons that start and stop the song are in a bar along the very bottom
+of the window, in the middle, under the lower zone:
+
+| Button | What it does |
+| --- | --- |
+| **⏮ Go to Start** | The cursor to the start (Return). |
+| **▶ Play / ■ Stop** | Space. Playing starts from the cursor. |
+| **● Record** | R. Records on armed tracks ([Section 11](#11-recording)). A red ring while recording. |
+| **Loop** | L. Plays the loop range round and round. Draw the range in the lower half of the ruler. |
+| **Punch** | Records only inside the punch range (Transport > Set the Punch Range to the Loop). |
+| **Click** | The metronome. Its subdivisions are in Transport > Metronome Clicks. |
+| **Count-in** | A bar of clicks before recording starts. |
+
+Right-click the transport for the same menu as the top bar's: Loop, Punch,
+Click and Count-in can be hidden there.
+
+### The top bar
 
 From left to right:
 
 | Item | What it does |
 | --- | --- |
-| **⏮ Go to Start** | The cursor to the start (Return). |
-| **▶ Play / ■ Stop** | Space. Playing starts from the cursor. |
-| **● Record** | R. Records on armed tracks ([Section 11](#11-recording)). |
-| **Loop** | L. Plays the loop range round and round. Draw the range in the lower half of the ruler. |
-| **Punch** | Records only inside the punch range (Transport > Set the Punch Range to the Loop). |
-| **Click** | The metronome. Its subdivisions are in Transport > Metronome Clicks. |
-| **Count-in** | A bar of clicks before recording starts. |
 | **Position** | Where the playhead is. Click to switch between bars and beats, minutes, samples and timecode. |
 | **Tempo** | Drag up or down to change it, or double-click to type it. With tempo changes in the song it reads "Tempo (changes)": draw them in the Tempo lane (View > Tempo Lane). |
 | **Tap** | Tap it in time to set the tempo. |
@@ -157,13 +177,13 @@ From left to right:
 | **Grid** | The arrangement's grid (1/1 to 1/64, with triplets): what clips, the cursor and the loop snap to. Click to choose, or turn **Snap to the Grid** off. The editors have their own grid, in the lower zone. |
 | **Scale** | The song's key and scale. Its notes are shaded in the piano roll (View > Shade the Scale in the Piano Roll) and chords are spelt for it. Click for **Root** and **Scale**. |
 | **Chord** | The chord you're playing on a MIDI keyboard, named as you play. |
-| **Making Music** | How long you've worked on this song. It counts while you edit, play, record or move the mouse in Kalibre, and pauses after 3 minutes with nothing happening (8 minutes while the song plays); it then says **Paused**. Saved with the song. |
+| **Making Music** | How long you've worked on this song. It counts while you edit, play, record, play a MIDI keyboard, press a key or move the mouse in Kalibre, and pauses after 3 minutes with nothing happening (8 minutes while the song plays); it then says **Paused**, and starts again with the next thing you do. The mouse counts only while Kalibre is the app in front: moving it in Safari doesn't. Right-click > **Pause the Timer After** chooses 1, 2, 3, 5, 10 or 15 minutes. Saved with the song. |
 | **Follow** | Click: the view scrolls to keep the playhead in sight. **Shift**-click: it turns the page instead, when the playhead reaches the right edge ("Follow: Page"). |
 | **CPU** | How busy the audio is: the highest in the last 2 seconds. Right-click > **Change the CPU Reading** for every 1 or 5 seconds. The mixer shows each track's share. |
 | **Delay** | How much the plug-ins delay the sound in all. Kalibre lines every track up by this much (plug-in delay compensation). |
 
-**Right-click the top bar** to hide any of these: **Show in the Bar** lists
-them with ticks; **Show Everything** brings them all back.
+**Right-click the top bar** (or the transport) to hide any of these: **Show
+in the Bar** lists them with ticks; **Show Everything** brings them all back.
 
 ---
 
@@ -266,7 +286,8 @@ inside folders. A folded folder shows where its tracks have clips.
 - **File > Import Audio or MIDI…** (⌘I): onto the chosen track, at the
   cursor.
 - Right-click an empty lane: **New MIDI Clip Here**, **Capture MIDI Here**,
-  **Paste Here**.
+  **Import Audio Here, Split at Transients…** (a sample as a clip for each of
+  its hits, side by side, one undo step), **Paste Here**.
 
 ### Editing clips with the mouse
 
@@ -277,6 +298,7 @@ inside folders. A folded folder shows where its tracks have clips.
 | **⌥ Option**-drag | Copy it. |
 | **⌘ Command** while dragging | Move it freely, off the grid. |
 | Drag its left or right edge | Trim it. |
+| **⇧ Shift**-drag anywhere on it | Resize it from the nearer edge: grab its right half to move its end, its left half to move its start, without aiming for the edge. A Shift-click alone still chooses. |
 | Drag a fade handle | The small handles at the top corners of an audio clip: fade in and fade out. Where two audio clips overlap they crossfade, equal power. |
 | Drag a warp marker | Move that moment of the audio ([Warping](#warping)). |
 
@@ -301,8 +323,12 @@ For every clip:
 | **Set the Loop to the Clip(s)** | The loop range from the first clip's start to the last one's end. |
 | **Delete** | |
 | **Loop Its Content** | The clip's notes or audio repeat as you lengthen it. |
+| **Reverse** | Plays it backwards. MIDI: the notes and controllers in reverse order, within what the clip plays. Audio: the sound backwards. Again to undo it. |
+| **Invert (Upside Down)** | MIDI: the notes flipped, its highest note made its lowest and the rest mirrored between. Audio, **Invert (Polarity, Upside Down)**: the waveform flipped, which sounds the same alone but cancels against a copy. Ticked while on. |
 | **Mute**, **Lock** | |
 | **Consolidate the Chosen Clips** | Several clips on a track into one. Audio becomes a new file, normalised, the clip's gain making up for it. |
+
+Reverse and Invert work on every chosen clip at once.
 
 For MIDI clips, also:
 
@@ -324,7 +350,7 @@ For audio clips, also:
 | **Strip Silence** | One clip for each stretch with sound in it. |
 | **Quantise Audio to the Grid** | Every hit moved onto the grid with warp markers. |
 | **Edit Samples** | Opens the sample editor ([Section 13](#13-audio-editing)). |
-| **Reverse** | |
+| **Split at Transients** | A clip for each hit: the clip cut just before every drum hit or note it holds, the pieces side by side, so it plays the same. Then move, mute or delete hits one by one. Not on a looped or reversed clip. |
 | **Fade In and Out (10 ms)** | |
 | **Offline Effects** | Plug-ins rendered into the clip: **Add** one, **Edit Their Settings**, **Render**, or go **Back to the Original**. |
 
@@ -604,7 +630,11 @@ the instrument, then the audio effects.
 Click **+ Add** (or Track > Add a Plug-in…): **MIDI Effects**,
 **Instruments**, **Audio Effects** and **Kalibre** (Kalibre's own devices,
 [Section 9](#9-kalibres-own-devices)). Or drag one from the browser's
-Plug-ins tab onto a track.
+Plug-ins tab onto a track, or straight into the **Devices** tab of the lower
+zone: the rack is outlined while you drag, and the plug-in goes between the
+ones either side of where you let go (MIDI effects still come first, then
+instruments, then audio effects). With no track chosen, a new track is made
+for it.
 
 ### Each plug-in's buttons
 
@@ -656,7 +686,7 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 | Device | Kind | What it is |
 | --- | --- | --- |
 | **Kalibre Synth** | Instrument | A simple synthesiser. |
-| **Kalibre Sampler** | Instrument | Plays a sample across the keys. |
+| **Kalibre Sampler** | Instrument | Plays a sample three ways (**Mode**): **Keys**, across the keyboard; **Slices**, cut at its hits, a key each from the root note up; **Granular**, as many short grains, so **Speed** changes how fast it plays without changing its pitch (0 holds it still). [Below](#kalibre-sampler). |
 | **Trombolese** | Instrument | A physical model of a trombone crossed with an oboe: one note at a time, sliding between held notes; Bore and Reed morph, the mod wheel on the bore. In tune from note 34 to 84. |
 | **Hardware Insert** | Effect | Outboard gear in the chain: out to the interface and back, its round trip measured. |
 | **X/Y Morph** | Instrument or effect | Four corners, each a plug-in or a sample, mixed by where the dot is on a pad. Sample corners play the track's notes. X and Y can be automated and modulated. |
@@ -672,6 +702,27 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 
 ![Kalibre Synth and Kalibre Sampler](guide/synth-sampler.png)
 ![Reese Basser and Reverberator, the family's JSFX](guide/jsfx.png)
+
+### Kalibre Sampler
+
+Drop a sample on it (from the Sounds tab or the Finder) or click **Load
+Sample…**. Its knobs, group by group:
+
+| Group | Knobs |
+| --- | --- |
+| **Pitch** | **Root Note** (the key that plays the sample as it is; in Slices, the key of the first slice), **Tune**. |
+| **Sample** | **Start**, **End** (the part played), **Loop** and **Loop Start** (Keys and Granular). |
+| **Filter** | **Cutoff**, **Resonance**, **Velocity** (how much playing harder makes it louder). |
+| **Envelope** | **Attack**, **Decay**, **Sustain**, **Release**, **Volume**. |
+| **Play** | **Mode**: Keys, Slices or Granular. **Speed**: how fast the sample is played, 0 to 4 times. In Keys and Slices it's like tape, faster is higher (Tune can bring it back down); in Granular the pitch stays where the key puts it. **Slice Sensitivity**: higher finds quieter hits, so more slices. |
+| **Grains** | Granular only. **Grain Size** (10 ms to half a second), **Density** (grains a second), **Spray** (how far each grain wanders from the reading point), **Position** (where in the sample it starts reading). |
+
+In **Slices**, the waveform shows a line where each slice starts, named with
+its key. A slice plays to the next hit and stops, with a 3 ms fade so it
+never clicks; keys past the last slice play nothing. Split a drum loop
+into a kit: Slices, then play the hits from the keys.
+
+![Kalibre Sampler in Slices: a drum loop cut at its hits, a key each](guide/sampler-slices.png)
 
 ### The Container
 
@@ -918,7 +969,7 @@ Six tabs:
 | --- | --- |
 | **Plug-ins** | Every plug-in found, by kind. Search; drag one onto a track or into the rack. **Scan** looks for new ones. |
 | **Sounds** | Your samples and MIDI files, to hear and bring into the song ([below](#the-sounds-tab)). |
-| **Audio** | The audio interface, sample rate and buffer size, inputs and outputs; **Use Every Core** (on unless you switch it off). |
+| **Audio** | The audio interface, sample rate (as high as the interface goes: 44.1 to 192 kHz) and buffer size, inputs and outputs; **Use Every Core** (on unless you switch it off). |
 | **Presets** | Saved presets for the chosen track's plug-ins. |
 | **Keys** | Every command and its key ([Section 21](#21-every-key-command)). |
 | **Studio** | Sync and control surfaces ([Section 19](#19-sync-control-surfaces-and-scripts)). |
@@ -948,18 +999,36 @@ has got, or how many sounds there are.
 | **All Items** | Every sound in one list, without folders. |
 | **★ Only** | Only favourites: sounds and folders with a star, and everything inside a favourite folder. |
 | **A to Z ▾** | The order: **A to Z**, or **Shuffle** (within each folder, or the whole list in All Items). It stays shuffled the same way until you choose **Shuffle Again**. |
-| **Sync** | Previews play at the song's tempo. MIDI always; a sample when its tempo is known: written in its name ("Drums 96bpm", "BPM120") or in the file (an ACID WAV). While the song plays, a preview starts on the next beat. Off: everything as it was made. |
+| **Sync** | Previews play at the song's tempo. MIDI always; a sample when its tempo is known: written in its name ("Drums 96bpm", "BPM120"), in the file (an ACID WAV), or heard in a loop (below). While the song plays, a preview starts on the next beat. Off: everything as it was made. |
+| **Auto-Play** | On: choosing a sound plays it. Off: choosing (a click, ↑ or ↓) is silent; click the chosen sound's picture at the top to hear it, and again to stop it. Right-click > **Play** works too. Remembered. |
 | **Folders…** | The Library Folders window. |
 | **Search** | At the top of the browser: only sounds whose names hold what you type. |
 
 At the top, **the chosen sound**: its name, length, format and tempo, and
-its waveform, or its notes for MIDI, with the playhead as it plays.
+its waveform, or its notes for MIDI, with the playhead as it plays. For a
+sample, a second line says what the scan heard in it:
+
+- **How loud**: its loudness in LUFS, measured as streaming services do; a
+  sound too short to measure that way (under about half a second) shows its
+  **Peak** in dB instead.
+- **Its note**: the pitch it plays, as the piano roll names it (middle C is
+  C3), with how many cents off, "A2 -12". **No One Note** for drums, chords
+  and noise.
+- **Its tempo**: when its name and file don't say, it's heard from how its
+  hits repeat. A loop cut to whole bars at that tempo is known exactly (**Tempo
+  Heard (a Loop)**), and Sync stretches it; otherwise the tempo is shown as
+  "about 128 BPM" and the sample isn't stretched, since a guess could be twice
+  or half.
+
+All of it is kept in Kalibre's own folder (Library Index.json), so the next
+time Kalibre opens it's there at once; a file is only listened to again when
+it changes.
 
 **Hearing sounds**
 
 | Do | To |
 | --- | --- |
-| Click a sound | Hear it. MIDI plays through Kalibre Synth. |
+| Click a sound | Hear it (with Auto-Play on). MIDI plays through Kalibre Synth. |
 | ↑ / ↓ | Choose the sound above or below, and hear it. |
 | ← / → | Shut or open a folder (← on a sound goes to its folder). |
 | Return, or double-click | Put it on the chosen track at the cursor. |
@@ -974,6 +1043,8 @@ its waveform, or its notes for MIDI, with the playhead as it plays.
 | Right-click > **New Track with Kalibre Synth** | A MIDI file: a new track with Kalibre Synth and the notes at the cursor. |
 | Right-click > **New Track with the Sample** | The sample as a clip on a new track, at the cursor. |
 | Right-click > **Put on the Chosen Track at the Cursor** | |
+| Right-click > **Put on the Chosen Track, Split at Transients** | A sample as a clip for each of its hits, side by side at the cursor. |
+| Right-click > **Play** | Hear it, whether Auto-Play is on or not. |
 | Right-click > **Add to Favourites**, **Show in Finder** | |
 
 Each of these is one undo step. Right-click a folder to make it a favourite

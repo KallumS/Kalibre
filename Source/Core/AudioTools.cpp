@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 namespace kal::audiotools
 {
@@ -84,9 +85,22 @@ std::vector<Span> sounding (const float* const* ch, int numChannels, int numSamp
     return out;
 }
 
-std::vector<int> transients (const float* const* ch, int numChannels, int numSamples, double rate, double sensitivity)
+int hitGapFrames (double rate)
+{
+    const int hop = std::max (16, (int) (rate * 0.005));
+    return (int) (0.05 * rate / hop);
+}
+
+bool isHit (const HitCandidate& h, double sensitivity, int lastFrame, int gapFrames)
 {
     sensitivity = std::clamp (sensitivity, 0.0, 1.0);
+    const double rise = 12.0 - 8.0 * sensitivity;          // dB above the frames just before
+    const double floorDb = -50.0 - 20.0 * sensitivity;     // and loud enough to be a hit
+    return h.levelDb >= floorDb && h.rise >= rise && h.frame - lastFrame >= gapFrames;
+}
+
+std::vector<HitCandidate> hitCandidates (const float* const* ch, int numChannels, int numSamples, double rate)
+{
     const int hop = std::max (16, (int) (rate * 0.005));
     const int frames = numSamples / hop;
     std::vector<double> energy ((size_t) std::max (0, frames));
@@ -97,17 +111,13 @@ std::vector<int> transients (const float* const* ch, int numChannels, int numSam
             for (int i = f * hop; i < (f + 1) * hop; ++i) e += (double) ch[c][i] * ch[c][i];
         energy[(size_t) f] = 10.0 * std::log10 (e / (hop * std::max (1, numChannels)) + 1e-12);
     }
-    const double rise = 12.0 - 8.0 * sensitivity;          // dB above the frames just before
-    const double floorDb = -50.0 - 20.0 * sensitivity;     // and loud enough to be a hit
-    const int minGap = (int) (0.05 * rate / hop);
-    std::vector<int> out;
-    int last = -minGap - 1;
+    std::vector<HitCandidate> out;
     for (int f = 1; f < frames; ++f)
     {
         double before = -120;
         for (int k = std::max (0, f - 4); k < f; ++k) before = std::max (before, energy[(size_t) k]);
         const double now = energy[(size_t) f];
-        if (now < floorDb || now - before < rise || f - last < minGap) continue;
+        if (now < -70.0 || now - before < 4.0) continue;   // not a hit at any sensitivity
         // The frame's first sample louder than a tenth of its loudest.
         float top = 0;
         for (int c = 0; c < numChannels; ++c)
@@ -119,9 +129,18 @@ std::vector<int> transients (const float* const* ch, int numChannels, int numSam
             for (int c = 0; c < numChannels; ++c) v = std::max (v, std::abs (ch[c][i]));
             if (v >= top * 0.1f) { at = i; break; }
         }
-        out.push_back (at);
-        last = f;
+        out.push_back ({ at, f, now - before, now });
     }
+    return out;
+}
+
+std::vector<int> transients (const float* const* ch, int numChannels, int numSamples, double rate, double sensitivity)
+{
+    const int gap = hitGapFrames (rate);
+    std::vector<int> out;
+    int last = -gap - 1;
+    for (const auto& h : hitCandidates (ch, numChannels, numSamples, rate))
+        if (isHit (h, sensitivity, last, gap)) { out.push_back (h.at); last = h.frame; }
     return out;
 }
 
@@ -335,6 +354,133 @@ void nearestNote (double hz, int& midiNote, double& cents, double a4)
     const double exact = 69.0 + 12.0 * std::log2 (hz / a4);
     midiNote = (int) std::lround (exact);
     cents = (exact - midiNote) * 100.0;
+}
+
+//==============================================================================
+TempoGuess tempoOf (const float* x, int n, double rate)
+{
+    TempoGuess out;
+    const double seconds = rate > 0 ? n / rate : 0;
+    if (seconds < 1.5) return out;   // too short to hear a beat in
+    // The onsets: how much louder each 5 ms is than the one before (RMS, rises only).
+    const int hop = std::max (8, (int) std::lround (rate * 0.005));
+    const int frames = n / hop;
+    std::vector<double> level ((size_t) frames), flux ((size_t) frames, 0.0);
+    // Each over 20 ms (four hops), so a low note's own waves don't look like hits.
+    std::vector<double> hopEnergy ((size_t) frames);
+    for (int f = 0; f < frames; ++f)
+    {
+        double e = 0;
+        for (int i = f * hop; i < (f + 1) * hop; ++i) e += (double) x[i] * x[i];
+        hopEnergy[(size_t) f] = e;
+    }
+    for (int f = 0; f < frames; ++f)
+    {
+        double e = 0;
+        for (int k = std::max (0, f - 3); k <= f; ++k) e += hopEnergy[(size_t) k];
+        level[(size_t) f] = std::sqrt (e / (4.0 * hop));   // loudness, not its log: a kick counts for more than a hi-hat
+    }
+    for (int f = 1; f < frames; ++f) flux[(size_t) f] = std::max (0.0, level[(size_t) f] - level[(size_t) f - 1]);
+    const double mean = std::accumulate (flux.begin(), flux.end(), 0.0) / std::max (1, frames);
+    for (auto& v : flux) v -= mean;
+    const double zero = std::inner_product (flux.begin(), flux.end(), flux.begin(), 0.0);
+    if (zero <= 1e-12) return out;
+
+    const double framesPerSecond = rate / hop;
+    const int maxLag = std::min (frames * 2 / 3, (int) (framesPerSecond * 4.0) + 2);   // four beats at 60 BPM, or two thirds of the sound
+    std::vector<double> acf ((size_t) maxLag + 2, 0.0);
+    for (int lag = 1; lag <= maxLag; ++lag)
+    {
+        double sum = 0;
+        for (int f = 0; f + lag < frames; ++f) sum += flux[(size_t) f] * flux[(size_t) f + lag];
+        acf[(size_t) lag] = sum / zero * frames / std::max (1, frames - lag);   // each lag's overlap counted alike
+    }
+    auto at = [&] (double lag)
+    {
+        if (lag < 1 || lag >= maxLag) return 0.0;
+        const int i = (int) lag;
+        const double t = lag - i;
+        return acf[(size_t) i] * (1 - t) + acf[(size_t) i + 1] * t;
+    };
+    // Each tempo scored by its beat and the beats after, leaning towards 120.
+    double bestScore = -1e9, bestBpm = 0, bestRaw = 0;
+    for (double bpm = 60.0; bpm <= 200.0; bpm += 0.05)
+    {
+        const double lag = framesPerSecond * 60.0 / bpm;
+        double sum = 0;
+        int k = 0;
+        for (int m = 1; m <= 4; ++m)
+            if (lag * m < maxLag) { sum += at (lag * m); ++k; }
+        if (k == 0) continue;
+        const double raw = sum / std::max (k, 2);   // a beat heard only once in the sound is half believed
+        const double lean = std::exp (-0.5 * std::pow (std::log2 (bpm / 120.0) / 0.9, 2));
+        const double score = raw * (0.6 + 0.4 * lean);
+        if (score > bestScore) { bestScore = score; bestBpm = bpm; bestRaw = raw; }
+    }
+    if (bestRaw < 0.12) return out;   // no steady beat
+    // Twice as fast, when the half beat repeats as strongly as the beat: it was the beat.
+    while (bestBpm * 2 <= 200.0)
+    {
+        const double lag = framesPerSecond * 60.0 / bestBpm;
+        if (at (lag / 2) < 0.8 * at (lag)) break;
+        bestBpm *= 2;
+    }
+    out.bpm = std::round (bestBpm * 10.0) / 10.0;
+    // A loop: its length a whole number of bars (of four beats) at about that tempo.
+    for (double factor : { 1.0, 2.0, 0.5 })
+        for (double bars : { 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 0.5 })
+        {
+            const double exact = bars * 4.0 * 60.0 / seconds;
+            const double guess = bestBpm * factor;
+            if (exact < 60 || exact > 200) continue;
+            if (std::abs (exact - guess) / guess <= 0.03) { out.bpm = std::round (exact * 100.0) / 100.0; out.loop = true; return out; }
+        }
+    return out;
+}
+
+int noteOf (const float* x, int n, double rate, double* centsOut)
+{
+    if (centsOut) *centsOut = 0;
+    const int window = std::max (256, (int) std::lround (rate * 0.046));   // 2048 at 44.1 kHz: down to 40 Hz
+    if (n < window || rate <= 0) return -1;
+    // Up to 16 windows from the first 4 seconds, those within 30 dB of the loudest.
+    const int span = std::min (n, (int) (rate * 4.0));
+    const int count = std::max (1, std::min (16, span / window));
+    std::vector<int> starts;
+    std::vector<double> energies;
+    for (int k = 0; k < count; ++k)
+    {
+        const int at = (int) ((long long) (span - window) * k / std::max (1, count - 1));
+        double e = 0;
+        for (int i = at; i < at + window; ++i) e += (double) x[i] * x[i];
+        starts.push_back (at);
+        energies.push_back (e);
+    }
+    const double loudest = *std::max_element (energies.begin(), energies.end());
+    if (loudest <= 1e-9) return -1;
+    std::vector<double> notes;
+    int tried = 0;
+    for (size_t k = 0; k < starts.size(); ++k)
+    {
+        if (energies[k] < loudest * 0.001) continue;
+        ++tried;
+        const double hz = pitchOf (x + starts[k], window, rate, 0.12);
+        if (hz > 0) notes.push_back (69.0 + 12.0 * std::log2 (hz / 440.0));
+    }
+    if (tried == 0 || notes.size() * 2 < (size_t) tried) return -1;   // mostly without a pitch
+    auto sorted = notes;
+    std::sort (sorted.begin(), sorted.end());
+    const double median = sorted[sorted.size() / 2];
+    // Most of the pitched windows must agree, within a semitone.
+    const auto agree = std::count_if (notes.begin(), notes.end(), [median] (double v) { return std::abs (v - median) <= 0.5; });
+    if (agree * 10 < (long) notes.size() * 6) return -1;
+    double sum = 0;
+    for (double v : notes) if (std::abs (v - median) <= 0.5) sum += v;
+    const double exact = sum / (double) agree;
+    const int note = (int) std::lround (exact);
+    if (note < 0 || note > 127) return -1;
+    if (centsOut) *centsOut = (exact - note) * 100.0;
+    return note;
 }
 
 } // namespace kal::audiotools

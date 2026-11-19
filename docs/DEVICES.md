@@ -60,8 +60,19 @@ The mod wheel adds vibrato.
 
 ### Kalibre Sampler
 
-One sample played across the keyboard. **Drop an audio file onto its panel**
-to load it. Up to 32 notes at once.
+One sample, played three ways (**Mode**, 0095). **Drop an audio file onto
+its panel** to load it. Up to 32 notes at once.
+
+- **Keys**: across the keyboard from the Root Note, higher keys higher and
+  faster, as a tape.
+- **Slices**: cut at its hits (drum hits, plucked notes), found when it's
+  loaded; the Root Note plays the first slice, each key up the next. A slice
+  stops at the next hit, with a 3 ms fade. The waveform shows where each
+  starts, with its key.
+- **Granular**: read as many short, overlapping grains. The reading point
+  moves at **Speed** while every grain plays at the key's pitch, so speed and
+  pitch are apart: half speed is twice as long at the same pitch; Speed 0
+  holds one moment still for as long as the key is held.
 
 | Section | Control | Does |
 | --- | --- | --- |
@@ -73,8 +84,18 @@ to load it. Up to 32 notes at once.
 | | **Velocity** | How much harder playing is louder. |
 | Envelope | **Attack, Decay, Sustain, Release** | |
 | | **Volume** | |
+| Play | **Mode** | Keys, Slices or Granular. |
+| | **Speed** | 0 to 4 times. Keys and Slices: as tape (faster is higher). Granular: how fast the reading point moves, the pitch untouched. |
+| | **Slice Sensitivity** | Slices: higher finds quieter hits, so more slices. |
+| Grains | **Grain Size** | 10 ms to 0.5 s each. |
+| | **Density** | Grains a second, 2 to 100. |
+| | **Spray** | How far each grain starts from the reading point, at random. |
+| | **Position** | Where in the sample (between Start and End) the reading starts. |
+
+In Kalibre: Kalibre's own (decision 0039, 0095); no family README.
 
 ![Kalibre Synth and Kalibre Sampler side by side](guide/synth-sampler.png)
+![Kalibre Sampler in Slices: a drum loop cut at its hits, a key each](guide/sampler-slices.png)
 
 *Tried: both play a track's notes in the tests.*
 

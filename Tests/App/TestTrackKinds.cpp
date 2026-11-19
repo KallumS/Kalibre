@@ -1240,15 +1240,19 @@ TEST ("top bar: right-click hides what isn't wanted; the Grid is the arrangement
     c.project = Project();
     TopBar bar (c);
     bar.setSize (1800, 200);
+    TransportBar transport (c);   // Loop, Punch, Click and Count-in are along the bottom (0095)
+    transport.setSize (1800, 44);
     auto shownNamed = [&] (const String& text)
     {
-        for (auto* ch : bar.getChildren())
-            if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText() == text) return b->isVisible();
+        for (auto* parent : { (Component*) &bar, (Component*) &transport })
+            for (auto* ch : parent->getChildren())
+                if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText() == text) return b->isVisible();
         return false;
     };
     CHECK (shownNamed ("Tap") && shownNamed ("Punch") && shownNamed ("Count-in"));
     c.hiddenInTopBar = { "Tap", "Punch", "Count-in" };
     bar.resized();
+    transport.resized();
     CHECK (! shownNamed ("Tap") && ! shownNamed ("Punch") && ! shownNamed ("Count-in"));
     CHECK (shownNamed ("Loop"));
     CHECK (TopBar::hideable().contains ("Grid"));

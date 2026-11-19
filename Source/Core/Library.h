@@ -30,6 +30,8 @@ struct Note
     bool operator== (const Note&) const = default;
 };
 
+inline constexpr double silentDb = -100.0;
+
 struct Item
 {
     std::string path;              // absolute
@@ -44,8 +46,23 @@ struct Item
     std::vector<std::uint8_t> peaks;   // the waveform: the loudest of each column, 0-255
 
     // Both: the tempo it was made at, 0 when unknown (from its name, its
-    // ACID chunk, or a MIDI file's first tempo).
+    // ACID chunk, or a MIDI file's first tempo; a sample's, failing those,
+    // heard in its hits).
     double bpm = 0;
+    enum class TempoFrom { Unknown, Name, File, Heard };
+    TempoFrom bpmFrom = TempoFrom::Unknown;
+    bool loop = false;     // heard: its length a whole number of bars at that tempo
+    // Sure enough to stretch it to the song: written down, or heard in a loop.
+    bool tempoTrusted() const { return bpm > 0 && (bpmFrom != TempoFrom::Heard || loop); }
+
+    // Audio, as heard by the scan (0095): how loud (integrated LUFS, and the
+    // loudest sample in dBFS; `silent` when there's no reading), and the note
+    // it plays (MIDI number, -1 when it has no one pitch: drums, chords, noise).
+    double lufs = silentDb, peakDb = silentDb;
+    int note = -1;
+    double cents = 0;
+    // What the scan that read it knew how to hear: older entries are read again.
+    int analysis = 0;
 
     // MIDI
     double beats = 0;                  // its length in beats
@@ -53,6 +70,9 @@ struct Item
 
     bool operator== (const Item&) const = default;
 };
+
+// The scan's version: an item read by an older scan is read again (0095).
+inline constexpr int analysisVersion = 2;
 
 // Columns in an Item's waveform.
 inline constexpr int peakColumns = 160;
@@ -72,6 +92,7 @@ struct Settings
     bool shuffled = false;
     std::uint32_t seed = 1;              // the shuffle: a new one each time it's asked for
     bool sync = true;                    // previews follow the song's tempo
+    bool autoPlay = true;                // choosing a sound plays it (off: click its picture to hear it)
     std::set<std::string> open;          // folders shown open
     bool operator== (const Settings&) const = default;
 };
@@ -99,6 +120,11 @@ double tempoFromName (const std::string& name);
 
 // True when the cached item doesn't describe the file as it is now.
 bool needsScan (const Item* cached, std::int64_t size, std::int64_t modified);
+
+// "C3 +12", the note and how far off it is; "" when there's none.
+std::string noteName (int note, double cents);
+// What the browser shows of a sample's loudness: "-12.3 LUFS", or its peak when too short to measure.
+std::string loudnessText (const Item&);
 
 // A favourite itself, or inside a favourite folder.
 bool isFavourite (const Settings&, const std::string& path);

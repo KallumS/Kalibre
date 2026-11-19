@@ -21,13 +21,15 @@ static ApplicationProperties& settingsStore()
     return p;
 }
 
-MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange (ctrl), lower (ctrl), browser (ctrl), surfaces (ctrl)
+MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transport (ctrl), arrange (ctrl), lower (ctrl), browser (ctrl), surfaces (ctrl)
 {
     ui::setHost (this);
     // The top bar's timer (0091): the mouse moving or clicking in any of Kalibre's
     // windows is someone there; over another app, it isn't.
     Desktop::getInstance().addGlobalMouseListener (&activity);
     addAndMakeVisible (top);
+    addAndMakeVisible (transport);
+    transport.onMenu = [this] { top.showMenu(); };
     addAndMakeVisible (arrange);
     addAndMakeVisible (lower);
     addChildComponent (browser);
@@ -37,11 +39,12 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
    #endif
     if (auto* s = settingsStore().getUserSettings())
     {
-        lowerHeight = s->getIntValue ("lowerHeight", 320);
+        lowerHeight = s->getIntValue ("lowerHeight", defaultLowerHeight);
         lowerShown = s->getBoolValue ("lowerShown", true);
-        browserWidth = s->getIntValue ("browserWidth", 320);
+        browserWidth = s->getIntValue ("browserWidth", defaultBrowserWidth);
         browserShown = s->getBoolValue ("browser", false);
         c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
+        c.workClock.setAwayMinutes (s->getIntValue ("awayMinutes", 3));
         c.hiddenInTopBar.addTokens (s->getValue ("hiddenInTopBar"), "|", {});
         c.hiddenInTopBar.removeEmptyStrings();
         c.cpuEverySeconds = jlimit (1, 5, s->getIntValue ("cpuEverySeconds", 2));
@@ -80,6 +83,7 @@ MainComponent::~MainComponent()
         s->setValue ("browserWidth", browserWidth);
         s->setValue ("browser", browserShown);
         s->setValue ("zeroCrossings", c.zeroCrossings);
+        s->setValue ("awayMinutes", (int) std::lround (c.workClock.awayAfter / 60.0));
         s->setValue ("hiddenInTopBar", c.hiddenInTopBar.joinIntoString ("|"));
         s->setValue ("cpuEverySeconds", c.cpuEverySeconds);
         s->setValue ("arrangeGrid", (int) c.arrangeGrid);
@@ -168,7 +172,7 @@ void MainComponent::setTextSize (float s)
 Rectangle<int> MainComponent::dividerArea() const
 {
     // Shut, the zone leaves a bar along the bottom to open it again from (0094).
-    if (! lowerShown) return { arrange.getX(), getHeight() - theme::px (6), getWidth() - arrange.getX(), theme::px (6) };
+    if (! lowerShown) return { arrange.getX(), transport.getY() - theme::px (6), getWidth() - arrange.getX(), theme::px (6) };
     return { lower.getX(), lower.getY() - theme::px (6), lower.getWidth(), theme::px (6) };
 }
 
@@ -227,6 +231,8 @@ void MainComponent::resized()
     if (menuBar) menuBar->setBounds (r.removeFromTop (theme::px (24)));
     top.setBounds (r.getX(), r.getY(), r.getWidth(), 1);
     top.setBounds (r.removeFromTop (top.preferredHeight()));
+    // The transport, along the bottom under everything (asked for, 0095).
+    transport.setBounds (r.removeFromBottom (transport.preferredHeight()));
     if (browserShown)
     {
         // Its width is the musician's: drag its edge (decision 0094).
@@ -247,7 +253,7 @@ void MainComponent::resized()
 Rectangle<int> MainComponent::browserHandle() const
 {
     const int y = top.getBottom();
-    if (! browserShown) return { 0, y, theme::px (6), getHeight() - y };
+    if (! browserShown) return { 0, y, theme::px (6), transport.getY() - y };
     return { browser.getRight(), browser.getY(), theme::px (5), browser.getHeight() };
 }
 
@@ -284,6 +290,25 @@ void MainComponent::mouseUp (const MouseEvent&)
     draggingBrowserEdge = false;
     draggingDivider = false;
     repaint();
+}
+
+// A double-click on the dots (the divider, or a shut panel's bar) opens that
+// panel at its first size (0095): the way back from a drag gone too far.
+void MainComponent::mouseDoubleClick (const MouseEvent& e)
+{
+    if (dividerArea().expanded (0, 2).contains (e.getPosition()))
+    {
+        lowerHeight = defaultLowerHeight;
+        showLowerZone();
+    }
+    else if (browserHandle().contains (e.getPosition()))
+    {
+        browserWidth = defaultBrowserWidth;
+        browserShown = true;
+        browser.setVisible (true);
+        resized();
+        repaint();
+    }
 }
 
 void MainComponent::mouseDrag (const MouseEvent& e)

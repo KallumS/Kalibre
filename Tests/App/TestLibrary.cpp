@@ -378,3 +378,84 @@ TEST ("sounds: Library Folders takes a folder out of the search; its sounds leav
     CHECK (library::fromJson (lib.store.getChildFile ("Library Settings.json").loadFileAsString().toStdString(), saved));
     CHECK (saved.folders.empty());
 }
+
+TEST ("sounds: the scan hears each sample's loudness, note and tempo, kept for the next time Kalibre opens (0095)")
+{
+    const auto dir = libraryFolder ("heard");
+    WavAudioFormat wav;
+    writeAudio (dir.getChildFile ("Tone.wav"), wav, 4.0, 120);      // two bars at 120, A2 on every beat, no tempo in its name
+    writeAudio (dir.getChildFile ("Tone 96bpm.wav"), wav, 2.0, 120); // its name says 96: that's believed
+    Library lib (dir);
+    const auto& ix = lib.view.scanner().index();
+    const auto* tone = find (ix, dir.getChildFile ("Tone.wav"));
+    CHECK (tone != nullptr);
+    if (tone)
+    {
+        CHECK_EQ (tone->note, 57);
+        CHECK (tone->lufs < -3 && tone->lufs > -40);
+        CHECK (tone->peakDb < -3 && tone->peakDb > -6);
+        CHECK (tone->bpmFrom == library::Item::TempoFrom::Heard);
+        CHECK (tone->loop);
+        CHECK (std::abs (tone->bpm - 120) < 0.01);
+        CHECK (tone->tempoTrusted());
+    }
+    const auto* named = find (ix, dir.getChildFile ("Tone 96bpm.wav"));
+    CHECK (named != nullptr && named->bpm == 96 && named->bpmFrom == library::Item::TempoFrom::Name);
+
+    // The next time: read from the index, nothing heard again.
+    LibraryScanner again (lib.store.getChildFile ("Library Index.json"));
+    again.scan ({ dir.getFullPathName().toStdString() });
+    CHECK (again.waitUntilDone (20000));
+    CHECK_EQ (again.filesAnalysed(), 0);
+    const auto* kept = find (again.index(), dir.getChildFile ("Tone.wav"));
+    CHECK (kept != nullptr && tone != nullptr && *kept == *tone);
+}
+
+TEST ("sounds: with Auto-Play off, choosing a sound is silent; clicking its picture plays it (0095)")
+{
+    const auto dir = makeSounds ("autoplay");
+    Library lib (dir);
+    auto& view = lib.view;
+    view.settings().open = { dir.getFullPathName().toStdString(), dir.getChildFile ("Drums").getFullPathName().toStdString() };
+    view.refreshRows();
+    view.autoPlayToggle().setToggleState (false, sendNotification);
+    CHECK (! view.settings().autoPlay);
+    view.hear (2);
+    CHECK_EQ (view.list().getSelectedRow(), 2);
+    CHECK (view.player().playingPath().isEmpty());
+    view.playChosen();
+    CHECK_EQ (view.player().playingPath(), pathOf (dir, "Drums/Beat 120bpm.wav"));
+    // Kept for next time.
+    library::Settings saved;
+    CHECK (library::fromJson (lib.store.getChildFile ("Library Settings.json").loadFileAsString().toStdString(), saved));
+    CHECK (! saved.autoPlay);
+}
+
+TEST ("sounds: a sample put on the timeline split at transients is a clip for each hit, one undo step (0095)")
+{
+    const auto dir = libraryFolder ("split");
+    WavAudioFormat wav;
+    const auto f = dir.getChildFile ("Four Beats.wav");
+    writeAudio (f, wav, 2.0, 120);   // a hit on each beat: 0, 0.5, 1 and 1.5 s
+    Library lib (dir);
+    auto& c = lib.c;
+    c.apply ("Track", [] (Project& p) { edit::addTrack (p, TrackKind::Track, "Drums"); });
+    const Id t = c.project.tracks.back().id;
+    const auto before = c.history.size();
+    CHECK (c.importSplit (f, t, PPQ * 4));
+    const auto& clips = c.project.track (t)->clips();
+    CHECK_EQ (clips.size(), (size_t) 4);
+    if (clips.size() == 4)
+    {
+        CHECK_EQ (clips[0].start, PPQ * 4);
+        for (size_t i = 1; i < 4; ++i) CHECK (std::abs (clips[i].start - (PPQ * 4 + (Tick) i * PPQ)) <= PPQ / 40);
+        CHECK_EQ (clips[3].end(), PPQ * 8);
+    }
+    CHECK_EQ (c.history.size(), before + 1);
+    // And a clip on the timeline split the same way from its menu.
+    c.undo();
+    CHECK (c.importFile (f, t, 0));
+    const Id one = c.project.track (t)->clips().front().id;
+    CHECK_EQ (c.splitAtTransients (one), 4);
+    CHECK_EQ (c.project.track (t)->clips().size(), (size_t) 4);
+}

@@ -47,6 +47,16 @@ std::vector<Span> sounding (const float* const* channels, int numChannels, int n
 std::vector<int> transients (const float* const* channels, int numChannels, int numSamples, double rate,
                              double sensitivity = 0.5);
 
+// Every moment that could be a hit at the highest sensitivity, with how much
+// it rises and how loud it is, so a sensitivity can be chosen later without
+// looking again (Kalibre Sampler's slices, on the audio thread, 0095).
+struct HitCandidate { int at = 0; int frame = 0; double rise = 0, levelDb = -120; };
+std::vector<HitCandidate> hitCandidates (const float* const* channels, int numChannels, int numSamples, double rate);
+// The frames between hits at least this far apart, at this rate.
+int hitGapFrames (double rate);
+// Whether a candidate is a hit at `sensitivity`, given the frame of the last one taken.
+bool isHit (const HitCandidate&, double sensitivity, int lastFrame, int gapFrames);
+
 //==============================================================================
 // Where a moment of the file plays, in ticks from the clip's content start,
 // and back (decision 0022): through the markers, the file's tempo, or the song's.
@@ -79,5 +89,21 @@ std::vector<float> spectrumDb (const float* samples, int n);
 double pitchOf (const float* samples, int n, double rate, double threshold = 0.15);
 // The nearest note to a frequency, and how far off it is in cents.
 void nearestNote (double hz, int& midiNote, double& cents, double a4 = 440.0);
+
+//==============================================================================
+// What the Sounds browser's scan hears in a sample (decision 0095), from one
+// channel (the channels mixed).
+
+// The tempo it was played at, from how its hits repeat (the onsets'
+// autocorrelation over 60 to 200 BPM, leaning towards 120): 0 when it has no
+// steady beat. `loop` when its length is a whole number of bars at that tempo
+// (within 3%), which is then exact: a loop is cut to its bars. Only a loop's
+// tempo is trusted enough to stretch it.
+struct TempoGuess { double bpm = 0; bool loop = false; };
+TempoGuess tempoOf (const float* mono, int n, double rate);
+
+// The note it plays most (YIN on stretches of its sounding part, their
+// median): -1 when most of it has no one pitch (drums, chords, noise).
+int noteOf (const float* mono, int n, double rate, double* cents = nullptr);
 
 } // namespace kal::audiotools

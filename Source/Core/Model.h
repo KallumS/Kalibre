@@ -147,6 +147,7 @@ struct AudioData
     double gainDb = 0;
     double fadeIn = 0, fadeOut = 0; // seconds
     bool reversed = false;
+    bool inverted = false;          // polarity flipped: the waveform upside down (0095)
     double transpose = 0;           // semitones
     WarpMode warp = WarpMode::Off;
     double sourceBpm = 0;           // 0 when unknown

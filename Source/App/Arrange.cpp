@@ -1215,7 +1215,7 @@ void Arrange::mouseMove (const MouseEvent& e)
     {
         const float edge = (float) theme::px (6);
         const float x0 = xOf (clip->start), x1 = xOf (clip->end());
-        if ((float) e.x < x0 + edge || (float) e.x > x1 - edge) setMouseCursor (MouseCursor::LeftRightResizeCursor);
+        if ((float) e.x < x0 + edge || (float) e.x > x1 - edge || e.mods.isShiftDown()) setMouseCursor (MouseCursor::LeftRightResizeCursor);
         else setMouseCursor (MouseCursor::DraggingHandCursor);
     }
     else setMouseCursor (MouseCursor::NormalCursor);
@@ -1396,8 +1396,18 @@ void Arrange::mouseDown (const MouseEvent& e)
         previewEnd = clip->end();
         previewTrack = owner->id;
         const float edge = (float) theme::px (6);
+        trimShift = 0;
+        shiftTrim = false;
         if ((float) e.x < xOf (clip->start) + edge) drag = Drag::TrimStart;
         else if ((float) e.x > xOf (clip->end()) - edge) drag = Drag::TrimEnd;
+        else if (e.mods.isShiftDown() && ! e.mods.isAltDown() && ! e.mods.isCommandDown())
+        {
+            // Shift-drag anywhere on a clip resizes it from its nearer edge, which
+            // follows the pointer from where it was (0095). A Shift-click still chooses.
+            drag = (float) e.x < (xOf (clip->start) + xOf (clip->end())) / 2.0f ? Drag::TrimStart : Drag::TrimEnd;
+            trimShift = (drag == Drag::TrimStart ? clip->start : clip->end()) - dragOrigin;
+            shiftTrim = true;
+        }
         else { drag = Drag::MoveClip; copying = e.mods.isAltDown() && ! e.mods.isShiftDown(); }
         return;
     }
@@ -1444,7 +1454,7 @@ void Arrange::mouseDrag (const MouseEvent& e)
         {
             const auto* clip = c.project.clip (dragClip);
             if (! clip) break;
-            Tick snapped = e.mods.isCommandDown() ? at : c.arrangeSnap (at);
+            Tick snapped = e.mods.isCommandDown() ? at + trimShift : c.arrangeSnap (at + trimShift);
             snapped = c.zeroEdge (*clip, snapped).tick;   // onto a zero crossing, when that's on (decision 0054)
             if (drag == Drag::TrimStart) previewStart = jlimit<Tick> (0, clip->end() - 1, snapped);
             else previewEnd = std::max (clip->start + 1, snapped);
@@ -1569,7 +1579,7 @@ void Arrange::mouseUp (const MouseEvent& e)
                 c.apply ("Move Clip", [=] (Project& p) { edit::moveClip (p, id, start, to); });
         }
     }
-    else if ((drag == Drag::TrimStart || drag == Drag::TrimEnd) && dragClip)
+    else if ((drag == Drag::TrimStart || drag == Drag::TrimEnd) && dragClip && ! (shiftTrim && ! e.mouseWasDraggedSinceMouseDown()))
     {
         const Id id = dragClip;
         const Tick a = previewStart, b = previewEnd;
@@ -1779,6 +1789,26 @@ void Arrange::clipMenu (Id id)
     {
         c.apply ("Loop Clip", [id] (Project& p) { edit::loopContent (p, id); });
     });
+    // Reverse and Invert (0095), on every chosen clip: MIDI backwards and upside
+    // down (its highest note its lowest); audio backwards and its polarity flipped.
+    {
+        auto chosen = c.selectedClips;
+        if (! chosen.count (id)) chosen = { id };
+        const bool audio = ! clip->isMidi();
+        m.addItem ("Reverse", true, audio && clip->audio.reversed, [this, chosen]
+        {
+            c.apply ("Reverse", [chosen] (Project& p) { for (auto cid : chosen) edit::reverseClip (p, cid); });
+        });
+        m.addItem (audio ? "Invert (Polarity, Upside Down)" : "Invert (Upside Down)", true, audio && clip->audio.inverted, [this, chosen]
+        {
+            c.apply ("Invert", [chosen] (Project& p) { for (auto cid : chosen) edit::invertClip (p, cid); });
+        });
+        if (audio)
+            m.addItem ("Split at Transients", clip->loopLength == 0 && ! clip->audio.reversed, false, [this, chosen]
+            {
+                for (auto cid : chosen) c.splitAtTransients (cid);
+            });
+    }
     m.addItem ("Mute", true, clip->muted, [this, id] { c.apply ("Mute Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->muted = ! cl->muted; }); });
     m.addItem ("Lock", true, clip->locked, [this, id] { c.apply ("Lock Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->locked = ! cl->locked; }); });
     m.addItem ("Consolidate the Chosen Clips", ! c.selectedClips.empty(), false, [this] { c.consolidate (c.selectedClips); });
@@ -1850,7 +1880,6 @@ void Arrange::clipMenu (Id id)
         m.addItem ("Strip Silence", [this, id] { c.stripSilence (id); });
         m.addItem ("Quantise Audio to the Grid", [this, id] { c.quantiseAudio (id); });
         m.addItem ("Edit Samples", [this, id] { c.selectClip (id); c.zoneTab = ZoneTab::Editor; c.viewChanged(); });
-        m.addItem ("Reverse", true, clip->audio.reversed, [this, id] { c.apply ("Reverse", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->audio.reversed = ! cl->audio.reversed; }); });
         m.addItem ("Fade In and Out (10 ms)", [this, id] { c.apply ("Fades", [id] (Project& p) { if (auto* cl = p.clip (id)) { cl->audio.fadeIn = 0.01; cl->audio.fadeOut = 0.01; } }); });
 
         // Offline effects (decision 0026).
@@ -1967,6 +1996,16 @@ void Arrange::laneMenu (const Row& row, Point<int> at)
             c.newMidiClip (id, tm.barStart (bar), tm.meterAtBar (bar).barTicks());
         });
         m.addItem ("Capture MIDI Here", [this, tick] { c.locate (tick); c.captureMidi(); });
+        // A sample brought in as a clip for each of its hits (0095).
+        m.addItem (ui::u8 ("Import Audio Here, Split at Transients\xe2\x80\xa6"), [this, id = t->id, tick]
+        {
+            chooser = std::make_unique<FileChooser> ("Import, Split at Transients", File::getSpecialLocation (File::userMusicDirectory),
+                                                     "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.m4a;*.caf");
+            chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, [this, id, tick] (const FileChooser& fc)
+            {
+                if (fc.getResult().existsAsFile()) c.importSplit (fc.getResult(), id, tick);
+            });
+        });
     }
     m.addItem ("Show Volume Automation", [this, id = t->id]
     {

@@ -45,6 +45,7 @@ public:
     static juce::String wildcard();
     // What the browser shows about one file; false if it can't be read.
     static bool analyse (const juce::File&, library::Item&, juce::AudioFormatManager&);
+    static void listen (juce::AudioFormatReader&, library::Item&);
 
     // Tests: wait for the scan to finish, handing its results over.
     bool waitUntilDone (int milliseconds);

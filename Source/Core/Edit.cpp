@@ -466,6 +466,61 @@ std::vector<Id> keepSourceSpans (Project& p, Id clipId, const std::vector<std::p
     return ids;
 }
 
+std::vector<Id> splitAtSource (Project& p, Id clipId, const std::vector<double>& hits)
+{
+    auto* c = p.clip (clipId);
+    if (! c || c->locked || c->isMidi() || c->loopLength > 0 || c->audio.reversed) return {};
+    const Tick contentStart = c->start - c->offset;
+    const Tick edge = std::max<Tick> (1, p.tempo.tickAt (p.tempo.secondsAt (c->start) + 0.01) - c->start);
+    std::set<Tick> cuts;
+    for (double h : hits)
+    {
+        const Tick at = contentStart + audiotools::tickForSource (c->audio, h, p.tempo, contentStart);
+        if (at > c->start + edge && at < c->end() - edge) cuts.insert (at);
+    }
+    std::vector<Id> ids { clipId };
+    // From the last cut back, so the clip keeps its id and is always the piece cut.
+    for (auto it = cuts.rbegin(); it != cuts.rend(); ++it)
+        if (const Id right = splitClip (p, clipId, *it)) ids.insert (ids.begin() + 1, right);
+    return ids;
+}
+
+namespace
+{
+// What a clip plays of its content, in its own ticks: its loop, or the stretch it shows.
+std::pair<Tick, Tick> playedWindow (const Clip& c)
+{
+    if (c.loopLength > 0) return { 0, c.loopLength };
+    return { c.offset, c.offset + c.length };
+}
+} // namespace
+
+void reverseClip (Project& p, Id clipId)
+{
+    auto* c = p.clip (clipId);
+    if (! c || c->locked) return;
+    if (! c->isMidi()) { c->audio.reversed = ! c->audio.reversed; return; }
+    const auto [from, to] = playedWindow (*c);
+    for (auto& n : c->midi.notes)
+        if (n.start >= from && n.start < to)
+            n.start = std::max (from, from + to - (n.start + n.length));
+    for (auto& e : c->midi.events)
+        if (e.tick >= from && e.tick < to) e.tick = std::max (from, from + to - 1 - e.tick);
+    std::stable_sort (c->midi.notes.begin(), c->midi.notes.end(), [] (const Note& a, const Note& b) { return a.start < b.start; });
+    std::stable_sort (c->midi.events.begin(), c->midi.events.end(), [] (const MidiEvent& a, const MidiEvent& b) { return a.tick < b.tick; });
+}
+
+void invertClip (Project& p, Id clipId)
+{
+    auto* c = p.clip (clipId);
+    if (! c || c->locked) return;
+    if (! c->isMidi()) { c->audio.inverted = ! c->audio.inverted; return; }
+    if (c->midi.notes.empty()) return;
+    int lo = 127, hi = 0;
+    for (auto& n : c->midi.notes) { lo = std::min (lo, n.pitch); hi = std::max (hi, n.pitch); }
+    for (auto& n : c->midi.notes) n.pitch = std::clamp (lo + hi - n.pitch, 0, 127);
+}
+
 Id duplicateClip (Project& p, Id clipId)
 {
     Track* owner = nullptr;

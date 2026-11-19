@@ -5,9 +5,12 @@
     resonant low-pass filter with its own envelope, an amp envelope, glide,
     16 voices. The mod wheel adds vibrato; pitch bend is two semitones.
 
-    Sampler: one sample across the keyboard, played from its root note, with
-    start, end and a loop, an envelope and a filter, 32 voices. Drop a file
-    on it from the browser or the Finder, or click Load Sample.
+    Sampler: one sample, played three ways (0095): Keys, across the keyboard
+    from its root note; Slices, cut where its hits are (the sensitivity
+    chosen), one a key from the root up; Granular, as many short grains, so its
+    speed and its pitch are apart (Speed 0 holds it still). Start, end and a
+    loop, Speed, an envelope and a filter, 32 voices. Drop a file on it from
+    the browser or the Finder, or click Load Sample.
 
     Both are ordinary plug-ins to the rest of Kalibre: their knobs are
     parameters (automation, modulators, last touched, MIDI learn all work),
@@ -18,6 +21,7 @@
 #pragma once
 
 #include "Model.h"
+#include "AudioTools.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -145,7 +149,14 @@ public:
     double getTailLengthSeconds() const override { return 4.0; }
     juce::AudioProcessorEditor* createEditor() override;
 
-    enum P { Root, Tune, Start, End, Loop, LoopStart, Cutoff, Resonance, VelSense, A, D, S, R, Volume, Count };
+    enum P { Root, Tune, Start, End, Loop, LoopStart, Cutoff, Resonance, VelSense, A, D, S, R, Volume,
+             Mode, Speed, Sensitivity, GrainSize, Density, Spray, Position, Count };
+    enum class PlayMode { Keys, Slices, Granular };
+    PlayMode mode() const { return (PlayMode) juce::jlimit (0, 2, juce::roundToInt (value (Mode))); }
+
+    // Where the slices start at the sensitivity chosen, in samples of the
+    // sample (the first is Start). Not for the audio thread: it allocates.
+    std::vector<int> slicePoints();
 
     // Message thread.
     bool load (const juce::File&, juce::String& error);
@@ -154,16 +165,25 @@ public:
     std::function<void()> onLoaded;
 
 private:
+    struct Grain { double pos = 0, step = 1; int age = 0, length = 0; bool on = false; };
     struct Voice
     {
         int note = -1;
         float velocity = 0;
         double pos = 0, step = 1;
+        double sliceEnd = -1;                  // Slices: where this one's slice ends
+        double head = 0, untilGrain = 0;       // Granular: where it's reading, the next grain
+        bool released = false;
+        std::array<Grain, 24> grains;
+        juce::Random random;
         juce::ADSR env;
         float ic1 = 0, ic2 = 0, ic1r = 0, ic2r = 0;
     };
     std::array<Voice, 32> voices;
     juce::AudioBuffer<float> data;
+    std::vector<audiotools::HitCandidate> candidates;   // every hit at the highest sensitivity, made on load
+    // The slice `index` at the sensitivity chosen: [from, to). False when there's no such slice. No allocation.
+    bool sliceBounds (int index, double start, double end, double& from, double& to) const;
     double fileRate = 48000, rate = 48000;
     juce::File sampleFile;
     juce::SpinLock swapLock;

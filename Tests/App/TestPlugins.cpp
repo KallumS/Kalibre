@@ -274,3 +274,55 @@ TEST ("plug-ins: the scan opens each one; an instrument that only sends MIDI is 
     CHECK_EQ (old.needingAnotherLook(), 0);
     CHECK (old.roleOf (arp) == DeviceRole::MidiFx);
 }
+
+#include "BuiltinInstruments.h"
+#include "Controller.h"
+#include "DeviceRack.h"
+#include "Edit.h"
+#include "Engine.h"
+#include "Theme.h"
+
+TEST ("devices: a plug-in dragged from the browser onto the rack is added to the shown track where it's dropped (0095)")
+{
+    theme::LookAndFeel look;
+    juce::LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        kal::PluginManager plugins;
+        kal::Engine engine (plugins);
+        kal::Controller c (engine);
+        juce::PluginDescription synth, sampler;
+        kal::KalibreSynth().fillInPluginDescription (synth);
+        kal::KalibreSampler().fillInPluginDescription (sampler);
+        plugins.known().addType (synth);
+        plugins.known().addType (sampler);
+        auto indexOf = [&] (const juce::String& name)
+        {
+            const auto types = plugins.known().getTypes();
+            for (int i = 0; i < types.size(); ++i) if (types[i].name == name) return i;
+            return -1;
+        };
+        c.project = kal::Project();
+        const kal::Id t = kal::edit::addTrack (c.project, kal::TrackKind::Track, "Keys");
+        c.focusTrack = t;
+        c.refresh();
+        kal::DeviceRack rack (c);
+        rack.setSize (1200, 300);
+        rack.rebuild();
+        using SD = juce::DragAndDropTarget::SourceDetails;
+        CHECK (rack.isInterestedInDragSource (SD (juce::var ("plugin:" + juce::String (indexOf ("Kalibre Synth"))), nullptr, { 600, 150 })));
+        CHECK (! rack.isInterestedInDragSource (SD (juce::var ("file:/a.wav"), nullptr, { 600, 150 })));
+        rack.itemDropped (SD (juce::var ("plugin:" + juce::String (indexOf ("Kalibre Synth"))), nullptr, { 600, 150 }));
+        CHECK_EQ (c.project.track (t)->devices.size(), (size_t) 1);
+        rack.rebuild();
+        // Dropped at the far left: before the synth.
+        rack.itemDropped (SD (juce::var ("plugin:" + juce::String (indexOf ("Kalibre Sampler"))), nullptr, { 2, 150 }));
+        const auto& devices = c.project.track (t)->devices;
+        CHECK_EQ (devices.size(), (size_t) 2);
+        if (devices.size() == 2)
+        {
+            CHECK_EQ (devices[0].plugin.name, std::string ("Kalibre Sampler"));
+            CHECK_EQ (devices[1].plugin.name, std::string ("Kalibre Synth"));
+        }
+    }
+    juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

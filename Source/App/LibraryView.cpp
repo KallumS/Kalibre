@@ -83,8 +83,22 @@ String details (const library::Item& it)
     {
         s << duration (it.seconds) << " " << u8 ("\xc2\xb7") << " " << File (it.path).getFileExtension().substring (1).toUpperCase();
     }
-    if (it.bpm > 0) s << " " << u8 ("\xc2\xb7") << " " << String (it.bpm, it.bpm == std::floor (it.bpm) ? 0 : 1) << " BPM";
+    if (it.bpm > 0)
+        s << " " << u8 ("\xc2\xb7") << " " << (it.tempoTrusted() ? "" : "about ")
+          << String (it.bpm, it.bpm == std::floor (it.bpm) ? 0 : 1) << " BPM";
     return s;
+}
+
+// What the scan heard in a sample (0095): how loud, and the note it plays.
+String heard (const library::Item& it)
+{
+    if (it.kind != library::Kind::Audio) return {};
+    StringArray parts;
+    if (auto loud = library::loudnessText (it); ! loud.empty()) parts.add (String (loud));
+    if (auto note = library::noteName (it.note, it.cents); ! note.empty()) parts.add (String (note));
+    else if (it.analysis > 0) parts.add ("No One Note");
+    if (it.bpmFrom == library::Item::TempoFrom::Heard) parts.add (it.loop ? "Tempo Heard (a Loop)" : "Tempo Heard");
+    return parts.joinIntoString (" " + u8 ("\xc2\xb7") + " ");
 }
 } // namespace
 
@@ -108,7 +122,9 @@ struct LibraryView::Strip : public Component
         {
             g.setColour (theme::textSecondary);
             g.setFont (theme::font (theme::smallPoints));
-            g.drawFittedText ("Click a sound to hear it. Up and Down hear the next.", inner.toNearestInt(), Justification::centredLeft, 2);
+            g.drawFittedText (view.s.autoPlay ? "Click a sound to hear it. Up and Down hear the next."
+                                              : "Auto-Play is off: click a sound to choose it, then click here to hear it.",
+                              inner.toNearestInt(), Justification::centredLeft, 2);
             return;
         }
         g.setColour (theme::text);
@@ -117,6 +133,8 @@ struct LibraryView::Strip : public Component
         g.setColour (theme::textSecondary);
         g.setFont (theme::font (theme::smallPoints));
         g.drawText (details (*it), inner.removeFromTop ((float) theme::px (14)), Justification::centredLeft, true);
+        if (const auto h = heard (*it); h.isNotEmpty())
+            g.drawText (h, inner.removeFromTop ((float) theme::px (14)), Justification::centredLeft, true);
         inner.removeFromTop (4);
         drawSound (g, *it, inner, theme::control);
         if (view.preview->playingPath() == String (path))
@@ -130,6 +148,9 @@ struct LibraryView::Strip : public Component
             }
         }
     }
+
+    // A click on the chosen sound plays it, or stops it (the way to hear one with Auto-Play off).
+    void mouseDown (const MouseEvent&) override { view.playChosen(); }
 
     LibraryView& view;
 };
@@ -307,13 +328,20 @@ LibraryView::LibraryView (Controller& ctrl)
         b->setRadioGroupId (41);
         b->setClickingTogglesState (true);
     }
-    for (auto* b : { &foldersView, &flatView, &favouritesOnly, &orderButton, &syncButton, &editFolders })
+    for (auto* b : { &foldersView, &flatView, &favouritesOnly, &orderButton, &syncButton, &autoPlayButton, &editFolders })
         addAndMakeVisible (b);
     addChildComponent (chooseButton);
     foldersView.onClick = [this] { if (s.flat) { s.flat = false; saveSettings(); refreshRows(); } };
     flatView.onClick = [this] { if (! s.flat) { s.flat = true; saveSettings(); refreshRows(); } };
     favouritesOnly.onClick = [this] { s.favouritesOnly = favouritesOnly.getToggleState(); saveSettings(); refreshRows(); };
     syncButton.onClick = [this] { s.sync = syncButton.getToggleState(); saveSettings(); };
+    autoPlayButton.onClick = [this]
+    {
+        s.autoPlay = autoPlayButton.getToggleState();
+        if (! s.autoPlay) preview->stop();
+        saveSettings();
+        strip->repaint();
+    };
     orderButton.onClick = [this] { orderMenu(); };
     editFolders.onClick = [this] { if (onEditFolders) onEditFolders(); else chooseFolders(); };
     chooseButton.onClick = [this] { chooseFolders(); };
@@ -393,6 +421,7 @@ void LibraryView::refreshRows()
     flatView.setToggleState (s.flat, dontSendNotification);
     favouritesOnly.setToggleState (s.favouritesOnly, dontSendNotification);
     syncButton.setToggleState (s.sync, dontSendNotification);
+    autoPlayButton.setToggleState (s.autoPlay, dontSendNotification);
     orderButton.setButtonText (s.shuffled ? u8 ("Shuffled \xe2\x96\xbe") : u8 ("A to Z \xe2\x96\xbe"));
     chooseButton.setVisible (s.folders.empty());
     listBox.repaint();
@@ -406,12 +435,25 @@ double LibraryView::songBpm() const
     return c.project.tempo.bpmAt (at);
 }
 
-void LibraryView::hear (int row)
+void LibraryView::hear (int row, bool play)
 {
     if (row < 0 || row >= (int) rows.size() || rows[(size_t) row].type != library::Row::Type::Item) return;
     if (listBox.getSelectedRow() != row) listBox.selectRow (row);
-    if (const auto* it = item (rows[(size_t) row].path)) preview->play (*it, s.sync, songBpm());
+    if (s.autoPlay || play)
+    {
+        if (const auto* it = item (rows[(size_t) row].path)) preview->play (*it, s.sync, songBpm());
+    }
+    else if (preview->isPlaying() && preview->playingPath() != String (rows[(size_t) row].path)) preview->stop();
     strip->repaint();
+}
+
+void LibraryView::playChosen()
+{
+    const auto path = chosenPath();
+    if (path.empty()) return;
+    if (preview->isPlaying() && preview->playingPath() == String (path)) { preview->stop(); strip->repaint(); return; }
+    for (size_t i = 0; i < rows.size(); ++i)
+        if (rows[i].type == library::Row::Type::Item && rows[i].path == path) { hear ((int) i, true); return; }
 }
 
 void LibraryView::toggleOpen (int row)
@@ -467,6 +509,13 @@ void LibraryView::itemMenu (int row)
         m.addItem ("New Track with the Sample", [this, path] { newTrackFrom (path, NewTrack::Clip); });
     }
     m.addItem ("Put on the Chosen Track at the Cursor", focus != nullptr && focus->holdsClips(), false, [this, path] { putAtCursor (path); });
+    if (! library::isMidiExtension (library::extensionOf (path)))
+        m.addItem ("Put on the Chosen Track, Split at Transients", focus != nullptr && focus->holdsClips(), false, [this, path]
+        {
+            preview->stop();
+            c.importSplit (File (path), c.focusTrack, c.cursor);
+        });
+    m.addItem ("Play", [this, row] { hear (row, true); });
     m.addSeparator();
     const bool fav = s.favourites.count (path) > 0;
     m.addItem (fav ? "Remove from Favourites" : "Add to Favourites", [this, path] { toggleFavourite (path); });
@@ -633,9 +682,9 @@ void LibraryView::resized()
         r.removeFromTop (4);
     };
     row ({ &foldersView, &flatView, &favouritesOnly });
-    row ({ &orderButton, &syncButton, &editFolders });
+    row ({ &orderButton, &syncButton, &autoPlayButton, &editFolders });
     r.removeFromTop (theme::px (20));   // the status line
-    strip->setBounds (r.removeFromTop (theme::px (92)));
+    strip->setBounds (r.removeFromTop (theme::px (106)));
     r.removeFromTop (theme::px (6));
     listBox.setBounds (r);
     if (chooseButton.isVisible())
