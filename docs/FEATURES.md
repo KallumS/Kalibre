@@ -82,7 +82,7 @@ Every feature asked for, then the list of basic DAW features
 | Comping, crossfades, sidechains, MIDI learn, loudness, sync, control surfaces | Yes | Asked for on 16 November: decisions 0029-0035, with MTC in, MMC, HUI and network MIDI added (0043). Sync and surfaces not yet tried with real gear |
 | Automation picks up the last touched control | Yes | Plug-in parameters and the mixer's faders and pan knobs. Automation > Automate; Touch/Latch/Write recording (0024) |
 | X/Y pad: four plug-ins or four samples | Yes | Add > Kalibre > X/Y Morph; tested with samples (0018) |
-| Plug-in delay compensation | Yes | Tested by rendering clicks (0016) |
+| Plug-in delay compensation | Yes, to the sample | Tested by rendering clicks (0016): exact, not just within a sample. Automation lined up with it: each fader, send and plug-in reads its lane as late as the sound reaches it, live and in exports, across the loop's wrap; and every pass of a loop exactly as long as the loop (it was a sample short now and then); tested (0096). Modulators (LFOs and the like) still move a block at a time and aren't delayed |
 | Track delay (e.g. -125 ms) | Yes | Track menu > Track Delay…; tested (0011) |
 | Articulation maps with a delay per articulation | Yes | Track > Articulation Maps; the piano roll's Velocity ▾ > Articulation Map; the articulation lane; imported maps, their delays in the Articulation Manager (0072, 0082); tested (0013) |
 | Deactivate plug-ins, keeping their state | Yes | The power switch; its delay kept in its place (0086); tested (0010) |

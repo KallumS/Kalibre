@@ -75,6 +75,9 @@ public:
 
     std::atomic<float> volumeDb { 0 }, pan { 0 };
     std::atomic<float> automatedVolume { std::numeric_limits<float>::quiet_NaN() };
+    // How late the sound reaching it is after the song position the track's lanes
+    // are drawn for: its plug-ins' delay (0096). Set by the engine.
+    std::atomic<int> automationDelay { 0 };
     // Volume automation for this block, a level in dB for every sample (the
     // audio engine's document: curves followed sample by sample). Written by
     // the track's Source, which plays before the fader, and used once.
@@ -219,6 +222,7 @@ public:
                                                   .withOutput ("Out", juce::AudioChannelSet::stereo())) {}
     std::atomic<float> gainDb { -6 };
     std::atomic<float> automatedDb { std::numeric_limits<float>::quiet_NaN() };   // from a send lane
+    std::atomic<int> automationDelay { 0 };    // as the fader's (0096)
     std::atomic<bool> on { true };
     std::atomic<Fader*> follow { nullptr };   // in a surround mix, a post-fader send follows this fader's level
     std::atomic<bool> snap { false };          // the next block starts at the level set
@@ -392,6 +396,19 @@ private:
     juce::AudioBuffer<float> live;
     std::vector<double> mixL, mixR;   // the clips mixed at 64 bits, a block long
     std::vector<double> blockTicks;   // the song's ticks at each sample of the block (0089)
+    // Where the song was, block by block, so a lane can be read for sound that
+    // arrives later than it was played (0096): from sample `from` (counted since
+    // the start) the song is at `seconds`, moving on in real time. A new span
+    // only where the song jumped or looped; kept in a fixed ring.
+    struct Span { juce::int64 from = 0; double seconds = 0; };
+    std::array<Span, 64> spans {};
+    int spanCount = 0, spanNewest = -1;
+    juce::int64 samplesPlayed = 0;
+    std::vector<double> lateTicks;    // a lane's ticks for sound arriving late
+    int lateFor = -1;                 // the delay lateTicks was made for, this block
+    void noteSpans (int n);
+    double secondsAt (juce::int64 sample) const;
+    const std::vector<double>& ticksFor (const Data&, int delay, int n);
     std::uint32_t drawn = 0;
     void drawAutomation (const Data&, int samples);
 

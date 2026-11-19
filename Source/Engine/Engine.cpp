@@ -24,6 +24,8 @@ Engine::Engine (PluginManager& pm) : pluginManager (pm)
         return dynamic_cast<HardwareInsert*> (&p) != nullptr;
     };
     tempo.post (std::make_unique<TempoMap>());
+    // After every rebuild: how late each fader, send and plug-in hears its track (0096).
+    graph.onRebuilt = [this] { lineUpAutomation(); };
     // The graph's own ends exist from the start, so a project can be synced
     // (and rendered) with no audio device at all. Its channels are set first:
     // a connection to a channel the end doesn't have yet is refused.
@@ -38,6 +40,7 @@ Engine::Engine (PluginManager& pm) : pluginManager (pm)
 
 Engine::~Engine()
 {
+    graph.onRebuilt = nullptr;   // nothing to line up while it goes (0096)
     stopTimer();
     deviceManager.removeAudioCallback (this);
     deviceManager.removeMidiInputDeviceCallback ({}, this);
@@ -128,11 +131,19 @@ void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numI
     {
         next = p + n / rate;
         const double le = loopEnd.load(), ls = loopStart.load();
-        if (loopOn.load() && le > ls && p < le && next >= le)
+        // On the first sample at or after the loop's end (0096). Rounded down, a pass
+        // of a one-second loop came out a sample short now and then; and a loop ending
+        // on a block's last sample wrapped one early. Ending just after this block, it
+        // wraps on the next block's first sample.
+        if (loopOn.load() && le > ls && p < le + 0.5 / rate && next > le)
         {
-            c.wrapAt = jlimit (0, n - 1, (int) ((le - p) * rate));
-            c.wrapTo = ls;
-            next = ls + (n - c.wrapAt) / rate;
+            const int w = jmax (0, (int) std::ceil ((le - p) * rate - 1.0e-6));
+            if (w < n)
+            {
+                c.wrapAt = w;
+                c.wrapTo = ls;
+                next = ls + (n - w) / rate;
+            }
         }
     }
     if (map)
@@ -359,6 +370,34 @@ void Engine::audioProcessorChanged (AudioProcessor* p, const ChangeDetails& d)
         });
     if (d.nonParameterStateChanged && onDevicePluginChanged)
         MessageManager::callAsync ([this] { if (onDevicePluginChanged) onDevicePluginChanged(); });
+}
+
+// Delay compensation and automation (0096): a track's lanes are drawn for the
+// song position its Source is playing, but the sound reaches its plug-ins,
+// fader and sends later, by the delay of what's before each. Each is told
+// how much later, so it reads its lane for the sound it's hearing.
+void Engine::lineUpAutomation()
+{
+    const auto into = graph.latencyInto();
+    auto at = [&into] (const Node::Ptr& n) { auto it = n ? into.find (n->nodeID.uid) : into.end(); return it != into.end() ? it->second : 0; };
+    std::map<Id, int> sourceOut;   // how late each track's Source plays, as the graph counts it
+    for (auto& [id, tn] : tracks)
+    {
+        if (! tn.source) continue;
+        const int base = at (tn.source) + tn.source->getProcessor()->getLatencySamples();
+        sourceOut[id] = base;
+        if (tn.fader)
+            if (auto* f = dynamic_cast<Fader*> (tn.fader->getProcessor())) f->automationDelay = jmax (0, at (tn.fader) - base);
+        for (auto& [to, node] : tn.sends)
+            if (auto* g = node ? dynamic_cast<SendGain*> (node->getProcessor()) : nullptr) g->automationDelay = jmax (0, at (node) - base);
+    }
+    for (auto& [id, node] : deviceNodes)
+        if (auto* tp = node ? dynamic_cast<TimedPlugin*> (node->getProcessor()) : nullptr)
+        {
+            const auto t = trackOf.find (id);
+            const auto s = t != trackOf.end() ? sourceOut.find (t->second) : sourceOut.end();
+            tp->automationDelay = s != sourceOut.end() ? jmax (0, at (node) - s->second) : 0;
+        }
 }
 
 void Engine::bury (Node::Ptr node)
@@ -594,6 +633,7 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 wantedDevices.insert (d.id);
                 wantedNodes.insert ({ active, d.id });
                 playing[d.id] = node;
+                trackOf[d.id] = t->id;
                 park (node, false);
                 if (auto* tp = dynamic_cast<TimedPlugin*> (node->getProcessor())) tp->matchLoudness = d.matchLoudness;
             }

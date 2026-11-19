@@ -74,6 +74,10 @@ public:
     static constexpr int rampPiece = 16;
 
     // Kept in step when the plug-in's latency changes (the engine is told), message thread.
+    // How late the sound reaching it is after the song position its track's
+    // automation is drawn for: the plug-ins before it (0096). Set by the engine.
+    std::atomic<int> automationDelay { 0 };
+
     void latencyChanged()
     {
         setLatencySamples (inner->getLatencySamples());

@@ -667,8 +667,11 @@ multi-output instrument (a drum sampler) plays on its own track.
 
 ### Plug-in delay compensation
 
-Every track is lined up for the plug-ins' delays; the top bar's **Delay** says
-how much in all.
+Every track is lined up for the plug-ins' delays, to the sample; the top
+bar's **Delay** says how much in all. Automation is lined up too: a lane on
+the fader, a send, or a plug-in after one that delays the sound is read as
+late as the sound reaches it, so a mute, a volume step or a filter sweep
+lands exactly under the sound it was drawn under, round a loop as well.
 
 ### Using every core
 

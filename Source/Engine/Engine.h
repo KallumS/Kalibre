@@ -205,6 +205,8 @@ private:
     std::map<VersionedId, Node::Ptr> allDevices;
     std::map<VersionedId, std::string> allKeys;   // what each node was made from, to notice a swap
     std::map<Id, Node::Ptr> deviceNodes;          // the playing versions' devices, by device id
+    std::map<Id, Id> trackOf;                     // each playing device's track
+    void lineUpAutomation();                      // each fader, send and plug-in told how late it hears (0096)
     std::map<std::pair<Id, int>, Node::Ptr> splitNodes;
     std::map<Id, Node::Ptr> heldDelays;   // switched-off effects' delays, by device (decision 0086)
     int heldSamples (const Device& d) const

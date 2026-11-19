@@ -711,3 +711,77 @@ TEST ("sample accurate: a plug-in's parameter changes on the very sample of a st
     CHECK (worst <= 0.5 * 0.75 * 16.0 / (r1 - r0) + 1.0e-6);
     CHECK_EQ (out.getSample (0, r1 + 100), 0.5f);
 }
+
+// Plug-in delay compensation and automation (asked 19 November, night): the
+// sound reaching a fader or a plug-in is late by the plug-ins before it, so
+// its automation is read that much later too, and lands on the very sample
+// it was drawn under.
+TEST ("delay compensation: a mute lane after a 300-sample plug-in cuts on the very sample it's drawn at")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Id t = 0;
+    auto p = dcTrack (t, "dc-mute-late");
+    edit::addDevice (p, t, { "Kalibre", "test-latency:300", "Latency" }, DeviceRole::AudioFx);
+    const Tick at = PPQ + 7;
+    AutomationLane lane;
+    lane.id = p.newId();
+    lane.target.kind = AutoTarget::Kind::Mute;
+    lane.points = { { 0, 0.0, 0, true }, { at, 1.0, 0, true } };
+    p.track (t)->automation.push_back (lane);
+    const auto out = render (engine, p, 2.0);
+    const int k = sampleAt (p, at);
+    CHECK_EQ (out.getSample (0, k - 1), 0.5f);
+    CHECK_EQ (out.getSample (0, k), 0.0f);
+}
+
+TEST ("delay compensation: a plug-in's lane after a 300-sample plug-in steps on the very sample; before it, too")
+{
+    for (bool after : { true, false })
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Id t = 0;
+        auto p = dcTrack (t, after ? "dc-param-after" : "dc-param-before");
+        if (after) edit::addDevice (p, t, { "Kalibre", "test-latency:300", "Latency" }, DeviceRole::AudioFx);
+        const Id dev = edit::addDevice (p, t, { "Kalibre", "test-param-gain", "Gain" }, DeviceRole::AudioFx);
+        if (! after) edit::addDevice (p, t, { "Kalibre", "test-latency:300", "Latency" }, DeviceRole::AudioFx);
+        const Tick at = PPQ + 7;
+        AutomationLane lane;
+        lane.id = p.newId();
+        lane.target.kind = AutoTarget::Kind::DeviceParam;
+        lane.target.device = dev;
+        lane.target.param = 0;
+        lane.points = { { 0, 1.0, 0, true }, { at, 0.25 } };
+        p.track (t)->automation.push_back (lane);
+        const auto out = render (engine, p, 1.5);
+        const int k = sampleAt (p, at);
+        CHECK_EQ (out.getSample (0, k - 1), 0.5f);
+        CHECK_EQ (out.getSample (0, k), 0.125f);
+    }
+}
+
+TEST ("delay compensation: a send's lane after a 300-sample plug-in steps on the very sample")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Id t = 0;
+    auto p = dcTrack (t, "dc-send-late");
+    edit::addDevice (p, t, { "Kalibre", "test-latency:300", "Latency" }, DeviceRole::AudioFx);
+    const Id ret = edit::addTrack (p, TrackKind::Return, "Return");
+    p.track (ret)->pan = 0;
+    CHECK (edit::addSend (p, t, ret, 0.0));
+    p.track (t)->sends.back().preFader = true;
+    p.track (t)->volumeDb = -100;
+    const Tick at = PPQ + 7;
+    AutomationLane lane;
+    lane.id = p.newId();
+    lane.target.kind = AutoTarget::Kind::SendLevel;
+    lane.target.send = ret;
+    lane.points = { { 0, 60.0 / 66.0, 0, true }, { at, 0.0, 0, true } };   // 0 dB, then -60 dB from `at`
+    p.track (t)->automation.push_back (lane);
+    const auto out = render (engine, p, 1.5);
+    const int k = sampleAt (p, at);
+    CHECK (std::abs (out.getSample (0, k - 1) - 0.5f) < 1e-5f);
+    CHECK (out.getSample (0, k) < 0.001f);
+}

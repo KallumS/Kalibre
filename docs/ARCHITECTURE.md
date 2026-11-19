@@ -122,6 +122,13 @@ performance core, each as soon as what feeds it is done (0078).
 - A bypassed plug-in is never called: `TimedPlugin` passes the sound on,
   delayed by its latency (0081). Its own bypass parameter isn't used. A
   switched-off one is stood in for by a `HeldDelay` as long (0086).
+- A lane is read for the sound reaching what it moves (0096): the Source
+  keeps where the song was (`spans`), and each fader, send and plug-in has
+  an `automationDelay`, set by `Engine::lineUpAutomation` after every graph
+  rebuild from the graph's own latency count. Anything new that reads a lane
+  for a processor after the Source uses `ticksFor` with its delay.
+- The loop wraps on the first sample at or after its end (0096), never by
+  rounding down.
 - Automation is drawn sample by sample by the track's Source, which plays
   before everything it moves (0089). A plug-in's block is cut into pieces at
   its lanes' points by `TimedPlugin`; anything that adds automation reads the
