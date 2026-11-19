@@ -38,6 +38,8 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
     if (auto* s = settingsStore().getUserSettings())
     {
         lowerHeight = s->getIntValue ("lowerHeight", 320);
+        lowerShown = s->getBoolValue ("lowerShown", true);
+        browserWidth = s->getIntValue ("browserWidth", 320);
         browserShown = s->getBoolValue ("browser", false);
         c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
         c.hiddenInTopBar.addTokens (s->getValue ("hiddenInTopBar"), "|", {});
@@ -49,11 +51,14 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
         setTextSize ((float) s->getDoubleValue ("textSize", 1.0));
     }
     browser.setVisible (browserShown);
+    lower.setVisible (lowerShown);
+    shownZoneTab = c.zoneTab;
     setWantsKeyboardFocus (true);
     setTitle ("Kalibre");
     registerKeys();
     c.onShowPluginManager = [this] { showPluginManager(); };
     c.onShowArticulationManager = [this] { showArticulationManager(); };
+    browser.library().onEditFolders = [this] { showLibraryFolders(); };
     c.addChangeListener (this);
     setSize (1440, 900);
 }
@@ -66,10 +71,13 @@ MainComponent::~MainComponent()
     c.onShowArticulationManager = nullptr;
     pluginWindow.reset();
     articulationWindow.reset();
+    libraryWindow.reset();
     c.removeChangeListener (this);
     if (auto* s = settingsStore().getUserSettings())
     {
         s->setValue ("lowerHeight", lowerHeight);
+        s->setValue ("lowerShown", lowerShown);
+        s->setValue ("browserWidth", browserWidth);
         s->setValue ("browser", browserShown);
         s->setValue ("zeroCrossings", c.zeroCrossings);
         s->setValue ("hiddenInTopBar", c.hiddenInTopBar.joinIntoString ("|"));
@@ -86,6 +94,12 @@ MainComponent::~MainComponent()
 
 void MainComponent::changeListenerCallback (ChangeBroadcaster*)
 {
+    // Shut, the lower zone opens when one of its tabs is asked for (a key, a menu, a new plug-in).
+    if (c.zoneTab != shownZoneTab)
+    {
+        shownZoneTab = c.zoneTab;
+        if (! lowerShown) showLowerZone();
+    }
     if (auto* w = findParentComponentOfClass<DocumentWindow>())
         w->setName ((c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Untitled")) + (c.dirty ? ui::u8 (" \xe2\x80\x94 Edited") : String()));
     resized();
@@ -113,6 +127,24 @@ void MainComponent::showPluginManager()
     pluginWindow->toFront (true);
 }
 
+void MainComponent::showLibraryFolders()
+{
+    if (! libraryWindow)
+    {
+        libraryWindow = std::make_unique<LibraryFoldersWindow> (browser.library());
+        if (auto* top = getTopLevelComponent()) libraryWindow->centreAroundComponent (top, libraryWindow->getWidth(), libraryWindow->getHeight());
+    }
+    if (auto* view = dynamic_cast<LibraryFoldersView*> (libraryWindow->getContentComponent())) view->refresh();
+    libraryWindow->setVisible (true);
+    libraryWindow->toFront (true);
+}
+
+void MainComponent::firstRun()
+{
+    // Which folders to look in for sounds, asked once (decision 0094).
+    browser.library().askOnFirstRun ([this] { showBrowser (Browser::Tab::Files); });
+}
+
 void MainComponent::showArticulationManager()
 {
     if (! articulationWindow)
@@ -135,18 +167,58 @@ void MainComponent::setTextSize (float s)
 
 Rectangle<int> MainComponent::dividerArea() const
 {
+    // Shut, the zone leaves a bar along the bottom to open it again from (0094).
+    if (! lowerShown) return { arrange.getX(), getHeight() - theme::px (6), getWidth() - arrange.getX(), theme::px (6) };
     return { lower.getX(), lower.getY() - theme::px (6), lower.getWidth(), theme::px (6) };
+}
+
+void MainComponent::showLowerZone()
+{
+    lowerShown = true;
+    lower.setVisible (true);
+    resized();
+    repaint();
+}
+
+void MainComponent::hideLowerZone()
+{
+    lowerShown = false;
+    lower.setVisible (false);
+    resized();
+    repaint();
 }
 
 void MainComponent::paint (Graphics& g)
 {
     g.fillAll (theme::ground);
     const auto d = dividerArea();
-    g.setColour (draggingDivider ? theme::control : theme::rule);
-    g.fillRect (d.withSizeKeepingCentre (d.getWidth(), 2));
+    if (! lowerShown)
+    {
+        g.setColour (theme::sunken);
+        g.fillRect (d);
+        g.setColour (theme::rule);
+        g.fillRect (d.withHeight (1));
+    }
+    else
+    {
+        g.setColour (draggingDivider ? theme::control : theme::rule);
+        g.fillRect (d.withSizeKeepingCentre (d.getWidth(), 2));
+    }
     g.setColour (draggingDivider ? theme::control : theme::edge);
     for (int i = -1; i <= 1; ++i)
         g.fillEllipse (Rectangle<float> (3.0f, 3.0f).withCentre (d.getCentre().toFloat().translated ((float) i * 6.0f, 0.0f)));
+    // The browser's handle: three dots down its edge, or, shut, down the bar at the left.
+    const auto h = browserHandle();
+    if (! browserShown)
+    {
+        g.setColour (theme::sunken);
+        g.fillRect (h);
+        g.setColour (theme::rule);
+        g.fillRect (h.withLeft (h.getRight() - 1));
+    }
+    g.setColour (draggingBrowserEdge ? theme::control : theme::edge);
+    for (int i = -1; i <= 1; ++i)
+        g.fillEllipse (Rectangle<float> (3.0f, 3.0f).withCentre (browserHandle().getCentre().toFloat().translated (0.0f, (float) i * 6.0f)));
 }
 
 void MainComponent::resized()
@@ -155,30 +227,106 @@ void MainComponent::resized()
     if (menuBar) menuBar->setBounds (r.removeFromTop (theme::px (24)));
     top.setBounds (r.getX(), r.getY(), r.getWidth(), 1);
     top.setBounds (r.removeFromTop (top.preferredHeight()));
-    if (browserShown) browser.setBounds (r.removeFromLeft (theme::px (260)));
+    if (browserShown)
+    {
+        // Its width is the musician's: drag its edge (decision 0094).
+        browser.setBounds (r.removeFromLeft (jlimit (theme::px (240), jmax (theme::px (240), r.getWidth() / 2), browserWidth)));
+        r.removeFromLeft (theme::px (5));
+    }
+    else r.removeFromLeft (theme::px (6));   // the bar it's opened again from
     // The zone keeps the height it was given; only what's shown is limited by the window.
-    const int zone = jlimit (theme::px (120), jmax (theme::px (120), r.getHeight() - theme::px (160)), lowerHeight);
-    lower.setBounds (r.removeFromBottom (zone));
-    r.removeFromBottom (theme::px (6));
+    if (lowerShown)
+    {
+        const int zone = jlimit (theme::px (120), jmax (theme::px (120), r.getHeight() - theme::px (160)), lowerHeight);
+        lower.setBounds (r.removeFromBottom (zone));
+    }
+    r.removeFromBottom (theme::px (6));   // the divider, or shut, the bar
     arrange.setBounds (r);
+}
+
+Rectangle<int> MainComponent::browserHandle() const
+{
+    const int y = top.getBottom();
+    if (! browserShown) return { 0, y, theme::px (6), getHeight() - y };
+    return { browser.getRight(), browser.getY(), theme::px (5), browser.getHeight() };
 }
 
 void MainComponent::mouseMove (const MouseEvent& e)
 {
-    setMouseCursor (dividerArea().expanded (0, 2).contains (e.getPosition()) ? MouseCursor::UpDownResizeCursor : MouseCursor::NormalCursor);
+    setMouseCursor (dividerArea().expanded (0, 2).contains (e.getPosition()) ? MouseCursor::UpDownResizeCursor
+                    : browserHandle().contains (e.getPosition()) ? MouseCursor::LeftRightResizeCursor : MouseCursor::NormalCursor);
 }
 
 void MainComponent::mouseDown (const MouseEvent& e)
 {
     draggingDivider = dividerArea().expanded (0, 2).contains (e.getPosition());
-    dragStartHeight = lowerHeight;
+    draggingBrowserEdge = ! draggingDivider && browserHandle().contains (e.getPosition());
+    browserWasShown = browserShown;
+    browserDragMoved = false;
+    lowerWasShown = lowerShown;
+    lowerDragMoved = false;
+    dragStartHeight = lowerShown ? lower.getHeight() : 0;
+    dragStartWidth = browserShown ? browser.getWidth() : 0;
+}
+
+void MainComponent::mouseUp (const MouseEvent&)
+{
+    // A click on the bar, not a drag, opens the browser as wide as it was.
+    if (draggingBrowserEdge && ! browserDragMoved && ! browserWasShown)
+    {
+        browserShown = true;
+        browser.setVisible (true);
+        resized();
+        repaint();
+    }
+    // The same for the lower zone's bar.
+    if (draggingDivider && ! lowerDragMoved && ! lowerWasShown) showLowerZone();
+    draggingBrowserEdge = false;
+    draggingDivider = false;
+    repaint();
 }
 
 void MainComponent::mouseDrag (const MouseEvent& e)
 {
+    if (draggingBrowserEdge)
+    {
+        // It follows the drag down to its smallest, stops there, and past
+        // half of that it shuts, leaving the bar; dragged from the bar, it opens.
+        const int least = theme::px (240);
+        const int wanted = dragStartWidth + e.getDistanceFromDragStartX();
+        if (std::abs (e.getDistanceFromDragStartX()) > 3) browserDragMoved = true;
+        if (wanted < least / 2)
+        {
+            browserShown = false;
+            browser.setVisible (false);
+        }
+        else
+        {
+            browserWidth = jlimit (least, jmax (least, getWidth() / 2), wanted);
+            browserShown = true;
+            browser.setVisible (true);
+        }
+        resized();
+        repaint();
+        return;
+    }
     if (! draggingDivider) return;
-    // Every plug-in window in the zone follows its height.
-    lowerHeight = jlimit (theme::px (120), jmax (theme::px (120), getHeight() - theme::px (300)), dragStartHeight - e.getDistanceFromDragStartY());
+    // Every plug-in window in the zone follows its height, down to its smallest;
+    // past half of that it shuts, leaving the bar; dragged up from the bar, it opens.
+    const int least = theme::px (120);
+    const int wanted = dragStartHeight - e.getDistanceFromDragStartY();
+    if (std::abs (e.getDistanceFromDragStartY()) > 3) lowerDragMoved = true;
+    if (wanted < least / 2)
+    {
+        lowerShown = false;
+        lower.setVisible (false);
+    }
+    else
+    {
+        lowerHeight = jlimit (least, jmax (least, getHeight() - theme::px (300)), wanted);
+        lowerShown = true;
+        lower.setVisible (true);
+    }
     resized();
     repaint();
 }
@@ -216,6 +364,8 @@ bool MainComponent::saveWorkspace (const String& name)
     o->setProperty ("browser", browserShown);
     o->setProperty ("browserTab", (int) browser.shownTab());
     o->setProperty ("lowerHeight", lowerHeight);
+    o->setProperty ("lowerShown", lowerShown);
+    o->setProperty ("browserWidth", browserWidth);
     o->setProperty ("zoneTab", (int) c.zoneTab);
     o->setProperty ("editor", (int) c.editor);
     o->setProperty ("textSize", (double) theme::scale());
@@ -238,6 +388,9 @@ bool MainComponent::loadWorkspace (const File& f)
     browser.setVisible (browserShown);
     browser.showTab ((Browser::Tab) (int) v.getProperty ("browserTab", 0));
     lowerHeight = (int) v.getProperty ("lowerHeight", lowerHeight);
+    lowerShown = (bool) v.getProperty ("lowerShown", true);
+    lower.setVisible (lowerShown);
+    browserWidth = (int) v.getProperty ("browserWidth", browserWidth);
     c.zoneTab = (ZoneTab) jlimit (0, 4, (int) v.getProperty ("zoneTab", 0));
     c.editor = (EditorKind) jlimit (0, 4, (int) v.getProperty ("editor", 0));
     c.showChordLane = (bool) v.getProperty ("chordLane", c.showChordLane);
@@ -268,7 +421,7 @@ void MainComponent::registerKeys()
     using K = KeyPress;
     const auto cmd = ModifierKeys::commandModifier, shift = ModifierKeys::shiftModifier;
     auto& keys = c.keys;
-    auto zone = [this] (ZoneTab t) { return [this, t] { c.zoneTab = t; c.viewChanged(); }; };
+    auto zone = [this] (ZoneTab t) { return [this, t] { c.zoneTab = t; shownZoneTab = t; showLowerZone(); c.viewChanged(); }; };
     keys.add ("play", "Play or Stop", K (K::spaceKey), [this] { c.togglePlay(); });
     keys.add ("start", "Go to the Start", K (K::returnKey), [this] { c.goToStart(); });
     keys.add ("record", "Record", K ('r'), [this] { c.record(); });
@@ -287,6 +440,7 @@ void MainComponent::registerKeys()
     keys.add ("duplicate", "Duplicate", K ('d', cmd, 0), [this] { c.duplicateSelection(); });
     keys.add ("split", "Split at the Cursor", K ('e', cmd, 0), [this] { c.splitAtCursor(); });
     keys.add ("chooseAll", "Choose Every Note", K ('a', cmd, 0), [this] { c.selectAllNotes(); });
+    keys.add ("lowerZone", "Show or Hide the Lower Zone", K(), [this] { if (lowerShown) hideLowerZone(); else showLowerZone(); });
     keys.add ("browser", "Show or Hide the Browser", K ('b', cmd, 0), [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); });
     keys.add ("capture", "Capture MIDI", K ('r', cmd | shift, 0), [this] { c.captureMidi(); });
     keys.add ("learn", "MIDI Learn", K ('l', cmd, 0), [this] { c.learnLastTouched(); });

@@ -66,69 +66,6 @@ struct Browser::PluginList : public ListBoxModel
     std::vector<int> shown;
 };
 
-struct Browser::FileList : public ListBoxModel
-{
-    FileList (Browser& b) : owner (b)
-    {
-        folder = File::getSpecialLocation (File::userMusicDirectory);
-        if (! folder.isDirectory()) folder = File::getSpecialLocation (File::userHomeDirectory);
-        refresh ({});
-    }
-
-    void refresh (const String& filter)
-    {
-        entries.clear();
-        for (const auto& e : RangedDirectoryIterator (folder, false, "*", File::findFilesAndDirectories))
-        {
-            const auto f = e.getFile();
-            if (f.isHidden()) continue;
-            if (! f.isDirectory() && ! f.hasFileExtension ("wav;aif;aiff;flac;mp3;ogg;mid;midi")) continue;
-            if (filter.isNotEmpty() && ! f.getFileName().containsIgnoreCase (filter)) continue;
-            entries.push_back (f);
-        }
-        std::sort (entries.begin(), entries.end(), [] (const File& a, const File& b)
-        {
-            if (a.isDirectory() != b.isDirectory()) return a.isDirectory();
-            return a.getFileName().compareIgnoreCase (b.getFileName()) < 0;
-        });
-    }
-
-    int getNumRows() override { return (int) entries.size(); }
-
-    void paintListBoxItem (int row, Graphics& g, int w, int h, bool selected) override
-    {
-        if (row < 0 || row >= (int) entries.size()) return;
-        const auto& f = entries[(size_t) row];
-        if (selected) { g.setColour (theme::rule); g.fillRect (0, 0, w, h); }
-        g.setColour (f.isDirectory() ? theme::textSecondary : theme::text);
-        g.setFont (theme::font());
-        g.drawText ((f.isDirectory() ? ui::u8 ("\xe2\x96\xb8 ") : String()) + f.getFileName(), 8, 0, w - 16, h, Justification::centredLeft, true);
-    }
-
-    void listBoxItemClicked (int row, const MouseEvent&) override
-    {
-        if (row >= 0 && row < (int) entries.size() && ! entries[(size_t) row].isDirectory()) owner.preview (entries[(size_t) row]);
-    }
-
-    void listBoxItemDoubleClicked (int row, const MouseEvent&) override
-    {
-        if (row < 0 || row >= (int) entries.size()) return;
-        const auto f = entries[(size_t) row];
-        if (f.isDirectory()) { folder = f; refresh ({}); owner.fileBox.updateContent(); owner.repaint(); return; }
-        owner.c.importFile (f, owner.c.focusTrack, owner.c.cursor);
-    }
-
-    var getDragSourceDescription (const SparseSet<int>& rows) override
-    {
-        if (rows.isEmpty() || entries[(size_t) rows[0]].isDirectory()) return {};
-        return "file:" + entries[(size_t) rows[0]].getFullPathName();
-    }
-
-    Browser& owner;
-    File folder;
-    std::vector<File> entries;
-};
-
 struct Browser::PresetList : public ListBoxModel
 {
     PresetList (Controller& ctrl) : c (ctrl) {}
@@ -204,22 +141,13 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl), keysPanel (ctrl.k
     {
         plugins->filter (search.getText());
         pluginBox.updateContent();
-        files->refresh (search.getText());
-        fileBox.updateContent();
+        sounds->setFilter (search.getText());
         presets->refresh (search.getText());
         presetBox.updateContent();
         repaint();
     };
     addAndMakeVisible (scan);
     scan.onClick = [this] { c.scanPlugins(); };
-    addChildComponent (up);
-    up.onClick = [this]
-    {
-        files->folder = files->folder.getParentDirectory();
-        files->refresh (search.getText());
-        fileBox.updateContent();
-        repaint();
-    };
 
     plugins = std::make_unique<PluginList> (c);
     plugins->filter ({});
@@ -227,26 +155,20 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl), keysPanel (ctrl.k
     pluginBox.setRowHeight (theme::px (34));
     pluginBox.setTitle ("Plug-ins");
     addAndMakeVisible (pluginBox);
-    files = std::make_unique<FileList> (*this);
-    fileBox.setModel (files.get());
-    fileBox.setRowHeight (theme::px (24));
-    fileBox.setTitle ("Files");
-    addChildComponent (fileBox);
+    sounds = std::make_unique<LibraryView> (c);
+    addChildComponent (*sounds);
     presets = std::make_unique<PresetList> (c);
     presetBox.setModel (presets.get());
     presetBox.setRowHeight (theme::px (34));
     presetBox.setTitle ("Presets");
     addChildComponent (presetBox);
     c.addChangeListener (this);
-    for (auto* box : { &pluginBox, &fileBox, &presetBox })
+    for (auto* box : { &pluginBox, &presetBox })
     {
         box->setColour (ListBox::backgroundColourId, theme::sunken);
         box->setColour (ListBox::outlineColourId, theme::rule);
     }
 
-    formats.registerBasicFormats();
-    previewPlayer.setSource (&transport);
-    c.engine.devices().addAudioCallback (&previewPlayer);
     c.engine.plugins().known().addChangeListener (this);
     showTab (Tab::Plugins);
 }
@@ -255,9 +177,6 @@ Browser::~Browser()
 {
     c.removeChangeListener (this);
     c.engine.plugins().known().removeChangeListener (this);
-    c.engine.devices().removeAudioCallback (&previewPlayer);
-    transport.setSource (nullptr);
-    previewPlayer.setSource (nullptr);
 }
 
 void Browser::changeListenerCallback (ChangeBroadcaster* from)
@@ -270,21 +189,6 @@ void Browser::changeListenerCallback (ChangeBroadcaster* from)
     plugins->filter (search.getText());
     pluginBox.updateContent();
     pluginBox.repaint();
-}
-
-void Browser::preview (const File& f)
-{
-    transport.stop();
-    transport.setSource (nullptr);
-    reader.reset();
-    if (f.hasFileExtension ("mid;midi")) return;
-    if (auto* r = formats.createReaderFor (f))
-    {
-        reader = std::make_unique<AudioFormatReaderSource> (r, true);
-        transport.setSource (reader.get(), 0, nullptr, r->sampleRate);
-        transport.setGain (0.7f);
-        transport.start();
-    }
 }
 
 void Browser::showTab (Tab t)
@@ -303,8 +207,7 @@ void Browser::showTab (Tab t)
     studioView.setVisible (t == Tab::Studio);
     pluginBox.setVisible (t == Tab::Plugins);
     scan.setVisible (t == Tab::Plugins);
-    fileBox.setVisible (t == Tab::Files);
-    up.setVisible (t == Tab::Files);
+    sounds->setVisible (t == Tab::Files);
     search.setVisible (t == Tab::Plugins || t == Tab::Files || t == Tab::Presets);
     cores.setVisible (t == Tab::Audio);
     cores.setToggleState (c.engine.isParallel(), dontSendNotification);
@@ -322,12 +225,6 @@ void Browser::showTab (Tab t)
 void Browser::paint (Graphics& g)
 {
     g.fillAll (theme::ground);
-    if (tab == Tab::Files)
-    {
-        g.setColour (theme::textSecondary);
-        g.setFont (theme::font (theme::smallPoints));
-        g.drawFittedText (files->folder.getFullPathName(), up.getBounds().withLeft (up.getRight() + 6).withRight (getWidth() - 8), Justification::centredLeft, 1);
-    }
     g.setColour (theme::rule);
     g.fillRect (getWidth() - 1, 0, 1, getHeight());
 }
@@ -360,14 +257,8 @@ void Browser::resized()
         search.setBounds (row);
         r.removeFromTop (theme::px (6));
     }
-    if (tab == Tab::Files)
-    {
-        auto row = r.removeFromTop (theme::px (24));
-        up.setBounds (row.removeFromLeft (theme::px (28)));
-        r.removeFromTop (theme::px (4));
-    }
     pluginBox.setBounds (r);
-    fileBox.setBounds (r);
+    sounds->setBounds (r);
     presetBox.setBounds (r);
     if (tab == Tab::Audio)
     {

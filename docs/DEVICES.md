@@ -338,6 +338,16 @@ resonances, glowing as they sound.
 Gives one sample the **attack of another**: A's body with B's attack, or the
 other way round.
 
+**Giving it samples:** drag a sound from the browser's **Sounds** tab (or a
+file from the Finder) onto its window: let go over **row A** or **row B**
+for that row, or anywhere else for the first empty one. Two files from the
+Finder at once fill A and B. WAV, AIFF, FLAC, MP3 and Ogg, up to 16 seconds.
+
+**Print** puts the result in the song: a new audio track under the device's
+own, named for them both ("Hits Transient Shuffler"), the result as a clip
+at the cursor, saved as 32-bit float WAV in the song's Audio folder. One
+undo step.
+
 | Control | Does |
 | --- | --- |
 | **Result** | *A with B's attack* or *B with A's attack* (keys 1 and 2). |
@@ -356,11 +366,8 @@ Play it with the Play buttons, by clicking a waveform, or with MIDI notes
 (velocity sets the level). Keys in its window: Space plays the result, A and
 B play the samples, Esc stops.
 
-> **In Kalibre, not yet working:** Transient Shuffler is given its samples by
-> dropping files onto its window, and Kalibre doesn't pass dropped files to
-> it yet, so it can't be loaded. Its **Print** button (which adds the result
-> to the song) is REAPER's and does nothing in Kalibre, though its message
-> says it printed.
+*Tried: drag from the Sounds tab and Print, in the tests. Not yet on your
+Mac, nor dropping from the Finder there.*
 
 ### Container
 
@@ -672,7 +679,6 @@ All the sound passes through it untouched.
 
 | Device | What | Instead |
 | --- | --- | --- |
-| Transient Shuffler | Dropping samples on its window; **Print** | Nothing yet: it can't be loaded in Kalibre. |
 | Midi Evolver | **Drag Out…**, **Insert** | Arm the track for MIDI (right-click its arm button) and record. |
 | Good Idea, Starting Blocks, Midi Catalogue | Dragging a block out; **Choose Folder…** | Insert at Cursor; exports go to Music/(the tool's name). |
 

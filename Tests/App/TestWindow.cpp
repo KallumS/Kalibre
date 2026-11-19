@@ -121,3 +121,121 @@ TEST ("window: a key can be given to another command, the menus say so, and a wo
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+namespace
+{
+MouseEvent mouseAt (Component& comp, Point<int> p, Point<int> down, bool dragged)
+{
+    return MouseEvent (Desktop::getInstance().getMainMouseSource(), p.toFloat(), ModifierKeys (ModifierKeys::leftButtonModifier),
+                       MouseInputSource::defaultPressure, 0.0f, 0.0f, 0.0f, 0.0f, &comp, &comp, Time::getCurrentTime(),
+                       down.toFloat(), Time::getCurrentTime(), 1, dragged);
+}
+
+void dragBy (Component& comp, Point<int> from, int dx)
+{
+    comp.mouseDown (mouseAt (comp, from, from, false));
+    for (int i = 1; i <= 8; ++i) comp.mouseDrag (mouseAt (comp, from + Point<int> (dx * i / 8, 0), from, true));
+    comp.mouseUp (mouseAt (comp, from + Point<int> (dx, 0), from, true));
+}
+} // namespace
+
+TEST ("browser: dragged narrower than its smallest it shuts, leaving a bar at the left; dragging the bar, or a click, opens it again (0094)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        w.browserWidth = 320;
+        w.showBrowser (Browser::Tab::Plugins);
+        auto handle = w.browserHandle();
+        CHECK (! handle.isEmpty());
+        // Narrower: it stops at its smallest.
+        dragBy (w, handle.getCentre(), -100);
+        CHECK (w.browserShown);
+        CHECK_EQ (w.browserBounds().getWidth(), theme::px (240));
+        // Past that, it shuts: a thin bar at the window's left edge is left.
+        handle = w.browserHandle();
+        dragBy (w, handle.getCentre(), -200);
+        CHECK (! w.browserShown);
+        handle = w.browserHandle();
+        CHECK_EQ (handle.getX(), 0);
+        CHECK (handle.getWidth() > 0 && handle.getWidth() <= theme::px (8));
+        CHECK (handle.getHeight() > 300);
+        // Dragging the bar opens it, as wide as the drag.
+        dragBy (w, handle.getCentre(), 330);
+        CHECK (w.browserShown);
+        CHECK (std::abs (w.browserBounds().getWidth() - 330) <= theme::px (8));
+        // Shut with the key, then a click on the bar opens it as wide as it was.
+        w.hideBrowser();
+        CHECK (! w.browserShown);
+        handle = w.browserHandle();
+        w.mouseDown (mouseAt (w, handle.getCentre(), handle.getCentre(), false));
+        w.mouseUp (mouseAt (w, handle.getCentre(), handle.getCentre(), false));
+        CHECK (w.browserShown);
+        CHECK (std::abs (w.browserBounds().getWidth() - 330) <= theme::px (8));
+        w.hideBrowser();   // as it was: the window saves it for the next one
+        w.browserWidth = 320;
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+namespace
+{
+void dragUpBy (Component& comp, Point<int> from, int dy)
+{
+    comp.mouseDown (mouseAt (comp, from, from, false));
+    for (int i = 1; i <= 8; ++i) comp.mouseDrag (mouseAt (comp, from + Point<int> (0, -dy * i / 8), from, true));
+    comp.mouseUp (mouseAt (comp, from + Point<int> (0, -dy), from, true));
+}
+} // namespace
+
+TEST ("lower zone: dragged lower than its smallest it shuts, leaving a bar at the bottom; dragging the bar, a click, or asking for a tab opens it")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        w.lowerHeight = 320;
+        w.showLowerZone();
+        auto handle = w.lowerHandle();
+        CHECK (! handle.isEmpty());
+        // Lower: it stops at its smallest.
+        dragUpBy (w, handle.getCentre(), -250);
+        CHECK (w.lowerShown);
+        CHECK_EQ (w.lowerBounds().getHeight(), theme::px (120));
+        // Past that, it shuts: a thin bar along the bottom is left, and the tracks take the room.
+        handle = w.lowerHandle();
+        dragUpBy (w, handle.getCentre(), -100);
+        CHECK (! w.lowerShown);
+        handle = w.lowerHandle();
+        CHECK_EQ (handle.getBottom(), w.getHeight());
+        CHECK (handle.getHeight() > 0 && handle.getHeight() <= theme::px (8));
+        CHECK (handle.getWidth() > 600);
+        // Dragging the bar up opens it, as tall as the drag.
+        dragUpBy (w, handle.getCentre(), 300);
+        CHECK (w.lowerShown);
+        CHECK (std::abs (w.lowerBounds().getHeight() - 300) <= theme::px (8));
+        // Shut again; a click on the bar opens it as tall as it was.
+        w.hideLowerZone();
+        handle = w.lowerHandle();
+        w.mouseDown (mouseAt (w, handle.getCentre(), handle.getCentre(), false));
+        w.mouseUp (mouseAt (w, handle.getCentre(), handle.getCentre(), false));
+        CHECK (w.lowerShown);
+        CHECK (std::abs (w.lowerBounds().getHeight() - 300) <= theme::px (8));
+        // Shut, a tab asked for (the Mixer's key) opens it on that tab.
+        w.hideLowerZone();
+        w.keyPressed (KeyPress ('x'));
+        CHECK (w.lowerShown);
+        CHECK (c.zoneTab == ZoneTab::Mixer);
+        w.lowerHeight = 320;
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

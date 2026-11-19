@@ -53,6 +53,12 @@ grow and shrink with it.
   under the pointer: a note's pitch, velocity and length, a clip's length and
   notes. **The top bar** shows what you choose (right-click it), with the
   arrangement's **grid** and **Follow** that scrolls or turns the page.
+- **A Sounds browser** on the left: the samples and MIDI files in the folders
+  you choose, scanned once, in folders or one list, A to Z or shuffled, with
+  favourites. Click one to hear it (Up and Down for the next) in time with
+  the song, MIDI through Kalibre's own synth; drag it in, or right-click for
+  a new track with Kalibre Sampler or Synth. WAV, AIFF, FLAC, Ogg, MP3, AAC
+  and ALAC.
 - **Cubase's toolbox**: hold Control and right-click over the tracks or the
   piano roll, and pick a tool: Select, Range, Split, Glue, Erase, Zoom, Mute,
   Draw, Line, Play, Hand, Drumstick or Time Warp. The pointer becomes the

@@ -223,7 +223,95 @@ int main (int argc, char** argv)
         shoot ("32-browser-audio");
         window.showBrowser (Browser::Tab::Keys);
         shoot ("33-browser-keys");
+        // The Sounds tab (decision 0094): a small library of drums, loops and MIDI.
+        {
+            const auto lib = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-library");
+            lib.deleteRecursively();
+            const auto sounds = lib.getChildFile ("Sounds");
+            WavAudioFormat wavOut;
+            auto write = [&] (const String& name, double seconds, std::function<float (double)> fn)
+            {
+                const auto f = sounds.getChildFile (name);
+                f.getParentDirectory().createDirectory();
+                AudioBuffer<float> b (2, (int) (seconds * 48000));
+                for (int i = 0; i < b.getNumSamples(); ++i) { const float v = fn (i / 48000.0); b.setSample (0, i, v); b.setSample (1, i, v); }
+                std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+                if (auto w = wavOut.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (24)))
+                    w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+            };
+            Random rnd (7);
+            const double pi = MathConstants<double>::pi;
+            write ("Drums/Kick Deep.wav", 0.6, [&] (double t) { return (float) (0.9 * std::exp (-t * 9) * std::sin (2 * pi * (50 + 120 * std::exp (-t * 30)) * t)); });
+            write ("Drums/Snare Tight.wav", 0.4, [&] (double t) { return (float) (0.7 * std::exp (-t * 14) * (rnd.nextFloat() * 2 - 1)); });
+            write ("Drums/Hat Closed.wav", 0.15, [&] (double t) { return (float) (0.5 * std::exp (-t * 40) * (rnd.nextFloat() * 2 - 1)); });
+            write ("Drums/Breakbeat 96bpm.wav", 2.5, [&] (double t)
+            {
+                const double beat = std::fmod (t * 96 / 60, 1.0), half = std::fmod (t * 96 / 30, 2.0);
+                return (float) (0.8 * std::exp (-beat * 7) * std::sin (2 * pi * 60 * t) * (half < 1 ? 1.0 : 0.4) + 0.2 * std::exp (-std::fmod (t * 96 / 30, 1.0) * 10) * (rnd.nextFloat() * 2 - 1));
+            });
+            write ("Loops/Pad Swell 120bpm.wav", 4.0, [&] (double t) { return (float) (0.5 * std::sin (pi * t / 4) * (std::sin (2 * pi * 220 * t) + 0.5 * std::sin (2 * pi * 277 * t))); });
+            write ("Loops/Pluck Arp 120bpm.wav", 2.0, [&] (double t) { return (float) (0.7 * std::exp (-std::fmod (t * 4, 1.0) * 6) * std::sin (2 * pi * 440 * t)); });
+            write ("Vocals/Ooh Stack.wav", 1.8, [&] (double t) { return (float) (0.6 * std::sin (pi * t / 1.8) * std::sin (2 * pi * 330 * t + std::sin (2 * pi * 5 * t))); });
+            auto midi = [&] (const String& name, std::vector<std::array<int, 3>> notes)   // start, length (sixteenths), pitch
+            {
+                MidiFile mf;
+                mf.setTicksPerQuarterNote (480);
+                MidiMessageSequence seq;
+                for (auto& n : notes)
+                {
+                    seq.addEvent (MidiMessage::noteOn (1, n[2], (uint8) 100).withTimeStamp (n[0] * 120));
+                    seq.addEvent (MidiMessage::noteOff (1, n[2]).withTimeStamp ((n[0] + n[1]) * 120));
+                }
+                seq.updateMatchedPairs();
+                mf.addTrack (seq);
+                const auto f = sounds.getChildFile (name);
+                f.getParentDirectory().createDirectory();
+                FileOutputStream out (f);
+                mf.writeTo (out);
+            };
+            std::vector<std::array<int, 3>> chords;
+            const int prog[4][3] { { 57, 60, 64 }, { 53, 57, 60 }, { 48, 52, 55 }, { 55, 59, 62 } };
+            for (int b = 0; b < 4; ++b) for (int k = 0; k < 3; ++k) chords.push_back ({ b * 16, 15, prog[b][k] });
+            midi ("MIDI/Chords Am F C G.mid", chords);
+            std::vector<std::array<int, 3>> bass;
+            const int roots[] { 45, 41, 36, 43 };
+            for (int b = 0; b < 4; ++b) for (int i = 0; i < 4; ++i) bass.push_back ({ b * 16 + i * 4, 3, roots[b] + (i == 3 ? 7 : 0) });
+            midi ("MIDI/Bass Eighths.mid", bass);
+            auto& sv = window.library();
+            library::Settings ls;
+            ls.folders = { sounds.getFullPathName().toStdString() };
+            ls.asked = true;
+            for (auto* sub : { "", "/Drums", "/Loops" }) ls.open.insert (sounds.getFullPathName().toStdString() + sub);
+            ls.favourites = { sounds.getChildFile ("Drums/Breakbeat 96bpm.wav").getFullPathName().toStdString(),
+                              sounds.getChildFile ("Loops").getFullPathName().toStdString() };
+            const auto store = lib.getChildFile ("Store");
+            store.createDirectory();
+            store.getChildFile ("Library Settings.json").replaceWithText (library::toJson (ls));
+            sv.useStore (store);
+            sv.scanner().waitUntilDone (20000);
+            window.browserWidth = 360;
+            window.showBrowser (Browser::Tab::Files);
+            for (size_t i = 0; i < sv.shown().size(); ++i)
+                if (library::nameOf (sv.shown()[i].path) == "Breakbeat 96bpm.wav") sv.list().selectRow ((int) i);
+            shoot ("34-sounds");
+            sv.settings().flat = true;
+            sv.settings().shuffled = true;
+            sv.settings().seed = 31;
+            sv.refreshRows();
+            for (size_t i = 0; i < sv.shown().size(); ++i)
+                if (library::nameOf (sv.shown()[i].path) == "Chords Am F C G.mid") sv.list().selectRow ((int) i);
+            shoot ("35-sounds-all-items-shuffled");
+            sv.settings().flat = false;
+            sv.settings().shuffled = false;
+            sv.useStore (LibraryView::defaultStore());   // not left pointing at the demo
+            lib.deleteRecursively();
+            window.browserWidth = 320;
+        }
         window.hideBrowser();
+        // The lower zone shut (decision 0094): a bar along the bottom to open it from.
+        window.hideLowerZone();
+        shoot ("36-lower-zone-shut");
+        window.showLowerZone();
         // An audio clip in the sample editor (decision 0036).
         for (auto& t : c.project.tracks)
             if (t.name == "Vocal" && ! t.clips().empty()) c.selectClip (t.clips().front().id);

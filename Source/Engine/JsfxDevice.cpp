@@ -14,6 +14,8 @@
 void** get_gmem_address (ysfx_t*);
 std::string get_gmem_identifier (ysfx_t*);
 extern "C" double* __NSEEL_RAMAllocGMEM (double*** blocks, unsigned int w);
+// ysfx's export_buffer_to_project, filled in by cmake/App.cmake to call this.
+extern "C" int (*kalibre_export_buffer_to_project) (void* fx, const double* interleaved, long long frames, int channels, double rate, int track);
 
 namespace kal
 {
@@ -468,9 +470,29 @@ void SliderParameter::setValue (float v)
 
 //==============================================================================
 // The window: the JSFX's @gfx and nothing else, at the size it asks for.
-class JsfxEditor : public AudioProcessorEditor
+class JsfxEditor : public AudioProcessorEditor, public DragAndDropTarget
 {
 public:
+    // A sound dragged from the browser's Sounds tab arrives as a dropped file,
+    // as one from the Finder does (Transient Shuffler's samples, 0094).
+    bool isInterestedInDragSource (const SourceDetails& d) override
+    {
+        return view != nullptr && d.description.toString().startsWith ("file:");
+    }
+
+    void itemDropped (const SourceDetails& d) override
+    {
+        if (! view) return;
+        const auto p = d.localPosition - view->getPosition();
+        // During Kalibre's own drag the mouse belongs to where it started, so the
+        // window hasn't followed it: told where it was let go first, so a JSFX that
+        // puts a file where it lands (Transient Shuffler's rows) puts it there.
+        const MouseEvent moved (Desktop::getInstance().getMainMouseSource(), p.toFloat(), ModifierKeys(), MouseInputSource::defaultPressure,
+                                0.0f, 0.0f, 0.0f, 0.0f, view.get(), view.get(), Time::getCurrentTime(), p.toFloat(), Time::getCurrentTime(), 0, false);
+        static_cast<MouseListener&> (*view).mouseMove (moved);
+        static_cast<FileDragAndDropTarget&> (*view).filesDropped ({ d.description.toString().fromFirstOccurrenceOf ("file:", false, false) }, p.x, p.y);
+    }
+
     explicit JsfxEditor (JsfxProcessor& p) : AudioProcessorEditor (p), proc (p)
     {
         const auto& s = p.specification();
@@ -510,7 +532,39 @@ private:
 };
 
 AudioProcessorEditor* JsfxProcessor::createEditor() { return new JsfxEditor (*this); }
+
+JsfxExport exportHandler;
+
+// From the JSFX's @gfx thread: its buffer copied, then handed over on the message thread.
+int exportBuffer (void* fx, const double* interleaved, long long frames, int channels, double rate, int)
+{
+    JsfxProcessor* owner = nullptr;
+    {
+        const std::lock_guard<std::mutex> g (liveLock);
+        for (auto* p : live) if (p->effect() == fx) owner = p;
+    }
+    if (! owner || frames <= 0 || channels <= 0) return 0;
+    auto buffer = std::make_shared<AudioBuffer<float>> (jmin (channels, 2), (int) frames);
+    for (int c = 0; c < buffer->getNumChannels(); ++c)
+        for (int i = 0; i < (int) frames; ++i)
+            buffer->setSample (c, i, (float) interleaved[(size_t) i * (size_t) channels + (size_t) c]);
+    MessageManager::callAsync ([owner, buffer, rate]
+    {
+        {
+            const std::lock_guard<std::mutex> g (liveLock);
+            if (std::find (live.begin(), live.end(), owner) == live.end()) return;   // gone since
+        }
+        if (exportHandler) exportHandler (*owner, *buffer, rate);
+    });
+    return 1;
+}
 } // namespace
+
+void setJsfxExportHandler (JsfxExport handler)
+{
+    exportHandler = std::move (handler);
+    kalibre_export_buffer_to_project = &exportBuffer;
+}
 
 double* jsfxGmem (const String& name, unsigned int index)
 {

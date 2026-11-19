@@ -422,3 +422,130 @@ TEST ("family devices: each JSFX's window drawn on the screen for a while, then 
         MessageManager::getInstance()->runDispatchLoopUntil (50);
     }
 }
+
+namespace
+{
+// A value in the JSFX's memory: `array[index]`, `array` a global holding its address.
+double jsfxArray (AudioPluginInstance& p, const char* array, int index)
+{
+    return jsfxMemory (p, (unsigned int) (jsfxVariable (p, array) + index));
+}
+
+template <typename T>
+T* findChild (Component& root)
+{
+    if (auto* t = dynamic_cast<T*> (&root)) return t;
+    for (auto* child : root.getChildren())
+        if (auto* t = findChild<T> (*child)) return t;
+    return nullptr;
+}
+
+File writeShufflerSample (const String& name, bool clicky)
+{
+    const auto f = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-shuffler").getChildFile (name);
+    f.getParentDirectory().createDirectory();
+    f.deleteFile();
+    AudioBuffer<float> b (1, 48000);
+    Random rnd (3);
+    for (int i = 0; i < b.getNumSamples(); ++i)
+    {
+        const double t = i / 48000.0;
+        const double v = clicky ? std::exp (-t * 30) * (rnd.nextFloat() * 2 - 1) * 0.8
+                                : 0.6 * std::min (1.0, t * 20) * std::sin (2 * MathConstants<double>::pi * 220 * t);
+        b.setSample (0, i, (float) v);
+    }
+    WavAudioFormat wav;
+    std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+    if (auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (1).withBitsPerSample (24)))
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    return f;
+}
+} // namespace
+
+TEST ("family devices: Transient Shuffler takes samples dragged in from the Sounds tab, and Print puts the result on a new audio track")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Hits");
+    const Id dev = edit::addDevice (c.project, t, jsfxRef (spec ("transient-shuffler")), DeviceRole::AudioFx);
+    c.refresh();
+    auto* inst = engine.instance (dev);
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    inst->prepareToPlay (48000, 512);
+    const auto pad = writeShufflerSample ("Pad.wav", false);
+    const auto click = writeShufflerSample ("Click.wav", true);
+
+    editors::Owned e (editors::open (*inst));
+    CHECK (e != nullptr);
+    if (! e) return;
+    e->addToDesktop (ComponentPeer::windowHasTitleBar);
+    e->setVisible (true);
+    auto waitFor = [&] (std::function<bool()> done, int ms)
+    {
+        const auto until = Time::getMillisecondCounter() + (uint32) ms;
+        while (! done() && Time::getMillisecondCounter() < until)
+        {
+            MessageManager::getInstance()->runDispatchLoopUntil (20);
+            play (*inst, 1);
+        }
+        return done();
+    };
+
+    // Dragged from the Sounds tab: Kalibre's own drag, a file's path, let go
+    // over row A, then over row B (the pointer is where it's let go).
+    auto* target = findChild<DragAndDropTarget> (*e);
+    CHECK (target != nullptr);
+    if (! target) return;
+    Component* view = nullptr;
+    for (auto* child : e->getChildren()) if (child->getWidth() > 100) view = child;
+    CHECK (view != nullptr);
+    if (! view) return;
+    waitFor ([&] { return jsfxVariable (*inst, "rowB_y") > 0; }, 3000);   // laid out
+    auto pointAt = [&] (Point<int> p) { Desktop::setMousePosition (view->localPointToGlobal (p)); waitFor ([] { return false; }, 200); };
+    for (const auto& f : { pad, click })
+    {
+        const int row = (int) jsfxVariable (*inst, f == pad ? "rowA_y" : "rowB_y") + 20;
+        DragAndDropTarget::SourceDetails d (var ("file:" + f.getFullPathName()), nullptr, view->getPosition() + Point<int> (view->getWidth() / 2, row));
+        CHECK (target->isInterestedInDragSource (d));
+        target->itemDropped (d);
+        waitFor ([&] { return jsfxArray (*inst, "s_len", f == pad ? 0 : 1) > 0; }, 5000);
+    }
+    CHECK (jsfxArray (*inst, "s_len", 0) > 40000);   // A: the pad, a second long
+    CHECK (jsfxArray (*inst, "s_len", 1) > 40000);   // B: the click
+    CHECK (waitFor ([&] { return jsfxArray (*inst, "s_len", 2) > 0; }, 5000));   // A with B's attack, made
+
+    // Its own Print button, clicked.
+    const double S = jsfxVariable (*inst, "S"), pad0 = jsfxVariable (*inst, "pad"), bw = jsfxVariable (*inst, "bw"),
+                 labw = jsfxVariable (*inst, "labw"), rowR = jsfxVariable (*inst, "rowR_y");
+    const Point<int> at ((int) (pad0 + bw + 12 * S + (labw - bw - 12 * S) / 2), (int) (rowR + 104 * S + 14 * S));
+    auto mouse = [&] (bool down)
+    {
+        const MouseEvent ev (Desktop::getInstance().getMainMouseSource(), at.toFloat(),
+                             down ? ModifierKeys (ModifierKeys::leftButtonModifier) : ModifierKeys(), MouseInputSource::defaultPressure,
+                             0.0f, 0.0f, 0.0f, 0.0f, view, view, Time::getCurrentTime(), at.toFloat(), Time::getCurrentTime(), 1, false);
+        if (down) { view->mouseMove (ev); view->mouseDown (ev); } else view->mouseUp (ev);
+    };
+    const size_t tracksBefore = c.project.tracks.size();
+    pointAt (at);
+    mouse (true);
+    waitFor ([] { return false; }, 300);
+    mouse (false);
+    CHECK (waitFor ([&] { return c.project.tracks.size() > tracksBefore; }, 5000));
+    if (c.project.tracks.size() <= tracksBefore) return;
+    // A new audio track under the device's own, the result on it as a clip at the cursor.
+    const auto& made = c.project.tracks[1];
+    CHECK_EQ (made.name, std::string ("Hits Transient Shuffler"));
+    CHECK_EQ (made.clips().size(), (size_t) 1);
+    if (made.clips().empty()) return;
+    const auto& clip = made.clips()[0];
+    CHECK (! clip.isMidi());
+    CHECK (File (clip.audio.file).existsAsFile());
+    CHECK (std::abs (clip.audio.sourceLength - 1.0) < 0.05);
+    CHECK_EQ (clip.start, c.cursor);
+    // One undo step takes it away.
+    c.undo();
+    CHECK_EQ (c.project.tracks.size(), tracksBefore);
+}

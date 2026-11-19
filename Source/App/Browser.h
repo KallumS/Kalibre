@@ -5,15 +5,16 @@
     Presets (decision 0039): the saved presets of the chosen track's
     plug-ins; double-click one to load it.
     Plug-ins: search by name or maker; drag one onto a track, or double-click
-    to add it to the chosen track. Files: audio and MIDI from your folders;
-    click to hear it, drag it onto a track or double-click to put it at the
-    cursor. Audio: the interface, sample rate and buffer size.
+    to add it to the chosen track. Sounds (decision 0094): the samples and
+    MIDI files in the folders chosen, to hear, keep as favourites, and drag
+    onto a track (LibraryView). Audio: the interface, sample rate and buffer size.
 */
 
 #pragma once
 
 #include "Controller.h"
 #include "KeysPanel.h"
+#include "LibraryView.h"
 #include "StudioPanel.h"
 #include "Theme.h"
 
@@ -33,11 +34,12 @@ public:
     enum class Tab { Plugins, Files, Audio, Studio, Presets, Keys };
     void showTab (Tab);
     Tab shownTab() const { return tab; }
+    LibraryView& library() { return *sounds; }
 
 private:
     Controller& c;
     theme::HouseButton pluginsTab { "Plug-ins", "Every plug-in found on this Mac." };
-    theme::HouseButton filesTab { "Files", "Audio and MIDI files." };
+    theme::HouseButton filesTab { "Sounds", "Samples and MIDI files from your folders, to hear and drag into the song." };
     theme::HouseButton audioTab { "Audio", "The audio interface, sample rate and buffer size." };
     theme::HouseButton presetsTab { "Presets", "Saved presets for the chosen track's plug-ins." };
     theme::HouseButton keysTab { "Keys", "Every command and its key: change any of them." };
@@ -49,26 +51,17 @@ private:
     juce::TextEditor search;
 
     struct PluginList;
-    struct FileList;
     struct PresetList;
     std::unique_ptr<PresetList> presets;
     juce::ListBox presetBox;
     std::unique_ptr<PluginList> plugins;
-    std::unique_ptr<FileList> files;
+    std::unique_ptr<LibraryView> sounds;
     std::unique_ptr<juce::AudioDeviceSelectorComponent> audio;
     // Every performance core, or the audio thread alone (decision 0078).
     theme::HouseButton cores { "Use Every Core", "Play the tracks on all the Mac's performance cores at once, not one after another. "
                                                   "Off: everything on one core, as before.", true };
-    juce::ListBox pluginBox, fileBox;
-    theme::HouseButton up { ui::u8 ("\xe2\x86\x91"), "The folder above." };
+    juce::ListBox pluginBox;
     Tab tab = Tab::Plugins;
-
-    // Hearing a file before using it.
-    juce::AudioFormatManager formats;
-    juce::AudioTransportSource transport;
-    std::unique_ptr<juce::AudioFormatReaderSource> reader;
-    juce::AudioSourcePlayer previewPlayer;
-    void preview (const juce::File&);
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
 };

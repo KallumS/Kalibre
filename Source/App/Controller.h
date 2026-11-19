@@ -215,7 +215,13 @@ public:
     bool openBackup (const juce::File&);       // as this song, unsaved
     static constexpr int backupMinutes = 15, backupsKept = 48;
     juce::File recordingsFolder() const;
-    bool importFile (const juce::File&, Id track, Tick at);   // audio, MIDI
+    // Audio or MIDI. With `makeTrack`, it runs first, in the same undo step, and
+    // the clip goes on the track it returns (the browser's New Track with..., 0094).
+    bool importFile (const juce::File&, Id track, Tick at, std::function<Id (Project&)> makeTrack = {}, const juce::String& label = {});
+    // The tempo an audio file was made at: from its name ("Drums 96bpm") or its ACID chunk; 0 when unknown.
+    static double tempoOfAudioFile (const juce::File&);
+    // A device's printed sound (a JSFX's export_buffer_to_project) on a new track under its own.
+    bool printFromDevice (juce::AudioPluginInstance&, const juce::AudioBuffer<float>&, double sampleRate);
     bool importVideo (const juce::File&, Tick at);           // the picture, and its sound on a track (decision 0046)
     bool exportMidi (const juce::File&);
     // MusicXML (decision 0057): the chosen tracks (or every track with MIDI) out;

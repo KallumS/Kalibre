@@ -54,18 +54,23 @@ Manager, the Articulation Manager) get windows of their own.
 1. **Choose your audio interface.** Kalibre > Audio and MIDI Settings… (⌘,)
    opens the browser's **Audio** tab: the interface, sample rate and buffer
    size. Every MIDI keyboard is listened to without setting anything up.
-2. **Find your plug-ins.** Kalibre > Plug-in Manager… > **Scan for New
+2. **Choose your sound folders.** Kalibre asks which folders hold your
+   samples and MIDI files (only those are looked through): click **Choose
+   Folders…**. They appear in the browser's **Sounds** tab
+   ([Section 16](#the-sounds-tab)). Change them any time in **Kalibre >
+   Library Folders…**.
+3. **Find your plug-ins.** Kalibre > Plug-in Manager… > **Scan for New
    Plug-ins**. Each plug-in is opened in a separate helper, so one that
    crashes is turned off, with the reason, and the scan carries on. It's only
    needed once, and again after you install new ones.
-3. **Make a track.** ⌘T, or right-click under the tracks > Add Track.
-4. **Give it an instrument.** Choose the track, press **D** for Devices, click
+4. **Make a track.** ⌘T, or right-click under the tracks > Add Track.
+5. **Give it an instrument.** Choose the track, press **D** for Devices, click
    **+ Add** and pick one: your own plug-ins, or Kalibre Synth from Add >
    Kalibre.
-5. **Write some notes.** Double-click the track's lane for a one-bar MIDI
+6. **Write some notes.** Double-click the track's lane for a one-bar MIDI
    clip, press **E** for the Editor, and click in the piano roll to add notes.
-6. **Play.** Space plays and stops; Return goes back to the start.
-7. **Save.** ⌘S. A song is a `.kalibre` file in its own folder, with its
+7. **Play.** Space plays and stops; Return goes back to the start.
+8. **Save.** ⌘S. A song is a `.kalibre` file in its own folder, with its
    audio in an **Audio** folder beside it.
 
 ---
@@ -84,8 +89,23 @@ From top to bottom:
 | **Lanes under the ruler** | The **Sections** lane, the **Chord** lane and the **Tempo** lane, each shown or hidden from the View menu. |
 | **Track headers** | On the left: each track's name, version, I/O, M (mute), S (solo) and arm buttons. [Section 4](#4-tracks). |
 | **The arrangement** | The clips, along the timeline. [Section 5](#5-clips-and-the-arrangement). |
-| **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Launcher** (G), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter. |
-| **The browser** | On the right, shown and hidden with ⌘B: plug-ins, files, audio settings, presets, keys and the studio. [Section 16](#16-the-browser). |
+| **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Launcher** (G), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter; drag it past its shortest and it shuts, leaving a thin bar along the bottom: drag the bar up (or click it) to open it again. Asking for one of its tabs (D, E, X, G, Y) opens it too, as does View > Lower Zone. |
+| **The browser** | On the left: plug-ins, sounds (your samples and MIDI), audio settings, presets, keys and the studio. Drag its right edge to make it wider or narrower; drag it past its narrowest and it shuts, leaving a thin bar at the window's left edge: drag the bar (or click it) to open it again. ⌘B shows and hides it too. [Section 16](#16-the-browser). |
+
+### Shutting the browser and the lower zone
+
+Both shut the same way, to give the tracks the room:
+
+- **Drag** the browser's right edge left, or the lower zone's top edge down,
+  past its smallest size, and it shuts. A thin bar with three dots is left at
+  the window's left edge, or along its bottom.
+- **Drag the bar** right, or up, to open it again, following the pointer; or
+  **click** the bar, and it opens as it was.
+- ⌘B shows and hides the browser; **View > Lower Zone** the lower zone (give
+  it a key in Help > Keys). Pressing D, E, X, G or Y, or anything that asks
+  for one of the zone's tabs, opens the zone on that tab.
+
+![Both shut: the bar at the left and the bar along the bottom](guide/lower-zone-shut.png)
 
 ### Choosing things
 
@@ -241,7 +261,7 @@ inside folders. A folded folder shows where its tracks have clips.
 ### Making clips
 
 - **Double-click** an empty part of a track's lane: a new one-bar MIDI clip.
-- **Drag files** in from the Finder or the browser's Files tab: audio and
+- **Drag files** in from the Finder or the browser's Sounds tab: audio and
   MIDI files go where you drop them. Several files go on new tracks.
 - **File > Import Audio or MIDI…** (⌘I): onto the chosen track, at the
   cursor.
@@ -883,12 +903,21 @@ the playhead. **File > Remove the Video** takes it away.
 
 ## 16. The Browser
 
-⌘B shows and hides it. Six tabs:
+On the left of the window.
+
+- **Wider or narrower**: drag its right edge (the three dots).
+- **Shut**: keep dragging the edge left past its narrowest, and it shuts. A
+  thin bar with three dots stays at the window's left edge.
+- **Open**: drag that bar to the right, and the browser follows; or click
+  the bar, and it opens as wide as it was.
+- ⌘B (or View > Browser) shows and hides it too.
+
+Six tabs:
 
 | Tab | What's in it |
 | --- | --- |
 | **Plug-ins** | Every plug-in found, by kind. Search; drag one onto a track or into the rack. **Scan** looks for new ones. |
-| **Files** | Audio and MIDI files: **↑** goes to the folder above. Drag into the arrangement. |
+| **Sounds** | Your samples and MIDI files, to hear and bring into the song ([below](#the-sounds-tab)). |
 | **Audio** | The audio interface, sample rate and buffer size, inputs and outputs; **Use Every Core** (on unless you switch it off). |
 | **Presets** | Saved presets for the chosen track's plug-ins. |
 | **Keys** | Every command and its key ([Section 21](#21-every-key-command)). |
@@ -896,6 +925,61 @@ the playhead. **File > Remove the Video** takes it away.
 
 ![The browser's Plug-ins tab](guide/browser-plugins.png)
 ![The browser's Audio tab](guide/browser-audio.png)
+
+### The Sounds tab
+
+Every sample and MIDI file in the folders you chose, to hear, mark as
+favourites and bring into the song.
+
+![The Sounds tab, in folders, a loop chosen](guide/sounds.png)
+
+**The folders.** The first time Kalibre opens it asks which folders to look
+in; **Kalibre > Library Folders…** (or **Folders…** in the tab) adds one
+(**Add Folder…**), takes one out (**Remove**: its files aren't touched), or
+looks through them all again (**Look Again**). Only files Kalibre can play
+are listed: WAV, AIFF, FLAC, Ogg, MP3, AAC and ALAC (M4A, CAF), and MIDI.
+Each file is read once; after that only new and changed files are, so
+opening Kalibre doesn't wait. The line under the buttons says how far a scan
+has got, or how many sounds there are.
+
+| Control | Does |
+| --- | --- |
+| **Folders** | The sounds in their folders. Click a folder to open or shut it. |
+| **All Items** | Every sound in one list, without folders. |
+| **★ Only** | Only favourites: sounds and folders with a star, and everything inside a favourite folder. |
+| **A to Z ▾** | The order: **A to Z**, or **Shuffle** (within each folder, or the whole list in All Items). It stays shuffled the same way until you choose **Shuffle Again**. |
+| **Sync** | Previews play at the song's tempo. MIDI always; a sample when its tempo is known: written in its name ("Drums 96bpm", "BPM120") or in the file (an ACID WAV). While the song plays, a preview starts on the next beat. Off: everything as it was made. |
+| **Folders…** | The Library Folders window. |
+| **Search** | At the top of the browser: only sounds whose names hold what you type. |
+
+At the top, **the chosen sound**: its name, length, format and tempo, and
+its waveform, or its notes for MIDI, with the playhead as it plays.
+
+**Hearing sounds**
+
+| Do | To |
+| --- | --- |
+| Click a sound | Hear it. MIDI plays through Kalibre Synth. |
+| ↑ / ↓ | Choose the sound above or below, and hear it. |
+| ← / → | Shut or open a folder (← on a sound goes to its folder). |
+| Return, or double-click | Put it on the chosen track at the cursor. |
+| Click ☆ | Make it a favourite (★); click again to take the star away. |
+
+**Bringing a sound into the song**
+
+| Do | To |
+| --- | --- |
+| Drag it onto a track | It goes where you drop it; onto empty space, a new track. |
+| Right-click > **New Track with Kalibre Sampler** | A sample: a new track with Kalibre Sampler, the sample loaded in it, to play from the keys. A MIDI file: the notes, with an empty sampler. |
+| Right-click > **New Track with Kalibre Synth** | A MIDI file: a new track with Kalibre Synth and the notes at the cursor. |
+| Right-click > **New Track with the Sample** | The sample as a clip on a new track, at the cursor. |
+| Right-click > **Put on the Chosen Track at the Cursor** | |
+| Right-click > **Add to Favourites**, **Show in Finder** | |
+
+Each of these is one undo step. Right-click a folder to make it a favourite
+or show it in the Finder.
+
+![All Items, shuffled, a MIDI file chosen](guide/sounds-shuffled.png)
 
 ### The Plug-in Manager
 
@@ -1052,6 +1136,7 @@ there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 | Audio and MIDI Settings… | ⌘, | The browser's Audio tab. |
 | Sync and Control Surfaces… | | The browser's Studio tab. |
 | Plug-in Manager… | | [Section 16](#the-plug-in-manager). |
+| Library Folders… | | The folders the Sounds tab looks in ([Section 16](#the-sounds-tab)). |
 | Quit Kalibre | ⌘Q | Asks to save first. Kalibre always ends within five seconds, even if a plug-in won't let go. |
 
 ### File
@@ -1166,6 +1251,7 @@ there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 | Clip Launcher | G |
 | Meters | Y |
 | Browser | ⌘B |
+| Lower Zone | |
 | Section Lane | |
 | Chord Lane | |
 | Tempo Lane | |
@@ -1247,6 +1333,7 @@ the Mac says ⌘.*
 | G | Clip Launcher |
 | Y | Meters |
 | ⌘B | Show or Hide the Browser |
+| (none) | Show or Hide the Lower Zone |
 | F | Zoom to Fit |
 | ⌘= | Bigger Text |
 | ⌘- | Smaller Text |
@@ -1295,6 +1382,9 @@ These aren't in the Keys list: they belong to where you are.
 | Step input on | 9 / 0 | Dotted / triplet |
 | Step input on | - | A rest |
 | The toolbox | Esc | Close it |
+| The Sounds tab | ↑ / ↓ | The sound above or below, heard |
+| The Sounds tab | ← / → | Shut or open a folder |
+| The Sounds tab | Return | Put the sound on the chosen track at the cursor |
 | Questions Kalibre asks | Return / Esc | The default button / Cancel |
 | Keys tab | Esc / Delete | Leave the key / take it away |
 
@@ -1346,7 +1436,7 @@ These aren't in the Keys list: they belong to where you are.
 | Drag a warp marker | Move that moment of the audio. |
 | Right-click | The clip menu. |
 | Drag across a take's lane | Use that take there. |
-| Drop files | Import them there. |
+| Drop files (from the Finder or the Sounds tab) | Import them there. |
 
 ### Scrolling and zooming
 
@@ -1356,6 +1446,10 @@ These aren't in the Keys list: they belong to where you are.
 | Shift-scroll, or sideways | Along the song. |
 | ⌘-scroll, or pinch | Zoom around the pointer. |
 | Two-finger swipe over the device rack | Along the rack. |
+| Drag the browser's right edge | Make it wider or narrower; past its narrowest, it shuts. |
+| Drag (or click) the bar at the window's left edge | Open the browser again. |
+| Drag the lower zone's top edge down | Make it shorter; past its shortest, it shuts. |
+| Drag (or click) the bar along the bottom | Open the lower zone again. |
 
 ### Editors
 

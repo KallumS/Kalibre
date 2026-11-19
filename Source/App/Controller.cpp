@@ -1,7 +1,9 @@
 #include "Controller.h"
+#include "LibraryScanner.h"
 #include "ReaperScripts.h"
 #include "NoteSplitter.h"
 #include "AudioFiles.h"
+#include "JsfxDevice.h"
 
 #include "AudioTools.h"
 #include "Capture.h"
@@ -25,6 +27,7 @@ Controller::Controller (Engine& e) : engine (e)
     engine.onTouched = [this] (const Engine::Touch& t) { touched (t); };
     engine.onMessage = [this] (const String& m) { say (m, true); };
     insertToolBlock = [this] (AudioPluginInstance& from, const ToolBlock& b) { return placeToolBlock (from, b); };
+    setJsfxExportHandler ([this] (AudioPluginInstance& from, const AudioBuffer<float>& audio, double rate) { printFromDevice (from, audio, rate); });
     engine.cache.onReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onAudioReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onLearned = [this] (int channel, int controller)
@@ -96,6 +99,7 @@ bool Controller::loadChosenClipsInto (Id device)
 Controller::~Controller()
 {
     stopTimer();
+    setJsfxExportHandler ({});
     reaperScripts.reset();
     engine.cache.onReady = nullptr;
     engine.onTouched = nullptr;
@@ -1092,7 +1096,52 @@ bool Controller::saveAs (const File& f)
     return save();
 }
 
-bool Controller::importFile (const File& original, Id trackId, Tick at)
+// A device's sound printed into the song (Transient Shuffler's Print, 0094):
+// a 32-bit float WAV in the song's Audio folder, as a clip at the cursor on a
+// new track under the device's own, one undo step.
+bool Controller::printFromDevice (AudioPluginInstance& from, const AudioBuffer<float>& audio, double rate)
+{
+    Id track = 0;
+    String deviceName;
+    for (auto& t : project.tracks)
+        for (auto& d : t.devices)
+            if (engine.instance (d.id) == &from) { track = t.id; deviceName = String (d.plugin.name); }
+    const auto* owner = project.track (track);
+    if (! owner || audio.getNumSamples() == 0 || rate <= 0) { say ("The printed sound couldn't be put in the song: its device wasn't found.", true); return false; }
+    const String name = String (owner->name) + " " + deviceName;
+    const auto file = recordingsFolder().getNonexistentChildFile (File::createLegalFileName (name), ".wav");
+    file.getParentDirectory().createDirectory();
+    {
+        auto writer = audiofile::floatWav (file, rate, audio.getNumChannels());
+        if (! writer || ! writer->writeFromAudioSampleBuffer (audio, 0, audio.getNumSamples()))
+        {
+            say ("The printed sound couldn't be written to the song's Audio folder.", true);
+            return false;
+        }
+    }
+    Id made = 0;
+    const bool ok = importFile (file, 0, cursor, [&] (Project& p)
+    {
+        made = edit::addTrack (p, TrackKind::Track, name.toStdString(), track);
+        return made;
+    }, "Print " + deviceName);
+    if (! ok) return false;
+    focusOn (made);
+    selectedTracks = { made };
+    say ("Printed " + deviceName + "'s sound onto a new track, " + name.quoted() + ", at the cursor.");
+    sendChangeMessage();
+    return true;
+}
+
+double Controller::tempoOfAudioFile (const File& f)
+{
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    return audioFileTempo (f.getFileName(), r ? r->metadataValues : StringPairArray());
+}
+
+bool Controller::importFile (const File& original, Id trackId, Tick at, std::function<Id (Project&)> makeTrack, const String& label)
 {
     auto f = original;
     const auto ext = f.getFileExtension().toLowerCase();
@@ -1102,9 +1151,9 @@ bool Controller::importFile (const File& original, Id trackId, Tick at)
         MidiFile mf;
         if (! in.openedOk() || ! mf.readFrom (in)) { say ("That MIDI file couldn't be read.", true); return false; }
         const int fileTpq = mf.getTimeFormat() > 0 ? mf.getTimeFormat() : 960;
-        apply ("Import MIDI", [&] (Project& p)
+        apply (label.isNotEmpty() ? label : String ("Import MIDI"), [&] (Project& p)
         {
-            Id target = trackId;
+            Id target = makeTrack ? makeTrack (p) : trackId;
             for (int i = 0; i < mf.getNumTracks(); ++i)
             {
                 auto seq = *mf.getTrack (i);
@@ -1152,6 +1201,7 @@ bool Controller::importFile (const File& original, Id trackId, Tick at)
     double seconds = 0, sr = 0;
     int channels = 0;
     if (! AudioCache::describe (f, seconds, sr, channels)) { say ("Kalibre can't read that file.", true); return false; }
+    const double fileTempo = tempoOfAudioFile (original);
     // Kept as a 32-bit float WAV, copied into the song's Audio folder if it isn't one (decision 0079).
     if (! audiofile::isFloatWav (f))
     {
@@ -1159,9 +1209,9 @@ bool Controller::importFile (const File& original, Id trackId, Tick at)
         if (! audiofile::convertToFloatWav (f, copy)) { say ("Kalibre couldn't copy " + f.getFileName() + " into the song's Audio folder.", true); return false; }
         f = copy;
     }
-    apply ("Import Audio", [&] (Project& p)
+    apply (label.isNotEmpty() ? label : String ("Import Audio"), [&] (Project& p)
     {
-        Id target = trackId;
+        Id target = makeTrack ? makeTrack (p) : trackId;
         if (! p.track (target) || ! p.track (target)->holdsClips())
             target = edit::addTrack (p, TrackKind::Track, original.getFileNameWithoutExtension().toStdString());
         Clip c;
@@ -1173,14 +1223,9 @@ bool Controller::importFile (const File& original, Id trackId, Tick at)
         c.audio.sourceLength = seconds;
         c.audio.fileSampleRate = sr;
         c.audio.fileChannels = channels;
-        // A loop named with its tempo ("Drums 96bpm") is warped to the project.
-        const auto name = original.getFileNameWithoutExtension().toLowerCase();
-        const auto bpmAt = name.indexOf ("bpm");
-        if (bpmAt > 0)
+        // A loop named with its tempo ("Drums 96bpm"), or carrying it (an ACID chunk), is warped to the project.
+        const double bpm = fileTempo;
         {
-            int s = bpmAt;
-            while (s > 0 && (CharacterFunctions::isDigit (name[s - 1]) || name[s - 1] == '.')) --s;
-            const auto bpm = name.substring (s, bpmAt).getDoubleValue();
             if (bpm >= 40 && bpm <= 300)
             {
                 c.audio.sourceBpm = bpm;
