@@ -273,7 +273,7 @@ void MainComponent::registerKeys()
     keys.add ("start", "Go to the Start", K (K::returnKey), [this] { c.goToStart(); });
     keys.add ("record", "Record", K ('r'), [this] { c.record(); });
     keys.add ("loop", "Loop", K ('l'), [this] { c.toggleLoop(); });
-    keys.add ("dismiss", "Let Go of the Choice", K (K::escapeKey), [this] { c.selectedNotes.clear(); c.selectedClips.clear(); c.dismiss(); });
+    keys.add ("dismiss", "Let Go of the Choice", K (K::escapeKey), [this] { c.selectedNotes.clear(); c.selectedClips.clear(); c.range = {}; c.dismiss(); });
     keys.add ("delete", "Delete", K (K::backspaceKey), [this] { c.deleteSelection(); });
     keys.add ("delete2", "Delete (Forward)", K (K::deleteKey), [this] { c.deleteSelection(); });
     keys.add ("undo", "Undo", K ('z', cmd, 0), [this] { c.undo(); });

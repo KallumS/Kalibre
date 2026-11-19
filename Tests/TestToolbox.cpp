@@ -277,3 +277,23 @@ TEST ("toolbox: a muted note is kept and saved, but never played")
     CHECK (back.clip (c)->midi.notes[1].muted);
     CHECK (! back.clip (c)->midi.notes[0].muted);
 }
+
+TEST ("toolbox: Time Warp leaves audio where it's heard and moves the grid under it")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Drums");
+    const Id a = edit::addClip (p, t, audioClip (PPQ * 4, PPQ * 8));   // bar 2 to bar 4, at 120: 2 s to 6 s
+    p.clip (a)->offset = PPQ;                                         // starting a beat into its file
+    const Id m = edit::addMidiClip (p, t, PPQ * 4, PPQ * 4);
+    auto heard = [&] (Tick tick) { return p.tempo.secondsAt (tick); };
+    const double startAt = heard (PPQ * 4), endAt = heard (PPQ * 12), contentAt = heard (PPQ * 3);
+    CHECK (warpBeat (p, PPQ * 8, 3.6));
+    // The audio: same moments, start, end and where its file starts.
+    const auto* c = p.clip (a);
+    CHECK (std::abs (heard (c->start) - startAt) < 0.002);
+    CHECK (std::abs (heard (c->end()) - endAt) < 0.002);
+    CHECK (std::abs (heard (c->start - c->offset) - contentAt) < 0.002);
+    // The MIDI clip keeps its beats.
+    CHECK_EQ (p.clip (m)->start, PPQ * 4);
+    CHECK (std::abs (heard (PPQ * 8) - 3.6) < 1e-6);
+}

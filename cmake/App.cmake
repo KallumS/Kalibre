@@ -158,6 +158,9 @@ add_library(KalibreApp STATIC
     Source/App/TopBar.cpp
     Source/App/Arrange.cpp
     Source/App/PianoRoll.cpp
+    Source/App/ToolBox.cpp
+    Source/App/ArrangeTools.cpp
+    Source/App/PianoRollTools.cpp
     Source/App/CcLanes.cpp
     Source/App/PatternEditors.cpp
     Source/App/NotationView.cpp
@@ -253,7 +256,7 @@ target_link_libraries(Kalibre PRIVATE
 if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp
-    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp
+    Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp Tests/App/TestTools.cpp
     Tests/App/TestNeutral.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1 KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

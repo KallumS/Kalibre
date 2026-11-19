@@ -130,5 +130,9 @@ std::vector<Note> lineNotes (Tick a, int pitchA, Tick b, int pitchB, Shape, Tick
 // isn't one, so the tempo after it stays as it was. False if it can't be done
 // (the beat would land before the change before it, or out of tempo range).
 bool warpBeat (TempoMap&, Tick beat, double toSeconds);
+// The same for the song: audio playing at its own speed (warping off) stays
+// where it is in time, so the grid moves under it to line up; MIDI and warped
+// audio follow the beats.
+bool warpBeat (Project&, Tick beat, double toSeconds);
 
 } // namespace kal::tools

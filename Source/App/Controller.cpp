@@ -99,6 +99,23 @@ void Controller::syncEngine()
     engine.setCountIn (project.metronome.countIn ? project.tempo.secondsAt (project.tempo.barStart (project.metronome.countInBars)) : 0.0);
 }
 
+bool Controller::applyLive (const Project& before, const String& label)
+{
+    auto after = std::make_shared<Project> (std::move (project));
+    project = before;
+    return apply (label, [after] (Project& p) { p = *after; });
+}
+
+void Controller::chooseTool (tools::Area area, tools::Tool tool, std::optional<int> mode)
+{
+    auto& state = toolsFor (area);
+    if (! state.choose (tool, area, mode)) return;
+    if (tool != tools::Tool::Range && area == tools::Area::Arrange) range = {};
+    say (String (area == tools::Area::Arrange ? "Arrangement" : "Piano roll") + " tool: " + String (state.describe()) + ". "
+         + String (tools::info (tool).help));
+    viewChanged();
+}
+
 bool Controller::apply (const String& label, std::function<void (Project&)> change)
 {
     storeDeviceStates();
@@ -1645,6 +1662,13 @@ Id Controller::newMidiClip (Id track, Tick start, Tick length)
 
 void Controller::deleteSelection()
 {
+    if (! range.empty())
+    {
+        const auto r = range;
+        range = {};
+        apply ("Clear the Range", [r] (Project& p) { tools::clearRange (p, r.tracks, r.from, r.to); });
+        return;
+    }
     if (! selectedNotes.empty() && selectedClip)
     {
         auto notes = selectedNotes;

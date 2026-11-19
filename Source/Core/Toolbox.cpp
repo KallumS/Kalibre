@@ -317,4 +317,22 @@ bool warpBeat (TempoMap& map, Tick beat, double toSeconds)
     return true;
 }
 
+bool warpBeat (Project& p, Tick beat, double toSeconds)
+{
+    const TempoMap old = p.tempo;
+    if (! warpBeat (p.tempo, beat, toSeconds)) return false;
+    auto at = [&] (Tick t) { return p.tempo.tickAt (old.secondsAt (t)); };
+    for (auto& t : p.tracks)
+        for (auto& v : t.versions)
+            for (auto& c : v.clips)
+            {
+                if (c.isMidi() || c.audio.warp != WarpMode::Off || c.loopLength > 0) continue;
+                const Tick content = at (c.start - c.offset), start = at (c.start), end = at (c.end());
+                c.start = start;
+                c.offset = start - content;
+                c.length = std::max<Tick> (1, end - start);
+            }
+    return true;
+}
+
 } // namespace kal::tools

@@ -170,6 +170,42 @@ public:
 private:
     void laneMenu (const Row&, juce::Point<int>);
 
+    // The tools (decision 0092; ArrangeTools.cpp). A tool other than Select
+    // takes a left click in the lanes; right-clicks keep their menus.
+    struct ToolDrag
+    {
+        tools::Tool tool = tools::Tool::Select;
+        int mode = 0;
+        juce::Point<int> down, at;
+        Tick downTick = 0, lastTick = 0;
+        Id track = 0;                  // the track pressed on
+        int automation = -1;           // its automation lane pressed on, or -1
+        bool option = false, command = false, moved = false;
+        bool muteTo = false;           // Mute: what the clips dragged over become
+        Project before;                // the project before a drag that shows its change as it goes
+        std::vector<AutoPoint> pointsBefore;   // Line: the lane as it was
+        double startTick0 = 0;         // Hand: where the view was
+        int scrollY0 = 0;
+        int changed = 0;               // how many things it changed, for the undo step's name
+    };
+    std::optional<ToolDrag> toolDrag;
+    Tick toolHoverTick = -1;           // Split: where a click would cut
+    Id toolHoverClip = 0;
+    bool toolDown (const juce::MouseEvent&);
+    void toolDragTo (const juce::MouseEvent&);
+    void toolUp (const juce::MouseEvent&);
+    void toolMove (const juce::MouseEvent&);
+    void paintTool (juce::Graphics&);
+    juce::Rectangle<int> rowBounds (const Row&) const;
+    double automationValueAt (const Row&, int y) const;
+    void eraseAt (juce::Point<int>);
+    void muteAt (juce::Point<int>);
+    void drawAutomationTo (Tick, double);
+    void zoomClick (int x, bool out);
+public:
+    void showToolBox (juce::Point<int> screen);
+private:
+
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
     float lastPlayheadX = -1;
