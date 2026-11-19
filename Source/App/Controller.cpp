@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "LibraryScanner.h"
 #include "ReaperScripts.h"
 #include "NoteSplitter.h"
 #include "AudioFiles.h"
@@ -1092,7 +1093,15 @@ bool Controller::saveAs (const File& f)
     return save();
 }
 
-bool Controller::importFile (const File& original, Id trackId, Tick at)
+double Controller::tempoOfAudioFile (const File& f)
+{
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    return audioFileTempo (f.getFileName(), r ? r->metadataValues : StringPairArray());
+}
+
+bool Controller::importFile (const File& original, Id trackId, Tick at, std::function<Id (Project&)> makeTrack, const String& label)
 {
     auto f = original;
     const auto ext = f.getFileExtension().toLowerCase();
@@ -1102,9 +1111,9 @@ bool Controller::importFile (const File& original, Id trackId, Tick at)
         MidiFile mf;
         if (! in.openedOk() || ! mf.readFrom (in)) { say ("That MIDI file couldn't be read.", true); return false; }
         const int fileTpq = mf.getTimeFormat() > 0 ? mf.getTimeFormat() : 960;
-        apply ("Import MIDI", [&] (Project& p)
+        apply (label.isNotEmpty() ? label : String ("Import MIDI"), [&] (Project& p)
         {
-            Id target = trackId;
+            Id target = makeTrack ? makeTrack (p) : trackId;
             for (int i = 0; i < mf.getNumTracks(); ++i)
             {
                 auto seq = *mf.getTrack (i);
@@ -1152,6 +1161,7 @@ bool Controller::importFile (const File& original, Id trackId, Tick at)
     double seconds = 0, sr = 0;
     int channels = 0;
     if (! AudioCache::describe (f, seconds, sr, channels)) { say ("Kalibre can't read that file.", true); return false; }
+    const double fileTempo = tempoOfAudioFile (original);
     // Kept as a 32-bit float WAV, copied into the song's Audio folder if it isn't one (decision 0079).
     if (! audiofile::isFloatWav (f))
     {
@@ -1159,9 +1169,9 @@ bool Controller::importFile (const File& original, Id trackId, Tick at)
         if (! audiofile::convertToFloatWav (f, copy)) { say ("Kalibre couldn't copy " + f.getFileName() + " into the song's Audio folder.", true); return false; }
         f = copy;
     }
-    apply ("Import Audio", [&] (Project& p)
+    apply (label.isNotEmpty() ? label : String ("Import Audio"), [&] (Project& p)
     {
-        Id target = trackId;
+        Id target = makeTrack ? makeTrack (p) : trackId;
         if (! p.track (target) || ! p.track (target)->holdsClips())
             target = edit::addTrack (p, TrackKind::Track, original.getFileNameWithoutExtension().toStdString());
         Clip c;
@@ -1173,14 +1183,9 @@ bool Controller::importFile (const File& original, Id trackId, Tick at)
         c.audio.sourceLength = seconds;
         c.audio.fileSampleRate = sr;
         c.audio.fileChannels = channels;
-        // A loop named with its tempo ("Drums 96bpm") is warped to the project.
-        const auto name = original.getFileNameWithoutExtension().toLowerCase();
-        const auto bpmAt = name.indexOf ("bpm");
-        if (bpmAt > 0)
+        // A loop named with its tempo ("Drums 96bpm"), or carrying it (an ACID chunk), is warped to the project.
+        const double bpm = fileTempo;
         {
-            int s = bpmAt;
-            while (s > 0 && (CharacterFunctions::isDigit (name[s - 1]) || name[s - 1] == '.')) --s;
-            const auto bpm = name.substring (s, bpmAt).getDoubleValue();
             if (bpm >= 40 && bpm <= 300)
             {
                 c.audio.sourceBpm = bpm;

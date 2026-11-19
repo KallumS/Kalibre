@@ -24,6 +24,7 @@
 #include "LowerZone.h"
 #include "PluginManagerView.h"
 #include "ArticulationManagerView.h"
+#include "LibraryFolders.h"
 #include "Surfaces.h"
 #include "TopBar.h"
 
@@ -76,10 +77,14 @@ public:
     void hideBrowser() { browserShown = false; browser.setVisible (false); resized(); }
     void showPluginManager();
     void showArticulationManager();
+    void showLibraryFolders();
+    LibraryView& library() { return browser.library(); }
+    void firstRun();   // after the window first shows: the questions asked once
 
     Controller& controller() { return c; }
     bool browserShown = false;
     int lowerHeight = 320;
+    int browserWidth = 320;
 
 private:
     Controller& c;
@@ -93,10 +98,13 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
     std::unique_ptr<PluginManagerWindow> pluginWindow;
     std::unique_ptr<ArticulationManagerWindow> articulationWindow;
+    std::unique_ptr<LibraryFoldersWindow> libraryWindow;
     int dragStartHeight = 0;
-    bool draggingDivider = false;
+    bool draggingDivider = false, draggingBrowserEdge = false;
+    int dragStartWidth = 0;
 
     juce::Rectangle<int> dividerArea() const;
+    juce::Rectangle<int> browserEdge() const;
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void showShortcuts();
     void registerKeys();

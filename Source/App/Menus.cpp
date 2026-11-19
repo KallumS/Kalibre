@@ -65,6 +65,8 @@ PopupMenu MainComponent::appMenu()
     }));
     // Scanning is in the Plug-in Manager; one place for it, one menu item (0069).
     m.addItem (item (ui::u8 ("Plug-in Manager\xe2\x80\xa6"), [this] { c.showPluginManager(); }));
+    // The folders the browser's Sounds tab looks in (decision 0094).
+    m.addItem (item (ui::u8 ("Library Folders\xe2\x80\xa6"), [this] { showLibraryFolders(); }));
     return m;
 }
 

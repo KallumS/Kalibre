@@ -30,6 +30,8 @@ public:
         MenuBarModel::setMacMainMenu (content, &extraAppMenu);
        #endif
         setVisible (true);
+        Component::SafePointer<MainComponent> safe (content);
+        MessageManager::callAsync ([safe] { if (safe) safe->firstRun(); });
     }
 
     ~MainWindow() override

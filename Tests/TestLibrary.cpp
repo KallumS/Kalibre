@@ -1,0 +1,216 @@
+// The browser's Sounds tab (decision 0094): the folders, favourites and order.
+#include "Check.h"
+#include "Library.h"
+
+#include <algorithm>
+
+using namespace kal;
+using namespace kal::library;
+
+namespace
+{
+Item audio (const std::string& path)
+{
+    Item it;
+    it.path = path;
+    it.seconds = 1;
+    it.sampleRate = 48000;
+    return it;
+}
+
+Index sampleIndex()
+{
+    Index ix;
+    for (auto p : { "/M/Drums/Kicks/Kick 1.wav", "/M/Drums/Kicks/Kick 2.wav", "/M/Drums/Snare.wav",
+                    "/M/Keys/Chords.mid", "/M/Keys/Pad 90bpm.flac", "/Elsewhere/Not Chosen.wav" })
+        ix.items[p] = audio (p);
+    ix.items["/M/Keys/Chords.mid"].kind = Kind::Midi;
+    Item broken = audio ("/M/Drums/Broken.wav");
+    broken.readable = false;
+    ix.items[broken.path] = broken;
+    return ix;
+}
+
+std::vector<std::string> names (const std::vector<Row>& rs)
+{
+    std::vector<std::string> out;
+    for (auto& r : rs) out.push_back (std::string (r.depth * 2, ' ') + (r.type == Row::Type::Folder ? "[" + nameOf (r.path) + "]" : nameOf (r.path)));
+    return out;
+}
+} // namespace
+
+TEST ("library: a tempo is read from a file's name, wherever it's written")
+{
+    CHECK_EQ (tempoFromName ("Drums 96bpm"), 96.0);
+    CHECK_EQ (tempoFromName ("loop_120_BPM"), 120.0);
+    CHECK_EQ (tempoFromName ("Pad 87.5 bpm"), 87.5);
+    CHECK_EQ (tempoFromName ("BPM140 Hats"), 140.0);
+    CHECK_EQ (tempoFromName ("Kick 01"), 0.0);
+    CHECK_EQ (tempoFromName ("bpm"), 0.0);
+    CHECK_EQ (tempoFromName ("Weird 5bpm"), 0.0);       // outside 40-300
+}
+
+TEST ("library: paths, extensions and what's inside what")
+{
+    CHECK_EQ (nameOf ("/M/Drums/Kick.WAV"), std::string ("Kick.WAV"));
+    CHECK_EQ (extensionOf ("/M/Drums/Kick.WAV"), std::string (".wav"));
+    CHECK_EQ (extensionOf ("/M/.hidden"), std::string());
+    CHECK_EQ (parentOf ("/M/Drums/Kick.wav"), std::string ("/M/Drums"));
+    CHECK (isInside ("/M/Drums/Kick.wav", "/M"));
+    CHECK (isInside ("/M/Drums/Kick.wav", "/M/"));
+    CHECK (! isInside ("/Music/Kick.wav", "/M"));
+    CHECK (isMidiExtension (".MID"));
+    CHECK (! isMidiExtension (".wav"));
+}
+
+TEST ("library: in folders, a chosen folder opens to its folders then its items; empty and unreadable ones aren't shown")
+{
+    const auto ix = sampleIndex();
+    Settings s;
+    s.folders = { "/M/" };
+    // Closed: just the folder, with how many items it holds (the unreadable one not counted).
+    auto rs = rows (ix, s);
+    CHECK_EQ (rs.size(), (size_t) 1);
+    CHECK_EQ (rs[0].count, 5);
+    s.open = { "/M", "/M/Drums", "/M/Drums/Kicks", "/M/Keys" };
+    const auto shown = names (rows (ix, s));
+    const std::vector<std::string> expected { "[M]", "  [Drums]", "    [Kicks]", "      Kick 1.wav", "      Kick 2.wav", "    Snare.wav",
+                                              "  [Keys]", "    Chords.mid", "    Pad 90bpm.flac" };
+    CHECK (shown == expected);
+}
+
+TEST ("library: every item in one list, A to Z, from every chosen folder")
+{
+    const auto ix = sampleIndex();
+    Settings s;
+    s.folders = { "/M" };
+    s.flat = true;
+    const auto shown = names (rows (ix, s));
+    const std::vector<std::string> expected { "Chords.mid", "Kick 1.wav", "Kick 2.wav", "Pad 90bpm.flac", "Snare.wav" };
+    CHECK (shown == expected);
+}
+
+TEST ("library: shuffled, the order is the same for the same shuffle, new for a new one, and items stay in their folders")
+{
+    Index ix;
+    for (int i = 0; i < 24; ++i)
+    {
+        const auto p = std::string ("/S/") + (i < 12 ? "A/" : "B/") + "Sample " + std::to_string (i) + ".wav";
+        ix.items[p] = audio (p);
+    }
+    Settings s;
+    s.folders = { "/S" };
+    s.flat = true;
+    s.shuffled = true;
+    s.seed = 7;
+    const auto once = itemsInOrder (rows (ix, s));
+    CHECK (once == itemsInOrder (rows (ix, s)));
+    s.seed = 8;
+    const auto again = itemsInOrder (rows (ix, s));
+    CHECK (once != again);
+    auto sorted = again;
+    std::sort (sorted.begin(), sorted.end());
+    auto all = once;
+    std::sort (all.begin(), all.end());
+    CHECK (sorted == all);   // the same items, another order
+    // In folders: shuffled inside each, each item under its own folder.
+    s.flat = false;
+    s.open = { "/S", "/S/A", "/S/B" };
+    const auto rs = rows (ix, s);
+    std::string folder;
+    int checked = 0;
+    for (auto& r : rs)
+    {
+        if (r.type == Row::Type::Folder) { folder = r.path; continue; }
+        CHECK_EQ (parentOf (r.path), folder);
+        ++checked;
+    }
+    CHECK_EQ (checked, 24);
+    std::vector<std::string> inA;
+    for (auto& p : itemsInOrder (rs)) if (parentOf (p) == "/S/A") inA.push_back (p);
+    CHECK (! std::is_sorted (inA.begin(), inA.end(), [] (const std::string& a, const std::string& b) { return nameOf (a) < nameOf (b); }));
+}
+
+TEST ("library: favourites, of items and of folders; Favourites Only shows them, folders opened")
+{
+    const auto ix = sampleIndex();
+    Settings s;
+    s.folders = { "/M" };
+    s.favourites = { "/M/Drums/Kicks", "/M/Keys/Chords.mid" };
+    CHECK (isFavourite (s, "/M/Drums/Kicks/Kick 1.wav"));   // inside a favourite folder
+    CHECK (isFavourite (s, "/M/Keys/Chords.mid"));
+    CHECK (! isFavourite (s, "/M/Drums/Snare.wav"));
+    s.favouritesOnly = true;
+    const auto shown = names (rows (ix, s));
+    const std::vector<std::string> expected { "[M]", "  [Drums]", "    [Kicks]", "      Kick 1.wav", "      Kick 2.wav", "  [Keys]", "    Chords.mid" };
+    CHECK (shown == expected);
+    s.flat = true;
+    CHECK_EQ (rows (ix, s).size(), (size_t) 3);
+}
+
+TEST ("library: a search keeps the items whose names hold it, and opens their folders")
+{
+    const auto ix = sampleIndex();
+    Settings s;
+    s.folders = { "/M" };
+    const auto shown = names (rows (ix, s, "KICK"));
+    const std::vector<std::string> expected { "[M]", "  [Drums]", "    [Kicks]", "      Kick 1.wav", "      Kick 2.wav" };
+    CHECK (shown == expected);
+    CHECK (rows (ix, s, "nothing like it").empty());
+}
+
+TEST ("library: a file is read again only when its size or date changes")
+{
+    Item it = audio ("/M/a.wav");
+    it.size = 100;
+    it.modified = 5;
+    CHECK (needsScan (nullptr, 100, 5));
+    CHECK (! needsScan (&it, 100, 5));
+    CHECK (needsScan (&it, 101, 5));
+    CHECK (needsScan (&it, 100, 6));
+}
+
+TEST ("library: the waveform's columns are the loudest of what falls in each")
+{
+    std::vector<float> loud (320, 0.0f);
+    loud[0] = 1.0f;
+    loud[319] = -0.5f;
+    const auto p = peaksFrom (loud);
+    CHECK_EQ ((int) p.size(), peakColumns);
+    CHECK_EQ ((int) p.front(), 255);
+    CHECK_EQ ((int) p.back(), 128);
+    CHECK_EQ ((int) p[80], 0);
+    CHECK_EQ ((int) peaksFrom ({ 0.5f })[0], 128);   // fewer values than columns: stretched
+}
+
+TEST ("library: the settings and the index are saved and read back as they were")
+{
+    Settings s;
+    s.folders = { "/M", "/Volumes/Samples" };
+    s.asked = true;
+    s.favourites = { "/M/Drums" };
+    s.flat = true;
+    s.shuffled = true;
+    s.seed = 99;
+    s.sync = false;
+    s.open = { "/M" };
+    Settings back;
+    CHECK (fromJson (toJson (s), back));
+    CHECK (back == s);
+    CHECK (! fromJson ("not json", back));
+
+    Index ix;
+    Item a = audio ("/M/a.wav");
+    a.size = 10; a.modified = 20; a.bpm = 120; a.channels = 2;
+    a.peaks = peaksFrom ({ 0.1f, 0.9f, 0.4f });
+    Item m;
+    m.path = "/M/b.mid";
+    m.kind = Kind::Midi;
+    m.beats = 16;
+    m.notes = { { 0, 1, 60 }, { 1.5f, 0.5f, 64 } };
+    ix.items[a.path] = a;
+    ix.items[m.path] = m;
+    Index ib;
+    CHECK (fromJson (toJson (ix), ib));
+    CHECK (ib.items == ix.items);
+}

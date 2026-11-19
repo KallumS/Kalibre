@@ -27,6 +27,7 @@
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
 | `Core/Toolbox.*` | The tools Control-right-click chooses, each area's, their modes; Split into pieces, Glue, clearing a range, Line's shapes, Time Warp (0092). |
 | `Core/Trombolese.*` | Trombolese's voice, ported from its Python (waveguide, reed, geometry), its tables made by its own functions, and each note's partial and slide (0093). |
+| `Core/Library.*` | The Sounds browser's list: what was scanned, the favourites and folders, in folders or one list, A to Z or shuffled; tempo from a file's name (0094). |
 | `Core/WorkClock.*` | The top bar's timer: DAW Battle Pass's active-time clock (0091). |
 | `Core/NoteFixer.*` | Note Position & Volume Fixer's engine: where each note is heard in a render, and how loud (0085). |
 | `Core/NoteSplit.*` | The Note Splitter's rule: a chord's notes, top to bottom, an output each (0083). |
@@ -72,6 +73,7 @@
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
 | `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp`, `NoteFixing.cpp` | More of the Controller: audio commands, presets and A/B, file commands, Fix Note Timings and Volume (0085). |
+| `App/LibraryView.*`, `LibraryScanner.*`, `PreviewPlayer.*`, `LibraryFolders.*` | The browser's Sounds tab: the list, the scan of the chosen folders on its own thread, previews made off the audio thread (stretched to the song, MIDI through Kalibre Synth) and handed over through `Swap`, Kalibre > Library Folders… (0094). |
 | `App/ToolPicker.*`, `ArrangeTools.cpp`, `PianoRollTools.cpp` | The toolbox at the pointer, its icons and pointers; what each tool does in the arrangement and the piano roll (0092). |
 | `App/ReaperScripts.*` | The family's REAPER scripts that hand a JSFX its phrase (Midular's importer, MIDI Production Center's loaders), run unchanged with a `reaper` for this song (0093). |
 | `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |

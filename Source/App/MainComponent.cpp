@@ -38,6 +38,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
     if (auto* s = settingsStore().getUserSettings())
     {
         lowerHeight = s->getIntValue ("lowerHeight", 320);
+        browserWidth = s->getIntValue ("browserWidth", 320);
         browserShown = s->getBoolValue ("browser", false);
         c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
         c.hiddenInTopBar.addTokens (s->getValue ("hiddenInTopBar"), "|", {});
@@ -54,6 +55,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), arrange 
     registerKeys();
     c.onShowPluginManager = [this] { showPluginManager(); };
     c.onShowArticulationManager = [this] { showArticulationManager(); };
+    browser.library().onEditFolders = [this] { showLibraryFolders(); };
     c.addChangeListener (this);
     setSize (1440, 900);
 }
@@ -66,10 +68,12 @@ MainComponent::~MainComponent()
     c.onShowArticulationManager = nullptr;
     pluginWindow.reset();
     articulationWindow.reset();
+    libraryWindow.reset();
     c.removeChangeListener (this);
     if (auto* s = settingsStore().getUserSettings())
     {
         s->setValue ("lowerHeight", lowerHeight);
+        s->setValue ("browserWidth", browserWidth);
         s->setValue ("browser", browserShown);
         s->setValue ("zeroCrossings", c.zeroCrossings);
         s->setValue ("hiddenInTopBar", c.hiddenInTopBar.joinIntoString ("|"));
@@ -111,6 +115,24 @@ void MainComponent::showPluginManager()
     if (auto* view = dynamic_cast<PluginManagerView*> (pluginWindow->getContentComponent())) view->refresh();
     pluginWindow->setVisible (true);
     pluginWindow->toFront (true);
+}
+
+void MainComponent::showLibraryFolders()
+{
+    if (! libraryWindow)
+    {
+        libraryWindow = std::make_unique<LibraryFoldersWindow> (browser.library());
+        if (auto* top = getTopLevelComponent()) libraryWindow->centreAroundComponent (top, libraryWindow->getWidth(), libraryWindow->getHeight());
+    }
+    if (auto* view = dynamic_cast<LibraryFoldersView*> (libraryWindow->getContentComponent())) view->refresh();
+    libraryWindow->setVisible (true);
+    libraryWindow->toFront (true);
+}
+
+void MainComponent::firstRun()
+{
+    // Which folders to look in for sounds, asked once (decision 0094).
+    browser.library().askOnFirstRun ([this] { showBrowser (Browser::Tab::Files); });
 }
 
 void MainComponent::showArticulationManager()
@@ -155,7 +177,12 @@ void MainComponent::resized()
     if (menuBar) menuBar->setBounds (r.removeFromTop (theme::px (24)));
     top.setBounds (r.getX(), r.getY(), r.getWidth(), 1);
     top.setBounds (r.removeFromTop (top.preferredHeight()));
-    if (browserShown) browser.setBounds (r.removeFromLeft (theme::px (260)));
+    if (browserShown)
+    {
+        // Its width is the musician's: drag its edge (decision 0094).
+        browser.setBounds (r.removeFromLeft (jlimit (theme::px (240), jmax (theme::px (240), r.getWidth() / 2), browserWidth)));
+        r.removeFromLeft (theme::px (5));
+    }
     // The zone keeps the height it was given; only what's shown is limited by the window.
     const int zone = jlimit (theme::px (120), jmax (theme::px (120), r.getHeight() - theme::px (160)), lowerHeight);
     lower.setBounds (r.removeFromBottom (zone));
@@ -163,19 +190,35 @@ void MainComponent::resized()
     arrange.setBounds (r);
 }
 
+Rectangle<int> MainComponent::browserEdge() const
+{
+    if (! browserShown) return {};
+    return { browser.getRight(), browser.getY(), theme::px (5), browser.getHeight() };
+}
+
 void MainComponent::mouseMove (const MouseEvent& e)
 {
-    setMouseCursor (dividerArea().expanded (0, 2).contains (e.getPosition()) ? MouseCursor::UpDownResizeCursor : MouseCursor::NormalCursor);
+    setMouseCursor (dividerArea().expanded (0, 2).contains (e.getPosition()) ? MouseCursor::UpDownResizeCursor
+                    : browserEdge().contains (e.getPosition()) ? MouseCursor::LeftRightResizeCursor : MouseCursor::NormalCursor);
 }
 
 void MainComponent::mouseDown (const MouseEvent& e)
 {
     draggingDivider = dividerArea().expanded (0, 2).contains (e.getPosition());
+    draggingBrowserEdge = ! draggingDivider && browserEdge().contains (e.getPosition());
     dragStartHeight = lowerHeight;
+    dragStartWidth = browser.getWidth();
 }
 
 void MainComponent::mouseDrag (const MouseEvent& e)
 {
+    if (draggingBrowserEdge)
+    {
+        browserWidth = jlimit (theme::px (240), jmax (theme::px (240), getWidth() / 2), dragStartWidth + e.getDistanceFromDragStartX());
+        resized();
+        repaint();
+        return;
+    }
     if (! draggingDivider) return;
     // Every plug-in window in the zone follows its height.
     lowerHeight = jlimit (theme::px (120), jmax (theme::px (120), getHeight() - theme::px (300)), dragStartHeight - e.getDistanceFromDragStartY());
@@ -216,6 +259,7 @@ bool MainComponent::saveWorkspace (const String& name)
     o->setProperty ("browser", browserShown);
     o->setProperty ("browserTab", (int) browser.shownTab());
     o->setProperty ("lowerHeight", lowerHeight);
+    o->setProperty ("browserWidth", browserWidth);
     o->setProperty ("zoneTab", (int) c.zoneTab);
     o->setProperty ("editor", (int) c.editor);
     o->setProperty ("textSize", (double) theme::scale());
@@ -238,6 +282,7 @@ bool MainComponent::loadWorkspace (const File& f)
     browser.setVisible (browserShown);
     browser.showTab ((Browser::Tab) (int) v.getProperty ("browserTab", 0));
     lowerHeight = (int) v.getProperty ("lowerHeight", lowerHeight);
+    browserWidth = (int) v.getProperty ("browserWidth", browserWidth);
     c.zoneTab = (ZoneTab) jlimit (0, 4, (int) v.getProperty ("zoneTab", 0));
     c.editor = (EditorKind) jlimit (0, 4, (int) v.getProperty ("editor", 0));
     c.showChordLane = (bool) v.getProperty ("chordLane", c.showChordLane);
