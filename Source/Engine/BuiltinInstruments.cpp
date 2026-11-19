@@ -480,6 +480,14 @@ void KalibreSynth::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
     midi.clear();
 }
 
+void KalibreSynth::reset()
+{
+    for (auto& v : voices) { v.amp.reset(); v.filter.reset(); v.note = -1; v.ic1 = v.ic2 = v.ic1r = v.ic2r = 0; }
+    bend = wheel = 0;
+    vibrato = 0;
+    lastNote = -1;
+}
+
 AudioProcessorEditor* KalibreSynth::createEditor() { return new SynthEditor (*this); }
 
 //==============================================================================
@@ -748,6 +756,18 @@ void KalibreSampler::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
     midi.clear();
 }
 
+void KalibreSampler::reset()
+{
+    for (auto& v : voices)
+    {
+        v.env.reset();
+        v.note = -1;
+        v.ic1 = v.ic2 = v.ic1r = v.ic2r = 0;
+        for (auto& g : v.grains) g.on = false;
+    }
+    bend = 0;
+}
+
 AudioProcessorEditor* KalibreSampler::createEditor() { return new SamplerEditor (*this); }
 
 } // namespace kal
@@ -815,6 +835,15 @@ void TromboleseInstrument::prepareToPlay (double r, int)
     heldCount = 0;
     note = -1;
     breath = 0;
+}
+
+void TromboleseInstrument::reset()
+{
+    if (voice) voice->voice.reset();
+    heldCount = 0;
+    note = -1;
+    breath = 0;
+    bend = wheel = 0;
 }
 
 void TromboleseInstrument::start (int n, float vel, bool legato)

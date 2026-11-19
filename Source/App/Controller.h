@@ -249,7 +249,8 @@ public:
     bool exportXml (const juce::File&);
     bool importXml (const juce::File&);
     // Several exports at once into a folder: the mix as WAV and MP3, every track, the MIDI.
-    struct Batch { bool mixWav = true, mixMp3 = true, stems = false, midi = false; double loudness = 0; };
+    struct Batch { bool mixWav = true, mixMp3 = true, stems = false, midi = false; double loudness = 0;
+                   bool ringOut = true, secondPass = false; };   // Record the Tail, Export the Second Pass (0097)
     bool exportBatch (const juce::File& folder, const Batch&);
 
     //==========================================================================

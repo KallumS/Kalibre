@@ -324,6 +324,13 @@ void ParallelGraph::refresh()
     if (onRebuilt) onRebuilt();
 }
 
+void ParallelGraph::reset()
+{
+    AudioProcessorGraph::reset();
+    if (auto* p = current.load())
+        for (auto& line : p->lines) { std::fill (line.ring.begin(), line.ring.end(), 0.0f); line.pos = 0; }
+}
+
 std::map<juce::uint32, int> ParallelGraph::latencyInto() const
 {
     // As buildPlan counts it (and JUCE's graph): each node after what feeds it,

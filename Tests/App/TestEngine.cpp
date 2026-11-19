@@ -1363,3 +1363,108 @@ TEST ("192 kHz: an interface running at 192 kHz plays and exports the song at 19
     CHECK (std::abs (hz - 440) < 2);
     engine.audioDeviceStopped();
 }
+
+namespace
+{
+// A song at 120 BPM: Kalibre Synth playing notes at (start beat, length in beats).
+Project synthSong (std::vector<std::pair<double, double>> notes)
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Synth");
+    edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (p, t, 0, PPQ * 16);
+    for (auto [at, len] : notes)
+        edit::addNote (p, clip, { .start = (Tick) (at * PPQ), .length = (Tick) (len * PPQ), .pitch = 57, .velocity = 110 });
+    p.track (t)->pan = 0;
+    return p;
+}
+
+AudioBuffer<float> readExport (const File& f, double* rateOut = nullptr)
+{
+    AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    if (! r) return {};
+    if (rateOut) *rateOut = r->sampleRate;
+    AudioBuffer<float> b ((int) r->numChannels, (int) r->lengthInSamples);
+    r->read (&b, 0, b.getNumSamples(), 0, true, true);
+    return b;
+}
+
+float loudestIn (const AudioBuffer<float>& b, double from, double to)
+{
+    const int a = jlimit (0, b.getNumSamples(), (int) (from * 48000)), z = jlimit (0, b.getNumSamples(), (int) (to * 48000));
+    return z > a ? b.getMagnitude (0, a, z - a) : 0.0f;
+}
+} // namespace
+
+TEST ("export: Record the Tail lets what's sounding ring out past the end, nothing new, until it's silent; off, it stops on the end (0097)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    // A note up to the end (2 s), its 0.3 s release past it; another starting after the end.
+    auto p = synthSong ({ { 2.0, 2.0 }, { 5.0, 1.0 } });
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 2.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    o.ringOut = true;
+    const auto out = tempFolder().getChildFile ("ring.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    auto b = readExport (out);
+    const double seconds = b.getNumSamples() / 48000.0;
+    CHECK (seconds > 2.25 && seconds < 2.45);              // the release, and no more
+    CHECK (loudestIn (b, 2.0, 2.1) > 0.01f);               // ringing past the end
+    CHECK (loudestIn (b, b.getNumSamples() / 48000.0 - 0.001, 9.0) < 0.005f);  // and ends as it dies away
+    // Off: exactly to the end.
+    o.ringOut = false;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    b = readExport (out);
+    CHECK_EQ (b.getNumSamples(), 96000);
+}
+
+TEST ("export: the Second Pass plays the range once unheard and exports the next, so what rings past the end is heard at the start (0097)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    // A note at the very end of a two-second range, its release spilling over.
+    auto p = synthSong ({ { 3.0, 1.0 } });
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 2.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    const auto out = tempFolder().getChildFile ("second.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    auto first = readExport (out);
+    CHECK (loudestIn (first, 0.0, 0.2) == 0.0f);            // the first pass starts silent
+    o.secondPass = true;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    auto second = readExport (out);
+    CHECK_EQ (second.getNumSamples(), 96000);                // still exactly the range
+    CHECK (loudestIn (second, 0.0, 0.1) > 0.01f);            // the release from the end, heard at the start
+    CHECK (loudestIn (second, 0.4, 1.4) < 0.001f);           // then nothing until the note
+    CHECK (loudestIn (second, 1.55, 1.95) > 0.05f);          // the note itself, where it was
+    // Both: the second pass, then its tail.
+    o.ringOut = true;
+    CHECK (engine.render (p, tempFolder(), out, o, {}, error));
+    auto both = readExport (out);
+    CHECK (both.getNumSamples() > 96000 + 48000 / 5);
+    CHECK (loudestIn (both, 0.0, 0.1) > 0.01f);
+}
+
+TEST ("export: one engine exporting the same song twice makes the same file, sample for sample: nothing carries on from the last (0097)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    // A note right up to the end: its release would carry into the next export's start.
+    auto p = synthSong ({ { 0.5, 1.0 }, { 3.0, 1.0 } });
+    Engine::RenderOptions o;
+    o.start = 0; o.end = 2.0; o.tail = 0; o.dither = false; o.bitDepth = 32;
+    const auto a = tempFolder().getChildFile ("twice-a.wav"), b = tempFolder().getChildFile ("twice-b.wav");
+    String error;
+    CHECK (engine.render (p, tempFolder(), a, o, {}, error));
+    CHECK (engine.render (p, tempFolder(), b, o, {}, error));
+    const auto x = readExport (a), y = readExport (b);
+    CHECK_EQ (x.getNumSamples(), y.getNumSamples());
+    float worst = 0;
+    for (int i = 0; i < jmin (x.getNumSamples(), y.getNumSamples()); ++i) worst = jmax (worst, std::abs (x.getSample (0, i) - y.getSample (0, i)));
+    CHECK_EQ (worst, 0.0f);
+}

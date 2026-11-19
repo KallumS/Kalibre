@@ -593,6 +593,14 @@ int main (int argc, char** argv)
             c.refresh();
             window.lowerHeight = 380;
             shoot ("13-synth-and-sampler");
+        // What Export the Mix asks first (0097).
+        {
+            window.exportAudio (false);
+            shoot ("38-export-question");
+            for (auto* ch : window.getChildren())
+                if (auto* a = dynamic_cast<AlertWindow*> (ch)) a->exitModalState (0);
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+        }
             // Kalibre Sampler cutting a drum loop at its hits, a key each (0095).
             {
                 const Id slicer = edit::addTrack (c.project, TrackKind::Track, "Slicer");

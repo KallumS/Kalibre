@@ -111,6 +111,13 @@ public:
         joinedMidi.ensureSize (8192);
     }
     void releaseResources() override { inner->releaseResources(); }
+    // Everything it holds from what it last played let go: an export starts clean (0097).
+    void reset() override
+    {
+        inner->reset();
+        if (auto* ring = bypassRing.load()) ring->clear();
+        bypassAt = 0;
+    }
 
     void processBlock (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
     {

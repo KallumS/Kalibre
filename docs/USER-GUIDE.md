@@ -1176,8 +1176,20 @@ Exports cover the loop range when the loop is on, otherwise the whole song.
 | **Export MIDI…** | A MIDI file. |
 | **Export MusicXML…** | For Dorico, MuseScore, Sibelius or Finale. |
 | **Export a DAWproject…** | For Bitwig, Studio One, Cubase and others. |
-| **Export Several at Once…** | Tick what you want (The Mix as WAV, The Mix as MP3, Every Track as WAV, The MIDI, The Mix at -14 LUFS) and choose a folder. |
+| **Export Several at Once…** | Tick what you want (The Mix as WAV, The Mix as MP3, Every Track as WAV, The MIDI, The Mix at -14 LUFS, and the two below) and choose a folder. |
 | **Export Final Cut XML…** | The audio clips, for Final Cut, Resolve, Premiere or Logic. |
+
+Exporting the mix or every track first asks two things, ticked as you left
+them last time:
+
+| Tick | Does |
+| --- | --- |
+| **Record the Tail** | After the end, nothing new starts playing, and whatever is still sounding (a synth's release, a reverb, a delay's echoes) is recorded until it falls silent, then the file ends (at most 30 seconds on). A note held past the end is let go at the end. Off: the file stops exactly on the end. On unless you turn it off. |
+| **Export the Second Pass** | The range (the loop, or the whole song) is played through once without being recorded, then recorded the second time through. What rings past the end, the reverb and echoes of the last bar, is then heard at the start, as it is when the loop goes round: a loop that loops without a gap or a jump. The file is still exactly as long as the range. |
+
+Both together: the second pass, then its tail.
+
+![Export the Mix asks first: Record the Tail and Export the Second Pass](guide/export-question.png)
 
 ---
 

@@ -1228,49 +1228,97 @@ bool Engine::render (const Project& project, const File& folder, const File& out
     }
 
     // The whole render is kept so it can be normalised and dithered at the end.
-    const double total = (o.end - o.start) + o.tail;
-    const auto frames = (int) std::ceil (total * renderRate);
+    // The range, sample-exact; then the fixed tail (the song played on), or, with
+    // Record the Tail, as much as rings on until it's silent (0097).
+    const int passFrames = jmax (1, (int) std::ceil ((o.end - o.start) * renderRate - 1.0e-6));
+    int frames = jmax (passFrames, (int) std::ceil (((o.end - o.start) + o.tail) * renderRate - 1.0e-6));
+    const int ringCap = o.ringOut ? (int) std::ceil (jmax (0.0, o.ringOutMax) * renderRate) : 0;
+    const int capacity = frames + ringCap;
     // How late the output is: the plan's count (what can be heard), else JUCE's graph's.
     int latency = graph.outputLatency();
     if (latency < 0) latency = graph.getLatencySamples();
-    AudioBuffer<float> result (outChannels, frames);
+    AudioBuffer<float> result (outChannels, capacity);
     result.clear();
     AudioBuffer<float> buf (outChannels, block);
     MidiBuffer midi;
     auto& c = shared.clock;
-    double t = o.start;
-    bool cancelled = false;
-    for (int done = -latency; done < frames; done += block)
+    // Nothing the last play or export left ringing is carried in (0097).
+    graph.reset();
+    // The Second Pass (0097): the range played once unheard first, wrapping back to
+    // its start as the loop does, so what rings past the end is heard at the start.
+    const int unheard = o.secondPass ? passFrames : 0;
+    juce::int64 pos = 0;                  // samples into the range, this pass
+    bool wrapped = ! o.secondPass;
+    const int songFrames = frames;        // what's played of the song before ringing out
+    const float silent = Decibels::decibelsToGain (-96.0f);
+    const int quietFor = (int) (0.25 * renderRate);
+    int lastLoud = -1;
+    bool cancelled = false, first = true;
+    for (int done = -latency - unheard; done < frames;)
     {
-        c.playing = true;
-        c.recording = false;
-        c.start = t;
-        c.samples = block;
-        c.rate = renderRate;
+        int n = block;
         c.wrapAt = -1;
-        c.jumped = done == -latency;
-        c.ppq = project.tempo.ticksAt (t) / PPQ;
+        // In the tail of a Record the Tail export: nothing new plays, the sound rings on.
+        const bool ringing = o.ringOut && wrapped && pos >= songFrames;
+        // Played up to the range's end exactly, then (the next block) ringing.
+        if (o.ringOut && wrapped && pos < songFrames) n = (int) jmin<juce::int64> (n, songFrames - pos);
+        if (! wrapped && pos + n > passFrames)
+        {
+            c.wrapAt = (int) (passFrames - pos);
+            c.wrapTo = o.start;
+        }
+        c.playing = ! ringing;
+        c.recording = false;
+        c.start = o.start + (double) pos / renderRate;
+        c.samples = n;
+        c.rate = renderRate;
+        c.jumped = first;
+        first = false;
+        c.ppq = project.tempo.ticksAt (c.start) / PPQ;
         c.bpm = project.tempo.bpmAt ((Tick) (c.ppq * PPQ));
         info.setBpm (c.bpm);
         info.setPpqPosition (c.ppq);
-        info.setIsPlaying (true);
-        info.setTimeInSeconds (t);
-        buf.clear();
+        info.setIsPlaying (! ringing);
+        info.setTimeInSeconds (c.start);
+        AudioBuffer<float> piece (buf.getArrayOfWritePointers(), outChannels, n);
+        piece.clear();
         midi.clear();
-        graph.processBlock (buf, midi);
-        for (int i = 0; i < block; ++i)
+        graph.processBlock (piece, midi);
+        for (int i = 0; i < n; ++i)
         {
             const int at = done + i;
-            if (at >= 0 && at < frames)
-                for (int ch = 0; ch < outChannels; ++ch) result.setSample (ch, at, buf.getSample (ch, i));
+            if (at < 0 || at >= capacity) continue;
+            bool loud = false;
+            for (int ch = 0; ch < outChannels; ++ch)
+            {
+                const float v = piece.getSample (ch, i);
+                result.setSample (ch, at, v);
+                loud |= std::abs (v) > silent;
+            }
+            if (loud) lastLoud = at;
         }
-        t += block / renderRate;
-        if (progress && ! progress ((float) jlimit (0.0, 1.0, (double) (done + latency) / (frames + latency))))
+        if (c.wrapAt >= 0) { pos = n - c.wrapAt; wrapped = true; }
+        else pos += n;
+        done += n;
+        // Ringing out: on until it's been silent a quarter of a second, or the most allowed.
+        if (o.ringOut && done >= songFrames)
+        {
+            if (done - jmax (lastLoud + 1, songFrames) >= quietFor || done >= capacity)
+            {
+                frames = jlimit (songFrames, capacity, lastLoud + 1);
+                break;
+            }
+            frames = jmin (capacity, done + block);   // keep going
+        }
+        if (progress && ! progress ((float) jlimit (0.0, 1.0, (double) (done + latency + unheard) / (frames + latency + unheard))))
         {
             cancelled = true;
             break;
         }
     }
+
+    // Exactly what's kept: the range, and its tail when there is one.
+    if (! cancelled && result.getNumSamples() != frames) result.setSize (outChannels, frames, true, false, true);
 
     if (! cancelled)
     {

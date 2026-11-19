@@ -538,16 +538,60 @@ void MainComponent::saveFile (std::function<void()> then)
     });
 }
 
+// Record the Tail and Export the Second Pass (0097): asked before every export
+// of audio, remembered for the next.
+static ToggleButton* exportTick (AlertWindow* w, const String& name, bool on)
+{
+    auto* b = new ToggleButton (name);
+    b->setName ({});   // the window would print its name again above it
+    b->setTitle (name);
+    b->setToggleState (on, dontSendNotification);
+    b->setSize (420, 24);
+    w->addCustomComponent (b);
+    return b;
+}
+
+static const char* tailHelp = "Record the Tail: after the end nothing new plays, and what's still sounding (releases, reverbs, delays) "
+                              "is recorded until it falls silent. Off: the file stops on the end.";
+static const char* passHelp = "Export the Second Pass: the range is played through once unheard, then recorded the second time, "
+                              "so what rings past its end is heard at its start: a loop that loops seamlessly.";
+
 void MainComponent::exportAudio (bool stems, double loudnessTarget)
+{
+    auto* s = settingsStore().getUserSettings();
+    const bool tailWas = s ? s->getBoolValue ("exportTail", true) : true;
+    const bool passWas = s ? s->getBoolValue ("exportSecondPass", false) : false;
+    auto* w = new AlertWindow (stems ? "Export Every Track" : "Export the Mix",
+                               String (c.project.loop.on ? "The loop range." : "The whole song.") + "\n\n" + tailHelp + "\n\n" + passHelp,
+                               MessageBoxIconType::NoIcon);
+    auto* tail = exportTick (w, "Record the Tail", tailWas);
+    auto* pass = exportTick (w, "Export the Second Pass", passWas);
+    w->addButton (ui::u8 ("Choose Where\xe2\x80\xa6"), 1, KeyPress (KeyPress::returnKey));
+    w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+    ui::present (w, ModalCallbackFunction::create ([this, w, tail, pass, stems, loudnessTarget] (int r)
+    {
+        const bool ringOut = tail->getToggleState(), secondPass = pass->getToggleState();
+        for (int i = w->getNumCustomComponents(); --i >= 0;) delete w->getCustomComponent (i);
+        if (r != 1) return;
+        if (auto* st = settingsStore().getUserSettings()) { st->setValue ("exportTail", ringOut); st->setValue ("exportSecondPass", secondPass); }
+        exportAudioTo (stems, loudnessTarget, ringOut, secondPass);
+    }), true);
+}
+
+void MainComponent::exportAudioTo (bool stems, double loudnessTarget, bool ringOut, bool secondPass)
 {
     chooser = std::make_unique<FileChooser> (stems ? "Export every track" : "Export the mix",
                                              c.projectFolder().getChildFile ((c.file.existsAsFile() ? c.file.getFileNameWithoutExtension() : String ("Mix")) + ".wav"),
                                              "*.wav;*.aiff;*.flac;*.mp3");
-    chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting, [this, stems, loudnessTarget] (const FileChooser& fc)
+    chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::warnAboutOverwriting,
+                          [this, stems, loudnessTarget, ringOut, secondPass] (const FileChooser& fc)
     {
         auto f = fc.getResult();
         if (f == File()) return;
         Engine::RenderOptions o;
+        o.tail = 0;
+        o.ringOut = ringOut;
+        o.secondPass = secondPass;
         // The loop range when it's on, otherwise the whole song.
         const auto& p = c.project;
         o.start = p.loop.on ? p.tempo.secondsAt (p.loop.start) : 0.0;
@@ -577,6 +621,8 @@ void MainComponent::exportBatch()
     auto tick = [w] (const String& name, bool on)
     {
         auto* b = new ToggleButton (name);
+        b->setName ({});   // the window would print its name again above it
+        b->setTitle (name);
         b->setToggleState (on, dontSendNotification);
         b->setSize (300, 24);
         w->addCustomComponent (b);
@@ -587,11 +633,18 @@ void MainComponent::exportBatch()
     auto* stems = tick ("Every Track as WAV", false);
     auto* midi = tick ("The MIDI", false);
     auto* loud = tick ("The Mix at -14 LUFS (for streaming)", false);
+    auto* settings = settingsStore().getUserSettings();
+    auto* tail = exportTick (w, "Record the Tail", settings ? settings->getBoolValue ("exportTail", true) : true);
+    auto* pass = exportTick (w, "Export the Second Pass", settings ? settings->getBoolValue ("exportSecondPass", false) : false);
     w->addButton (ui::u8 ("Choose the Folder\xe2\x80\xa6"), 1, KeyPress (KeyPress::returnKey));
     w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
-    ui::present (w, ModalCallbackFunction::create ([this, w, wav, mp3, stems, midi, loud] (int r)
+    ui::present (w, ModalCallbackFunction::create ([this, w, wav, mp3, stems, midi, loud, tail, pass] (int r)
     {
         Controller::Batch b;
+        b.ringOut = tail->getToggleState();
+        b.secondPass = pass->getToggleState();
+        if (r == 1)
+            if (auto* st = settingsStore().getUserSettings()) { st->setValue ("exportTail", b.ringOut); st->setValue ("exportSecondPass", b.secondPass); }
         b.mixWav = wav->getToggleState();
         b.mixMp3 = mp3->getToggleState();
         b.stems = stems->getToggleState();

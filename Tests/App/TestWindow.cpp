@@ -316,3 +316,34 @@ TEST ("transport: Go to Start, Play, Record, Loop, Punch, Click and Count-in sit
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("export: Export the Mix asks first, with Record the Tail and Export the Second Pass, as last chosen (0097)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        w.exportAudio (false);
+        AlertWindow* asked = nullptr;
+        for (auto* ch : w.getChildren()) if (auto* a = dynamic_cast<AlertWindow*> (ch)) asked = a;
+        CHECK (asked != nullptr);
+        if (asked)
+        {
+            CHECK_EQ (asked->getName(), String ("Export the Mix"));
+            StringArray ticks;
+            for (int i = 0; i < asked->getNumCustomComponents(); ++i)
+                if (auto* b = dynamic_cast<ToggleButton*> (asked->getCustomComponent (i))) ticks.add (b->getButtonText());
+            CHECK (ticks.contains ("Record the Tail"));
+            CHECK (ticks.contains ("Export the Second Pass"));
+            asked->exitModalState (0);   // Cancel: nothing exported, nothing asked after
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+        }
+        for (auto* ch : w.getChildren()) CHECK (dynamic_cast<AlertWindow*> (ch) == nullptr);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

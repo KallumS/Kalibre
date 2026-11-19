@@ -52,6 +52,9 @@ public:
 
     void prepareToPlay (double rate, int block) override;
     void releaseResources() override;
+    // Every node reset, and the plan's delay lines emptied: what last played is gone
+    // (an export starts clean, 0097). Message thread, while nothing plays.
+    void reset() override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using juce::AudioProcessorGraph::processBlock;
 
