@@ -214,6 +214,25 @@ void Controller::reloadChangedStates (const std::map<Id, int>& was)
     reload (project.master);
 }
 
+void Controller::carryPlayingStates (const Project& was)
+{
+    auto carry = [] (const Track& before, Track& now)
+    {
+        if (before.version().id == now.version().id) return;
+        for (auto& v : now.versions)
+            if (v.id == before.version().id)
+                for (auto& d : v.devices)
+                    for (auto& playing : before.devices)
+                        if (playing.id == d.id && playing.plugin.identifier == d.plugin.identifier && ! playing.state.empty())
+                        {
+                            d.state = playing.state;
+                            if (! playing.araState.empty()) d.araState = playing.araState;
+                        }
+    };
+    for (auto& t : project.tracks)
+        if (auto* before = was.track (t.id)) carry (*before, t);
+}
+
 void Controller::refresh()
 {
     song::propagateGroups (lastMix, project);
@@ -227,7 +246,9 @@ bool Controller::undo()
     storeDeviceStates();
     const auto label = history.undoLabel();
     const auto states = deviceStates();
+    const Project was = project;
     if (! history.undo (project)) return false;
+    carryPlayingStates (was);
     dirty = true;
     syncEngine();
     reloadChangedStates (states);
@@ -241,7 +262,9 @@ bool Controller::redo()
     storeDeviceStates();
     const auto label = history.redoLabel();
     const auto states = deviceStates();
+    const Project was = project;
     if (! history.redo (project)) return false;
+    carryPlayingStates (was);
     dirty = true;
     syncEngine();
     reloadChangedStates (states);

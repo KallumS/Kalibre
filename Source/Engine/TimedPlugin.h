@@ -47,10 +47,6 @@ public:
     // Audio-thread time spent in the plug-in, in high-resolution ticks.
     std::atomic<juce::int64> busyTicks { 0 };
 
-    // A plug-in of a version not playing (decision 0050): loaded, kept, silent,
-    // and costing nothing, so choosing its version is instant.
-    std::atomic<bool> parked { false };
-
     // The track's tap, on the device whose MIDI is recorded when armed for MIDI (decision 0064).
     std::atomic<MidiTap*> tap { nullptr };
 
@@ -121,7 +117,6 @@ public:
 
     void processBlock (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
     {
-        if (parked.load (std::memory_order_relaxed)) { audio.clear(); midi.clear(); return; }
         const auto start = juce::Time::getHighResolutionTicks();
         const bool matching = matchLoudness.load (std::memory_order_relaxed);
         if (matching) match.keepInput (audio, audio.getNumSamples());
@@ -151,7 +146,6 @@ public:
     // so delay compensation still lines everything up.
     void processBlockBypassed (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
     {
-        if (parked.load (std::memory_order_relaxed)) { audio.clear(); midi.clear(); return; }
         if (auto* t = tap.load (std::memory_order_relaxed)) t->caught (midi, false);   // bypassed: what it would have played
         const int n = audio.getNumSamples();
         const int passing = juce::jmin (getMainBusNumInputChannels(), getMainBusNumOutputChannels(), audio.getNumChannels());

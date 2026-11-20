@@ -452,6 +452,9 @@ private:
     void syncEngine();
     std::map<Id, int> deviceStates() const;
     void reloadChangedStates (const std::map<Id, int>&);
+    // Undo and Redo that change which version plays (0103): the settings of the
+    // plug-ins being unloaded, as they are now, go into the version they rest in.
+    void carryPlayingStates (const Project& was);
     std::vector<song::TrackMix> lastMix;   // the mix as last synced, for grouped tracks
     void timerCallback() override;
     void finishRecording();
