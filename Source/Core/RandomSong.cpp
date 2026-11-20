@@ -245,4 +245,43 @@ Result make (const Catalogue& cat, const Options& opt)
     return r;
 }
 
+std::vector<DevicePick> devices (const Catalogue& cat, unsigned seed, bool instrument, bool drums, bool takesNotes)
+{
+    std::mt19937 rng (seed);
+    auto chance = [&rng] (double p) { return std::uniform_real_distribution<double> (0, 1) (rng) < p; };
+    std::vector<DevicePick> out;
+    std::vector<Sample> drumHits, tonalHits;
+    for (auto& s : cat.samples) if (! isLoop (s) && s.seconds > 0.02 && s.seconds < 8) (s.drums ? drumHits : tonalHits).push_back (s);
+    if (takesNotes && chance (0.25))
+        if (auto* m = pick (cat.midiEffects, rng)) out.push_back ({ *m, {} });
+    if (instrument)
+    {
+        std::vector<Choice> kits, usable;
+        for (auto& c : cat.instruments)
+        {
+            if (c.drums) kits.push_back (c);
+            if (! c.drums && (! c.wantsSample || ! (drums ? drumHits : tonalHits).empty() || ! tonalHits.empty())) usable.push_back (c);
+        }
+        const Choice* inst = drums ? pick (kits, rng) : nullptr;
+        if (! inst) inst = pick (usable, rng);
+        if (inst)
+        {
+            DevicePick d { *inst, {} };
+            if (inst->wantsSample)
+                if (auto* s = pick (drums && ! drumHits.empty() ? drumHits : tonalHits, rng)) d.sample = s->path;
+            out.push_back (d);
+        }
+    }
+    // One or two effects, never the same twice.
+    const int effects = std::uniform_int_distribution<int> (1, 2) (rng);
+    std::vector<std::string> used;
+    for (int i = 0; i < effects * 3 && (int) used.size() < effects; ++i)
+        if (auto* e = pick (cat.effects, rng); e && std::find (used.begin(), used.end(), e->name) == used.end())
+        {
+            used.push_back (e->name);
+            out.push_back ({ *e, {} });
+        }
+    return out;
+}
+
 } // namespace kal::randomsong

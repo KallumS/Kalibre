@@ -30,6 +30,16 @@ bool soundsLikeDrums (const String& text)
     return false;
 }
 
+// Devices chosen by chance that couldn't be loaded (a plug-in moved or gone since its
+// scan) are taken out again, in the same undo step; how many, to say.
+int dropUnloaded (Project& p, Engine& engine, const std::set<Id>& added)
+{
+    std::vector<Id> dead;
+    for (auto id : added) if (p.device (id) && ! engine.instance (id)) dead.push_back (id);
+    for (auto id : dead) edit::removeDevice (p, id);
+    return (int) dead.size();
+}
+
 randomsong::Choice own (const String& name, PluginRef ref, DeviceRole role, bool wantsSample = false)
 {
     randomsong::Choice c;
@@ -85,6 +95,74 @@ randomsong::Catalogue Controller::randomCatalogue (const library::Index& sounds)
     return cat;
 }
 
+bool Controller::randomDevices (Id trackId, unsigned seed)
+{
+    const auto* t = project.track (trackId);
+    if (! t) { say ("Choose a track for the random devices."); return false; }
+    static const library::Index none;
+    const auto* sounds = soundsIndex ? soundsIndex() : nullptr;
+    // An instrument for a track that plays notes and has none; a track of audio clips, a return,
+    // a folder or the master get effects only.
+    bool hasInstrument = false, hasAudio = false, hasMidi = false;
+    for (auto& d : t->devices) hasInstrument |= d.role == DeviceRole::Instrument;
+    if (t->holdsClips()) for (auto& cl : t->clips()) (cl.isMidi() ? hasMidi : hasAudio) = true;
+    const bool notes = t->kind == TrackKind::Track && (hasMidi || ! hasAudio);
+    const bool instrument = notes && ! hasInstrument;
+    const bool drums = String (t->name).containsIgnoreCase ("drum") || String (t->name).containsIgnoreCase ("beat")
+                    || String (t->name).containsIgnoreCase ("perc");
+    const auto picks = randomsong::devices (randomCatalogue (sounds ? *sounds : none), seed, instrument, drums, notes && (instrument || hasInstrument));
+    if (picks.empty()) { say ("There's nothing to add: scan for plug-ins in Kalibre > Plug-in Manager."); return false; }
+    // Each Sampler's sound loaded before it goes in.
+    std::vector<std::string> states;
+    for (auto& pk : picks)
+    {
+        std::string state;
+        if (! pk.sample.empty())
+        {
+            KalibreSampler sampler;
+            String error;
+            if (sampler.load (File (String (pk.sample)), error))
+            {
+                MemoryBlock m;
+                sampler.getStateInformation (m);
+                state = m.toBase64Encoding().toStdString();
+            }
+        }
+        states.push_back (state);
+    }
+    StringArray names;
+    for (auto& pk : picks) names.add (String (pk.choice.name));
+    if (t->isCue())
+    {
+        bool any = false;
+        for (auto& pk : picks) any |= pk.choice.role == DeviceRole::AudioFx;
+        if (! any) return false;
+    }
+    std::set<Id> added;
+    apply ("Random Devices", [&] (Project& p)
+    {
+        for (size_t i = 0; i < picks.size(); ++i)
+        {
+            const auto& pk = picks[i];
+            if (p.track (trackId) && p.track (trackId)->isCue() && pk.choice.role != DeviceRole::AudioFx) continue;
+            const Id d = edit::addDevice (p, trackId, pk.choice.ref, pk.choice.role);
+            added.insert (d);
+            if (auto* dev = p.device (d); dev && ! states[i].empty()) dev->state = states[i];
+        }
+    });
+    StringArray kept;
+    for (auto id : added) if (auto* d = project.device (id); d && engine.instance (id)) kept.add (String (d->plugin.name));
+    // Taken out within the same undo step: Undo still goes back to before the click.
+    const int gone = dropUnloaded (project, engine, added);
+    if (gone > 0) syncEngine();
+    zoneTab = ZoneTab::Devices;
+    say ("Random devices on " + String (project.track (trackId)->name) + ": " + (kept.isEmpty() ? String ("none") : kept.joinIntoString (", "))
+         + (gone > 0 ? " (" + String (gone) + (gone == 1 ? " plug-in couldn't" : " plug-ins couldn't") + " be loaded, and " + (gone == 1 ? "was" : "were") + " left out)." : String (".")),
+         gone > 0, true);
+    sendChangeMessage();
+    return true;
+}
+
 bool Controller::randomSong (const library::Index& sounds, unsigned seed)
 {
     randomsong::Options o;
@@ -132,8 +210,13 @@ bool Controller::randomSong (const library::Index& sounds, unsigned seed)
     selectedNotes.clear();
     cursor = 0;
     syncEngine();
+    std::set<Id> every;
+    for (auto& t : project.tracks) for (auto& d : t.devices) every.insert (d.id);
+    const int gone = dropUnloaded (project, engine, every);
+    if (gone > 0) syncEngine();
     sendChangeMessage();
-    say ("A random song: " + String (made.summary) + ". Press Space to hear it; click Random again for another.");
+    say ("A random song: " + String (made.summary) + ". Press Space to hear it; click Random again for another."
+         + (gone > 0 ? " (" + String (gone) + (gone == 1 ? " plug-in couldn't be loaded and was left out.)" : " plug-ins couldn't be loaded and were left out.)") : String()));
     lastRandomParts = made.parts;
     return true;
 }

@@ -31,6 +31,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
     addAndMakeVisible (transport);
     transport.onMenu = [this] { top.showMenu(); };
     c.onRandomSong = [this] { randomSong(); };
+    c.soundsIndex = [this] { return &library().scanner().index(); };
     addAndMakeVisible (arrange);
     addAndMakeVisible (lower);
     addChildComponent (browser);
@@ -71,6 +72,7 @@ MainComponent::~MainComponent()
 {
     Desktop::getInstance().removeGlobalMouseListener (&activity);
     c.onRandomSong = nullptr;
+    c.soundsIndex = nullptr;
     c.keys.all().clear();   // their actions point at this window
     c.onShowPluginManager = nullptr;
     c.onShowArticulationManager = nullptr;

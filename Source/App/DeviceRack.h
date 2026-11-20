@@ -92,6 +92,8 @@ private:
     juce::OwnedArray<DevicePanel> panels;
     juce::OwnedArray<ModulatorPanel> modulators;
     theme::HouseButton add { "+ Add", "Add a plug-in to this track: a MIDI effect, an instrument or an audio effect." };
+    theme::HouseButton random { "Random", "Add devices by chance, as the top bar's Random does: an instrument if the track plays notes and has none, "
+                                          "one or two effects, and now and then a MIDI effect. One undo step." };
     Id shownTrack = 0;
     bool dropping = false;
     juce::String shownShape;

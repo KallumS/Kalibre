@@ -71,6 +71,13 @@ struct Result
 
 Result make (const Catalogue&, const Options&);
 
+// The device rack's Random (0102): devices for one track, chosen as the song's
+// are. An instrument when `instrument` (a drum kit first when `drums`); a MIDI
+// effect a quarter of the time (only with notes to change); one or two audio
+// effects. A Sampler's sound in `sample`.
+struct DevicePick { Choice choice; std::string sample; };
+std::vector<DevicePick> devices (const Catalogue&, unsigned seed, bool instrument, bool drums, bool takesNotes);
+
 // A loop: a sound long enough to loop, its tempo known.
 bool isLoop (const Sample&);
 

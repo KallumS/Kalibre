@@ -136,3 +136,30 @@ TEST ("random song: loops from the musician's sounds, stretched to the tempo; th
     CHECK (sawSampler);
 }
 
+
+TEST ("random devices: an instrument when asked (a kit for drums), one or two effects, a MIDI effect now and then (0102)")
+{
+    const auto cat = catalogue (true);
+    int midiFx = 0;
+    for (unsigned seed = 1; seed <= 80; ++seed)
+    {
+        const auto d = devices (cat, seed, true, false, true);
+        int instruments = 0, effects = 0;
+        for (auto& x : d)
+        {
+            instruments += x.choice.role == DeviceRole::Instrument;
+            effects += x.choice.role == DeviceRole::AudioFx;
+            midiFx += x.choice.role == DeviceRole::MidiFx;
+            CHECK (! x.choice.drums);                              // not a kit for a tonal part
+            if (x.choice.wantsSample) CHECK (! x.sample.empty());  // the Sampler always with a sound
+        }
+        CHECK_EQ (instruments, 1);
+        CHECK (effects >= 1 && effects <= 2);
+        // Drums: the kit.
+        const auto drums = devices (cat, seed, true, true, true);
+        for (auto& x : drums) if (x.choice.role == DeviceRole::Instrument) CHECK (x.choice.drums);
+        // Effects only, for a track without notes.
+        for (auto& x : devices (cat, seed, false, false, false)) CHECK (x.choice.role == DeviceRole::AudioFx);
+    }
+    CHECK (midiFx > 5 && midiFx < 40);   // about a quarter of the time
+}

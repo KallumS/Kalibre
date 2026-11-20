@@ -622,6 +622,9 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     });
     strip.addAndMakeVisible (add);
     add.onClick = [this] { addMenu (c, c.focusTrack, &add); };
+    // Devices by chance (0102).
+    strip.addAndMakeVisible (random);
+    random.onClick = [this] { c.randomDevices (c.focusTrack, (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u); };
     MorphProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
         PopupMenu m;
@@ -829,7 +832,8 @@ void DeviceRack::layoutStrip()
         x += w + theme::px (8);
     }
     add.setBounds (x, theme::px (4), add.idealWidth(), theme::px (28));
-    x += add.idealWidth() + theme::px (8);
+    random.setBounds (x, add.getBottom() + theme::px (6), jmax (add.idealWidth(), random.idealWidth()), theme::px (28));
+    x += jmax (add.idealWidth(), random.idealWidth()) + theme::px (8);
     strip.setSize (jmax (x, viewport.getWidth()), h);
     placeEditors();
 }

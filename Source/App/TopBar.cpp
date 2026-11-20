@@ -510,6 +510,20 @@ void TopBar::editSignature()
     }), true);
 }
 
+void TopBar::randomScale (unsigned seed)
+{
+    Random rng (seed != 0 ? (int64) seed : Time::currentTimeMillis());
+    const auto was = c.project.scale;
+    auto now = was;
+    for (int tries = 0; tries < 20 && now.root == was.root && now.scale == was.scale; ++tries)
+    {
+        now.root = rng.nextInt ((int) scaleview::roots.size());
+        now.scale = rng.nextInt ((int) scaleview::scales.size());
+    }
+    c.apply ("Random Scale", [now] (Project& p) { p.scale.root = now.root; p.scale.scale = now.scale; });
+    c.say ("The scale is now " + String (harmony::scaleName (c.project.scale)) + ".", false, true);
+}
+
 void TopBar::chooseScale()
 {
     PopupMenu m, roots, scales;
@@ -523,12 +537,14 @@ void TopBar::chooseScale()
     m.addSeparator();
     m.addItem (2000, "Shade the Scale in the Piano Roll", true, c.project.scale.highlight);
     m.addItem (2001, "Find the Scale from the Notes");
+    m.addItem (2002, "Random Scale");   // any root, any scale (0102)
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (&scale), [this] (int r)
     {
         if (r <= 0) return;
         if (r < 1000) c.apply ("Scale", [r] (Project& p) { p.scale.root = r - 1; });
         else if (r < 2000) c.apply ("Scale", [r] (Project& p) { p.scale.scale = r - 1000; });
         else if (r == 2000) c.apply ("Scale Shading", [] (Project& p) { p.scale.highlight = ! p.scale.highlight; });
+        else if (r == 2002) randomScale();
         else
         {
             const auto ranked = harmony::rankKeys (harmony::collect (c.project, 0, c.project.endTick()));

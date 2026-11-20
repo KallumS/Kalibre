@@ -186,3 +186,122 @@ TEST ("files: opening a song never keeps the last song's plug-ins, though their 
     c.newProject();
     CHECK (engine.instance (db) == nullptr);
 }
+
+TEST ("random: the plug-ins scanned are in the pool, but not those that measure, nor Kalibre's own twice (0102)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    auto scanned = [&] (const String& name, bool instrument, const String& category = {})
+    {
+        PluginDescription d;
+        d.name = name;
+        d.pluginFormatName = "VST3";
+        d.fileOrIdentifier = "/Library/Audio/Plug-Ins/VST3/" + name + ".vst3";
+        d.manufacturerName = "Someone";
+        d.category = category;
+        d.isInstrument = instrument;
+        d.numInputChannels = instrument ? 0 : 2;
+        d.numOutputChannels = 2;
+        plugins.known().addType (d);
+    };
+    scanned ("Lush Pads", true);
+    scanned ("Big Drums", true, "Instrument|Drum");
+    scanned ("Warm Delay", false, "Fx|Delay");
+    scanned ("Spectrum Analyzer", false, "Fx|Analyzer");
+    const auto cat = c.randomCatalogue ({});
+    auto has = [] (const std::vector<randomsong::Choice>& v, const char* name, bool* drums = nullptr)
+    {
+        for (auto& x : v) if (x.name == name) { if (drums) *drums = x.drums; return true; }
+        return false;
+    };
+    bool drums = false;
+    CHECK (has (cat.instruments, "Lush Pads"));
+    CHECK (has (cat.instruments, "Big Drums", &drums) && drums);
+    CHECK (has (cat.effects, "Warm Delay"));
+    CHECK (! has (cat.effects, "Spectrum Analyzer"));
+    CHECK (has (cat.instruments, "Kalibre Synth"));   // with Kalibre's own
+    // Not left in this Mac's list of scanned plug-ins for the next test, or the app.
+    for (auto* name : { "Lush Pads", "Big Drums", "Warm Delay", "Spectrum Analyzer" })
+        for (auto& d : plugins.known().getTypes()) if (d.name == name) plugins.known().removeType (d);
+}
+
+TEST ("random: a scanned plug-in that can't be loaded (gone since its scan) is left out, in the same undo step (0102)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.newProject();
+    PluginDescription d;
+    d.name = "Gone Reverb";
+    d.pluginFormatName = "VST3";
+    d.fileOrIdentifier = "/nowhere/Gone Reverb.vst3";
+    d.numInputChannels = d.numOutputChannels = 2;
+    plugins.known().addType (d);
+    const Id t = c.project.tracks.front().id;
+    const auto before = c.history.size();
+    bool sawGone = false;
+    for (unsigned seed = 1; seed <= 30; ++seed)
+    {
+        CHECK (c.randomDevices (t, seed));
+        for (auto& x : c.project.track (t)->devices) CHECK (engine.instance (x.id) != nullptr);
+        sawGone |= c.message.contains ("couldn't be loaded");
+        c.undo();
+    }
+    CHECK (sawGone);
+    CHECK_EQ (c.history.size(), before);
+    plugins.known().removeType (d);
+}
+
+TEST ("random: the device rack's Random adds an instrument where notes have none, one or two effects, one undo step; a return gets effects (0102)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.newProject();
+    const Id t = c.project.tracks.front().id;
+    const auto before = c.history.size();
+    CHECK (c.randomDevices (t, 11));
+    CHECK_EQ (c.history.size(), before + 1);
+    int instruments = 0, effects = 0;
+    for (auto& d : c.project.track (t)->devices)
+    {
+        instruments += d.role == DeviceRole::Instrument;
+        effects += d.role == DeviceRole::AudioFx;
+        CHECK (engine.instance (d.id) != nullptr);
+    }
+    CHECK_EQ (instruments, 1);
+    CHECK (effects >= 1 && effects <= 2);
+    CHECK (c.message.contains ("Random devices"));
+    // Again: it has an instrument now; only effects (and perhaps a MIDI effect) come.
+    CHECK (c.randomDevices (t, 12));
+    instruments = 0;
+    for (auto& d : c.project.track (t)->devices) instruments += d.role == DeviceRole::Instrument;
+    CHECK_EQ (instruments, 1);
+    c.undo();
+    c.undo();
+    CHECK (c.project.track (t)->devices.empty());
+    // A return: effects only.
+    const Id r = c.addTrack (TrackKind::Return);
+    CHECK (c.randomDevices (r, 13));
+    for (auto& d : c.project.track (r)->devices) CHECK (d.role == DeviceRole::AudioFx);
+}
+
+#include "TopBar.h"
+
+TEST ("random: the Scale menu's Random Scale chooses another root and scale, one undo step (0102)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.newProject();
+    TopBar bar (c);
+    const auto was = c.project.scale;
+    const auto before = c.history.size();
+    bar.randomScale (7);
+    CHECK (! (c.project.scale.root == was.root && c.project.scale.scale == was.scale));
+    CHECK_EQ (c.history.size(), before + 1);
+    CHECK (c.message.contains ("The scale is now"));
+    c.undo();
+    CHECK (c.project.scale == was);
+}

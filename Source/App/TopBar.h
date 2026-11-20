@@ -129,6 +129,10 @@ private:
     void editTempo();
     void editSignature();
     void chooseScale();
+public:
+    // The Scale menu's Random Scale (0102): any root, any scale, not the one it is; one undo step.
+    void randomScale (unsigned seed = 0);
+private:
     void chooseGrid();
     std::vector<int> heldPitches() const;
     juce::Component* itemNamed (const juce::String&);

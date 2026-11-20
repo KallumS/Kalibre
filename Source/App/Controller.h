@@ -425,6 +425,10 @@ public:
     randomsong::Catalogue randomCatalogue (const library::Index& sounds);
     bool randomSong (const library::Index& sounds, unsigned seed);
     std::vector<std::string> lastRandomParts;
+    // The device rack's Random (0102): devices by chance onto a track, one undo step;
+    // an instrument when it has none and plays notes. False when there was nothing to add.
+    bool randomDevices (Id track, unsigned seed);
+    std::function<const library::Index*()> soundsIndex;   // the Sounds tab's scan, for the Samplers' sounds
     std::function<void()> onRandomSong;   // the top bar's button asks the window
 
     // The engine's state of mind, for the window.

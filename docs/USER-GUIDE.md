@@ -174,7 +174,7 @@ From left to right:
 | **Tap** | Tap it in time to set the tempo. |
 | **Time** | The time signature. Double-click to change it from the bar the cursor is in. |
 | **Grid** | The arrangement's grid (1/1 to 1/64, with triplets): what clips, the cursor and the loop snap to. Click to choose, or turn **Snap to the Grid** off. The editors have their own grid, in the lower zone. |
-| **Scale** | The song's key and scale. Its notes are shaded in the piano roll (View > Shade the Scale in the Piano Roll) and chords are spelt for it. Click for **Root** and **Scale**. |
+| **Scale** | The song's key and scale. Its notes are shaded in the piano roll (View > Shade the Scale in the Piano Roll) and chords are spelt for it. Click for **Root** and **Scale**, **Find the Scale from the Notes**, or **Random Scale** (any root and any scale but the one it is; one undo step). |
 | **Chord** | The chord you're playing on a MIDI keyboard, named as you play. |
 | **Making Music** | How long you've worked on this song. It counts while you edit, play, record, play a MIDI keyboard, press a key or move the mouse in Kalibre, and pauses after 3 minutes with nothing happening (8 minutes while the song plays); it then says **Paused**, and starts again with the next thing you do. The mouse counts only while Kalibre is the app in front: moving it in Safari doesn't. Right-click > **Pause the Timer After** chooses 1, 2, 3, 5, 10 or 15 minutes. Saved with the song. |
 | **Follow** | Click: the view scrolls to keep the playhead in sight. **Shift**-click: it turns the page instead, when the playhead reaches the right edge ("Follow: Page"). |
@@ -195,7 +195,9 @@ Then:
 - **Music from the family's engines**: Good Idea writes the drums and a lead
   tune; Midi Suggester writes chords and a bass under the tune, and sometimes
   a counter-melody over the chords, or a pad an octave up.
-- **A random instrument on each**: your plug-ins, Kalibre Synth, Trombolese,
+- **A random instrument on each**: your scanned plug-ins (all of them but those
+  turned off in the Plug-in Manager, and ones that measure rather than sound:
+  analysers, meters, tuners), Kalibre Synth, Trombolese,
   Reese Basser, or Kalibre Sampler playing one of your sounds. Drums go to an
   instrument that plays drums when you have one (by its name).
 - **Loops from your sounds** (the Sounds tab's folders), now and then: ones
@@ -661,6 +663,15 @@ zone: the rack is outlined while you drag, and the plug-in goes between the
 ones either side of where you let go (MIDI effects still come first, then
 instruments, then audio effects). With no track chosen, a new track is made
 for it.
+
+**Random**, under **+ Add**, adds devices by chance to the chosen track, as
+the top bar's Random chooses them: an instrument if the track plays notes and
+has none (one that plays drums for a track named Drums, Beat or Perc, when
+you have one), one or two effects, and now and then a MIDI effect. They come
+from your scanned plug-ins and Kalibre's own. A return, a folder, the master
+or a track of audio clips gets effects only. It's one undo step; click it
+again for more. A scanned plug-in that can't be loaded any more (moved or
+deleted since its scan) is left out, and the message line says so.
 
 ### Each plug-in's buttons
 
