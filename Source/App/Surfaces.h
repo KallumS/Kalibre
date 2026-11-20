@@ -18,6 +18,7 @@
 
 #include "Controller.h"
 #include "Hui.h"
+#include "McpServer.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_osc/juce_osc.h>
@@ -45,8 +46,12 @@ public:
     std::function<void (const juce::MidiMessage&)> sendToSurface;
     std::function<void (const juce::MidiMessage&)> sendToHui;
 
+    // AI agents through MCP (decision 0099), on and off with the studio's settings.
+    McpServer& agents() { return mcp; }
+
 private:
     Controller& c;
+    McpServer mcp { c };
     juce::SpinLock inputLock;
     juce::String mackieIn;
     std::unique_ptr<juce::MidiOutput> mackieOut;

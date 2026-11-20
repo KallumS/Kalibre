@@ -2241,6 +2241,15 @@ File Controller::scriptsFolder() const
 
 void Controller::runScript (const File& f)
 {
+    String said;
+    if (! runScriptCode (f.loadFileAsString(), f.getFileNameWithoutExtension(), said)) { say (f.getFileNameWithoutExtension() + ": " + said, true); return; }
+    if (said.isNotEmpty()) say (said);
+}
+
+// A script's text run as one undo step named `name`: false (and why, in `said`)
+// when it failed; what it printed in `said` when it ran (0019, and agents, 0099).
+bool Controller::runScriptCode (const String& code, const String& name, String& said)
+{
     script::Context ctx;
     ctx.selectedTracks = selectedTracks;
     ctx.selectedClip = selectedClip;
@@ -2257,25 +2266,27 @@ void Controller::runScript (const File& f)
     };
     storeDeviceStates();
     Project before = project;
-    const auto r = script::run (project, f.loadFileAsString().toStdString(), f.getFileName().toStdString(), ctx);
-    if (! r.ok) { say (f.getFileNameWithoutExtension() + ": " + String (r.error), true); return; }
+    const auto r = script::run (project, code.toStdString(), name.toStdString(), ctx);
+    if (! r.ok) { said = String (r.error); return false; }
     if (edit::overTrackLimit (project) && project.tracks.size() > before.tracks.size())
     {
         project = std::move (before);
         refuseTooManyTracks();
         sendChangeMessage();
-        return;
+        said = "It would make more than 1000 tracks.";
+        return false;
     }
     selectedClip = r.after.selectedClip;
     selectedNotes = r.after.selectedNotes;
     if (r.changed)
     {
-        history.push (before, f.getFileNameWithoutExtension().toStdString());
+        history.push (before, name.toStdString());
         dirty = true;
         syncEngine();
     }
-    if (! r.printed.empty()) say (String (r.printed).trim());
+    said = String (r.printed).trim();
     sendChangeMessage();
+    return true;
 }
 
 //==============================================================================

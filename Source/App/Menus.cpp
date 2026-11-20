@@ -63,6 +63,11 @@ PopupMenu MainComponent::appMenu()
         browser.showTab (Browser::Tab::Studio);
         resized();
     }));
+    // AI agents through MCP (decision 0099): its switch is at the foot of the Studio tab.
+    m.addItem (item (ui::u8 ("AI Agents\xe2\x80\xa6"), [this]
+    {
+        showAgents();
+    }));
     // Scanning is in the Plug-in Manager; one place for it, one menu item (0069).
     m.addItem (item (ui::u8 ("Plug-in Manager\xe2\x80\xa6"), [this] { c.showPluginManager(); }));
     // The folders the browser's Sounds tab looks in (decision 0094).

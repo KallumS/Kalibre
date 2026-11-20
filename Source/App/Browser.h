@@ -33,6 +33,7 @@ public:
 
     enum class Tab { Plugins, Files, Audio, Studio, Presets, Keys };
     void showTab (Tab);
+    void showAgents();   // the Studio tab scrolled to AI Agents (0099)
     Tab shownTab() const { return tab; }
     LibraryView& library() { return *sounds; }
 

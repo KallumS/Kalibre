@@ -85,6 +85,7 @@ public:
     void songDetails();
     void setTextSize (float);
     void showBrowser (Browser::Tab);
+    void showAgents();   // Kalibre > AI Agents...: the Studio tab, at AI Agents (0099)
     void hideBrowser() { browserShown = false; browser.setVisible (false); resized(); }
     void showPluginManager();
     void showArticulationManager();

@@ -608,6 +608,12 @@ void MainComponent::exportAudioTo (bool stems, double loudnessTarget, bool ringO
     });
 }
 
+void MainComponent::showAgents()
+{
+    showBrowser (Browser::Tab::Studio);
+    browser.showAgents();
+}
+
 void MainComponent::exportMidi()
 {
     chooser = std::make_unique<FileChooser> ("Export MIDI", c.projectFolder().getChildFile ("Song.mid"), "*.mid");

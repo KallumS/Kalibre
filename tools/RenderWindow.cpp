@@ -221,6 +221,20 @@ int main (int argc, char** argv)
         shoot ("32-browser-audio");
         window.showBrowser (Browser::Tab::Keys);
         shoot ("33-browser-keys");
+        // AI agents, switched on (decision 0099).
+        {
+            const auto was = c.studio;
+            auto on = was;
+            on.mcpOn = true;
+            c.setStudio (on);
+            window.browserWidth = 360;
+            window.showAgents();
+            MessageManager::getInstance()->runDispatchLoopUntil (700);
+            window.showAgents();
+            shoot ("39-ai-agents");
+            c.setStudio (was);
+            window.browserWidth = 320;
+        }
         // The Sounds tab (decision 0094): a small library of drums, loops and MIDI.
         {
             const auto lib = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-library");

@@ -407,6 +407,7 @@ public:
     juce::File studioFile() const;
     void setStudio (const ControlSettings&);
     std::function<void()> onStudioChanged;   // the surfaces reconfigure
+    int agentsListening = 0;                 // the port AI agents reach Kalibre on (MCP, 0099), 0 when off
 
     // The window's keys (decision 0045): registered by the window, kept with the app.
     Keys keys;
@@ -414,6 +415,7 @@ public:
     // Scripts.
     juce::File scriptsFolder() const;
     void runScript (const juce::File&);
+    bool runScriptCode (const juce::String& code, const juce::String& name, juce::String& said);
 
     // The engine's state of mind, for the window.
     std::function<void()> onTransportChanged;

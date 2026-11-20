@@ -1192,6 +1192,45 @@ Everything each one does is in [CONTROL.md](CONTROL.md).
 is where they go; **Add the Example Scripts** copies Kalibre's examples
 there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 
+### AI agents (MCP)
+
+An AI agent, such as Claude, can work in Kalibre with you: look at the song,
+make tracks, add plug-ins and turn their knobs, write clips and notes, play
+and stop, export. It talks to Kalibre through MCP (the Model Context
+Protocol), which Claude Desktop, Claude Code and many other agents speak.
+
+1. **Kalibre > AI Agents…** opens the browser's Studio tab at **AI Agents
+   (MCP)**. Tick **Let AI Agents Control Kalibre**. Under it, it says
+   **Listening on this Mac, port 47100**.
+2. Tell the agent where Kalibre is, once:
+   - **Claude Desktop**: click **Copy Setup for Claude Desktop**. In Claude
+     Desktop, choose **Settings > Developer > Edit Config**, paste it into
+     the file (if it already has an `"mcpServers"` section, put the
+     `"kalibre"` part inside that one), save, and open Claude again.
+   - **Claude Code**: click **Copy Command for Claude Code**, paste it into
+     Terminal and press Return.
+   - **Anything else**: point it at `http://127.0.0.1:47100/mcp`, or have it
+     start Kalibre with `--mcp` (what the setups above do).
+3. Ask it for things: "make a bass track with Kalibre Synth and write a
+   two-bar line in A minor", "put Pro-Q on the vocal and cut a bit at
+   300 Hz", "loop bars 5 to 8".
+
+Kalibre must be open for the agent to reach it. What you'll see:
+
+- **Every change is one undo step**, named "Agent: …", and the message
+  line says what the agent did ("An AI agent: Add 2 Notes."), with **Undo**
+  beside it. ⌘Z takes it back like anything you did. Turning a plug-in's
+  knob isn't an undo step, as when you turn it.
+- **Only this Mac**: Kalibre listens on 127.0.0.1, so nothing on the network
+  can reach it, and a web page in your browser is turned away. Untick the box
+  and no agent can reach it at all. It's off until you tick it.
+- If **Port** is taken by something else, the message line says so: type
+  another and press Return (then copy the setup again).
+
+![The Studio tab's AI Agents, switched on](guide/ai-agents.png)
+
+Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
+
 ---
 
 ## 19. Every Menu, Item by Item
@@ -1202,6 +1241,7 @@ there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 | --- | --- | --- |
 | Audio and MIDI Settings… | ⌘, | The browser's Audio tab. |
 | Sync and Control Surfaces… | | The browser's Studio tab. |
+| AI Agents… | | The Studio tab at AI Agents (MCP): let an AI agent work in Kalibre. |
 | Plug-in Manager… | | [Section 14](#the-plug-in-manager). |
 | Library Folders… | | The folders the Sounds tab looks in ([Section 14](#the-sounds-tab)). |
 | Quit Kalibre | ⌘Q | Asks to save first. Kalibre always ends within five seconds, even if a plug-in won't let go. |

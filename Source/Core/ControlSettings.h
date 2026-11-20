@@ -39,6 +39,11 @@ struct ControlSettings
     std::string oscReplyHost = "127.0.0.1";
     int oscReplyPort = 9000;             // and answers here
 
+    // AI agents, through the Model Context Protocol (decision 0099): off until
+    // switched on; then Kalibre listens on this port, on this Mac only.
+    bool mcpOn = false;
+    int mcpPort = 47100;
+
     bool operator== (const ControlSettings&) const = default;
 };
 

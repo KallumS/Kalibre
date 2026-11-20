@@ -145,7 +145,7 @@ grow and shrink with it.
 - **Files**: templates, collect and save, relink, archives, MP3 with the
   song's details, several exports at once, Final Cut XML; a **video** track.
 - **Every key changeable**, and saved **workspaces**.
-- **Lua scripts**, as in REAPER.
+- **Lua scripts**, as in REAPER, and **AI agents** (Claude and others, through MCP) that can make tracks, add plug-ins and write clips with you ([docs/AGENTS.md](docs/AGENTS.md)).
 - Menus in the Mac's menu bar; the house colours; Apple's guidelines.
 
 ![The mixer: versions 1 to 4, Mono on every strip, the Cue track after the master](docs/mixer-versions-and-cue.png)
