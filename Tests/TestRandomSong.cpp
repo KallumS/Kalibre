@@ -163,3 +163,17 @@ TEST ("random devices: an instrument when asked (a kit for drums), one or two ef
     }
     CHECK (midiFx > 5 && midiFx < 40);   // about a quarter of the time
 }
+
+TEST ("random settings: volume, tuning and pitch controls are left alone, by name; the sound's other controls aren't (0104)")
+{
+    using randomsong::keepsItsValue;
+    for (auto* n : { "Volume", "Master Volume", "Output", "Output Gain", "Gain", "Level", "Amp Level", "Out", "Trim", "MasterVol",
+                     "Tune", "Tuning", "Master Tune", "Osc 2 Pitch", "Osc 2 Fine", "Fine", "Coarse", "Osc1Pitch", "Transpose",
+                     "Detune", "Semitones", "Semi", "Octave", "Oct", "Cents", "Root Note", "Pitch Bend Range", "Speed",
+                     "Bypass", "Mute" })
+        CHECK (keepsItsValue (n));
+    for (auto* n : { "Cutoff", "Resonance", "Attack", "Decay", "Sustain", "Release", "Osc Mix", "Wave 1", "Noise", "Key Track",
+                     "Glide", "Centre Frequency", "Center", "Env Amount", "Grain Size", "Density", "Spray", "Drive", "Reverb Mix",
+                     "LFO Rate", "Breath", "Stereo Width", "Octopus", "Fineness" })
+        CHECK (! keepsItsValue (n));
+}

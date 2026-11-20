@@ -2098,6 +2098,7 @@ void Controller::captureAudio (double seconds)
 //==============================================================================
 void Controller::touched (const Engine::Touch& t)
 {
+    if (settingByChance) return;   // the device's Random (0104)
     Track* owner = nullptr;
     if (! project.device (t.device, &owner)) return;
     const bool changed = lastTouched.device != t.device || lastTouched.param != t.param;

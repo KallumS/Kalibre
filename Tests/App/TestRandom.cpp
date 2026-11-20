@@ -364,3 +364,105 @@ TEST ("song versions: 1 and 2 sit left of Random in the top bar; clicking 2 make
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+namespace
+{
+std::vector<float> valuesOf (AudioPluginInstance& inst)
+{
+    std::vector<float> v;
+    for (auto* p : inst.getParameters()) v.push_back (p->getValue());
+    return v;
+}
+} // namespace
+
+TEST ("random settings: a device's Random sets its controls by chance, but not volume, tuning or pitch; one undo step; nothing touched (0104)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    const Id synth = edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+    const Id u = edit::addTrack (c.project, TrackKind::Track, "Sampler");
+    const Id sampler = edit::addDevice (c.project, u, samplerRef(), DeviceRole::Instrument);
+    c.refresh();
+    for (Id dev : { synth, sampler })
+    {
+        auto* inst = engine.instance (dev);
+        CHECK (inst != nullptr);
+        if (! inst) continue;
+        const auto was = valuesOf (*inst);
+        const auto steps = c.history.size();
+        const int changed = c.randomSettings (dev, 21);
+        CHECK (changed > 0);
+        CHECK_EQ (c.history.size(), steps + 1);
+        CHECK (c.lastTouched.device != dev);   // set by chance, not touched
+        const auto now = valuesOf (*inst);
+        int differ = 0;
+        for (size_t i = 0; i < now.size(); ++i)
+        {
+            const auto name = inst->getParameters()[(int) i]->getName (100);
+            const bool guarded = randomsong::keepsItsValue (name.toStdString());
+            if (guarded) CHECK (now[i] == was[i]);
+            else differ += now[i] != was[i];
+        }
+        CHECK (differ >= changed / 2);
+        // Volume, tuning and pitch by name, as the musician sees them.
+        for (auto* p : inst->getParameters())
+            for (auto* name : { "Volume", "Tune", "Root Note", "Speed", "Osc 2 Pitch", "Osc 2 Fine" })
+                if (p->getName (100) == name) CHECK (p->getValue() == was[(size_t) p->getParameterIndex()]);
+        CHECK (c.message.contains ("left as they were"));
+        c.undo();
+        const auto back = valuesOf (*engine.instance (dev));
+        CHECK_EQ (back.size(), was.size());
+        float worst = 0;
+        for (size_t i = 0; i < back.size() && i < was.size(); ++i) worst = std::max (worst, std::abs (back[i] - was[i]));
+        if (worst > 1e-5f) std::printf ("    undo: off by %g\n", worst);
+        CHECK (worst <= 1e-5f);
+    }
+}
+
+#include "DeviceRack.h"
+
+TEST ("random settings: the Random button sits in each plug-in's header, beside B (0104)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+        edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+        c.focusTrack = t;
+        c.refresh();
+        DeviceRack rack (c);
+        rack.setSize (1200, 400);
+        rack.rebuild();
+        rack.resized();
+        std::function<Button* (Component&, const String&)> find = [&] (Component& comp, const String& title) -> Button*
+        {
+            for (auto* ch : comp.getChildren())
+            {
+                if (auto* b = dynamic_cast<Button*> (ch); b && b->getTitle() == title) return b;
+                if (auto* b = find (*ch, title)) return b;
+            }
+            return nullptr;
+        };
+        auto* random = find (rack, "Random Settings");
+        auto* bypass = find (rack, "Bypass");
+        CHECK (random != nullptr && bypass != nullptr);
+        if (random && bypass)
+        {
+            CHECK (random->isEnabled());
+            CHECK (random->getY() == bypass->getY());
+            CHECK (std::abs (random->getRight() - bypass->getX()) <= 6);
+            const auto steps = c.history.size();
+            random->triggerClick();
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            CHECK_EQ (c.history.size(), steps + 1);
+        }
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

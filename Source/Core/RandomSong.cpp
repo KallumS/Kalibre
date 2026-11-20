@@ -1,5 +1,7 @@
 #include "RandomSong.h"
 
+#include <cctype>
+
 #include "Edit.h"
 #include "Ideas.h"
 #include "ScaleModel.h"
@@ -282,6 +284,35 @@ std::vector<DevicePick> devices (const Catalogue& cat, unsigned seed, bool instr
             out.push_back ({ *e, {} });
         }
     return out;
+}
+
+bool keepsItsValue (const std::string& name)
+{
+    // The name in words: split where it isn't a letter or digit, where a small
+    // letter meets a capital ("MasterVol"), and where letters meet digits ("Osc1").
+    std::vector<std::string> words;
+    std::string w;
+    auto kind = [] (char ch) { return std::isdigit ((unsigned char) ch) ? 1 : std::isalpha ((unsigned char) ch) ? 2 : 0; };
+    for (size_t i = 0; i < name.size(); ++i)
+    {
+        const char ch = name[i];
+        const bool split = kind (ch) == 0
+                        || (! w.empty() && kind (ch) != kind (name[i - 1]))
+                        || (! w.empty() && std::isupper ((unsigned char) ch) && std::islower ((unsigned char) name[i - 1]));
+        if (split && ! w.empty()) { words.push_back (w); w.clear(); }
+        if (kind (ch) != 0) w += (char) std::tolower ((unsigned char) ch);
+    }
+    if (! w.empty()) words.push_back (w);
+
+    static const char* starts[] { "vol", "gain", "level", "lvl", "loudness", "output", "trim", "tune", "tuning", "pitch",
+                                  "transp", "detun", "semi", "octave", "bend", "bypass", "mute" };
+    static const char* whole[] { "out", "master", "fine", "coarse", "cent", "cents", "ct", "st", "oct", "root", "speed" };
+    for (auto& word : words)
+    {
+        for (auto* s : starts) if (word.rfind (s, 0) == 0) return true;
+        for (auto* s : whole) if (word == s) return true;
+    }
+    return false;
 }
 
 } // namespace kal::randomsong

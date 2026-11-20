@@ -327,6 +327,16 @@ void addAgentTools (mcp::Server& server, Controller& c)
         change (c, String (on ? "Bypass " : "Un-bypass ") + d->plugin.name, [id, on] (Project& p) { if (auto* x = p.device (id)) x->bypassed = on; });
         return Reply::ok (on ? "Bypassed." : "Playing again.");
     });
+    tool ("randomise_plugin", "Sets a device's controls by chance, as its Random button does (decision 0104): every control but those "
+                              "for volume, tuning and pitch (and bypass, mute and meters). One undo step.",
+          object ({ { "device", integer ("The device's id.") } }, { "device" }), [&c] (const json& a)
+    {
+        const Id id = idOf (a, "device");
+        if (! c.project.device (id)) return noDevice();
+        const int changed = c.randomSettings (id);
+        if (changed == 0) return Reply::fail (c.message.toStdString());
+        return Reply::ok (c.message.toStdString());
+    });
 
     tool ("get_plugin_parameters", "A device's parameters: index, name, value (0 to 1) and what it reads as. `search` keeps those whose name holds it.",
           object ({ { "device", integer ("The device's id.") }, { "search", text ("Part of a parameter's name, e.g. \"cutoff\".") } }, { "device" }),

@@ -47,7 +47,7 @@ class DevicePanel : public Component, private ComponentListener
 public:
     DevicePanel (Controller& ctrl, Id dev, DeviceRack& r) : c (ctrl), id (dev), rack (r)
     {
-        for (auto* b : { &power, &bypass, &menu, &ab, &presets, &window, &match }) addAndMakeVisible (b);
+        for (auto* b : { &power, &bypass, &random, &menu, &ab, &presets, &window, &match }) addAndMakeVisible (b);
         ab.onClick = [this]
         {
             if (ModifierKeys::currentModifiers.isPopupMenu()) return;
@@ -56,6 +56,8 @@ public:
         presets.onClick = [this] { presetMenu(); };
         power.setTitle ("Plug-in On");
         bypass.setTitle ("Bypass");
+        random.setTitle ("Random Settings");
+        random.onClick = [this] { c.randomSettings (id); };
         menu.setTitle ("Plug-in Menu");
         window.setTitle ("Its Own Window");
         match.setTitle ("Match Loudness");
@@ -89,6 +91,7 @@ public:
         if (! d) return;
         power.setToggleState (d->active, dontSendNotification);
         bypass.setToggleState (d->bypassed, dontSendNotification);
+        random.setEnabled (d->active && c.engine.instance (id) != nullptr);
         match.setToggleState (d->matchLoudness, dontSendNotification);
         // Effects only; the Container has its own, for everything in it.
         const bool matchShown = match.isVisible();
@@ -237,6 +240,8 @@ public:
         header.removeFromRight (3);
         bypass.setBounds (header.removeFromRight (theme::px (30)));
         header.removeFromRight (3);
+        random.setBounds (header.removeFromRight (random.idealWidth (theme::smallControl)));
+        header.removeFromRight (3);
         power.setBounds (header.removeFromRight (theme::px (30)));
         header.removeFromRight (3);
         window.setBounds (header.removeFromRight (theme::px (30)));
@@ -367,6 +372,8 @@ public:
     Id id;
     theme::HouseButton power { ui::u8 ("\xe2\x8f\xbb"), "Switch the plug-in off (unloaded, settings kept) or on." };
     theme::HouseButton bypass { "B", "Bypass: let the sound through untouched, still loaded." };
+    theme::HouseButton random { "Random", "Set its controls by chance, for a new sound. Volume, tuning and pitch are left as they are. "
+                                          "One undo step; click again for another." };
     theme::HouseButton menu { ui::u8 ("\xe2\x80\xa6"), "Move, remove, automate or modulate." };
     theme::HouseButton ab { "Set A", "Compare two settings: click to switch between A and B. Copy one to the other in Presets." };
     theme::HouseButton presets { "Presets", "Save the settings as a preset, or load one." };

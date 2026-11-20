@@ -81,4 +81,11 @@ std::vector<DevicePick> devices (const Catalogue&, unsigned seed, bool instrumen
 // A loop: a sound long enough to loop, its tempo known.
 bool isLoop (const Sample&);
 
+// A device's Random button (decision 0104): which of a plug-in's controls chance
+// leaves alone, by the control's name: those that set how loud it is (volume,
+// gain, level, output, trim) or how it's tuned (tune, pitch, fine, coarse,
+// transpose, detune, semitones, octave, cents, root, bend, a sample's speed),
+// and bypass and mute. Words are found in "MasterVol" and "Osc1Pitch" too.
+bool keepsItsValue (const std::string& parameterName);
+
 } // namespace kal::randomsong

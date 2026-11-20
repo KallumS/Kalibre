@@ -11,6 +11,7 @@
 */
 
 #include "Controller.h"
+#include "RandomSong.h"
 
 namespace kal
 {
@@ -107,6 +108,35 @@ void Controller::copyToOther (Id deviceId)
     const bool onB = d->onB;
     apply (onB ? "Copy B to A" : "Copy A to B", [deviceId, now] (Project& p) { if (auto* x = p.device (deviceId)) x->stateB = now; });
     say (String (onB ? "A" : "B") + " is now the same as " + (onB ? "B" : "A") + ".");
+}
+
+int Controller::randomSettings (Id deviceId, unsigned seed)
+{
+    storeDeviceStates();
+    auto* d = project.device (deviceId);
+    auto* inst = engine.instance (deviceId);
+    if (! d || ! inst) { say ("Switch the plug-in on first: its controls are set by chance while it's loaded.", true); return 0; }
+    const Project before = project;
+    Random rng (seed != 0 ? (int64) seed : Time::currentTimeMillis());
+    int changed = 0, kept = 0;
+    const ScopedValueSetter<bool> quiet (settingByChance, true);   // not touches: no automation written, nothing "last touched"
+    for (auto* param : inst->getParameters())
+    {
+        if (! param->isAutomatable() || param->isMetaParameter()) continue;
+        using C = AudioProcessorParameter::Category;
+        const auto category = param->getCategory();
+        // Meters only read; the plug-in's own input and output gain are volume.
+        if (category != C::genericParameter) { ++kept; continue; }
+        if (randomsong::keepsItsValue (param->getName (100).toStdString())) { ++kept; continue; }
+        param->setValueNotifyingHost (rng.nextFloat());
+        ++changed;
+    }
+    if (changed == 0) { say (String (d->plugin.name) + " has no controls chance may change.", true); return 0; }
+    changedDevice = deviceId;
+    pluginChanged (before, "Random Settings");
+    say (String (d->plugin.name) + ": " + String (changed) + (changed == 1 ? " control" : " controls") + " set by chance"
+         + (kept > 0 ? String ("; ") + String (kept) + " for volume, tuning and pitch left as they were." : String (".")), false, true);
+    return changed;
 }
 
 // A plug-in's own state was changed by Kalibre: one undo step, which puts

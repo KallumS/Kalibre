@@ -202,3 +202,14 @@ TEST ("agents: song_version makes version 2 and chooses between them; get_song s
     CHECK_EQ (s.result ("get_song")["tracks"].size(), (size_t) 1);
     CHECK (s.call ("song_version", { { "version", 3 } })["isError"].get<bool>());
 }
+
+TEST ("agents: randomise_plugin sets a device's controls by chance, leaving volume, tuning and pitch (0104)")
+{
+    Studio s;
+    auto track = s.result ("create_track", { { "name", "Bass" }, { "instrument", "Kalibre Synth" } });
+    const Id dev = track["devices"][0]["id"];
+    const auto steps = s.c.history.size();
+    s.result ("randomise_plugin", { { "device", dev } });
+    CHECK_EQ (s.c.history.size(), steps + 1);
+    CHECK (s.call ("randomise_plugin", { { "device", 999999 } })["isError"].get<bool>());
+}

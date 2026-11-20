@@ -367,6 +367,11 @@ public:
     void loadProgram (Id device, int index);
     void switchAB (Id device);           // the other of the two settings being compared
     void copyToOther (Id device);        // the one heard now becomes the other too
+    // The device's Random button (decision 0104): every control set by chance but
+    // those for volume, tuning and pitch (randomsong::keepsItsValue), and meters.
+    // One undo step. Returns how many were changed. `seed` 0: a new chance each time.
+    int randomSettings (Id device, unsigned seed = 0);
+    bool settingByChance = false;   // the plug-in's own reports of those changes aren't touches
     void pluginChanged (const Project& before, const juce::String& label);
     Id changedDevice = 0;
 
