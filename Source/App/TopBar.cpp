@@ -24,7 +24,7 @@ void TopBar::Readout::paint (Graphics& g)
 
 TopBar::TopBar (Controller& ctrl) : c (ctrl)
 {
-    for (auto* b : { &follow, &tap })
+    for (auto* b : { &follow, &tap, &random })
     {
         addAndMakeVisible (b);
         b->onRightClick = [this] { showMenu(); };
@@ -70,6 +70,7 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
         update();
     };
     tap.onClick = [this] { c.tapTempo(); };
+    random.onClick = [this] { if (c.onRandomSong) c.onRandomSong(); };
     undoMessage.onClick = [this] { c.undo(); };
 
     position.onDown = [this] (const MouseEvent&)
@@ -111,7 +112,7 @@ TopBar::~TopBar() { c.removeChangeListener (this); }
 const StringArray& TopBar::hideable()
 {
     static const StringArray names { "Loop", "Punch", "Click", "Count-in", "Position", "Tempo", "Tap", "Time Signature",
-                                     "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay" };
+                                     "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay", "Random" };
     return names;
 }
 
@@ -120,7 +121,7 @@ static int widthOf (const String& name)
 {
     static const std::map<String, int> w { { "Loop", 52 }, { "Punch", 64 }, { "Click", 56 }, { "Count-in", 82 }, { "Position", 130 },
                                            { "Tempo", 80 }, { "Tap", 46 }, { "Time Signature", 56 }, { "Grid", 64 }, { "Scale", 150 },
-                                           { "Chord", 170 }, { "Timer", 104 }, { "Follow", 70 }, { "CPU", 56 }, { "Delay", 76 } };
+                                           { "Chord", 170 }, { "Timer", 104 }, { "Follow", 70 }, { "CPU", 56 }, { "Delay", 76 }, { "Random", 80 } };
     auto it = w.find (name);
     return it == w.end() ? 0 : it->second;
 }
@@ -170,8 +171,8 @@ void TopBar::paint (Graphics& g)
 
 Component* TopBar::itemNamed (const String& name)
 {
-    static const char* names[] { "Position", "Tempo", "Tap", "Time Signature", "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay" };
-    Component* items[] { &position, &tempo, &tap, &signature, &grid, &scale, &chord, &timer, &follow, &load, &cpu };
+    static const char* names[] { "Position", "Tempo", "Tap", "Time Signature", "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay", "Random" };
+    Component* items[] { &position, &tempo, &tap, &signature, &grid, &scale, &chord, &timer, &follow, &load, &cpu, &random };
     for (size_t i = 0; i < std::size (names); ++i) if (name == names[i]) return items[i];
     return nullptr;
 }
@@ -188,6 +189,13 @@ void TopBar::resized()
     auto shown = [&] (const char* name) { return ! hidden.contains (name); };
     auto place = [&] (Component& comp, int w) { comp.setBounds (r.removeFromLeft (w).withSizeKeepingCentre (w, ch)); r.removeFromLeft (gap); };
     auto readout = [&] (Component& comp, int w) { comp.setBounds (r.removeFromLeft (w)); r.removeFromLeft (gap); };
+    // The Random button, at the very top right, on the first row however many there are (0101).
+    if (shown ("Random"))
+    {
+        const int rw = random.idealWidth();
+        random.setBounds (r.removeFromRight (rw).withSizeKeepingCentre (rw, ch));
+        r.removeFromRight (gap * 2);
+    }
     // Where the song is, and what it's in (the transport is at the bottom of the window, 0095).
     if (shown ("Position")) readout (position, theme::px (130));
     if (shown ("Tempo")) { tempo.setBounds (r.removeFromLeft (theme::px (80))); r.removeFromLeft (gap / 2); }
@@ -502,6 +510,20 @@ void TopBar::editSignature()
     }), true);
 }
 
+void TopBar::randomScale (unsigned seed)
+{
+    Random rng (seed != 0 ? (int64) seed : Time::currentTimeMillis());
+    const auto was = c.project.scale;
+    auto now = was;
+    for (int tries = 0; tries < 20 && now.root == was.root && now.scale == was.scale; ++tries)
+    {
+        now.root = rng.nextInt ((int) scaleview::roots.size());
+        now.scale = rng.nextInt ((int) scaleview::scales.size());
+    }
+    c.apply ("Random Scale", [now] (Project& p) { p.scale.root = now.root; p.scale.scale = now.scale; });
+    c.say ("The scale is now " + String (harmony::scaleName (c.project.scale)) + ".", false, true);
+}
+
 void TopBar::chooseScale()
 {
     PopupMenu m, roots, scales;
@@ -515,12 +537,14 @@ void TopBar::chooseScale()
     m.addSeparator();
     m.addItem (2000, "Shade the Scale in the Piano Roll", true, c.project.scale.highlight);
     m.addItem (2001, "Find the Scale from the Notes");
+    m.addItem (2002, "Random Scale");   // any root, any scale (0102)
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (&scale), [this] (int r)
     {
         if (r <= 0) return;
         if (r < 1000) c.apply ("Scale", [r] (Project& p) { p.scale.root = r - 1; });
         else if (r < 2000) c.apply ("Scale", [r] (Project& p) { p.scale.scale = r - 1000; });
         else if (r == 2000) c.apply ("Scale Shading", [] (Project& p) { p.scale.highlight = ! p.scale.highlight; });
+        else if (r == 2002) randomScale();
         else
         {
             const auto ranked = harmony::rankKeys (harmony::collect (c.project, 0, c.project.endTick()));

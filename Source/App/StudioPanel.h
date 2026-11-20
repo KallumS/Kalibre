@@ -20,6 +20,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     int preferredHeight() const;
+    int agentsTop() const { return agentsOn.getY() - juce::roundToInt (theme::px (24) * 1.5f); }   // where AI Agents begins
 
 private:
     Controller& c;
@@ -33,6 +34,15 @@ private:
     juce::TextEditor oscPort, replyHost, replyPort;
     theme::HouseButton rescan { "Look Again", "Look again for MIDI ports plugged in since." };
     juce::String peers;
+
+    // AI agents through MCP (decision 0099).
+    juce::ToggleButton agentsOn { "Let AI Agents Control Kalibre" };
+    juce::TextEditor agentsPort;
+    theme::HouseButton copyDesktop { "Copy Setup for Claude Desktop",
+                                     "Copies what to paste into Claude Desktop's settings (Settings > Developer > Edit Config), so it can reach Kalibre." };
+    theme::HouseButton copyCode { "Copy Command for Claude Code", "Copies the command that tells Claude Code how to reach Kalibre." };
+    juce::String agentsStatus;
+    juce::Rectangle<int> agentsStatusArea;
 
     void build();
     void store();

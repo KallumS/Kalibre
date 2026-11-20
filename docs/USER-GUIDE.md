@@ -174,15 +174,45 @@ From left to right:
 | **Tap** | Tap it in time to set the tempo. |
 | **Time** | The time signature. Double-click to change it from the bar the cursor is in. |
 | **Grid** | The arrangement's grid (1/1 to 1/64, with triplets): what clips, the cursor and the loop snap to. Click to choose, or turn **Snap to the Grid** off. The editors have their own grid, in the lower zone. |
-| **Scale** | The song's key and scale. Its notes are shaded in the piano roll (View > Shade the Scale in the Piano Roll) and chords are spelt for it. Click for **Root** and **Scale**. |
+| **Scale** | The song's key and scale. Its notes are shaded in the piano roll (View > Shade the Scale in the Piano Roll) and chords are spelt for it. Click for **Root** and **Scale**, **Find the Scale from the Notes**, or **Random Scale** (any root and any scale but the one it is; one undo step). |
 | **Chord** | The chord you're playing on a MIDI keyboard, named as you play. |
 | **Making Music** | How long you've worked on this song. It counts while you edit, play, record, play a MIDI keyboard, press a key or move the mouse in Kalibre, and pauses after 3 minutes with nothing happening (8 minutes while the song plays); it then says **Paused**, and starts again with the next thing you do. The mouse counts only while Kalibre is the app in front: moving it in Safari doesn't. Right-click > **Pause the Timer After** chooses 1, 2, 3, 5, 10 or 15 minutes. Saved with the song. |
 | **Follow** | Click: the view scrolls to keep the playhead in sight. **Shift**-click: it turns the page instead, when the playhead reaches the right edge ("Follow: Page"). |
 | **CPU** | How busy the audio is: the highest in the last 2 seconds. Right-click > **Change the CPU Reading** for every 1 or 5 seconds. The mixer shows each track's share. |
 | **Delay** | How much the plug-ins delay the sound in all. Kalibre lines every track up by this much (plug-in delay compensation). |
+| **Random** | At the very right: a whole new song by chance, ready to play. [Below](#the-random-button). |
 
 **Right-click the top bar** (or the transport) to hide any of these: **Show
 in the Bar** lists them with ticks; **Show Everything** brings them all back.
+
+### The Random button
+
+**Random** (also **File > New Random Song**) makes a new song by chance, to
+start from. If the song you have has changes, it asks to save it first.
+Then:
+
+- **4 to 8 tracks**, eight bars long and looped, at a random tempo and key.
+- **Music from the family's engines**: Good Idea writes the drums and a lead
+  tune; Midi Suggester writes chords and a bass under the tune, and sometimes
+  a counter-melody over the chords, or a pad an octave up.
+- **A random instrument on each**: your scanned plug-ins (all of them but those
+  turned off in the Plug-in Manager, and ones that measure rather than sound:
+  analysers, meters, tuners), Kalibre Synth, Trombolese,
+  Reese Basser, or Kalibre Sampler playing one of your sounds. Drums go to an
+  instrument that plays drums when you have one (by its name).
+- **Loops from your sounds** (the Sounds tab's folders), now and then: ones
+  whose tempo is known, stretched to the song's.
+- **Effects by chance**: none, one or two a track, 8 at most in all, and now
+  and then a MIDI effect (2 at most), so it plays without overloading the
+  Mac.
+- A rough mix: drums and bass forward, the rest under and spread a little.
+
+The message line says what it made ("6 tracks at 103 BPM in A Mixolydian, A
+E A D E A"). Press Space to hear it; click Random again for another. Like
+File > New, it's a new song: there's nothing to undo back to (that's why it
+asks to save first).
+
+![A random song: six tracks, mixed](guide/random-song.png)
 
 ---
 
@@ -633,6 +663,15 @@ zone: the rack is outlined while you drag, and the plug-in goes between the
 ones either side of where you let go (MIDI effects still come first, then
 instruments, then audio effects). With no track chosen, a new track is made
 for it.
+
+**Random**, under **+ Add**, adds devices by chance to the chosen track, as
+the top bar's Random chooses them: an instrument if the track plays notes and
+has none (one that plays drums for a track named Drums, Beat or Perc, when
+you have one), one or two effects, and now and then a MIDI effect. They come
+from your scanned plug-ins and Kalibre's own. A return, a folder, the master
+or a track of audio clips gets effects only. It's one undo step; click it
+again for more. A scanned plug-in that can't be loaded any more (moved or
+deleted since its scan) is left out, and the message line says so.
 
 ### Each plug-in's buttons
 
@@ -1192,6 +1231,45 @@ Everything each one does is in [CONTROL.md](CONTROL.md).
 is where they go; **Add the Example Scripts** copies Kalibre's examples
 there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 
+### AI agents (MCP)
+
+An AI agent, such as Claude, can work in Kalibre with you: look at the song,
+make tracks, add plug-ins and turn their knobs, write clips and notes, play
+and stop, export. It talks to Kalibre through MCP (the Model Context
+Protocol), which Claude Desktop, Claude Code and many other agents speak.
+
+1. **Kalibre > AI Agents…** opens the browser's Studio tab at **AI Agents
+   (MCP)**. Tick **Let AI Agents Control Kalibre**. Under it, it says
+   **Listening on this Mac, port 47100**.
+2. Tell the agent where Kalibre is, once:
+   - **Claude Desktop**: click **Copy Setup for Claude Desktop**. In Claude
+     Desktop, choose **Settings > Developer > Edit Config**, paste it into
+     the file (if it already has an `"mcpServers"` section, put the
+     `"kalibre"` part inside that one), save, and open Claude again.
+   - **Claude Code**: click **Copy Command for Claude Code**, paste it into
+     Terminal and press Return.
+   - **Anything else**: point it at `http://127.0.0.1:47100/mcp`, or have it
+     start Kalibre with `--mcp` (what the setups above do).
+3. Ask it for things: "make a bass track with Kalibre Synth and write a
+   two-bar line in A minor", "put Pro-Q on the vocal and cut a bit at
+   300 Hz", "loop bars 5 to 8".
+
+Kalibre must be open for the agent to reach it. What you'll see:
+
+- **Every change is one undo step**, named "Agent: …", and the message
+  line says what the agent did ("An AI agent: Add 2 Notes."), with **Undo**
+  beside it. ⌘Z takes it back like anything you did. Turning a plug-in's
+  knob isn't an undo step, as when you turn it.
+- **Only this Mac**: Kalibre listens on 127.0.0.1, so nothing on the network
+  can reach it, and a web page in your browser is turned away. Untick the box
+  and no agent can reach it at all. It's off until you tick it.
+- If **Port** is taken by something else, the message line says so: type
+  another and press Return (then copy the setup again).
+
+![The Studio tab's AI Agents, switched on](guide/ai-agents.png)
+
+Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
+
 ---
 
 ## 19. Every Menu, Item by Item
@@ -1202,6 +1280,7 @@ there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 | --- | --- | --- |
 | Audio and MIDI Settings… | ⌘, | The browser's Audio tab. |
 | Sync and Control Surfaces… | | The browser's Studio tab. |
+| AI Agents… | | The Studio tab at AI Agents (MCP): let an AI agent work in Kalibre. |
 | Plug-in Manager… | | [Section 14](#the-plug-in-manager). |
 | Library Folders… | | The folders the Sounds tab looks in ([Section 14](#the-sounds-tab)). |
 | Quit Kalibre | ⌘Q | Asks to save first. Kalibre always ends within five seconds, even if a plug-in won't let go. |
@@ -1211,6 +1290,7 @@ there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 | Item | Key |
 | --- | --- |
 | New | ⌘N |
+| New Random Song | |
 | Open… | ⌘O |
 | Open the Last Autosave | |
 | Open a Backup ▸ | |

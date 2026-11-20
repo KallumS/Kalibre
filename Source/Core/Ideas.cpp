@@ -79,11 +79,50 @@ return function (kind, bars, num, den, seed, root, iv)
 end
 )LUA";
 
+// What Kalibre asks of Midi Suggester (as Miderator's adapter does): the notes
+// read as a melody (chords wanted) or as chords (a melody wanted), its first
+// suggestion at a seed, as notes in beats.
+const char* suggestBridge = R"LUA(
+local T = engine("midi-suggester/ms_theory.lua")
+local R = engine("midi-suggester/ms_read.lua")
+local H = engine("midi-suggester/ms_harmony.lua")
+local Mel = engine("midi-suggester/ms_melody.lua")
+local function pack(list)
+  local out = {}
+  for i, n in ipairs(list or {}) do out[i] = { n.start, n.len, n.pitch, n.vel or 100 } end
+  return out
+end
+return function (want, notes, beats, barBeats, seed)
+  local list = {}
+  for i, n in ipairs(notes) do list[i] = { start = n[1], len = n[2], pitch = n[3], vel = n[4] } end
+  -- Chords wanted: the notes are a melody; a melody wanted: they're chords.
+  local r = R.analyse(list, barBeats, T, want == "chords" and "Melody" or "Chords")
+  if not r then return nil, nil, "Midi Suggester found nothing to read." end
+  r.beats = math.max(r.beats, beats)
+  local key = T.key(r.keys[1].root, r.keys[1].scale)
+  if want == "chords" then
+    local sugs = H.suggest(r.line, T, { key = key, beats = r.beats, barBeats = barBeats, rhythm = 2,
+                                        colour = 1 + seed % 2, variation = seed - 1 })
+    local s = sugs[1]
+    if not s then return nil, nil, "Midi Suggester had no chords for it." end
+    local bass = {}
+    for _, c in ipairs(s.chords) do
+      bass[#bass + 1] = { start = c.start, len = c.len, pitch = H.BASS_LOW + (c.chord.root - H.BASS_LOW) % 12, vel = H.VELOCITY or 100 }
+    end
+    return pack(H.voice(s, r.line, false)), pack(bass), table.concat(s.symbols, "  ")
+  end
+  local sugs = Mel.suggest(r.chords, T, { key = key, beats = r.beats, barBeats = barBeats, density = 1 + seed % 3,
+                                          register = 2, variation = seed - 1 })
+  if not sugs[1] then return nil, nil, "Midi Suggester had no melody for them." end
+  return pack(sugs[1].notes), {}, ""
+end
+)LUA";
+
 struct State
 {
     lua_State* L = nullptr;
-    int make = LUA_NOREF;
-    std::string error;
+    int make = LUA_NOREF, suggest = LUA_NOREF;
+    std::string error, suggestError;
 
     State()
     {
@@ -100,6 +139,13 @@ struct State
             return;
         }
         make = luaL_ref (L, LUA_REGISTRYINDEX);
+        if (luaL_loadbufferx (L, suggestBridge, std::strlen (suggestBridge), "@kalibre-suggest", "t") != LUA_OK || lua_pcall (L, 0, 1, 0) != LUA_OK)
+        {
+            suggestError = lua_tostring (L, -1) ? lua_tostring (L, -1) : "Midi Suggester's engine didn't load.";
+            lua_pop (L, 1);
+            return;
+        }
+        suggest = luaL_ref (L, LUA_REGISTRYINDEX);
     }
     ~State() { if (L) lua_close (L); }
 };
@@ -161,7 +207,93 @@ Idea run (const char* kind, int bars, int num, int den, int seed, const ScaleCho
     lua_settop (L, top);
     return out;
 }
+
+// Notes in beats, to Lua and back.
+void pushNotes (lua_State* L, const std::vector<Note>& notes)
+{
+    lua_createtable (L, (int) notes.size(), 0);
+    for (size_t i = 0; i < notes.size(); ++i)
+    {
+        const auto& n = notes[i];
+        lua_createtable (L, 4, 0);
+        const double f[4] { (double) n.start / PPQ, (double) n.length / PPQ, (double) n.pitch, (double) n.velocity };
+        for (int k = 0; k < 4; ++k) { lua_pushnumber (L, f[k]); lua_rawseti (L, -2, k + 1); }
+        lua_rawseti (L, -2, (lua_Integer) i + 1);
+    }
+}
+
+std::vector<Note> readNotes (lua_State* L, int index)
+{
+    std::vector<Note> out;
+    if (! lua_istable (L, index)) return out;
+    const lua_Integer n = luaL_len (L, index);
+    for (lua_Integer i = 1; i <= n; ++i)
+    {
+        lua_rawgeti (L, index, i);
+        double f[4] {};
+        for (int k = 0; k < 4; ++k) { lua_rawgeti (L, -1, k + 1); f[k] = lua_tonumber (L, -1); lua_pop (L, 1); }
+        lua_pop (L, 1);
+        Note note;
+        note.start = (Tick) std::llround (f[0] * PPQ);
+        note.length = std::max<Tick> (1, (Tick) std::llround (f[1] * PPQ));
+        note.pitch = std::clamp ((int) f[2], 0, 127);
+        note.velocity = std::clamp ((int) (f[3] > 0 ? f[3] : 100), 1, 127);
+        out.push_back (note);
+    }
+    return out;
+}
+
+// Midi Suggester: "chords" for a melody, or "melody" over chords.
+bool suggestFor (const char* want, const std::vector<Note>& notes, Tick length, int num, int den, int seed,
+                 std::vector<Note>& first, std::vector<Note>& second, std::string& names, std::string& error)
+{
+    auto& s = state();
+    if (! s.error.empty() || ! s.suggestError.empty()) { error = s.error.empty() ? s.suggestError : s.error; return false; }
+    lua_State* L = s.L;
+    const int top = lua_gettop (L);
+    lua_rawgeti (L, LUA_REGISTRYINDEX, s.suggest);
+    lua_pushstring (L, want);
+    pushNotes (L, notes);
+    lua_pushnumber (L, (double) length / PPQ);
+    lua_pushnumber (L, num * 4.0 / std::max (1, den));
+    lua_pushinteger (L, std::clamp (seed, 1, maxSeed));
+    if (lua_pcall (L, 5, 3, 0) != LUA_OK)
+    {
+        error = lua_tostring (L, -1) ? lua_tostring (L, -1) : "Midi Suggester's engine failed.";
+        lua_settop (L, top);
+        return false;
+    }
+    if (lua_isnil (L, top + 1))
+    {
+        error = lua_tostring (L, top + 3) ? lua_tostring (L, top + 3) : "Midi Suggester had nothing to suggest.";
+        lua_settop (L, top);
+        return false;
+    }
+    first = readNotes (L, top + 1);
+    second = readNotes (L, top + 2);
+    names = lua_tostring (L, top + 3) ? lua_tostring (L, top + 3) : "";
+    lua_settop (L, top);
+    return true;
+}
 } // namespace
+
+Harmony chordsFor (const std::vector<Note>& melody, Tick length, int num, int den, int seed)
+{
+    Harmony h;
+    if (melody.empty()) { h.error = "A melody is needed to suggest chords for."; return h; }
+    suggestFor ("chords", melody, length, num, den, seed, h.chords, h.bass, h.names, h.error);
+    return h;
+}
+
+Idea melodyOver (const std::vector<Note>& chords, Tick length, int num, int den, int seed)
+{
+    Idea out;
+    std::vector<Note> none;
+    std::string names;
+    if (chords.empty()) { out.error = "Chords are needed to suggest a melody over."; return out; }
+    if (suggestFor ("melody", chords, length, num, den, seed, out.notes, none, names, out.error)) out.length = length;
+    return out;
+}
 
 Idea drums (int bars, int num, int den, int seed) { return run ("Drums", std::clamp (bars, 1, 16), num, den, seed, nullptr); }
 

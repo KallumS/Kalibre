@@ -65,6 +65,11 @@ void Surfaces::configure()
         else c.say ("OSC couldn't listen on port " + String (s.oscPort) + ": something else is using it.", true);
         oscConnected = oscOut.connect (String (s.oscReplyHost), s.oscReplyPort);
     }
+
+    // AI agents (decision 0099).
+    mcp.configure (s.mcpOn, s.mcpPort);
+    if (s.mcpOn && ! mcp.listening()) c.say ("AI agents can't reach Kalibre: " + String (mcp.lastError), true);
+    c.agentsListening = mcp.listening() ? mcp.listeningPort() : 0;
 }
 
 //==============================================================================

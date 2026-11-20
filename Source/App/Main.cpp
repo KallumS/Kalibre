@@ -2,6 +2,8 @@
 
 #include "CrashReports.h"
 #include "MainComponent.h"
+#include "McpServer.h"
+#include <iostream>
 
 #include <chrono>
 #include <cstdlib>
@@ -143,6 +145,9 @@ int main (int argc, char* argv[])
 {
     if (argc > 1 && std::strcmp (argv[1], kal::PluginManager::workerFlag) == 0)
         return kal::PluginManager::runWorker (argc, argv);
+    // An AI agent's MCP server on stdin and stdout, passing on to the open Kalibre (decision 0099).
+    if (argc > 1 && std::strcmp (argv[1], kal::McpServer::bridgeFlag) == 0)
+        return kal::runMcpBridge (std::cin, std::cout);
     juce::JUCEApplicationBase::createInstance = [] () -> juce::JUCEApplicationBase* { return new kal::Application(); };
     return juce::JUCEApplicationBase::main (argc, (const char**) argv);
 }

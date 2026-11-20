@@ -100,3 +100,7 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0096. Automation lined up with plug-in delay compensation; every loop pass exact](0096-automation-lined-up-with-delay-compensation.md)
 - [0097. Exports: Record the Tail, Export the Second Pass; every export starts clean](0097-record-the-tail-and-the-second-pass.md)
 - [0098. The clip launcher taken out](0098-the-clip-launcher-taken-out.md)
+- [0099. AI agents through MCP](0099-ai-agents-through-mcp.md)
+- [0100. Midi Suggester's engine, for chords, a bass and melodies](0100-midi-suggesters-engine.md)
+- [0101. The Random button: a whole song by chance; a new song lets go of the last one's plug-ins](0101-the-random-button.md)
+- [0102. Random devices in the rack, a random scale, and plug-ins that can't load](0102-random-devices-and-scale.md)

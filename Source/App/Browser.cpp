@@ -191,6 +191,12 @@ void Browser::changeListenerCallback (ChangeBroadcaster* from)
     pluginBox.repaint();
 }
 
+void Browser::showAgents()
+{
+    resized();
+    studioView.setViewPosition (0, juce::jmax (0, studio.agentsTop()));
+}
+
 void Browser::showTab (Tab t)
 {
     tab = t;

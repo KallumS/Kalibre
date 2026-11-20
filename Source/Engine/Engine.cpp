@@ -400,6 +400,22 @@ void Engine::lineUpAutomation()
         }
 }
 
+void Engine::newSong()
+{
+    for (auto& [vid, node] : allDevices)
+    {
+        if (auto* op = pluginOf (node)) op->removeListener (this);
+        bury (node);
+    }
+    allDevices.clear();
+    allKeys.clear();
+    deviceNodes.clear();
+    trackOf.clear();
+    araSessions.clear();
+    araOwner.clear();
+    shape.clear();
+}
+
 void Engine::bury (Node::Ptr node)
 {
     if (! node) return;

@@ -82,3 +82,31 @@ TEST ("harmony: drums written in the drum grid or the Euclidean aren't read as c
     edit::addNote (p, c, s);
     CHECK (harmony::soundingAt (p, 10) == std::vector<int> ({ 60 }));
 }
+
+#include "Ideas.h"
+
+TEST ("ideas: Midi Suggester's engine puts chords and a bass under Good Idea's motif, and a melody over the chords (0100)")
+{
+    ScaleChoice aMinor;
+    aMinor.root = 13;    // A (scaleview::roots spells both: 13 is A)
+    aMinor.scale = 1;    // ScaleView's natural minor
+    const auto tune = ideas::motif (aMinor, 4, 4, 4, 4321);
+    CHECK (tune.error.empty());
+    CHECK (! tune.notes.empty());
+    const auto h = ideas::chordsFor (tune.notes, PPQ * 16, 4, 4, 77);
+    CHECK (h.error.empty());
+    if (! h.error.empty()) std::printf ("    %s\n", h.error.c_str());
+    CHECK (h.chords.size() >= 6);                 // a chord a bar, three notes or more
+    // A bass note for each chord, together covering the four bars (a chord may hold for two).
+    Tick covered = 0;
+    for (auto& n : h.bass) covered += n.length;
+    CHECK (h.bass.size() >= 2 && covered == PPQ * 16);
+    CHECK (! h.names.empty());
+    for (auto& n : h.bass) CHECK (n.pitch < 60);
+    for (auto& n : h.chords) CHECK (n.start < PPQ * 16);
+    const auto over = ideas::melodyOver (h.chords, PPQ * 16, 4, 4, 5);
+    CHECK (over.error.empty());
+    CHECK (over.notes.size() >= 4);
+    // The same seed, the same music.
+    CHECK (ideas::chordsFor (tune.notes, PPQ * 16, 4, 4, 77).names == h.names);
+}

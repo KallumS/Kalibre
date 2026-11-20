@@ -11,6 +11,8 @@
 #pragma once
 
 #include "WorkClock.h"
+#include "Library.h"
+#include "RandomSong.h"
 #include "Edit.h"
 #include "AutoCc.h"
 #include "Engine.h"
@@ -407,6 +409,7 @@ public:
     juce::File studioFile() const;
     void setStudio (const ControlSettings&);
     std::function<void()> onStudioChanged;   // the surfaces reconfigure
+    int agentsListening = 0;                 // the port AI agents reach Kalibre on (MCP, 0099), 0 when off
 
     // The window's keys (decision 0045): registered by the window, kept with the app.
     Keys keys;
@@ -414,6 +417,19 @@ public:
     // Scripts.
     juce::File scriptsFolder() const;
     void runScript (const juce::File&);
+    bool runScriptCode (const juce::String& code, const juce::String& name, juce::String& said);
+
+    // The Random button (decision 0101): a new song by chance, from the plug-ins
+    // scanned, Kalibre's own devices and the musician's sounds. Replaces the song
+    // (the window asks to save first). `lastRandomParts`: a line a track.
+    randomsong::Catalogue randomCatalogue (const library::Index& sounds);
+    bool randomSong (const library::Index& sounds, unsigned seed);
+    std::vector<std::string> lastRandomParts;
+    // The device rack's Random (0102): devices by chance onto a track, one undo step;
+    // an instrument when it has none and plays notes. False when there was nothing to add.
+    bool randomDevices (Id track, unsigned seed);
+    std::function<const library::Index*()> soundsIndex;   // the Sounds tab's scan, for the Samplers' sounds
+    std::function<void()> onRandomSong;   // the top bar's button asks the window
 
     // The engine's state of mind, for the window.
     std::function<void()> onTransportChanged;

@@ -1,6 +1,7 @@
 #include "StudioPanel.h"
 
 #include "NetworkMidi.h"
+#include "McpServer.h"
 
 namespace kal
 {
@@ -9,7 +10,7 @@ using namespace juce;
 StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Studio");
-    for (auto* t : { &sendClock, &sendMtc, &link, &linkStartStop, &oscOn, &sendMmc, &followMmc, &networkMidi })
+    for (auto* t : { &sendClock, &sendMtc, &link, &linkStartStop, &oscOn, &sendMmc, &followMmc, &networkMidi, &agentsOn })
     {
         addAndMakeVisible (t);
         t->onClick = [this] { store(); };
@@ -28,7 +29,7 @@ StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
         box->onChange = [this] { store(); };
     }
     follow.setTooltip (theme::wrapTip ("Follow another machine's clock: its tempo, Start, Stop and Song Position move Kalibre."));
-    for (auto* e : { &oscPort, &replyHost, &replyPort })
+    for (auto* e : { &oscPort, &replyHost, &replyPort, &agentsPort })
     {
         addAndMakeVisible (e);
         e->onReturnKey = [this] { store(); };
@@ -39,6 +40,22 @@ StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
     oscPort.setTitle ("OSC port");
     replyHost.setTitle ("Reply to");
     replyPort.setTitle ("Reply port");
+    agentsPort.setInputRestrictions (5, "0123456789");
+    agentsPort.setTitle ("AI agents' port");
+    agentsOn.setTooltip (theme::wrapTip ("AI agents on this Mac (Claude and others that speak MCP) can look at the song and change it: "
+                                         "make tracks, add plug-ins, write clips and notes. Each change is one undo step, said in the message line. "
+                                         "Nothing from another computer can reach it."));
+    for (auto* b : { &copyDesktop, &copyCode }) addAndMakeVisible (b);
+    copyDesktop.onClick = [this]
+    {
+        SystemClipboard::copyTextToClipboard (McpServer::desktopSetup());
+        c.say ("Copied. In Claude Desktop: Settings > Developer > Edit Config, paste it in (inside any \"mcpServers\" there already), save, and open Claude again.");
+    };
+    copyCode.onClick = [this]
+    {
+        SystemClipboard::copyTextToClipboard (McpServer::claudeCodeSetup());
+        c.say ("Copied. Paste it into Terminal and press Return: Claude Code can then reach Kalibre.");
+    };
     addAndMakeVisible (rescan);
     rescan.onClick = [this] { build(); };
     build();
@@ -83,6 +100,8 @@ void StudioPanel::build()
     link.setToggleState (s.link, dontSendNotification);
     linkStartStop.setToggleState (s.linkStartStop, dontSendNotification);
     oscOn.setToggleState (s.oscOn, dontSendNotification);
+    agentsOn.setToggleState (s.mcpOn, dontSendNotification);
+    agentsPort.setText (String (s.mcpPort), false);
     oscPort.setText (String (s.oscPort), false);
     replyHost.setText (String (s.oscReplyHost), false);
     replyPort.setText (String (s.oscReplyPort), false);
@@ -124,6 +143,8 @@ void StudioPanel::store()
     s.oscPort = jlimit (1, 65535, oscPort.getText().getIntValue());
     s.oscReplyHost = replyHost.getText().trim().toStdString();
     s.oscReplyPort = jlimit (1, 65535, replyPort.getText().getIntValue());
+    s.mcpOn = agentsOn.getToggleState();
+    s.mcpPort = jlimit (1024, 65535, agentsPort.getText().getIntValue());
     if (s == c.studio) return;
     c.setStudio (s);
 }
@@ -139,11 +160,14 @@ void StudioPanel::timerCallback()
     if (c.studio.followClock.size() > 0 && c.engine.syncDevices.followedBpm() > 0)
         p << (p.isEmpty() ? "" : " ") << "Following " << String (c.engine.syncDevices.followedBpm(), 2) << " BPM.";
     if (p != peers) { peers = p; repaint(); }
+    if (agentsOn.getToggleState() != c.studio.mcpOn) agentsOn.setToggleState (c.studio.mcpOn, dontSendNotification);
+    const String a = c.agentsListening > 0 ? "Listening on this Mac, port " + String (c.agentsListening) + "." : String ("Off.");
+    if (a != agentsStatus) { agentsStatus = a; repaint(); }
 }
 
 int StudioPanel::preferredHeight() const
 {
-    return theme::px (24) * (22 + outs.size()) + theme::px (120);
+    return theme::px (24) * (28 + outs.size()) + theme::px (200);
 }
 
 void StudioPanel::paint (Graphics& g)
@@ -154,6 +178,12 @@ void StudioPanel::paint (Graphics& g)
         g.setColour (text.startsWith ("~") ? theme::textSecondary : theme::text);
         g.setFont (text.startsWith ("~") ? theme::font (theme::smallPoints) : theme::font (theme::bodyPoints, true));
         g.drawFittedText (text.trimCharactersAtStart ("~"), r, Justification::centredLeft, 2);
+    }
+    if (agentsStatus.isNotEmpty())
+    {
+        g.setColour (theme::textSecondary);
+        g.setFont (theme::font (theme::smallPoints));
+        g.drawFittedText (agentsStatus, agentsStatusArea, Justification::centredLeft, 2);
     }
     if (peers.isNotEmpty())
     {
@@ -202,6 +232,16 @@ void StudioPanel::resized()
     labelled ("Reply port", replyPort);
     r.removeFromTop (theme::px (6));
     rescan.setBounds (r.removeFromTop (theme::px (28)).withWidth (rescan.idealWidth()));
+    r.removeFromTop (row);
+    heading ("AI Agents (MCP)");
+    put (agentsOn);
+    labelled ("Port", agentsPort);
+    agentsStatusArea = r.removeFromTop (row);
+    for (auto* b : { &copyDesktop, &copyCode })
+    {
+        b->setBounds (r.removeFromTop (theme::px (28)).withWidth (jmin (r.getWidth(), b->idealWidth (theme::smallControl))));
+        r.removeFromTop (theme::px (4));
+    }
 }
 
 } // namespace kal

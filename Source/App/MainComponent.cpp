@@ -30,6 +30,8 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
     addAndMakeVisible (top);
     addAndMakeVisible (transport);
     transport.onMenu = [this] { top.showMenu(); };
+    c.onRandomSong = [this] { randomSong(); };
+    c.soundsIndex = [this] { return &library().scanner().index(); };
     addAndMakeVisible (arrange);
     addAndMakeVisible (lower);
     addChildComponent (browser);
@@ -69,6 +71,8 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
 MainComponent::~MainComponent()
 {
     Desktop::getInstance().removeGlobalMouseListener (&activity);
+    c.onRandomSong = nullptr;
+    c.soundsIndex = nullptr;
     c.keys.all().clear();   // their actions point at this window
     c.onShowPluginManager = nullptr;
     c.onShowArticulationManager = nullptr;
@@ -605,6 +609,22 @@ void MainComponent::exportAudioTo (bool stems, double loudnessTarget, bool ringO
         o.loudnessTarget = loudnessTarget;
         c.say ("Exporting" + String (ui::u8 ("\xe2\x80\xa6")));
         c.exportAudio (f, o, stems);
+    });
+}
+
+void MainComponent::showAgents()
+{
+    showBrowser (Browser::Tab::Studio);
+    browser.showAgents();
+}
+
+// The Random button (decision 0101): the song as it is kept or let go of, then a new one by chance.
+void MainComponent::randomSong()
+{
+    checkSaved ([this]
+    {
+        c.randomSong (library().scanner().index(), (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u);
+        showLowerZone();
     });
 }
 
