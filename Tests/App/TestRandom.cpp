@@ -305,3 +305,18 @@ TEST ("random: the Scale menu's Random Scale chooses another root and scale, one
     c.undo();
     CHECK (c.project.scale == was);
 }
+
+TEST ("random: the master gets nothing by chance: the rack's Random isn't offered there (0102)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.newProject();
+    const auto before = c.history.size();
+    CHECK (! c.randomDevices (c.project.master.id, 5));
+    CHECK (c.project.master.devices.empty());
+    CHECK_EQ (c.history.size(), before);
+    // The top bar's Random leaves the master as it is too.
+    CHECK (c.randomSong ({}, 5));
+    CHECK (c.project.master.devices.empty());
+}

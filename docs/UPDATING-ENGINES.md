@@ -56,7 +56,10 @@ Catalogue, Good Idea) and **Orchestration Helper** (gfx). The window scripts
 are copied unchanged; their placement files are Kalibre's own (`Engines/tools/
 *_place.lua`). A new ReaImGui call goes into `Source/Engine/LuaTool/
 ImGuiLua.cpp`. Good Idea's engine is also used by the pattern editors' Random
-buttons (`Engines/good-idea/`): the tool updates both copies.
+buttons (`Engines/good-idea/`): the tool updates both copies. Midi Suggester's
+engine (`Engines/midi-suggester/`, kind `lua-engine`, decision 0100) is run by
+`Core/Ideas` for the top bar's Random: after updating it, run the core tests
+(`ideas: Midi Suggester's engine...` and `random song: ...`).
 
 **JUCE plug-ins** (Instant Virtual Instrument, ScaleView). Their source is
 compiled into Kalibre. Instant Virtual Instrument's whole `Source` folder is

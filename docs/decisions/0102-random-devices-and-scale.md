@@ -19,9 +19,12 @@ as the top bar's does; and a random scale in the Scale menu.
   instrument when the track plays notes (a track, with MIDI clips or none)
   and has none, a drum one for a track named Drums, Beat or Perc when there
   is one; one or two effects, never the same twice; a MIDI effect a quarter
-  of the time when there are notes to change. A return, folder, master or a
-  track of audio clips gets effects only; the Cue track only effects (0051).
-  One undo step.
+  of the time when there are notes to change. A return, folder or a track of
+  audio clips gets effects only; the Cue track only effects (0051). **Not the
+  master** (amended the same day, from a test that appeared in the checkout;
+  the musician had no preference): effects by chance on the whole mix are too
+  much of a gamble, so Random isn't shown there and adds nothing if asked.
+  The top bar's Random leaves the master as it is too. One undo step.
 - **A plug-in that can't be loaded is left out.** A scan can be older than
   what's on the disk: a plug-in moved or deleted since stays in the list.
   Both Random buttons take out any device they added that didn't load,

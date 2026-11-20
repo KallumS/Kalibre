@@ -668,8 +668,9 @@ for it.
 the top bar's Random chooses them: an instrument if the track plays notes and
 has none (one that plays drums for a track named Drums, Beat or Perc, when
 you have one), one or two effects, and now and then a MIDI effect. They come
-from your scanned plug-ins and Kalibre's own. A return, a folder, the master
-or a track of audio clips gets effects only. It's one undo step; click it
+from your scanned plug-ins and Kalibre's own. A return, a folder or a track
+of audio clips gets effects only. The master gets nothing by chance: Random
+isn't shown when the master is chosen. It's one undo step; click it
 again for more. A scanned plug-in that can't be loaded any more (moved or
 deleted since its scan) is left out, and the message line says so.
 
