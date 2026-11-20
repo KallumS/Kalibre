@@ -466,3 +466,36 @@ TEST ("random settings: the Random button sits in each plug-in's header, beside 
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("random settings: a utility has no Random, and the button says why; the report lists every plug-in's controls, Kalibre's own too (0104)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    PluginRef g;
+    g.format = "Kalibre";
+    g.identifier = "test-gain:-6";
+    g.name = "Gain";
+    const Id gain = edit::addDevice (c.project, t, g, DeviceRole::AudioFx);
+    c.refresh();
+    CHECK_EQ (c.whyNoRandom (gain), String ("a utility"));
+    const auto steps = c.history.size();
+    CHECK_EQ (c.randomSettings (gain, 3), 0);
+    CHECK_EQ (c.history.size(), steps);
+    CHECK (c.message.contains ("leaves it alone"));
+
+    const auto out = File::getSpecialLocation (File::tempDirectory).getChildFile ("Kalibre Random Settings Report.txt");
+    out.deleteFile();
+    c.randomSettingsReport (out);
+    for (int i = 0; i < 3000 && ! out.existsAsFile(); ++i) MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CHECK (out.existsAsFile());
+    const auto text = out.loadFileAsString();
+    CHECK (text.contains ("== Kalibre Synth"));
+    CHECK (text.contains ("kept: volume"));
+    CHECK (text.contains ("kept: pitch"));
+    CHECK (text.contains ("random"));
+    CHECK (text.contains ("In all:"));
+    out.deleteFile();
+}

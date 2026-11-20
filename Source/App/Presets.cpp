@@ -12,6 +12,7 @@
 
 #include "Controller.h"
 #include "RandomSong.h"
+#include "Theme.h"
 
 namespace kal
 {
@@ -110,33 +111,102 @@ void Controller::copyToOther (Id deviceId)
     say (String (onB ? "A" : "B") + " is now the same as " + (onB ? "B" : "A") + ".");
 }
 
+String randomVerdict (const PluginManager::Control& c, const String& plugin)
+{
+    using C = AudioProcessorParameter::Category;
+    if (c.bypass) return "not sound";
+    if (c.meta || ! c.automatable) return "not sound";                    // a host can't set it, or it sets others
+    if (c.category == (int) C::inputGain || c.category == (int) C::outputGain) return "volume";
+    if (c.category != (int) C::genericParameter) return "not sound";     // meters only read
+    return String (randomsong::whyKept (c.name.toStdString(), c.unit.toStdString(), plugin.toStdString()));
+}
+
+String Controller::whyNoRandom (Id deviceId) const
+{
+    auto in = [deviceId] (const Track& t) -> String
+    {
+        for (auto& d : t.devices) if (d.id == deviceId) return String (randomsong::whyNoRandom (d.plugin.name));
+        return {};
+    };
+    for (auto& t : project.tracks) if (auto w = in (t); w.isNotEmpty()) return w;
+    for (auto& t : project.cue) if (auto w = in (t); w.isNotEmpty()) return w;
+    return in (project.master);
+}
+
 int Controller::randomSettings (Id deviceId, unsigned seed)
 {
     storeDeviceStates();
     auto* d = project.device (deviceId);
     auto* inst = engine.instance (deviceId);
     if (! d || ! inst) { say ("Switch the plug-in on first: its controls are set by chance while it's loaded.", true); return 0; }
+    if (const auto why = randomsong::whyNoRandom (d->plugin.name); ! why.empty())
+    {
+        say (String (d->plugin.name) + " is " + String (why) + ": its controls are all volume, tuning or pitch, so Random leaves it alone.", true);
+        return 0;
+    }
     const Project before = project;
     Random rng (seed != 0 ? (int64) seed : Time::currentTimeMillis());
     int changed = 0, kept = 0;
     const ScopedValueSetter<bool> quiet (settingByChance, true);   // not touches: no automation written, nothing "last touched"
-    for (auto* param : inst->getParameters())
+    const auto controls = PluginManager::controlsOf (*inst);
+    const auto params = inst->getParameters();
+    for (int i = 0; i < params.size() && i < (int) controls.size(); ++i)
     {
-        if (! param->isAutomatable() || param->isMetaParameter()) continue;
-        using C = AudioProcessorParameter::Category;
-        const auto category = param->getCategory();
-        // Meters only read; the plug-in's own input and output gain are volume.
-        if (category != C::genericParameter) { ++kept; continue; }
-        if (randomsong::keepsItsValue (param->getName (100).toStdString())) { ++kept; continue; }
-        param->setValueNotifyingHost (rng.nextFloat());
+        if (randomVerdict (controls[(size_t) i], d->plugin.name).isNotEmpty()) { ++kept; continue; }
+        params[i]->setValueNotifyingHost (rng.nextFloat());
         ++changed;
     }
     if (changed == 0) { say (String (d->plugin.name) + " has no controls chance may change.", true); return 0; }
     changedDevice = deviceId;
     pluginChanged (before, "Random Settings");
     say (String (d->plugin.name) + ": " + String (changed) + (changed == 1 ? " control" : " controls") + " set by chance"
-         + (kept > 0 ? String ("; ") + String (kept) + " for volume, tuning and pitch left as they were." : String (".")), false, true);
+         + (kept > 0 ? String ("; ") + String (kept) + " for volume, tuning and pitch (and settings that aren't the sound) left as they were."
+                     : String (".")), false, true);
     return changed;
+}
+
+void Controller::randomSettingsReport (const File& out)
+{
+    auto& pm = engine.plugins();
+    if (pm.readingControls() || pm.scanning()) { say ("Wait for the plug-ins being looked at now, then ask again."); return; }
+    say ("Reading every plug-in's controls for the Random Settings Report" + ui::u8 ("\xe2\x80\xa6") + " Each opens in the helper, so this takes a few minutes.");
+    auto progress = [this] (float p, const String& what)
+    {
+        if (p < 1.0f) say ("Random Settings Report, " + String (roundToInt (p * 100)) + "%: reading " + what + ui::u8 ("\xe2\x80\xa6"));
+    };
+    pm.readControls (progress, [this, out] (std::vector<PluginManager::PluginControls> all)
+    {
+        String text;
+        text << "Kalibre: Random Settings Report, " << Time::getCurrentTime().toString (true, true) << "\n\n"
+             << "Every control of every plug-in Kalibre has scanned, and whether a plug-in's Random button changes it\n"
+             << "(decision 0104). \"random\": chance may change it. \"kept\": it's left as it is, and why.\n\n";
+        int plugins = 0, random = 0, keptCount = 0;
+        for (auto& pc : all)
+        {
+            ++plugins;
+            text << "== " << pc.type.name << " (" << pc.type.manufacturerName << ", " << pc.type.pluginFormatName << ")";
+            if (const auto why = randomsong::whyNoRandom (pc.type.name.toStdString()); ! why.empty())
+            {
+                text << ": no Random, " << String (why) << " ==\n\n";
+                continue;
+            }
+            if (pc.controls.empty()) { text << ": " << (pc.problem.isNotEmpty() ? pc.problem : String ("no controls")) << " ==\n\n"; continue; }
+            text << " ==\n";
+            for (auto& ctl : pc.controls)
+            {
+                const auto why = randomVerdict (ctl, pc.type.name);
+                (why.isEmpty() ? random : keptCount) += 1;
+                text << "  " << (why.isEmpty() ? String ("random") : "kept: " + why).paddedRight (' ', 18) << ctl.name
+                     << (ctl.unit.trim().isNotEmpty() ? " (" + ctl.unit.trim() + ")" : String()) << "\n";
+            }
+            text << "\n";
+        }
+        text << "In all: " << plugins << " plug-ins, " << (random + keptCount) << " controls, " << random << " random, " << keptCount << " kept.\n";
+        if (! out.replaceWithText (text)) { say ("The Random Settings Report couldn't be written to " + out.getFullPathName() + ".", true); return; }
+        out.revealToUser();
+        say ("The Random Settings Report is on your Desktop: " + out.getFileName() + " (" + String (plugins) + " plug-ins, "
+             + String (random + keptCount) + " controls).");
+    });
 }
 
 // A plug-in's own state was changed by Kalibre: one undo step, which puts

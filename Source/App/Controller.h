@@ -28,6 +28,11 @@
 
 namespace kal
 {
+// Why a device's Random leaves a control alone (decision 0104), or empty: what the plug-in
+// says of it (its bypass, meters, its own input and output gain, controls a host can't set),
+// then its name and unit (randomsong::whyKept).
+juce::String randomVerdict (const PluginManager::Control&, const juce::String& plugin);
+
 // VST3 effects once filed as MIDI effects, put right on opening (decision 0058).
 void refileEffects (Project&, const PluginManager&);
 
@@ -371,6 +376,10 @@ public:
     // those for volume, tuning and pitch (randomsong::keepsItsValue), and meters.
     // One undo step. Returns how many were changed. `seed` 0: a new chance each time.
     int randomSettings (Id device, unsigned seed = 0);
+    juce::String whyNoRandom (Id device) const;   // "a pitch tool", "a utility", or empty
+    // Every scanned plug-in's controls, each marked random or kept and why, written to `out`
+    // (Plug-in Manager > Random Settings Report..., 0104). Each plug-in is read in the helper.
+    void randomSettingsReport (const juce::File& out);
     bool settingByChance = false;   // the plug-in's own reports of those changes aren't touches
     void pluginChanged (const Project& before, const juce::String& label);
     Id changedDevice = 0;

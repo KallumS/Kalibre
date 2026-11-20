@@ -20,11 +20,33 @@ StringArray& fakeFiles()
 
 // What a fake plug-in is when it's opened: "Riffer" sends MIDI and has
 // outputs (an instrument that only sends MIDI); "Arp" sends MIDI and has none.
+// A knob as a hosted plug-in has one (the report reads its name and unit, 0104).
+struct FakeKnob : public AudioPluginInstance::HostedParameter
+{
+    FakeKnob (String n, String u) : name (std::move (n)), unit (std::move (u)) {}
+    String getParameterID() const override { return name; }
+    float getValue() const override { return value; }
+    void setValue (float v) override { value = v; }
+    float getDefaultValue() const override { return 0.5f; }
+    String getName (int) const override { return name; }
+    String getLabel() const override { return unit; }
+    float getValueForText (const String& t) const override { return t.getFloatValue(); }
+    String name, unit;
+    float value = 0.5f;
+};
+
 struct FakeInstance : public AudioPluginInstance
 {
     FakeInstance (PluginDescription d, int outs)
         : AudioPluginInstance (BusesProperties().withOutput ("Out", outs == 2 ? AudioChannelSet::stereo() : AudioChannelSet::disabled(), outs == 2)),
-          desc (std::move (d)) {}
+          desc (std::move (d))
+    {
+        // "Knobs": the names a synth's controls have, Serum's and Sylenth1's among them.
+        if (desc.name == "Knobs")
+            for (auto [n, u] : { std::pair { "MasterVol", "dB" }, { "A Octave", "" }, { "Fil Cutoff", "Hz" }, { "Note A1", "" },
+                                 { "Env1 Atk", "ms" }, { "Spread", "ct" }, { "Next Patch", "" } })
+                addHostedParameter (std::make_unique<FakeKnob> (n, u));
+    }
     void fillInPluginDescription (PluginDescription& d) const override { d = desc; }
     const String getName() const override { return desc.name; }
     void prepareToPlay (double, int) override {}
@@ -77,6 +99,7 @@ struct FakeFormat : public AudioPluginFormat
     {
         if (d.name == "Riffer") { cb (std::make_unique<FakeInstance> (d, 2), {}); return; }
         if (d.name == "Arp") { cb (std::make_unique<FakeInstance> (d, 0), {}); return; }
+        if (d.name == "Knobs") { cb (std::make_unique<FakeInstance> (d, 2), {}); return; }
         cb (nullptr, "Fake plug-ins don't make sound.");
     }
 };
@@ -325,4 +348,36 @@ TEST ("devices: a plug-in dragged from the browser onto the rack is added to the
         }
     }
     juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("plug-ins: the Random Settings Report reads every plug-in's controls in the helper, and marks each random or kept (0104)")
+{
+    const auto folder = freshFolder ("controls");
+    fakeFiles() = { "fake:ok:Knobs", "fake:crash", "fake:ok:Riffer" };
+    PluginManager pm (folder);
+    pm.timeoutMs = 5000;
+    waitFor (pm, [&] (auto p) { pm.scan (p); });
+    bool finished = false;
+    std::vector<PluginManager::PluginControls> got;
+    pm.readControls ({}, [&] (std::vector<PluginManager::PluginControls> all) { got = std::move (all); finished = true; });
+    for (int i = 0; i < 3000 && ! finished; ++i) MessageManager::getInstance()->runDispatchLoopUntil (20);
+    CHECK (finished);
+    const PluginManager::PluginControls* knobs = nullptr;
+    for (auto& pc : got) if (pc.type.name == "Knobs") knobs = &pc;
+    CHECK (knobs != nullptr);
+    if (! knobs) return;
+    CHECK_EQ (knobs->controls.size(), (size_t) 7);
+    std::map<String, String> verdict;
+    for (auto& ctl : knobs->controls) verdict[ctl.name] = randomVerdict (ctl, knobs->type.name);
+    CHECK_EQ (verdict["MasterVol"], String ("volume"));
+    CHECK_EQ (verdict["A Octave"], String ("pitch"));
+    CHECK_EQ (verdict["Note A1"], String ("pitch"));
+    CHECK_EQ (verdict["Spread"], String ("pitch"));          // measured in cents
+    CHECK_EQ (verdict["Next Patch"], String ("not sound"));
+    CHECK (verdict["Fil Cutoff"].isEmpty());
+    CHECK (verdict["Env1 Atk"].isEmpty());
+    // The one that crashed the scan is said to be turned off, not left out.
+    bool riffer = false;
+    for (auto& pc : got) riffer |= pc.type.name == "Riffer" && pc.problem.isEmpty();
+    CHECK (riffer);
 }

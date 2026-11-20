@@ -91,7 +91,16 @@ public:
         if (! d) return;
         power.setToggleState (d->active, dontSendNotification);
         bypass.setToggleState (d->bypassed, dontSendNotification);
-        random.setEnabled (d->active && c.engine.instance (id) != nullptr);
+        {
+            // Pitch tools and utilities have no Random (0104): all their controls are volume or pitch.
+            const auto why = c.whyNoRandom (id);
+            random.setEnabled (d->active && c.engine.instance (id) != nullptr && why.isEmpty());
+            const String tip = why.isEmpty() ? "Set its controls by chance, for a new sound. Volume, tuning and pitch are left as they are. "
+                                               "One undo step; click again for another."
+                                             : "No Random here: " + String (d->plugin.name) + " is " + why + ", whose controls are all volume, tuning or pitch.";
+            if (random.getTooltip() != theme::wrapTip (tip)) random.setTip (tip);
+            random.setTitle ("Random Settings");
+        }
         match.setToggleState (d->matchLoudness, dontSendNotification);
         // Effects only; the Container has its own, for everything in it.
         const bool matchShown = match.isVisible();

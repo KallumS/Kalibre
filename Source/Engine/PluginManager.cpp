@@ -75,6 +75,7 @@ PluginManager::~PluginManager()
 {
     stopTimer();
     worker.reset();
+    controlsReader.reset();
     save();
 }
 
@@ -366,9 +367,137 @@ public:
     std::atomic<bool> helperFailed { false };
 };
 
+//==============================================================================
+std::vector<PluginManager::Control> PluginManager::controlsOf (AudioProcessor& p)
+{
+    std::vector<Control> out;
+    auto* bypass = dynamic_cast<AudioPluginInstance*> (&p) ? static_cast<AudioPluginInstance&> (p).getBypassParameter() : nullptr;
+    for (auto* prm : p.getParameters())
+    {
+        Control c;
+        c.name = prm->getName (100);
+        c.unit = prm->getLabel();
+        c.category = (int) prm->getCategory();
+        c.automatable = prm->isAutomatable();
+        c.meta = prm->isMetaParameter();
+        c.bypass = prm == bypass;
+        out.push_back (c);
+    }
+    return out;
+}
+
+class PluginManager::ControlsReader : public Thread
+{
+public:
+    ControlsReader (PluginManager& o, std::vector<Item> i, Progress p)
+        : Thread ("Kalibre plug-in controls"), owner (o), items (std::move (i)), progress (std::move (p)), alive (o.alive) {}
+    ~ControlsReader() override { stopThread (10000); }
+
+    void run() override
+    {
+        const auto exe = owner.helper;
+        const auto log = owner.logFile();
+        for (size_t n = 0; n < items.size(); ++n)
+        {
+            if (threadShouldExit()) return;
+            const auto& item = items[n];
+            tell ((float) n / (float) jmax<size_t> (1, items.size()), item.name);
+            const auto out = File::getSpecialLocation (File::tempDirectory).getNonexistentChildFile ("Kalibre controls", ".xml", false);
+            const auto how = runHelper (exe, { PluginManager::workerFlag, item.format, item.file, out.getFullPathName(), "controls" },
+                                        log, owner.timeoutMs, *this);
+            if (how.how == Outcome::Cancelled) { out.deleteFile(); return; }
+            auto xml = parseXML (out);
+            out.deleteFile();
+            FileResult r;
+            r.file = item.file;
+            if (xml && xml->hasTagName ("KALIBRE_SCAN"))
+                for (auto* e : xml->getChildWithTagNameIterator ("PLUGIN"))
+                {
+                    PluginControls pc;
+                    if (! pc.type.loadFromXml (*e)) continue;
+                    for (auto* x : e->getChildWithTagNameIterator ("KALIBRE_CONTROL"))
+                        pc.controls.push_back ({ x->getStringAttribute ("name"), x->getStringAttribute ("unit"), x->getIntAttribute ("category"),
+                                                 x->getBoolAttribute ("automatable", true), x->getBoolAttribute ("meta"), x->getBoolAttribute ("bypass") });
+                    if (! e->getBoolAttribute ("kalibreKnown")) pc.problem = "it wouldn't open";
+                    r.found.push_back (std::move (pc));
+                }
+            if (r.found.empty())
+                r.problem = how.how == Outcome::TimedOut ? "it was still opening after " + String (owner.timeoutMs / 1000) + " seconds"
+                          : how.how == Outcome::Signalled ? "it crashed (" + signalName (how.code) + ")"
+                          : "it wouldn't open";
+            results.push_back (std::move (r));
+        }
+        tell (1.0f, {});
+        MessageManager::callAsync ([a = std::weak_ptr<bool> (alive), &o = owner] { if (a.lock()) o.finishControls(); });
+    }
+
+    void tell (float p, const String& what)
+    {
+        MessageManager::callAsync ([a = std::weak_ptr<bool> (alive), cb = progress, p, what] { if (a.lock() && cb) cb (p, what); });
+    }
+
+    PluginManager& owner;
+    std::vector<Item> items;
+    Progress progress;
+    std::shared_ptr<bool> alive;
+    struct FileResult { String file; std::vector<PluginControls> found; String problem; };
+    std::vector<FileResult> results;
+};
+
+void PluginManager::readControls (Progress progress, std::function<void (std::vector<PluginControls>)> done)
+{
+    if (controlsReader != nullptr) return;
+    controlsDone = std::move (done);
+    std::vector<Item> items;
+    for (auto& d : list.getTypes())
+    {
+        if (d.pluginFormatName == "Kalibre" || list.getBlacklistedFiles().contains (d.fileOrIdentifier)) continue;
+        if (std::none_of (items.begin(), items.end(), [&] (const Item& i) { return i.file == d.fileOrIdentifier; }))
+            items.push_back ({ d.pluginFormatName, d.fileOrIdentifier, d.name });
+    }
+    controlsReader = std::make_unique<ControlsReader> (*this, std::move (items), std::move (progress));
+    controlsReader->startThread();
+}
+
+void PluginManager::finishControls()
+{
+    if (! controlsReader) return;
+    controlsReader->stopThread (10000);
+    auto results = std::move (controlsReader->results);
+    controlsReader.reset();
+    std::vector<PluginControls> out;
+    for (auto& d : list.getTypes())
+    {
+        PluginControls pc;
+        pc.type = d;
+        if (d.pluginFormatName == "Kalibre")
+        {
+            // Kalibre's own devices: read here, they can't crash it.
+            String error;
+            if (auto inst = create (refFor (d), 48000.0, 512, error)) pc.controls = controlsOf (*inst);
+            else pc.problem = error.isNotEmpty() ? error : "it wouldn't open";
+        }
+        else if (list.getBlacklistedFiles().contains (d.fileOrIdentifier)) pc.problem = "it's turned off";
+        else
+        {
+            pc.problem = "it wasn't read";
+            for (auto& r : results)
+                if (r.file == d.fileOrIdentifier)
+                {
+                    pc.problem = r.problem;
+                    for (auto& f : r.found)
+                        if (f.type.isDuplicateOf (d) || f.type.name == d.name) { pc.controls = f.controls; pc.problem = f.problem; break; }
+                }
+        }
+        out.push_back (std::move (pc));
+    }
+    if (auto cb = std::move (controlsDone)) cb (std::move (out));
+}
+
 int PluginManager::runWorker (int argc, char* argv[])
 {
     if (argc < 5) return 2;
+    const bool readingControls = argc > 5 && String::fromUTF8 (argv[5]) == "controls";   // the Random Settings Report (0104)
     const String format = String::fromUTF8 (argv[2]);
     const String id = String::fromUTF8 (argv[3]);
     const File out (String::fromUTF8 (argv[4]));
@@ -421,6 +550,17 @@ int PluginManager::runWorker (int argc, char* argv[])
                 e->setAttribute ("kalibreMidiEffect", p->isMidiEffect());
                 e->setAttribute ("kalibreAudioIns", p->getTotalNumInputChannels());
                 e->setAttribute ("kalibreAudioOuts", p->getTotalNumOutputChannels());
+                if (readingControls)
+                    for (auto& ctl : controlsOf (*p))
+                    {
+                        auto* x = e->createNewChildElement ("KALIBRE_CONTROL");
+                        x->setAttribute ("name", ctl.name);
+                        x->setAttribute ("unit", ctl.unit);
+                        x->setAttribute ("category", ctl.category);
+                        x->setAttribute ("automatable", ctl.automatable);
+                        x->setAttribute ("meta", ctl.meta);
+                        x->setAttribute ("bypass", ctl.bypass);
+                    }
                 say (d->name + (p->producesMidi() ? " sends MIDI" : " sends no MIDI") + ", "
                      + String (p->getTotalNumInputChannels()) + " in, " + String (p->getTotalNumOutputChannels()) + " out");
                 writeOut();

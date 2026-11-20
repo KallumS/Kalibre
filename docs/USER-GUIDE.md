@@ -705,6 +705,7 @@ deleted since its scan) is left out, and the message line says so.
 | --- | --- |
 | **⏻** | Switch it off: unloaded from memory, its settings kept. Switch it on to load it again. Its delay is kept in its place, so the tracks stay lined up. |
 | **B** | Bypass: the sound passes untouched, the plug-in still loaded. |
+| **Random** | Its controls set by chance, for a new sound. [Below](#a-plug-ins-random). |
 | **Set A / Set B** | Two settings to compare: click to switch. Copy one to the other in Presets. |
 | **Presets** | **Save Preset…**, your saved presets, and **The Plug-in's Own** programs. |
 | **Match** | Match Loudness: keeps what comes out as loud as what goes in (short-term loudness, LUFS-S). The amount is shown beside it. |
@@ -717,6 +718,33 @@ bigger than they are. **Swipe sideways with two fingers** to move along the
 rack. Every action on a plug-in is one undo step.
 
 ![A plug-in shown smaller to fit a short zone](guide/fitted.png)
+
+### A plug-in's Random
+
+**Random**, beside **B** on each plug-in, sets its controls by chance: a new
+sound from the same plug-in. Click again for another; it's one undo step, so
+**Undo** goes back to how it was. It never writes automation, even while the
+song plays.
+
+It leaves alone every control for **volume** (Volume, Gain, Level, Output,
+Input, Trim, Makeup, a limiter's Ceiling and Threshold, an envelope sent to the
+amp), **tuning and pitch** (Tune, Pitch, Fine, Coarse, Transpose, Detune,
+Octave, Semitones, Note, Cents, Root, Pitch Bend, Vibrato, Drift, a sample's
+Speed, an oscillator's frequency), switches that could **silence** a sound
+source (Osc 1 On), and settings that **aren't the sound**: presets, bypass,
+mute and solo, monitoring (Delta, Listen), quality and oversampling, MIDI,
+polyphony and the wheels. Controls with no real name (#001, Param 12) and
+macros are left too: they could be wired to volume or pitch. The names come
+from what the plug-ins themselves call their controls.
+
+Pitch tools (Auto-Tune, Little AlterBoy, pitch shifters, tuners) and utilities
+(gain, trim, meters, analysers) have no Random: their controls are all volume
+or pitch. The button is dimmed, and says why.
+
+To see exactly what it does to your plug-ins, use the **Random Settings
+Report** in the Plug-in Manager.
+
+![Random, beside B on a plug-in](guide/device-random.png)
 
 ### Sidechains
 
@@ -1116,6 +1144,7 @@ or show it in the Finder.
 | **Turn On** | Back on. One that crashed or hung is scanned again first. |
 | **Show in Finder** | The plug-in's file. |
 | **Only Turned Off** | Just those, each with why: crashed, hung, couldn't open, or turned off by hand. |
+| **Random Settings Report…** | Every control of every plug-in, each marked **random** (a plug-in's Random may change it) or **kept**, and why, in a file on your Desktop (Kalibre Random Settings Report.txt). Each plug-in is opened in a helper, so it takes a few minutes; the message line shows how far it's got. |
 | Right-click > **File As** | MIDI Effect, Instrument or Audio Effect, by hand. |
 
 An instrument that also sends MIDI (Riffer, Scaler) is listed under MIDI

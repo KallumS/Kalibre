@@ -47,6 +47,8 @@ private:
     theme::HouseButton turnOff { "Turn Off", "Leave the chosen plug-ins out of the browser and the menus, and never load them." };
     theme::HouseButton turnOn { "Turn On", "Turn the chosen plug-ins back on. One that crashed or hung is scanned again first, and stays off if it still does." };
     theme::HouseButton reveal { "Show in Finder", "Show the chosen plug-in's file." };
+    theme::HouseButton report { "Random Settings Report...", "Write every control of every plug-in to a file on your Desktop, each marked as one a plug-in's Random "
+                                                             "changes or leaves alone, and why. Each plug-in is opened in a helper, so this takes a few minutes." };
     theme::HouseButton onlyOff { "Only Turned Off", "Show only the plug-ins that are turned off.", true };
 
     std::vector<Row> rows;

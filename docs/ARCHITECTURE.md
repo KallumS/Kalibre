@@ -48,7 +48,7 @@
 | `Engine/Engine.*` | The audio graph built from the project, plug-in instances kept across changes, the transport and loop, rendering (0016). |
 | `Engine/TrackProcessors.*` | Each track's Source (clips, live input, recording, automation, modulators), Fader and Sends; the metronome. |
 | `Engine/ClapFormat.*`, `ClapGuiMac.mm` | Hosting CLAP (0021). |
-| `Engine/PluginManager.*` | Scanning (each plug-in in a helper: Kalibre run with `--kalibre-scan`), turning plug-ins off and on, and making them (0047). |
+| `Engine/PluginManager.*` | Scanning (each plug-in in a helper: Kalibre run with `--kalibre-scan`), turning plug-ins off and on, and making them (0047). The helper's `controls` mode reads every control for the Random Settings Report (0104). |
 | `Engine/MorphProcessor.*` | The X/Y morph (0018), and the latency and gain devices the tests use. |
 | `Engine/ContainerProcessor.*` | The Container: plug-ins in a row, each on a band, the mid or the sides (0055). |
 | `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |

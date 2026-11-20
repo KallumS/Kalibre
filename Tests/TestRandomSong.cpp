@@ -164,16 +164,63 @@ TEST ("random devices: an instrument when asked (a kit for drums), one or two ef
     CHECK (midiFx > 5 && midiFx < 40);   // about a quarter of the time
 }
 
-TEST ("random settings: volume, tuning and pitch controls are left alone, by name; the sound's other controls aren't (0104)")
+TEST ("random settings: volume, tuning and pitch controls are left alone, by the names real plug-ins give them; the sound's other controls aren't (0104)")
 {
-    using randomsong::keepsItsValue;
-    for (auto* n : { "Volume", "Master Volume", "Output", "Output Gain", "Gain", "Level", "Amp Level", "Out", "Trim", "MasterVol",
-                     "Tune", "Tuning", "Master Tune", "Osc 2 Pitch", "Osc 2 Fine", "Fine", "Coarse", "Osc1Pitch", "Transpose",
-                     "Detune", "Semitones", "Semi", "Octave", "Oct", "Cents", "Root Note", "Pitch Bend Range", "Speed",
-                     "Bypass", "Mute" })
-        CHECK (keepsItsValue (n));
-    for (auto* n : { "Cutoff", "Resonance", "Attack", "Decay", "Sustain", "Release", "Osc Mix", "Wave 1", "Noise", "Key Track",
-                     "Glide", "Centre Frequency", "Center", "Env Amount", "Grain Size", "Density", "Spray", "Drive", "Reverb Mix",
-                     "LFO Rate", "Breath", "Stereo Width", "Octopus", "Fineness" })
-        CHECK (! keepsItsValue (n));
+    using randomsong::whyKept;
+    auto kept = [] (const char* n, const char* why) { CHECK_EQ (whyKept (n), std::string (why)); };
+    // Volume: Kalibre's own, Vital, Surge XT, Serum, Sylenth1, OB-Xf, Calf, LSP, compressors, limiters.
+    for (auto* n : { "Volume", "Master Volume", "MasterVol", "Main Vol", "A Vol", "Volume A1", "Output", "Output Gain", "Gain", "Level",
+                     "Sub Level", "Sample Level", "Voice Amplitude", "Osc 1 Volume", "Pre-Filter Gain", "VCA Gain", "Send FX 1 Return",
+                     "Out", "In", "Input", "Input Gain", "Trim", "Makeup", "Ceiling", "Fader", "Attenuation", "FXlevel", "OutGain",
+                     "EG1 To Amp", "Vel->Amp", "Env->Amp", "Filter1 To Amplifier", "Expression", "Global Volume", "EQ Low Gain" })
+        kept (n, "volume");
+    // Tuning and pitch: Serum's OCT, SEM, FIN, CRS; Sylenth1's Note; Dexed; Surge; OB-Xf; Auto-Tune; Valhalla's Shift.
+    for (auto* n : { "Tune", "Master Tune Adj", "Osc 2 Pitch", "Osc 2 Fine", "Fine", "Coarse", "A Crs", "A Sem", "A Octave", "Osc1Pitch",
+                     "Transpose", "Voice Transpose", "Detune", "Unison Detune", "Semitones", "Octave", "Oct", "Cents", "Note A1", "Root Note",
+                     "Pitch Bend Range", "Pitchbend", "Pbend", "Pitch Wheel", "Speed", "Tape Speed", "Frequency shift", "Shift", "Key", "Scale",
+                     "Retune Speed", "Vibrato", "Vib Rate", "LFO 1 to Osc 1 Pitch", "EnvToPitchAmount", "Osc Drift", "Wow", "Flutter",
+                     "FineTune2", "OSC: Tune1", "Lfo Pm Depth", "Frequency Coarse", "P: Carrier Frq", "Osc 1 Frequency", "Op 3 Ratio",
+                     "Osc 2 Keytrack", "Sample Keytrack" })
+        kept (n, "pitch");
+    // A sound source's own on switch, which could leave it silent.
+    for (auto* n : { "Sample Switch", "Sub Switch", "Osc 1 On", "Noise Enable", "Layer 2 Active" }) kept (n, "silence");
+    // Not the sound: presets, monitoring, quality, MIDI, performance, mute, solo, bypass.
+    for (auto* n : { "Bypass", "Mute", "Osc 1 Solo", "Noise Mute", "Initialize Patch", "Next Patch", "Save Patch", "Undo", "Randomize Patch",
+                     "Delta", "S/C-Listen", "Audition Left", "Oversampling", "Lookahead", "HQ", "Polyphony", "Voices", "Mod Wheel",
+                     "MIDI Channel", "Sync BPM", "Sidechain", "Polarity", "Analyzer Smoothing", "Show mix overlay", "MPE Mode" })
+        kept (n, "not sound");
+    // Wired to anything.
+    for (auto* n : { "#001", "123", "Param 12", "Parameter A", "Macro 1", "Modulation 2 Amount", "Modulation 1 Destination" }) kept (n, "unknown");
+    // A unit says tuning.
+    CHECK_EQ (whyKept ("Spread", "ct"), std::string ("pitch"));
+    CHECK_EQ (whyKept ("Offset", " st"), std::string ("pitch"));
+    CHECK (whyKept ("Cutoff", " semitones").empty());   // Vital measures cutoffs in semitones
+    // A limiter's threshold is its volume; a compressor's is the sound.
+    CHECK_EQ (whyKept ("Threshold", "", "Limiter No6"), std::string ("volume"));
+    CHECK_EQ (whyKept ("Threshold", "", "Ozone Maximizer"), std::string ("volume"));
+    CHECK (whyKept ("Threshold", "", "Pro-C 2").empty());
+
+    // The sound: chance may change these. Some look like the above and aren't.
+    for (auto* n : { "Cutoff", "Resonance", "Attack", "Decay", "Sustain", "Release", "Amp Attack", "AmpEnv Release", "Osc Mix", "Wave 1",
+                     "Noise Color", "Key Track", "Key Follow", "Glide", "Portamento", "Portamento Scale", "Env Amount", "Grain Size",
+                     "Density", "Spray", "Drive", "Reverb Mix", "Delay Feedback", "LFO Rate", "Mod Freq", "Breath", "Stereo Width",
+                     "Centre Frequency", "Center", "Octopus", "Fineness", "Voltage", "Fade In", "BitShift", "Speed Mode", "Phase Randomization",
+                     "606 St", "Osc1 FM/PM amount", "Unison Voices", "Formant", "Ratio", "Knee", "Threshold", "Chorus Frequency",
+                     "Delay Switch", "Filter Cutoff", "Filter1 SEM Transition", "Velocity Track", "Distortion Amount", "Wavetable Position", "Mix" })
+    {
+        const auto why = whyKept (n);
+        if (! why.empty()) std::printf ("    %s: %s\n", n, why.c_str());
+        CHECK (why.empty());
+    }
+}
+
+TEST ("random settings: pitch tools and utilities have no Random; synths and effects do (0104)")
+{
+    using randomsong::whyNoRandom;
+    for (auto* n : { "Auto-Tune Pro", "Little AlterBoy", "Melodyne", "MAutoPitch", "Pitch Shifter", "Harmonizer", "GTune", "Tuner" })
+        CHECK_EQ (whyNoRandom (n), std::string ("a pitch tool"));
+    for (auto* n : { "Gain", "Utility", "Trim", "Youlean Loudness Meter", "SPAN Spectrum", "Analyzer", "Oscilloscope" })
+        CHECK_EQ (whyNoRandom (n), std::string ("a utility"));
+    for (auto* n : { "Serum", "Vital", "Tunefish 4", "Kalibre Synth", "Pro-Q 3", "Valhalla VintageVerb", "Decapitator", "OTT", "Surge XT" })
+        CHECK (whyNoRandom (n).empty());
 }
