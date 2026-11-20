@@ -97,3 +97,6 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0093. Five more of the family's devices: Midular, MIDI Production Center, Good Idea, ScaleView, Trombolese](0093-five-more-of-the-familys-devices.md)
 - [0094. The Sounds browser: the musician's samples and MIDI, scanned once, heard in time](0094-the-sounds-browser.md)
 - [0095. The timer's away rules, what the scan hears, clips backwards and upside down, the Sampler's slices and grains, the transport at the bottom](0095-timer-sounds-clips-sampler-transport.md)
+- [0096. Automation lined up with plug-in delay compensation; every loop pass exact](0096-automation-lined-up-with-delay-compensation.md)
+- [0097. Exports: Record the Tail, Export the Second Pass; every export starts clean](0097-record-the-tail-and-the-second-pass.md)
+- [0098. The clip launcher taken out](0098-the-clip-launcher-taken-out.md)

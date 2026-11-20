@@ -31,7 +31,8 @@ void refileEffects (Project&, const PluginManager&);
 
 
 enum class EditorKind { PianoRoll, Drums, Steps, Euclid, Notation };
-enum class ZoneTab { Devices, Editor, Mixer, Launcher, Meters, Video };
+// The numbers are kept in saved workspaces: 3 was the clip launcher, taken out (0098).
+enum class ZoneTab { Devices = 0, Editor = 1, Mixer = 2, Meters = 4, Video = 5 };
 
 class Controller : public juce::ChangeBroadcaster, private juce::Timer
 {
@@ -249,7 +250,8 @@ public:
     bool exportXml (const juce::File&);
     bool importXml (const juce::File&);
     // Several exports at once into a folder: the mix as WAV and MP3, every track, the MIDI.
-    struct Batch { bool mixWav = true, mixMp3 = true, stems = false, midi = false; double loudness = 0; };
+    struct Batch { bool mixWav = true, mixMp3 = true, stems = false, midi = false; double loudness = 0;
+                   bool ringOut = true, secondPass = false; };   // Record the Tail, Export the Second Pass (0097)
     bool exportBatch (const juce::File& folder, const Batch&);
 
     //==========================================================================
@@ -334,12 +336,6 @@ public:
     std::vector<double> hitsIn (Id clip, double sensitivity = 0.5);   // seconds into its file
     int splitAtTransients (Id clip, double sensitivity = 0.5);        // the pieces made (0095)
     void renderOfflineFx (Id clip);
-
-    //==========================================================================
-    // The clip launcher (decision 0037): not undo steps.
-    void launchSlot (Id track, int slot);   // -1 stops the track
-    void launchScene (int scene);
-    void backToArrangement();
 
     //==========================================================================
     // Devices.
@@ -438,10 +434,8 @@ private:
     Writing writing;
 
     void syncEngine();
-    std::map<Id, Track::Launch> launchStates() const;
     std::map<Id, int> deviceStates() const;
     void reloadChangedStates (const std::map<Id, int>&);
-    void restoreLaunches (const std::map<Id, Track::Launch>&);
     std::vector<song::TrackMix> lastMix;   // the mix as last synced, for grouped tracks
     void timerCallback() override;
     void finishRecording();

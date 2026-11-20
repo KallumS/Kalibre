@@ -25,7 +25,6 @@ template <typename F> void forEachFile (Project& p, F f)
             for (auto& c : v.clips) clipFiles (c);
             for (auto& tk : v.takes) for (auto& c : tk.clips) clipFiles (c);
         }
-        for (auto& c : t.slots) clipFiles (c);
         f (t.frozenFile);
         for (auto& m : t.modulators) f (m.tableFile);
     }
@@ -115,8 +114,6 @@ Project asTemplate (const Project& source, bool keepMusic)
         v.name = "Version 1";
         t.versions = { v };
         t.activeVersion = 0;
-        t.slots.clear();
-        t.launch = {};
         t.automation.clear();
         t.frozen = false;
         t.frozenFile.clear();
@@ -125,7 +122,6 @@ Project asTemplate (const Project& source, bool keepMusic)
     p.master.automation.clear();
     p.markers.clear();
     p.sections.clear();
-    p.scenes.clear();
     p.video = {};
     p.metadata = {};
     p.loop.on = p.punch.on = false;

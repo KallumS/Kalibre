@@ -1735,27 +1735,6 @@ void Arrange::clipMenu (Id id)
         if (made) { c.selectedClips = { made }; c.selectedClip = made; }
         c.say ("Alias clips: an edit to the notes or audio of one is made to every copy.");
     });
-    m.addItem ("Put in the Launcher", [this, id]
-    {
-        Track* tr = nullptr;
-        const auto* x = c.project.clip (id);
-        if (! x) return;
-        int slot = 0;
-        c.apply ("Clip to Launcher", [&] (Project& p)
-        {
-            const Track* o = nullptr;
-            const auto* cl = p.clip (id, &o);
-            if (! cl || ! o) return;
-            auto* own = p.track (o->id);
-            slot = 0;
-            while (slot < (int) own->slots.size() && own->slots[(size_t) slot].length > 0) ++slot;
-            Clip copy = *cl;
-            copy.link = 0;
-            song::setSlot (p, own->id, slot, copy);
-        });
-        ignoreUnused (tr);
-        c.say ("The clip is in the launcher, scene " + String (slot + 1) + ". (G shows the launcher.)");
-    });
     m.addItem ("Delete", [this] { c.deleteSelection(); });
     m.addSeparator();
     // On every chosen clip (Shift-click and Option-click choose several, decision 0053), 0071.

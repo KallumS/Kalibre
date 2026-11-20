@@ -74,6 +74,10 @@ public:
     static constexpr int rampPiece = 16;
 
     // Kept in step when the plug-in's latency changes (the engine is told), message thread.
+    // How late the sound reaching it is after the song position its track's
+    // automation is drawn for: the plug-ins before it (0096). Set by the engine.
+    std::atomic<int> automationDelay { 0 };
+
     void latencyChanged()
     {
         setLatencySamples (inner->getLatencySamples());
@@ -107,6 +111,13 @@ public:
         joinedMidi.ensureSize (8192);
     }
     void releaseResources() override { inner->releaseResources(); }
+    // Everything it holds from what it last played let go: an export starts clean (0097).
+    void reset() override
+    {
+        inner->reset();
+        if (auto* ring = bypassRing.load()) ring->clear();
+        bypassAt = 0;
+    }
 
     void processBlock (juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) override
     {

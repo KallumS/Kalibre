@@ -214,43 +214,6 @@ void Controller::reloadChangedStates (const std::map<Id, int>& was)
     reload (project.master);
 }
 
-// What the launcher is playing isn't part of the song's history (decision 0037).
-std::map<Id, Track::Launch> Controller::launchStates() const
-{
-    std::map<Id, Track::Launch> out;
-    for (auto& t : project.tracks) out[t.id] = t.launch;
-    return out;
-}
-
-void Controller::restoreLaunches (const std::map<Id, Track::Launch>& launches)
-{
-    for (auto& t : project.tracks)
-        if (auto it = launches.find (t.id); it != launches.end()) t.launch = it->second;
-}
-
-void Controller::launchSlot (Id track, int slot)
-{
-    // Stopped, it starts at once, from the bar the cursor is in.
-    if (! engine.isPlaying()) cursor = project.tempo.barStart (project.tempo.barAt (cursor));
-    song::launch (project, track, slot, engine.isPlaying() ? playhead() : cursor);
-    refresh();
-    if (! engine.isPlaying()) play();
-}
-
-void Controller::launchScene (int scene)
-{
-    if (! engine.isPlaying()) cursor = project.tempo.barStart (project.tempo.barAt (cursor));
-    song::launchScene (project, scene, engine.isPlaying() ? playhead() : cursor);
-    refresh();
-    if (! engine.isPlaying()) play();
-}
-
-void Controller::backToArrangement()
-{
-    song::backToArrangement (project);
-    refresh();
-}
-
 void Controller::refresh()
 {
     song::propagateGroups (lastMix, project);
@@ -263,10 +226,8 @@ bool Controller::undo()
 {
     storeDeviceStates();
     const auto label = history.undoLabel();
-    const auto launches = launchStates();
     const auto states = deviceStates();
     if (! history.undo (project)) return false;
-    restoreLaunches (launches);
     dirty = true;
     syncEngine();
     reloadChangedStates (states);
@@ -279,10 +240,8 @@ bool Controller::redo()
 {
     storeDeviceStates();
     const auto label = history.redoLabel();
-    const auto launches = launchStates();
     const auto states = deviceStates();
     if (! history.redo (project)) return false;
-    restoreLaunches (launches);
     dirty = true;
     syncEngine();
     reloadChangedStates (states);

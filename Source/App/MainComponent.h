@@ -77,7 +77,9 @@ public:
     void checkSaved (std::function<void()> then);
     void openFile();
     void saveFile (std::function<void()> then = {});
+    // Asks Record the Tail and Export the Second Pass (0097), then where the file goes.
     void exportAudio (bool stems, double loudnessTarget = 0);
+    void exportAudioTo (bool stems, double loudnessTarget, bool ringOut, bool secondPass);
     void exportMidi();
     void exportBatch();
     void songDetails();

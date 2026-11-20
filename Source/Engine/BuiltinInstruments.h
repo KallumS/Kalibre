@@ -75,6 +75,7 @@ public:
     void fillInPluginDescription (juce::PluginDescription&) const override;
     void prepareToPlay (double, int) override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void reset() override;   // every voice silent: an export starts clean (0097)
     double getTailLengthSeconds() const override { return 4.0; }
     juce::AudioProcessorEditor* createEditor() override;
 
@@ -120,6 +121,7 @@ public:
     void prepareToPlay (double, int) override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     double getTailLengthSeconds() const override { return 1.0; }
+    void reset() override;
     juce::AudioProcessorEditor* createEditor() override;
 
     enum P { Bore, Reed, Breath, Attack, Release, Glide, Volume, Count };
@@ -147,6 +149,7 @@ public:
     void prepareToPlay (double, int) override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     double getTailLengthSeconds() const override { return 4.0; }
+    void reset() override;
     juce::AudioProcessorEditor* createEditor() override;
 
     enum P { Root, Tune, Start, End, Loop, LoopStart, Cutoff, Resonance, VelSense, A, D, S, R, Volume,

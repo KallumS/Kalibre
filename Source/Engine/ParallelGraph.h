@@ -33,6 +33,7 @@
 
 #include <atomic>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -51,6 +52,9 @@ public:
 
     void prepareToPlay (double rate, int block) override;
     void releaseResources() override;
+    // Every node reset, and the plan's delay lines emptied: what last played is gone
+    // (an export starts clean, 0097). Message thread, while nothing plays.
+    void reset() override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using juce::AudioProcessorGraph::processBlock;
 
@@ -65,6 +69,11 @@ public:
     static int coresToUse();
     // How late the output is in the current plan (what reaches it), or -1 with no plan.
     int outputLatency() const;
+    // How late the sound reaching each node is (by node uid), as delay compensation
+    // counts it: the latest of its inputs (message thread).
+    std::map<juce::uint32, int> latencyInto() const;
+    // Called on the message thread after every rebuild (the engine lines automation up, 0096).
+    std::function<void()> onRebuilt;
 
     // The audio device's workgroup, for the workers to join (device thread).
     void setWorkgroup (juce::AudioWorkgroup);

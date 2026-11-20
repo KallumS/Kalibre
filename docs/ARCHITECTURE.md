@@ -21,7 +21,7 @@
 | `Core/Sync.*`, `ControlSettings.*` | MIDI clock, MTC, clock following; the studio's settings (0034). |
 | `Core/Mackie.*` | The Mackie Control protocol (0035). |
 | `Core/AudioTools.*` | Peaks, silence, transients (as candidates a sensitivity chooses from, for the Sampler's slices), audio quantise markers, sample edits, FFT, YIN pitch; a sample's tempo and note (0036, 0044, 0095). |
-| `Core/Song.*` | Time edits, sections, ripple, linked clips, track groups, the clip launcher (0037). |
+| `Core/Song.*` | Time edits, sections, ripple, linked clips, track groups (0037; the clip launcher taken out, 0098). |
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
@@ -71,7 +71,7 @@
 | `Source/App/` | The window (0002). `Controller` owns the project, undo, the selection and every command; the views ask it. |
 | `App/TopBar` (and `TransportBar`, along the bottom, 0095), `Arrange`, `LowerZone`, `PianoRoll`, `PatternEditors`, `NotationView`, `DeviceRack`, `Mixer`, `Browser`, `Menus` | What they say. |
 | `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
-| `App/SampleEditor`, `LauncherView`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, launcher, meters, video, and offline effects (0036, 0037, 0044, 0046, 0039). |
+| `App/SampleEditor`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, meters, video, and offline effects (0036, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp`, `NoteFixing.cpp` | More of the Controller: audio commands, presets and A/B, file commands, Fix Note Timings and Volume (0085). |
 | `App/LibraryView.*`, `LibraryScanner.*`, `PreviewPlayer.*`, `LibraryFolders.*` | The browser's Sounds tab: the list, the scan of the chosen folders on its own thread, previews made off the audio thread (stretched to the song, MIDI through Kalibre Synth) and handed over through `Swap`, Kalibre > Library Folders… (0094). |
 | `App/ToolPicker.*`, `ArrangeTools.cpp`, `PianoRollTools.cpp` | The toolbox at the pointer, its icons and pointers; what each tool does in the arrangement and the piano roll (0092). |
@@ -122,10 +122,17 @@ performance core, each as soon as what feeds it is done (0078).
 - A bypassed plug-in is never called: `TimedPlugin` passes the sound on,
   delayed by its latency (0081). Its own bypass parameter isn't used. A
   switched-off one is stood in for by a `HeldDelay` as long (0086).
+- A lane is read for the sound reaching what it moves (0096): the Source
+  keeps where the song was (`spans`), and each fader, send and plug-in has
+  an `automationDelay`, set by `Engine::lineUpAutomation` after every graph
+  rebuild from the graph's own latency count. Anything new that reads a lane
+  for a processor after the Source uses `ticksFor` with its delay.
+- The loop wraps on the first sample at or after its end (0096), never by
+  rounding down.
 - Automation is drawn sample by sample by the track's Source, which plays
   before everything it moves (0089). A plug-in's block is cut into pieces at
   its lanes' points by `TimedPlugin`; anything that adds automation reads the
-  Source's `blockTicks`, never once a block.
+  Source's ticks (`ticksFor`, with its delay), never once a block.
 - At most 1000 tracks, checked in `Controller::apply` (0088): a change that
   adds tracks some other way (a script, opening a file) checks too.
 - A gesture is one `Controller::apply` (one undo step). A tool's drag that shows its change as it goes ends in `Controller::applyLive` (0092).
@@ -144,7 +151,7 @@ performance core, each as soon as what feeds it is done (0078).
 - A track's `devices` are its active version's; the others' wait in their versions under the same ids, and the engine keys instances by (version, device) (0050). `Project::device` finds only the playing ones.
 - The engine's "no jump" position is `noJump` (-1e9), not -1: positions below zero are real (a count-in). With -1, live playback jumped back to -1 s every block.
 - A note's chance, velocity range and timing are rolled on the audio thread as each note-on comes up (`playback::roll`); a late one waits in `TrackSource::waiting`, a fixed list, emptied on a jump or stop (0061).
-- What the clip launcher plays (`Track::launch`) isn't saved and survives Undo.
+- `ZoneTab`'s numbers are saved in workspaces: 3 (the clip launcher, taken out, 0098) isn't used again.
 - A looped clip's content is its loop, from 0 (`patterns::windowOf`): editors write there, not from the offset. Loop Its Content (`edit::loopContent`) moves a MIDI clip's content to offset 0 first.
 - The arrangement snaps with `arrangeSnap` (the top bar's Grid), the editors with `snapTick` (the lower zone's) (0070).
 - A plug-in's role is `PluginManager::roleOf` (the user's filing, what the scan learned, then the description), never the static `roleFor` alone (0069).

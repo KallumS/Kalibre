@@ -232,6 +232,9 @@ bool Controller::exportBatch (const File& folder, const Batch& b)
     o.start = project.loop.on ? project.tempo.secondsAt (project.loop.start) : 0.0;
     o.end = project.loop.on ? project.tempo.secondsAt (project.loop.end) : project.tempo.secondsAt (project.endTick());
     o.loudnessTarget = b.loudness;
+    o.tail = 0;
+    o.ringOut = b.ringOut;
+    o.secondPass = b.secondPass;
     bool ok = true;
     int made = 0;
     if (b.mixWav) { o.format = "wav"; ok = exportAudio (folder.getChildFile (song + ".wav"), o, false) && ok; ++made; }

@@ -139,7 +139,14 @@ public:
     struct RenderOptions
     {
         double start = 0, end = 0;          // seconds
-        double tail = 2.0;
+        double tail = 2.0;                  // seconds more of the song, played on past the end
+        // Record the Tail (0097): after the end nothing new plays, and what's sounding
+        // (releases, reverbs, delays) rings until it's silent, at most ringOutMax seconds.
+        bool ringOut = false;
+        double ringOutMax = 30.0;
+        // The Second Pass (0097): the range played once unheard, then exported the second
+        // time through, so what rings past its end is heard at its start (a loop that loops).
+        bool secondPass = false;
         double sampleRate = 48000;
         int bitDepth = 24;
         bool normalise = false;
@@ -205,6 +212,8 @@ private:
     std::map<VersionedId, Node::Ptr> allDevices;
     std::map<VersionedId, std::string> allKeys;   // what each node was made from, to notice a swap
     std::map<Id, Node::Ptr> deviceNodes;          // the playing versions' devices, by device id
+    std::map<Id, Id> trackOf;                     // each playing device's track
+    void lineUpAutomation();                      // each fader, send and plug-in told how late it hears (0096)
     std::map<std::pair<Id, int>, Node::Ptr> splitNodes;
     std::map<Id, Node::Ptr> heldDelays;   // switched-off effects' delays, by device (decision 0086)
     int heldSamples (const Device& d) const

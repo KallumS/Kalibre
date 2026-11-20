@@ -321,6 +321,44 @@ void ParallelGraph::refresh()
     const int version = settingsVersion.load();
     AudioProcessorGraph::rebuild();   // every node prepared for the current settings
     buildPlan (version);
+    if (onRebuilt) onRebuilt();
+}
+
+void ParallelGraph::reset()
+{
+    AudioProcessorGraph::reset();
+    if (auto* p = current.load())
+        for (auto& line : p->lines) { std::fill (line.ring.begin(), line.ring.end(), 0.0f); line.pos = 0; }
+}
+
+std::map<juce::uint32, int> ParallelGraph::latencyInto() const
+{
+    // As buildPlan counts it (and JUCE's graph): each node after what feeds it,
+    // its input as late as the latest of them.
+    const auto& nodes = getNodes();
+    std::map<juce::uint32, std::set<juce::uint32>> from, to;
+    std::map<juce::uint32, int> waiting, total, into;
+    for (auto* n : nodes) { waiting[n->nodeID.uid] = 0; into[n->nodeID.uid] = 0; total[n->nodeID.uid] = 0; }
+    for (auto& c : getConnections())
+    {
+        const auto s = c.source.nodeID.uid, d = c.destination.nodeID.uid;
+        if (s == d || ! waiting.count (s) || ! waiting.count (d)) continue;
+        if (from[d].insert (s).second) { to[s].insert (d); ++waiting[d]; }
+    }
+    std::vector<juce::uint32> order;
+    for (auto& [uid, w] : waiting) if (w == 0) order.push_back (uid);
+    std::map<juce::uint32, int> latencyOf;
+    for (auto* n : nodes) latencyOf[n->nodeID.uid] = n->getProcessor()->getLatencySamples();
+    for (size_t k = 0; k < order.size(); ++k)
+    {
+        const auto i = order[k];
+        int m = 0;
+        for (auto s : from[i]) m = jmax (m, total[s]);
+        into[i] = m;
+        total[i] = m + latencyOf[i];
+        for (auto nx : to[i]) if (--waiting[nx] == 0) order.push_back (nx);
+    }
+    return into;
 }
 
 void ParallelGraph::prepareToPlay (double rate, int block)

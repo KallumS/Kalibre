@@ -185,6 +185,10 @@ void TrackSource::prepareToPlay (double rate, int block)
 {
     live.setSize (2, block);
     blockTicks.assign ((size_t) jmax (block, 8192), 0.0);
+    lateTicks.assign ((size_t) jmax (block, 8192), 0.0);
+    spanCount = 0;
+    spanNewest = -1;
+    samplesPlayed = 0;
     mixL.assign ((size_t) jmax (block, 8192), 0.0);
     mixR.assign ((size_t) jmax (block, 8192), 0.0);
     for (auto& r : runners) r.prepare (rate);
@@ -429,26 +433,31 @@ void TrackSource::drawAutomation (const Data& d, int n)
         // by the last bit of the seconds-to-ticks sums.
         blockTicks[(size_t) i] = std::round (d.tempo.ticksAt (s) * 1.0e6) / 1.0e6;
     }
+    lateFor = -1;
+    // The fader and the sends hear the sound after the track's plug-ins: their
+    // lanes are read that much later (0096), so each change lands under its sound.
     auto* f = d.fader;
+    const auto& faderTicks = ticksFor (d, f ? f->automationDelay.load() : 0, n);
     if (f && d.hasVolume && n <= (int) f->volumeCurve.size())
     {
-        for (int i = 0; i < n; ++i) f->volumeCurve[(size_t) i] = (float) (edit::valueAtTicks (d.volume, blockTicks[(size_t) i], 0.9) * 66.0 - 60.0);
+        for (int i = 0; i < n; ++i) f->volumeCurve[(size_t) i] = (float) (edit::valueAtTicks (d.volume, faderTicks[(size_t) i], 0.9) * 66.0 - 60.0);
         f->volumeCurveSamples = n;
     }
     if (f && d.hasPan && n <= (int) f->panCurve.size())
     {
-        for (int i = 0; i < n; ++i) f->panCurve[(size_t) i] = (float) jlimit (-1.0, 1.0, edit::valueAtTicks (d.pan, blockTicks[(size_t) i], 0.5) * 2.0 - 1.0);
+        for (int i = 0; i < n; ++i) f->panCurve[(size_t) i] = (float) jlimit (-1.0, 1.0, edit::valueAtTicks (d.pan, faderTicks[(size_t) i], 0.5) * 2.0 - 1.0);
         f->panCurveSamples = n;
     }
     if (f && d.hasMute && n <= (int) f->muteCurve.size())
     {
-        for (int i = 0; i < n; ++i) f->muteCurve[(size_t) i] = edit::valueAtTicks (d.mute, blockTicks[(size_t) i], 0.0) >= 0.5 ? 1 : 0;
+        for (int i = 0; i < n; ++i) f->muteCurve[(size_t) i] = edit::valueAtTicks (d.mute, faderTicks[(size_t) i], 0.0) >= 0.5 ? 1 : 0;
         f->muteCurveSamples = n;
     }
     for (auto& [lane, send] : d.sends)
         if (send && n <= (int) send->curve.size())
         {
-            for (int i = 0; i < n; ++i) send->curve[(size_t) i] = (float) (edit::valueAtTicks (lane, blockTicks[(size_t) i], 0.9) * 66.0 - 60.0);
+            const auto& ticks = ticksFor (d, send->automationDelay.load(), n);
+            for (int i = 0; i < n; ++i) send->curve[(size_t) i] = (float) (edit::valueAtTicks (lane, ticks[(size_t) i], 0.9) * 66.0 - 60.0);
             send->curveSamples = n;
         }
     // Plug-ins' parameters: each value at each sample, and where a point of the lane
@@ -470,13 +479,15 @@ void TrackSource::drawAutomation (const Data& d, int n)
         auto& curve = host->curves[(size_t) host->curveCount++];
         curve.param = pl.param;
         const float now = pl.param->getValue();
-        for (int i = 0; i < n; ++i) curve.values[(size_t) i] = (float) edit::valueAtTicks (pl.lane, blockTicks[(size_t) i], now);
+        // Read as late as the sound reaching this plug-in: the plug-ins before it (0096).
+        const auto& ticks = ticksFor (d, host->automationDelay.load(), n);
+        for (int i = 0; i < n; ++i) curve.values[(size_t) i] = (float) edit::valueAtTicks (pl.lane, ticks[(size_t) i], now);
         const auto& pts = pl.lane.points;
         size_t next = 0;
         for (int i = 1; i < n; ++i)
         {
-            const double a = blockTicks[(size_t) i - 1], b = blockTicks[(size_t) i];
-            if (b < a) continue;   // the loop's wrap, already a break
+            const double a = ticks[(size_t) i - 1], b = ticks[(size_t) i];
+            if (b < a) { host->breaks[(size_t) i] = 1; continue; }   // the loop's wrap, or a jump: a break
             while (next < pts.size() && (double) pts[next].tick <= a) ++next;
             if (next < pts.size() && (double) pts[next].tick <= b) host->breaks[(size_t) i] = 1;
         }
@@ -484,15 +495,64 @@ void TrackSource::drawAutomation (const Data& d, int n)
     for (auto& pl : d.params) if (pl.host && pl.host->curveOwner == this && pl.host->curveSerial == drawn) pl.host->curveSamples = n;
 }
 
+// Where the song was: a span from the first sample of each block that didn't
+// carry straight on from the one before (a start, a jump, the loop's wrap).
+void TrackSource::noteSpans (int n)
+{
+    const auto& clock = shared.clock;
+    auto add = [this] (juce::int64 from, double seconds)
+    {
+        if (spanNewest >= 0)
+        {
+            const auto& last = spans[(size_t) spanNewest];
+            const double expected = last.seconds + (double) (from - last.from) / jmax (1.0, shared.clock.rate);
+            if (std::abs (expected - seconds) < 0.5 / jmax (1.0, shared.clock.rate)) return;   // carries on
+        }
+        spanNewest = (spanNewest + 1) % (int) spans.size();
+        spans[(size_t) spanNewest] = { from, seconds };
+        spanCount = jmin (spanCount + 1, (int) spans.size());
+    };
+    add (samplesPlayed, clock.start);
+    if (clock.wrapAt >= 0 && clock.wrapAt < n) add (samplesPlayed + clock.wrapAt, clock.wrapTo);
+}
+
+double TrackSource::secondsAt (juce::int64 sample) const
+{
+    if (spanNewest < 0) return shared.clock.start;
+    const double rate = jmax (1.0, shared.clock.rate);
+    int k = spanNewest;
+    for (int left = spanCount; left > 1 && spans[(size_t) k].from > sample; --left)
+        k = (k - 1 + (int) spans.size()) % (int) spans.size();
+    // Before the oldest span (or the start): the song as if it had been playing up to it.
+    return spans[(size_t) k].seconds + (double) (sample - spans[(size_t) k].from) / rate;
+}
+
+// The song's ticks at each sample of the block for sound arriving `delay`
+// samples after it was played here: the block's own when there's no delay.
+const std::vector<double>& TrackSource::ticksFor (const Data& d, int delay, int n)
+{
+    if (delay <= 0 || n > (int) lateTicks.size()) return blockTicks;
+    if (lateFor != delay)
+    {
+        for (int i = 0; i < n; ++i)
+            lateTicks[(size_t) i] = std::round (d.tempo.ticksAt (secondsAt (samplesPlayed + i - delay)) * 1.0e6) / 1.0e6;
+        lateFor = delay;
+    }
+    return lateTicks;
+}
+
 void TrackSource::applyAutomation (const Data& d, double seconds)
 {
-    const Tick tick = d.tempo.tickAt (seconds);
+    // Each read for the sound reaching it now, which left here as late as what's before it (0096).
+    auto tickFor = [&] (int delay) { return d.tempo.tickAt (delay > 0 ? secondsAt (samplesPlayed - delay) : seconds); };
+    const int faderDelay = d.fader ? d.fader->automationDelay.load() : 0;
+    const Tick tick = tickFor (faderDelay);
     if (d.readAutomation)
     {
         for (auto& pl : d.params)
         {
             if (! pl.param) continue;
-            const auto v = (float) edit::valueAt (pl.lane, tick, pl.param->getValue());
+            const auto v = (float) edit::valueAt (pl.lane, pl.host ? tickFor (pl.host->automationDelay.load()) : tick, pl.param->getValue());
             if (std::abs (v - pl.param->getValue()) > 1.0e-5f) pl.param->setValue (v);
         }
         if (d.fader)
@@ -581,8 +641,10 @@ void TrackSource::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
     // A Summing track recording the master doesn't play into it too (decision 0052).
     if (clock.playing && ! (d->summing && d->armed && clock.recording))
     {
+        noteSpans (n);
         applyAutomation (*d, clock.start);
         drawAutomation (*d, n);
+        samplesPlayed += n;
         if (clock.wrapAt >= 0)
         {
             playSegment (*d, clock.start, clock.start + clock.wrapAt / clock.rate, 0, clock.wrapAt, audio, midi);

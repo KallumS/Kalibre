@@ -26,16 +26,15 @@ Manager, the Articulation Manager) get windows of their own.
 11. [Recording](#11-recording)
 12. [Automation and Modulation](#12-automation-and-modulation)
 13. [Audio Editing](#13-audio-editing)
-14. [The Clip Launcher](#14-the-clip-launcher)
-15. [Meters and Video](#15-meters-and-video)
-16. [The Browser](#16-the-browser)
-17. [Orchestral Tools](#17-orchestral-tools)
-18. [Songs, Files, Import and Export](#18-songs-files-import-and-export)
-19. [Sync, Control Surfaces and Scripts](#19-sync-control-surfaces-and-scripts)
-20. [Every Menu, Item by Item](#20-every-menu-item-by-item)
-21. [Every Key Command](#21-every-key-command)
-22. [Every Mouse Gesture](#22-every-mouse-gesture)
-23. [When Something Goes Wrong](#23-when-something-goes-wrong)
+14. [Meters and Video](#14-meters-and-video)
+15. [The Browser](#15-the-browser)
+16. [Orchestral Tools](#16-orchestral-tools)
+17. [Songs, Files, Import and Export](#17-songs-files-import-and-export)
+18. [Sync, Control Surfaces and Scripts](#18-sync-control-surfaces-and-scripts)
+19. [Every Menu, Item by Item](#19-every-menu-item-by-item)
+20. [Every Key Command](#20-every-key-command)
+21. [Every Mouse Gesture](#21-every-mouse-gesture)
+22. [When Something Goes Wrong](#22-when-something-goes-wrong)
 
 ---
 
@@ -60,7 +59,7 @@ Manager, the Articulation Manager) get windows of their own.
 2. **Choose your sound folders.** Kalibre asks which folders hold your
    samples and MIDI files (only those are looked through): click **Choose
    Folders…**. They appear in the browser's **Sounds** tab
-   ([Section 16](#the-sounds-tab)). Change them any time in **Kalibre >
+   ([Section 14](#the-sounds-tab)). Change them any time in **Kalibre >
    Library Folders…**.
 3. **Find your plug-ins.** Kalibre > Plug-in Manager… > **Scan for New
    Plug-ins**. Each plug-in is opened in a separate helper, so one that
@@ -92,8 +91,8 @@ From top to bottom:
 | **Lanes under the ruler** | The **Sections** lane, the **Chord** lane and the **Tempo** lane, each shown or hidden from the View menu. |
 | **Track headers** | On the left: each track's name, version, I/O, M (mute), S (solo) and arm buttons. [Section 4](#4-tracks). |
 | **The arrangement** | The clips, along the timeline. [Section 5](#5-clips-and-the-arrangement). |
-| **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Launcher** (G), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter; drag it past its shortest and it shuts, leaving a thin bar along the bottom: drag the bar up (or click it) to open it again. Asking for one of its tabs (D, E, X, G, Y) opens it too, as does View > Lower Zone. |
-| **The browser** | On the left: plug-ins, sounds (your samples and MIDI), audio settings, presets, keys and the studio. Drag its right edge to make it wider or narrower; drag it past its narrowest and it shuts, leaving a thin bar at the window's left edge: drag the bar (or click it) to open it again. ⌘B shows and hides it too. [Section 16](#16-the-browser). |
+| **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter; drag it past its shortest and it shuts, leaving a thin bar along the bottom: drag the bar up (or click it) to open it again. Asking for one of its tabs (D, E, X, Y) opens it too, as does View > Lower Zone. |
+| **The browser** | On the left: plug-ins, sounds (your samples and MIDI), audio settings, presets, keys and the studio. Drag its right edge to make it wider or narrower; drag it past its narrowest and it shuts, leaving a thin bar at the window's left edge: drag the bar (or click it) to open it again. ⌘B shows and hides it too. [Section 14](#15-the-browser). |
 | **The transport** | Along the very bottom, in the middle: **⏮ Go to Start**, **▶ Play**, **● Record**, **Loop**, **Punch**, **Click** and **Count-in**. [Section 3](#the-transport-along-the-bottom). |
 
 ### Shutting the browser and the lower zone
@@ -109,7 +108,7 @@ Both shut the same way, to give the tracks the room:
   open) to open it at its first size: 320 points wide, or tall. The way back
   after dragging it too far.
 - ⌘B shows and hides the browser; **View > Lower Zone** the lower zone (give
-  it a key in Help > Keys). Pressing D, E, X, G or Y, or anything that asks
+  it a key in Help > Keys). Pressing D, E, X or Y, or anything that asks
   for one of the zone's tabs, opens the zone on that tab.
 
 ![Both shut: the bar at the left and the bar along the bottom](guide/lower-zone-shut.png)
@@ -243,7 +242,7 @@ One menu for everything going in and out, each choice ticked:
 | **Colour** | The track's colour. |
 | **Track Delay…** | In milliseconds; negative plays the track early, for sounds that are slow to start (-125 ms for a slow string library). |
 | **Automation** | The track's mode: Off, Read, Touch, Latch, Write or Trim ([Section 12](#12-automation-and-modulation)). |
-| **Articulation Map** | Which articulation map the track's notes use ([Section 17](#17-orchestral-tools)). |
+| **Articulation Map** | Which articulation map the track's notes use ([Section 15](#16-orchestral-tools)). |
 | **Group** | Tracks in a group move together: volume, pan, mute, solo and arm. |
 | **Freeze / Unfreeze** | Freeze renders the track quietly, without reloading anything else, and unloads its plug-ins, keeping their settings. Unfreeze deletes the render and loads them back as they were. |
 | **Lock** | Its clips can't be moved or edited. |
@@ -319,7 +318,6 @@ For every clip:
 | **Split at Cursor** | |
 | **Duplicate** | |
 | **Create Alias Clip** | Duplicates of an alias clip (⌘D or Option-drag) share their notes or audio: edit one, every copy changes. They wear a chain at the top right. **Make Independent** breaks the link; **Duplicate as Alias** makes a linked copy straight away. |
-| **Put in the Launcher** | Into the next empty scene of the clip launcher. |
 | **Set the Loop to the Clip(s)** | The loop range from the first clip's start to the last one's end. |
 | **Delete** | |
 | **Loop Its Content** | The clip's notes or audio repeat as you lengthen it. |
@@ -335,7 +333,7 @@ For MIDI clips, also:
 | Item | Does |
 | --- | --- |
 | **Explode Chords to Tracks** | A track for each voice of the chords, each with the track's plug-ins. |
-| **Fix Note Timings and Volume…** | [Section 17](#fix-note-timings-and-volume). |
+| **Fix Note Timings and Volume…** | [Section 15](#fix-note-timings-and-volume). |
 | **Bounce in Place** | Renders the clip through the track's plug-ins onto a new audio track under it; the clip is muted, not deleted. 32-bit float. |
 | **Detect Chords** | Their chords appear in the Chord lane (several clips at once). |
 | **Transpose** | Up or down a semitone, a fifth or an octave. |
@@ -457,7 +455,7 @@ clip**: the piano roll shows every note; the others show their own.
 | **Step Input** | Write notes from a MIDI keyboard (below). |
 | **Select ▾** | Choose notes by what they are (below). |
 | **CC Lanes…** | Which controller lanes are shown under the notes. |
-| **Auto** | Draw the CC lanes as AutoCC would play these notes ([Section 17](#17-orchestral-tools)). |
+| **Auto** | Draw the CC lanes as AutoCC would play these notes ([Section 15](#16-orchestral-tools)). |
 
 Under the notes, **Velocity ▾** (at the left of the lane) chooses what the
 lane shows and sets; in Drums and Steps it's a button on the bar.
@@ -508,7 +506,7 @@ Notes**, **Split the Chosen Notes at the Cursor**, **Transpose** (up or down
 | **Random Velocity Range** | How much softer or harder it may play, chosen afresh each time. |
 | **Random Timing** | How many milliseconds early or late it may play, chosen afresh each time. |
 | **Note Delay** | How many milliseconds later (or earlier, below the middle) the note plays, on top of its track's and articulation's delays. |
-| **Articulation Map** | The track's map ([Section 17](#17-orchestral-tools)). |
+| **Articulation Map** | The track's map ([Section 15](#16-orchestral-tools)). |
 
 Chance, random velocity and random timing are chosen afresh every time a note
 plays, in exports too.
@@ -667,8 +665,11 @@ multi-output instrument (a drum sampler) plays on its own track.
 
 ### Plug-in delay compensation
 
-Every track is lined up for the plug-ins' delays; the top bar's **Delay** says
-how much in all.
+Every track is lined up for the plug-ins' delays, to the sample; the top
+bar's **Delay** says how much in all. Automation is lined up too: a lane on
+the fader, a send, or a plug-in after one that delays the sound is read as
+late as the sound reaches it, so a mute, a volume step or a filter sweep
+lands exactly under the sound it was drawn under, round a loop as well.
 
 ### Using every core
 
@@ -922,24 +923,7 @@ the clip through them; **Back to the Original** undoes it.
 
 ---
 
-## 14. The Clip Launcher
-
-Press **G**. Slots, a track a column and a scene a row.
-
-![The clip launcher](guide/launcher.png)
-
-| Do | To |
-| --- | --- |
-| Click a slot | Play it: it replaces the track's arrangement from the next bar, looped. |
-| Right-click a slot | **Play**, **Edit**, **Copy to the Arrangement at the Cursor**, **Empty the Slot**, **Put the Chosen Clip Here**, **New MIDI Clip (One Bar)**. |
-| Right-click a scene | **Rename…**, **Delete Scene**. |
-| **Capture Scene** | Copy what plays inside the loop range into a new scene. |
-| **Add Scene** | An empty row. |
-| **Back to Arrangement** | Every track plays its arrangement again. |
-
----
-
-## 15. Meters and Video
+## 14. Meters and Video
 
 **Y** opens the Meters: a spectrum, an oscilloscope, a phase scope and a
 tuner, on the master or the chosen track.
@@ -952,7 +936,7 @@ the playhead. **File > Remove the Video** takes it away.
 
 ---
 
-## 16. The Browser
+## 15. The Browser
 
 On the left of the window.
 
@@ -971,8 +955,8 @@ Six tabs:
 | **Sounds** | Your samples and MIDI files, to hear and bring into the song ([below](#the-sounds-tab)). |
 | **Audio** | The audio interface, sample rate (as high as the interface goes: 44.1 to 192 kHz) and buffer size, inputs and outputs; **Use Every Core** (on unless you switch it off). |
 | **Presets** | Saved presets for the chosen track's plug-ins. |
-| **Keys** | Every command and its key ([Section 21](#21-every-key-command)). |
-| **Studio** | Sync and control surfaces ([Section 19](#19-sync-control-surfaces-and-scripts)). |
+| **Keys** | Every command and its key ([Section 19](#20-every-key-command)). |
+| **Studio** | Sync and control surfaces ([Section 17](#18-sync-control-surfaces-and-scripts)). |
 
 ![The browser's Plug-ins tab](guide/browser-plugins.png)
 ![The browser's Audio tab](guide/browser-audio.png)
@@ -1074,7 +1058,7 @@ Effects too.
 
 ---
 
-## 17. Orchestral Tools
+## 16. Orchestral Tools
 
 ### Articulation maps
 
@@ -1129,7 +1113,7 @@ AutoCC would play these notes.
 
 ---
 
-## 18. Songs, Files, Import and Export
+## 17. Songs, Files, Import and Export
 
 ### Saving, autosave and backups
 
@@ -1173,12 +1157,24 @@ Exports cover the loop range when the loop is on, otherwise the whole song.
 | **Export MIDI…** | A MIDI file. |
 | **Export MusicXML…** | For Dorico, MuseScore, Sibelius or Finale. |
 | **Export a DAWproject…** | For Bitwig, Studio One, Cubase and others. |
-| **Export Several at Once…** | Tick what you want (The Mix as WAV, The Mix as MP3, Every Track as WAV, The MIDI, The Mix at -14 LUFS) and choose a folder. |
+| **Export Several at Once…** | Tick what you want (The Mix as WAV, The Mix as MP3, Every Track as WAV, The MIDI, The Mix at -14 LUFS, and the two below) and choose a folder. |
 | **Export Final Cut XML…** | The audio clips, for Final Cut, Resolve, Premiere or Logic. |
+
+Exporting the mix or every track first asks two things, ticked as you left
+them last time:
+
+| Tick | Does |
+| --- | --- |
+| **Record the Tail** | After the end, nothing new starts playing, and whatever is still sounding (a synth's release, a reverb, a delay's echoes) is recorded until it falls silent, then the file ends (at most 30 seconds on). A note held past the end is let go at the end. Off: the file stops exactly on the end. On unless you turn it off. |
+| **Export the Second Pass** | The range (the loop, or the whole song) is played through once without being recorded, then recorded the second time through. What rings past the end, the reverb and echoes of the last bar, is then heard at the start, as it is when the loop goes round: a loop that loops without a gap or a jump. The file is still exactly as long as the range. |
+
+Both together: the second pass, then its tail.
+
+![Export the Mix asks first: Record the Tail and Export the Second Pass](guide/export-question.png)
 
 ---
 
-## 19. Sync, Control Surfaces and Scripts
+## 18. Sync, Control Surfaces and Scripts
 
 **Kalibre > Sync and Control Surfaces…** opens the browser's **Studio** tab.
 
@@ -1198,7 +1194,7 @@ there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 
 ---
 
-## 20. Every Menu, Item by Item
+## 19. Every Menu, Item by Item
 
 ### Kalibre
 
@@ -1206,8 +1202,8 @@ there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 | --- | --- | --- |
 | Audio and MIDI Settings… | ⌘, | The browser's Audio tab. |
 | Sync and Control Surfaces… | | The browser's Studio tab. |
-| Plug-in Manager… | | [Section 16](#the-plug-in-manager). |
-| Library Folders… | | The folders the Sounds tab looks in ([Section 16](#the-sounds-tab)). |
+| Plug-in Manager… | | [Section 14](#the-plug-in-manager). |
+| Library Folders… | | The folders the Sounds tab looks in ([Section 14](#the-sounds-tab)). |
 | Quit Kalibre | ⌘Q | Asks to save first. Kalibre always ends within five seconds, even if a plug-in won't let go. |
 
 ### File
@@ -1319,7 +1315,6 @@ there. How to write them: [SCRIPTING.md](SCRIPTING.md).
 | Devices | D |
 | Editor | E |
 | Mixer | X |
-| Clip Launcher | G |
 | Meters | Y |
 | Browser | ⌘B |
 | Lower Zone | |
@@ -1347,7 +1342,7 @@ Scripts**.
 
 ---
 
-## 21. Every Key Command
+## 20. Every Key Command
 
 These are the keys Kalibre starts with. Change any of them in **Help > Keys**:
 click a command, then press its new key. Esc leaves it as it was; Delete takes
@@ -1401,7 +1396,6 @@ the Mac says ⌘.*
 | D | Devices |
 | E | Editor |
 | X | Mixer |
-| G | Clip Launcher |
 | Y | Meters |
 | ⌘B | Show or Hide the Browser |
 | (none) | Show or Hide the Lower Zone |
@@ -1461,7 +1455,7 @@ These aren't in the Keys list: they belong to where you are.
 
 ---
 
-## 22. Every Mouse Gesture
+## 21. Every Mouse Gesture
 
 ### Anywhere
 
@@ -1537,7 +1531,7 @@ The piano roll, drums, steps, Euclidean and notation have their own tables in
 
 ---
 
-## 23. When Something Goes Wrong
+## 22. When Something Goes Wrong
 
 - **A plug-in crashed while scanning.** It's turned off, with the reason, in
   the Plug-in Manager (**Only Turned Off**). After updating it, choose it and

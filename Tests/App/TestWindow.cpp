@@ -316,3 +316,75 @@ TEST ("transport: Go to Start, Play, Record, Loop, Punch, Click and Count-in sit
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("export: Export the Mix asks first, with Record the Tail and Export the Second Pass, as last chosen (0097)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        w.exportAudio (false);
+        AlertWindow* asked = nullptr;
+        for (auto* ch : w.getChildren()) if (auto* a = dynamic_cast<AlertWindow*> (ch)) asked = a;
+        CHECK (asked != nullptr);
+        if (asked)
+        {
+            CHECK_EQ (asked->getName(), String ("Export the Mix"));
+            StringArray ticks;
+            for (int i = 0; i < asked->getNumCustomComponents(); ++i)
+                if (auto* b = dynamic_cast<ToggleButton*> (asked->getCustomComponent (i))) ticks.add (b->getButtonText());
+            CHECK (ticks.contains ("Record the Tail"));
+            CHECK (ticks.contains ("Export the Second Pass"));
+            asked->exitModalState (0);   // Cancel: nothing exported, nothing asked after
+        }
+        // The question is let go of on the message loop: a busy machine (the Mac on CI) takes longer.
+        auto asking = [&w] { for (auto* ch : w.getChildren()) if (dynamic_cast<AlertWindow*> (ch)) return true; return false; };
+        for (int i = 0; i < 100 && asking(); ++i) MessageManager::getInstance()->runDispatchLoopUntil (20);
+        CHECK (! asking());
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("lower zone: the clip launcher is gone; a workspace saved showing it opens on Devices (0098)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        // No Launcher tab, and G does nothing to the zone.
+        std::function<bool (Component&)> hasLauncher = [&] (Component& comp)
+        {
+            if (auto* b = dynamic_cast<Button*> (&comp); b && b->getButtonText() == "Launcher") return true;
+            for (auto* ch : comp.getChildren()) if (hasLauncher (*ch)) return true;
+            return false;
+        };
+        CHECK (! hasLauncher (w));
+        c.zoneTab = ZoneTab::Mixer;
+        w.keyPressed (KeyPress ('g'));
+        CHECK (c.zoneTab == ZoneTab::Mixer);
+        // A workspace from before, saved with the launcher (3) showing.
+        const auto f = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-old-workspace.json");
+        DynamicObject::Ptr o = new DynamicObject();
+        o->setProperty ("zoneTab", 3);
+        f.replaceWithText (JSON::toString (var (o.get())));
+        c.zoneTab = ZoneTab::Mixer;
+        CHECK (w.loadWorkspace (f));
+        CHECK (c.zoneTab == ZoneTab::Devices);
+        o->setProperty ("zoneTab", 4);   // the meters, as numbered before
+        f.replaceWithText (JSON::toString (var (o.get())));
+        CHECK (w.loadWorkspace (f));
+        CHECK (c.zoneTab == ZoneTab::Meters);
+        f.deleteFile();
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

@@ -466,7 +466,6 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Devices", [this] { c.zoneTab = ZoneTab::Devices; showLowerZone(); c.viewChanged(); }, k ("devices"), true, c.zoneTab == ZoneTab::Devices));
             m.addItem (item ("Editor", [this] { c.zoneTab = ZoneTab::Editor; showLowerZone(); c.viewChanged(); }, k ("editor"), true, c.zoneTab == ZoneTab::Editor));
             m.addItem (item ("Mixer", [this] { c.zoneTab = ZoneTab::Mixer; showLowerZone(); c.viewChanged(); }, k ("mixer"), true, c.zoneTab == ZoneTab::Mixer));
-            m.addItem (item ("Clip Launcher", [this] { c.zoneTab = ZoneTab::Launcher; showLowerZone(); c.viewChanged(); }, k ("launcher"), true, c.zoneTab == ZoneTab::Launcher));
             m.addItem (item ("Meters", [this] { c.zoneTab = ZoneTab::Meters; showLowerZone(); c.viewChanged(); }, k ("meters"), true, c.zoneTab == ZoneTab::Meters));
             m.addSeparator();
             m.addItem (item ("Browser", [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); }, k ("browser"), true, browserShown));

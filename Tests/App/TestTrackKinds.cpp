@@ -1974,3 +1974,54 @@ TEST ("the timer: the song's music-making time beside the chord, counting while 
     c.newProject();
     CHECK_EQ (c.workClock.active, 0.0);
 }
+
+TEST ("delay compensation: played live round a loop, a mute lane after a 300-sample plug-in follows the sound across the wrap; every pass exactly as long as the loop (0096)")
+{
+    AudioBuffer<float> dc (2, 96000);
+    for (int ch = 0; ch < 2; ++ch) FloatVectorOperations::fill (dc.getWritePointer (ch), 0.5f, dc.getNumSamples());
+    const auto f = folder().getChildFile ("dc-loop-late.wav");
+    f.deleteFile();
+    {
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (32));
+        w->writeFromAudioSampleBuffer (dc, 0, dc.getNumSamples());
+    }
+    // A one-second loop (its end mid-block), and one exactly four blocks long (its end on a block's edge).
+    for (auto [loopSamples, a] : std::vector<std::pair<int, Tick>> { { 48000, PPQ / 2 + 7 }, { 2048, 19 } })
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        FakeDevice device;
+        Project p;
+        const Id t = edit::addTrack (p, TrackKind::Track, "DC");
+        edit::addClip (p, t, audioClip (f, 0, PPQ * 4));
+        p.track (t)->pan = 0;
+        p.track (t)->volumeDb = 0;
+        edit::addDevice (p, t, { "Kalibre", "test-latency:300", "Latency" }, DeviceRole::AudioFx);
+        // Muted from the start of each pass until `a`.
+        AutomationLane lane;
+        lane.id = p.newId();
+        lane.target.kind = AutoTarget::Kind::Mute;
+        lane.points = { { 0, 1.0, 0, true }, { a, 0.0, 0, true } };
+        p.track (t)->automation.push_back (lane);
+        startLive (engine, device, p);
+        engine.setLoop (true, 0.0, loopSamples / 48000.0);
+        engine.locate (0.0);
+        engine.play();
+        const int passes = 3;
+        const auto out = playLive (engine, (passes * loopSamples + 2000) / 48000.0);
+        const int ka = (int) std::ceil (p.tempo.secondsAt (a) * 48000 - 1e-6);
+        const int late = 300;   // the whole song comes out this much after it's played
+        for (int pass = 1; pass < passes; ++pass)
+        {
+            const int o = pass * loopSamples + late;   // where this pass's first sample comes out
+            CHECK_EQ (out.getSample (0, o - 1), 0.5f);      // the last pass, heard to its very end
+            CHECK_EQ (out.getSample (0, o), 0.0f);          // muted from the very sample the pass starts
+            CHECK_EQ (out.getSample (0, o + ka - 1), 0.0f);
+            CHECK_EQ (out.getSample (0, o + ka), 0.5f);     // and heard again where the lane says
+        }
+        engine.stop();
+        engine.audioDeviceStopped();
+    }
+}
