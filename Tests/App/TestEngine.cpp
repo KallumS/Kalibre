@@ -1295,6 +1295,26 @@ TEST ("sampler: Speed in Keys is tape; Granular keeps the pitch at half speed, a
     CHECK (end > 0.05f);
 }
 
+TEST ("sampler: Granular's spray is the same each time it's played from the start, so an export comes out the same (0097)")
+{
+    KalibreSampler s;
+    String err;
+    CHECK (s.load (sineFile (440, 2.0), err));
+    setParam (s, KalibreSampler::Mode, 2);
+    setParam (s, KalibreSampler::Spray, 0.5f);
+    s.reset();
+    const auto first = playNote (s, 60, 1.0);
+    s.reset();
+    const auto second = playNote (s, 60, 1.0);
+    CHECK (first == second);
+    // Another sampler, the same: nothing hangs on the time it was made.
+    KalibreSampler t;
+    CHECK (t.load (sineFile (440, 2.0), err));
+    setParam (t, KalibreSampler::Mode, 2);
+    setParam (t, KalibreSampler::Spray, 0.5f);
+    CHECK (playNote (t, 60, 1.0) == first);
+}
+
 namespace
 {
 // An interface that says it runs at `rate`, as one at 192 kHz would.

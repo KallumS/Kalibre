@@ -191,6 +191,7 @@ private:
     juce::File sampleFile;
     juce::SpinLock swapLock;
     float bend = 0;
+    void seedGrains();
 
     void writeExtra (juce::XmlElement&) override;
     void readExtra (const juce::XmlElement&) override;
