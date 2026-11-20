@@ -11,6 +11,8 @@
 #pragma once
 
 #include "WorkClock.h"
+#include "Library.h"
+#include "RandomSong.h"
 #include "Edit.h"
 #include "AutoCc.h"
 #include "Engine.h"
@@ -416,6 +418,14 @@ public:
     juce::File scriptsFolder() const;
     void runScript (const juce::File&);
     bool runScriptCode (const juce::String& code, const juce::String& name, juce::String& said);
+
+    // The Random button (decision 0101): a new song by chance, from the plug-ins
+    // scanned, Kalibre's own devices and the musician's sounds. Replaces the song
+    // (the window asks to save first). `lastRandomParts`: a line a track.
+    randomsong::Catalogue randomCatalogue (const library::Index& sounds);
+    bool randomSong (const library::Index& sounds, unsigned seed);
+    std::vector<std::string> lastRandomParts;
+    std::function<void()> onRandomSong;   // the top bar's button asks the window
 
     // The engine's state of mind, for the window.
     std::function<void()> onTransportChanged;

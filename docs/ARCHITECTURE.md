@@ -27,12 +27,13 @@
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
 | `Core/Toolbox.*` | The tools Control-right-click chooses, each area's, their modes; Split into pieces, Glue, clearing a range, Line's shapes, Time Warp (0092). |
 | `Core/Trombolese.*` | Trombolese's voice, ported from its Python (waveguide, reed, geometry), its tables made by its own functions, and each note's partial and slide (0093). |
+| `Core/RandomSong.*` | The Random button's song: parts, instruments, effects and loops chosen by chance, music from Ideas (0101). |
 | `Core/Mcp.*` | The Model Context Protocol: JSON-RPC in, replies out, tools by name (0099). |
 | `Core/Library.*` | The Sounds browser's list: what was scanned, the favourites and folders, in folders or one list, A to Z or shuffled; tempo from a file's name (0094). |
 | `Core/WorkClock.*` | The top bar's timer: DAW Battle Pass's active-time clock (0091). |
 | `Core/NoteFixer.*` | Note Position & Volume Fixer's engine: where each note is heard in a render, and how loud (0085). |
 | `Core/NoteSplit.*` | The Note Splitter's rule: a chord's notes, top to bottom, an output each (0083). |
-| `Core/Ideas.*` | Good Idea's engine (Lua, `Engines/good-idea/`, embedded by `cmake/EmbedLua.cmake`): drum grooves and motifs for the Random buttons (0062). |
+| `Core/Ideas.*` | Good Idea's engine (Lua, `Engines/good-idea/`, embedded by `cmake/EmbedLua.cmake`): drum grooves and motifs for the Random buttons (0062); Midi Suggester's (`Engines/midi-suggester/`): chords and a bass under a melody, a melody over chords (0100). |
 | `Core/Controllers.*` | The MIDI controllers' standard names (0060). |
 | `Core/AutoCc.*` | AutoCC's engine, ported from the JSFX: a clip's notes to its CC curves; instrument names to its families (0060). |
 | `Core/Hui.*` | The HUI protocol (0043). |
@@ -75,6 +76,7 @@
 | `App/SampleEditor`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, meters, video, and offline effects (0036, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp`, `NoteFixing.cpp` | More of the Controller: audio commands, presets and A/B, file commands, Fix Note Timings and Volume (0085). |
 | `App/LibraryView.*`, `LibraryScanner.*`, `PreviewPlayer.*`, `LibraryFolders.*` | The browser's Sounds tab: the list, the scan of the chosen folders on its own thread, previews made off the audio thread (stretched to the song, MIDI through Kalibre Synth) and handed over through `Swap`, Kalibre > Library Folders… (0094). |
+| `App/RandomSongs.cpp` | The Random button's catalogue (plug-ins, Kalibre's own, the Sounds tab's sounds), its Samplers loaded, the song put in place (0101). |
 | `App/AgentTools.*`, `McpServer.*` | What AI agents can do (the tools, on the message thread, each an undo step), and Kalibre listening for them on this Mac; `Kalibre --mcp`, the stdio bridge (0099). |
 | `App/ToolPicker.*`, `ArrangeTools.cpp`, `PianoRollTools.cpp` | The toolbox at the pointer, its icons and pointers; what each tool does in the arrangement and the piano roll (0092). |
 | `App/ReaperScripts.*` | The family's REAPER scripts that hand a JSFX its phrase (Midular's importer, MIDI Production Center's loaders), run unchanged with a `reaper` for this song (0093). |
@@ -131,6 +133,10 @@ performance core, each as soon as what feeds it is done (0078).
   for a processor after the Source uses `ticksFor` with its delay.
 - The loop wraps on the first sample at or after its end (0096), never by
   rounding down.
+- A song replaced (Open, New, a template, a DAWproject, Random) calls
+  `Engine::newSong` first: devices are numbered from 1 in every song, so an
+  instance kept by its number played the next song with the last one's
+  settings (0101).
 - Automation is drawn sample by sample by the track's Source, which plays
   before everything it moves (0089). A plug-in's block is cut into pieces at
   its lanes' points by `TimedPlugin`; anything that adds automation reads the

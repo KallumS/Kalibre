@@ -85,7 +85,8 @@ public:
     void songDetails();
     void setTextSize (float);
     void showBrowser (Browser::Tab);
-    void showAgents();   // Kalibre > AI Agents...: the Studio tab, at AI Agents (0099)
+    void showAgents();
+    void randomSong();   // the top bar's Random: a new song by chance (0101)   // Kalibre > AI Agents...: the Studio tab, at AI Agents (0099)
     void hideBrowser() { browserShown = false; browser.setVisible (false); resized(); }
     void showPluginManager();
     void showArticulationManager();

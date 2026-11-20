@@ -94,6 +94,7 @@ add_library(KalibreCore STATIC
     Source/Core/Trombolese.cpp
     Source/Core/Library.cpp
     Source/Core/Mcp.cpp
+    Source/Core/RandomSong.cpp
     ${EMBEDDED_LUA_CPP}
     Source/Script/LuaHost.cpp)
 target_include_directories(KalibreCore PUBLIC Source/Core Source/Script ThirdParty)
@@ -142,7 +143,8 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestToolbox.cpp
         Tests/TestTrombolese.cpp
         Tests/TestLibrary.cpp
-        Tests/TestMcp.cpp)
+        Tests/TestMcp.cpp
+        Tests/TestRandomSong.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)

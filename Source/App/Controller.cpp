@@ -846,6 +846,7 @@ void Controller::tapTempo()
 void Controller::newProject()
 {
     engine.stop();
+    engine.newSong();
     project = Project();
     beginWorkClock();
     history.clear();
@@ -986,6 +987,7 @@ bool Controller::open (const File& f)
     if (! loaded) { say (String (error), true); return false; }
     if (edit::overTrackLimit (*loaded)) { refuseTooManyTracks(); return false; }   // 0088
     engine.stop();
+    engine.newSong();
     project = std::move (*loaded);
     beginWorkClock();   // the song's own time so far (0091)
     refileEffects (project, engine.plugins());

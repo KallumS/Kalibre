@@ -266,6 +266,21 @@
         "src/trombolese/acoustics.py"
       ],
       "port": "Source/Core/Trombolese.cpp"
+    },
+    {
+      "name": "Midi Suggester",
+      "repo": "KallumS/Midi-Suggester",
+      "ref": "main",
+      "commit": "7514bb4fee334f0ee4f610b1e38290fb4c30396e",
+      "kind": "lua-engine",
+      "decision": "0100",
+      "files": {
+        "reascripts/ms_theory.lua": "Engines/midi-suggester/ms_theory.lua",
+        "reascripts/ms_read.lua": "Engines/midi-suggester/ms_read.lua",
+        "reascripts/ms_harmony.lua": "Engines/midi-suggester/ms_harmony.lua",
+        "reascripts/ms_melody.lua": "Engines/midi-suggester/ms_melody.lua",
+        "LICENSE": "Engines/midi-suggester/LICENSE"
+      }
     }
   ]
 }

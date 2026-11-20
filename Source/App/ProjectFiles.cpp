@@ -132,6 +132,7 @@ bool Controller::newFromTemplate (const File& f)
     if (! loaded) { say (String (error), true); return false; }
     if (edit::overTrackLimit (*loaded)) { refuseTooManyTracks(); return false; }   // 0088
     engine.stop();
+    engine.newSong();
     project = std::move (*loaded);
     project.workSeconds = 0;   // a new song from a template starts its own time
     beginWorkClock();
@@ -591,6 +592,7 @@ bool Controller::importDawProject (const File& f)
     if (edit::overTrackLimit (p)) { refuseTooManyTracks(); return false; }   // 0088
 
     engine.stop();
+    engine.newSong();
     project = std::move (p);
     beginWorkClock();
     refileEffects (project, engine.plugins());

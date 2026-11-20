@@ -85,6 +85,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         case 0:   // File
         {
             m.addItem (item ("New", [this] { checkSaved ([this] { c.newProject(); }); }, k ("new")));
+            m.addItem (item ("New Random Song", [this] { randomSong(); }));   // the top bar's Random (0101)
             m.addItem (item (ui::u8 ("Open\xe2\x80\xa6"), [this] { openFile(); }, k ("open")));
             m.addItem (item ("Open the Last Autosave", [this]
             {

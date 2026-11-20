@@ -101,3 +101,5 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0097. Exports: Record the Tail, Export the Second Pass; every export starts clean](0097-record-the-tail-and-the-second-pass.md)
 - [0098. The clip launcher taken out](0098-the-clip-launcher-taken-out.md)
 - [0099. AI agents through MCP](0099-ai-agents-through-mcp.md)
+- [0100. Midi Suggester's engine, for chords, a bass and melodies](0100-midi-suggesters-engine.md)
+- [0101. The Random button: a whole song by chance; a new song lets go of the last one's plug-ins](0101-the-random-button.md)

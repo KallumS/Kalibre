@@ -30,6 +30,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
     addAndMakeVisible (top);
     addAndMakeVisible (transport);
     transport.onMenu = [this] { top.showMenu(); };
+    c.onRandomSong = [this] { randomSong(); };
     addAndMakeVisible (arrange);
     addAndMakeVisible (lower);
     addChildComponent (browser);
@@ -69,6 +70,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
 MainComponent::~MainComponent()
 {
     Desktop::getInstance().removeGlobalMouseListener (&activity);
+    c.onRandomSong = nullptr;
     c.keys.all().clear();   // their actions point at this window
     c.onShowPluginManager = nullptr;
     c.onShowArticulationManager = nullptr;
@@ -612,6 +614,16 @@ void MainComponent::showAgents()
 {
     showBrowser (Browser::Tab::Studio);
     browser.showAgents();
+}
+
+// The Random button (decision 0101): the song as it is kept or let go of, then a new one by chance.
+void MainComponent::randomSong()
+{
+    checkSaved ([this]
+    {
+        c.randomSong (library().scanner().index(), (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u);
+        showLowerZone();
+    });
 }
 
 void MainComponent::exportMidi()

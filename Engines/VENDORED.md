@@ -12,6 +12,7 @@ this table. Embedded in the app by `cmake/EmbedLua.cmake`; run by
 | Folder | Repository | Commit | Files |
 | --- | --- | --- | --- |
 | `good-idea/` | KallumS/Good-Idea | 91500c5 | gi_theory.lua, gi_idea.lua |
+| `midi-suggester/` | KallumS/Midi-Suggester | 7514bb4 | ms_theory.lua, ms_read.lua, ms_harmony.lua, ms_melody.lua (decision 0100) |
 | `jsfx/` | KallumS/Midi-Evolver | 3a27075 | Midi Evolver.jsfx |
 | `jsfx/` | KallumS/Transient-Shuffler | 77e0d2c | Transient Shuffler.jsfx (TransientShuffler.jsfx) |
 | `jsfx/` | KallumS/Reese-Basser | b251c94 | Reese Basser.jsfx (ReeseBasser.jsfx) |

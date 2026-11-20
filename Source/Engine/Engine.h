@@ -68,6 +68,10 @@ public:
     ParallelGraph& audioGraph() { return graph; }   // tests
     int dropouts() const;
     void resetDropouts();
+    // A different song (opened, new, from a template, by chance): every plug-in the
+    // last one had is let go of. Devices are numbered from 1 in every song, so an
+    // instance kept by its number would play the next song with the last one's settings.
+    void newSong();
     Fader* fader (Id track) const;
     TrackSource* source (Id track) const;
     // Where a track's recording is written: its source, or for a Summing

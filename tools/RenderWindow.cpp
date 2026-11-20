@@ -665,6 +665,14 @@ int main (int argc, char** argv)
         c.refresh();
         shoot ("8-text-200");
         window.setTextSize (1.0f);   // and not left at 200% for the app's next run
+        // The Random button's song (decision 0101), from Kalibre's own instruments.
+        c.randomSong ({}, 4242);
+        window.hideBrowser();
+        window.lowerHeight = 300;
+        c.zoneTab = ZoneTab::Mixer;
+        c.viewChanged();
+        MessageManager::getInstance()->runDispatchLoopUntil (300);
+        shoot ("40-random-song");
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
     return 0;

@@ -38,4 +38,17 @@ Idea drums (int bars, int numerator, int denominator, int seed);
 // A short tune in the key, 1 to 4 bars (Good Idea's Motif).
 Idea motif (const ScaleChoice& key, int bars, int numerator, int denominator, int seed);
 
+// Midi Suggester's engine (KallumS/Midi-Suggester, Engines/midi-suggester/, decision 0100),
+// run as Miderator runs it: chords to go under a melody, with a bass line
+// from their roots; and a melody to go over chords. Each reads the key from
+// the notes, as Midi Suggester does. `length` is how long the music is.
+struct Harmony
+{
+    std::vector<Note> chords, bass;
+    std::string names;     // "Am  F  C  G"
+    std::string error;
+};
+Harmony chordsFor (const std::vector<Note>& melody, Tick length, int numerator, int denominator, int seed);
+Idea melodyOver (const std::vector<Note>& chords, Tick length, int numerator, int denominator, int seed);
+
 } // namespace kal::ideas

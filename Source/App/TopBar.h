@@ -88,6 +88,9 @@ private:
     Controller& c;
     BarButton follow { "Follow", "Click: the view scrolls with the playhead. Shift-click: it turns the page when the playhead reaches the edge.", true };
     BarButton tap { "Tap", "Tap a few times on the beat to set the tempo." };
+    BarButton random { "Random", "A whole new song by chance, ready to play: 4 to 8 tracks with instruments, effects and music "
+                                 "(drums and a tune from Good Idea, chords and a bass from Midi Suggester), and loops from your sounds. "
+                                 "Asks to save the song you have first." };
 
     struct Readout : public juce::Component, public juce::SettableTooltipClient
     {

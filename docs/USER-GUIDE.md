@@ -180,9 +180,37 @@ From left to right:
 | **Follow** | Click: the view scrolls to keep the playhead in sight. **Shift**-click: it turns the page instead, when the playhead reaches the right edge ("Follow: Page"). |
 | **CPU** | How busy the audio is: the highest in the last 2 seconds. Right-click > **Change the CPU Reading** for every 1 or 5 seconds. The mixer shows each track's share. |
 | **Delay** | How much the plug-ins delay the sound in all. Kalibre lines every track up by this much (plug-in delay compensation). |
+| **Random** | At the very right: a whole new song by chance, ready to play. [Below](#the-random-button). |
 
 **Right-click the top bar** (or the transport) to hide any of these: **Show
 in the Bar** lists them with ticks; **Show Everything** brings them all back.
+
+### The Random button
+
+**Random** (also **File > New Random Song**) makes a new song by chance, to
+start from. If the song you have has changes, it asks to save it first.
+Then:
+
+- **4 to 8 tracks**, eight bars long and looped, at a random tempo and key.
+- **Music from the family's engines**: Good Idea writes the drums and a lead
+  tune; Midi Suggester writes chords and a bass under the tune, and sometimes
+  a counter-melody over the chords, or a pad an octave up.
+- **A random instrument on each**: your plug-ins, Kalibre Synth, Trombolese,
+  Reese Basser, or Kalibre Sampler playing one of your sounds. Drums go to an
+  instrument that plays drums when you have one (by its name).
+- **Loops from your sounds** (the Sounds tab's folders), now and then: ones
+  whose tempo is known, stretched to the song's.
+- **Effects by chance**: none, one or two a track, 8 at most in all, and now
+  and then a MIDI effect (2 at most), so it plays without overloading the
+  Mac.
+- A rough mix: drums and bass forward, the rest under and spread a little.
+
+The message line says what it made ("6 tracks at 103 BPM in A Mixolydian, A
+E A D E A"). Press Space to hear it; click Random again for another. Like
+File > New, it's a new song: there's nothing to undo back to (that's why it
+asks to save first).
+
+![A random song: six tracks, mixed](guide/random-song.png)
 
 ---
 
@@ -1251,6 +1279,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | Item | Key |
 | --- | --- |
 | New | ⌘N |
+| New Random Song | |
 | Open… | ⌘O |
 | Open the Last Autosave | |
 | Open a Backup ▸ | |
