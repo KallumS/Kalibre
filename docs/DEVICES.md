@@ -89,7 +89,7 @@ its panel** to load it. Up to 32 notes at once.
 | | **Slice Sensitivity** | Slices: higher finds quieter hits, so more slices. |
 | Grains | **Grain Size** | 10 ms to 0.5 s each. |
 | | **Density** | Grains a second, 2 to 100. |
-| | **Spray** | How far each grain starts from the reading point, at random. |
+| | **Spray** | How far each grain starts from the reading point, at random: the same chance each time the song plays from the start, so an export comes out the same every time (0097). |
 | | **Position** | Where in the sample (between Start and End) the reading starts. |
 
 In Kalibre: Kalibre's own (decision 0039, 0095); no family README.

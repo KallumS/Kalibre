@@ -53,3 +53,9 @@ end of a loop wrap into its start.
   long.
 - The ticks were drawn with their names twice (above and beside the box) in
   Export Several at Once too; both questions now show each once.
+- Amended 20 November: Kalibre Sampler's Granular Spray drew its chance from
+  a seed taken from the clock, so two exports of a granular note differed,
+  and a pitch test failed about one run in twenty (CI runs 175, 178, 179).
+  Each voice's chance now starts from a fixed seed in `prepareToPlay` and
+  `reset`; tested (two plays from a reset, and a new sampler, the same
+  sample for sample).

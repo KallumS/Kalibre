@@ -571,6 +571,14 @@ void KalibreSampler::prepareToPlay (double r, int)
 {
     rate = r;
     for (auto& v : voices) { v.env.setSampleRate (r); v.env.reset(); v.note = -1; }
+    seedGrains();
+}
+
+// Granular's spray is chance, but the same chance each time from the start, so
+// an export comes out the same every time (0097). Each voice its own sequence.
+void KalibreSampler::seedGrains()
+{
+    for (size_t i = 0; i < voices.size(); ++i) voices[i].random.setSeed ((int64) i + 1);
 }
 
 bool KalibreSampler::load (const File& f, String& error)
@@ -765,6 +773,7 @@ void KalibreSampler::reset()
         v.ic1 = v.ic2 = v.ic1r = v.ic2r = 0;
         for (auto& g : v.grains) g.on = false;
     }
+    seedGrains();
     bend = 0;
 }
 
