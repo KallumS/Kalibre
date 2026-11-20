@@ -14,6 +14,7 @@ renders of what changed, and make sure every change reaches them as the CI's
 - [`docs/DEVICES.md`](docs/DEVICES.md): every built-in device in detail, from the family's own READMEs (clone them from KallumS), with what differs in Kalibre.
 - [`docs/sessions/`](docs/sessions/): one log per working session.
 - [`docs/UPDATING-ENGINES.md`](docs/UPDATING-ENGINES.md): bringing the family's engines up to date (`tools/update_engines.py`).
+- [`docs/AGENTS.md`](docs/AGENTS.md): what AI agents can do in Kalibre through MCP (0099); add a tool there when you add one.
 
 Write to all of them when something changes.
 

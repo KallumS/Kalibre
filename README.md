@@ -90,6 +90,10 @@ grow and shrink with it.
 - **Swing, gate and repeat** in the drum grid and step sequencer (swing
   and gate in the Euclidean too): a step can play up to eight times in its
   length, for flams, rolls and ratchets.
+- **Random** at the top right: a whole new song by chance, 4 to 8 tracks
+  with instruments, effects, drums and a tune from Good Idea, chords and a
+  bass from Midi Suggester, and loops from your sounds; **Random** in the
+  device rack for devices by chance, and **Random Scale**.
 - **Random** in the drum grid, step sequencer and Euclidean: a new groove,
   tune or set of rhythms every click, made by **Good Idea**'s engine.
 - **Note chance, random velocity and random timing** for every note, in the

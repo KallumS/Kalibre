@@ -99,6 +99,12 @@ bool Controller::randomDevices (Id trackId, unsigned seed)
 {
     const auto* t = project.track (trackId);
     if (! t) { say ("Choose a track for the random devices."); return false; }
+    // Not the master: effects by chance on the whole mix are too much of a gamble.
+    if (t->kind == TrackKind::Master || trackId == project.master.id)
+    {
+        say ("Random adds devices to tracks, not to the master.");
+        return false;
+    }
     static const library::Index none;
     const auto* sounds = soundsIndex ? soundsIndex() : nullptr;
     // An instrument for a track that plays notes and has none; a track of audio clips, a return,

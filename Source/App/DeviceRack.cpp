@@ -833,6 +833,7 @@ void DeviceRack::layoutStrip()
     }
     add.setBounds (x, theme::px (4), add.idealWidth(), theme::px (28));
     random.setBounds (x, add.getBottom() + theme::px (6), jmax (add.idealWidth(), random.idealWidth()), theme::px (28));
+    random.setVisible (c.focusTrack != c.project.master.id);   // not offered on the master (0102)
     x += jmax (add.idealWidth(), random.idealWidth()) + theme::px (8);
     strip.setSize (jmax (x, viewport.getWidth()), h);
     placeEditors();
