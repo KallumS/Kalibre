@@ -53,14 +53,14 @@
 | `Engine/ContainerProcessor.*` | The Container: plug-ins in a row, each on a band, the mid or the sides (0055). |
 | `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |
 | `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |
-| `Engine/Warp.*` | Audio in memory, and warping (0022). |
+| `Engine/Warp.*` | Audio in memory, and warping (0022); what no clip asked for at the last sync is let go of (0103). |
 | `Engine/ParallelGraph.*` | The graph played on every performance core: a plan made after each rebuild, nodes taken by the audio thread and workers as their inputs finish (0078). |
 | `Engine/AudioFiles.*` | 32-bit float WAV, the one format Kalibre keeps audio in (0079). |
 | `Engine/Swap.h` | Handing new data to the audio thread without locks. |
 | `Engine/Editors.h` | Opening and closing plug-ins' windows, telling the plug-in first (0056). |
 | `Engine/LoudnessMatch.h` | Match Loudness: output held to the input's short-term loudness (0056). |
 | `Engine/CrashContext.h` | The plug-in the audio thread is in, for the crash report (0073). |
-| `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). It also parks the plug-ins of versions not playing (0050), and on a track armed for MIDI catches what its instrument is played (`MidiTap`, 0064). |
+| `Engine/TimedPlugin.h` | Wraps every plug-in in the graph to time it; `Engine::instance` hands out the plug-in inside (0038). On a track armed for MIDI catches what its instrument is played (`MidiTap`, 0064). |
 | `Engine/BuiltinInstruments.*`, `HardwareInsert.*` | Kalibre Synth and Sampler (0039); the hardware insert and the interface's channels it shares (0040). |
 | `Engine/JsfxDevice.*` | The family's JSFX as devices, run by ysfx (0066): Kalibre's own file drags taken as dropped files; `export_buffer_to_project` (filled in when CMake fetches ysfx) handed to the Controller, which prints it onto a new track (0066 amended). |
 | `Engine/NoteSplitter.*` | The Note Splitter device, and its outputs' nodes into other tracks' Sources (0083). |
@@ -156,7 +156,8 @@ performance core, each as soon as what feeds it is done (0078).
 - The graph's ends take their channel count when it's prepared: prepare it before wiring a different number of outputs (a surround render was silent until it did).
 - The wiring's key holds each device node's own number, so a device replaced under the same id is rewired.
 - `main` is Kalibre's own (Main.cpp): with `--kalibre-scan` it's the scanner's helper and never starts the app. Test programs that scan do the same.
-- A track's `devices` are its active version's; the others' wait in their versions under the same ids, and the engine keys instances by (version, device) (0050). `Project::device` finds only the playing ones.
+- A track's `devices` are its active version's; the others' wait in their versions under the same ids, as settings only: the engine makes instances for the playing version alone, keyed by (version, device) (0050, 0103). `Project::device` finds only the playing ones.
+- Song versions (0103): the playing one is the `Project`; the other is `otherVersion`, its saved JSON. Their devices share numbers, so a change of `songId` makes the Controller call `Engine::newSong` before syncing. `Controller::storeDeviceStates` before anything that stores or switches.
 - The engine's "no jump" position is `noJump` (-1e9), not -1: positions below zero are real (a count-in). With -1, live playback jumped back to -1 s every block.
 - A note's chance, velocity range and timing are rolled on the audio thread as each note-on comes up (`playback::roll`); a late one waits in `TrackSource::waiting`, a fixed list, emptied on a jump or stop (0061).
 - `ZoneTab`'s numbers are saved in workspaces: 3 (the clip launcher, taken out, 0098) isn't used again.

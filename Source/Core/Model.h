@@ -40,6 +40,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -580,6 +581,19 @@ struct Video
 
 enum class SurroundFormat { Stereo, Quad, Surround51, Surround71 };
 
+// The song's other version (decision 0103), as it would be saved: its tracks,
+// clips, mix and tempo, and its plug-ins' settings, not its plug-ins. Shared,
+// so a snapshot for Undo doesn't copy it.
+struct StoredSong
+{
+    std::shared_ptr<const std::string> json;
+    bool empty() const { return ! json || json->empty(); }
+    bool operator== (const StoredSong& o) const
+    {
+        return json == o.json || (empty() && o.empty()) || (! empty() && ! o.empty() && *json == *o.json);
+    }
+};
+
 struct Project
 {
     std::string name = "Untitled";
@@ -600,6 +614,14 @@ struct Project
     double sampleRate = 48000;
     double workSeconds = 0;             // how long the user has made music in it (decision 0091); written when saved
     Id nextId = 1;
+
+    // Song versions (decision 0103): 1, or 1 and 2. The one playing is this
+    // project; the other waits in `otherVersion`. The name, the details
+    // (metadata), the timer and the sample rate are the song's, shared by both.
+    int songVersion = 0;                // which is playing: 0 or 1
+    StoredSong otherVersion;            // empty: there's only one
+    Id songId = 0;                      // the playing version's own: changes when the other is chosen
+    int songVersions() const { return otherVersion.empty() ? 1 : 2; }
 
     Project();
 

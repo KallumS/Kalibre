@@ -235,6 +235,13 @@ int main (int argc, char** argv)
             c.setStudio (was);
             window.browserWidth = 320;
         }
+        // Song versions 1 and 2 in the top bar (decision 0103): 2 made and playing.
+        {
+            c.newSongVersion();
+            shoot ("41-song-versions");
+            c.undo();
+            c.say ("This is the message line: what just happened, with Undo; then what is chosen, or what the pointer is over.", false, true);
+        }
         // The Sounds tab (decision 0094): a small library of drums, loops and MIDI.
         {
             const auto lib = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-library");

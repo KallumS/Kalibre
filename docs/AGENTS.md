@@ -55,5 +55,6 @@ connect Claude: the User Guide, [AI agents (MCP)](USER-GUIDE.md#ai-agents-mcp).
 | `set_tempo` | BPM, for the whole song or `from_beat` on. |
 | `set_loop` | The loop range in beats, on or off. |
 | `undo`, `redo` | |
+| `song_version` | Plays song version 1 or 2 (making 2, a copy of 1, if there isn't one); one undo step (0103). `get_song` has `song_version` and `song_versions`. |
 | `export_mix` | The mix (or `every_track`) to a file; `record_tail`, `second_pass` as Export the Mix's. |
 | `run_script` | Lua against the song, for anything else ([SCRIPTING.md](SCRIPTING.md)); what it prints comes back. |

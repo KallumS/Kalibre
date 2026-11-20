@@ -1137,6 +1137,8 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             src->data.post (std::move (data));
         }
     }
+    // Audio no clip of this song asked for (the other song version's, an old warp) is let go of (0103).
+    cache.forgetUnused();
 }
 
 //==============================================================================

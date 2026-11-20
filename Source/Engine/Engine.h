@@ -72,6 +72,7 @@ public:
     // last one had is let go of. Devices are numbered from 1 in every song, so an
     // instance kept by its number would play the next song with the last one's settings.
     void newSong();
+    int loadedPlugins() const { return (int) allDevices.size(); }   // plug-in instances in memory (tests, 0103)
     Fader* fader (Id track) const;
     TrackSource* source (Id track) const;
     // Where a track's recording is written: its source, or for a Summing

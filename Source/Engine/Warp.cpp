@@ -28,6 +28,23 @@ void AudioCache::clear()
     ready.clear();
 }
 
+void AudioCache::forgetUnused()
+{
+    const ScopedLock sl (lock);
+    for (auto it = ready.begin(); it != ready.end();)
+        it = asked.count (it->first) ? std::next (it) : ready.erase (it);
+    asked.clear();
+}
+
+size_t AudioCache::bytesHeld() const
+{
+    const ScopedLock sl (lock);
+    size_t total = 0;
+    for (auto& [key, audio] : ready)
+        if (audio) total += (size_t) audio->buffer.getNumChannels() * (size_t) audio->buffer.getNumSamples() * sizeof (float);
+    return total;
+}
+
 bool AudioCache::describe (const File& f, double& seconds, double& sampleRate, int& channels)
 {
     AudioFormatManager fm;
@@ -74,6 +91,7 @@ std::shared_ptr<const CachedAudio> AudioCache::file (const File& f)
     const auto key = "file:" + f.getFullPathName() + "@" + String (rate);
     {
         const ScopedLock sl (lock);
+        asked.insert (key);
         if (auto it = ready.find (key); it != ready.end()) return it->second;
     }
     auto loaded = load (f);
@@ -284,6 +302,8 @@ std::shared_ptr<const CachedAudio> AudioCache::forClip (const Clip& clip, const 
     }
     {
         const ScopedLock sl (lock);
+        asked.insert (key);
+        asked.insert ("file:" + f.getFullPathName() + "@" + String (rate));   // what it's made from, drawn in the arrangement
         if (auto it = ready.find (key); it != ready.end()) return it->second;
         if (working[key]) return nullptr;
         working[key] = true;

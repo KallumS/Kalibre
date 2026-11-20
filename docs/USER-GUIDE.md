@@ -180,10 +180,33 @@ From left to right:
 | **Follow** | Click: the view scrolls to keep the playhead in sight. **Shift**-click: it turns the page instead, when the playhead reaches the right edge ("Follow: Page"). |
 | **CPU** | How busy the audio is: the highest in the last 2 seconds. Right-click > **Change the CPU Reading** for every 1 or 5 seconds. The mixer shows each track's share. |
 | **Delay** | How much the plug-ins delay the sound in all. Kalibre lines every track up by this much (plug-in delay compensation). |
+| **1 2** | Song versions: the whole song twice. The lit one plays. [Below](#song-versions). |
 | **Random** | At the very right: a whole new song by chance, ready to play. [Below](#the-random-button). |
 
 **Right-click the top bar** (or the transport) to hide any of these: **Show
 in the Bar** lists them with ticks; **Show Everything** brings them all back.
+
+### Song versions
+
+The **1** and **2** buttons left of Random hold two versions of the whole
+song: try a different arrangement, mix or sound, and switch back and forth.
+
+- **Click 2** the first time to make version 2: a copy of version 1, chosen,
+  ready to change. Until then the 2 is in a quieter grey.
+- **Click 1 or 2** to play that version. Each has its own tracks, clips,
+  plug-ins and their settings, mix, automation, tempo, markers and key. The
+  song's name, its details and the Making Music timer are shared.
+- The version **not playing costs almost nothing**: its plug-ins are
+  unloaded and its audio let go of, as with a frozen track. Choosing it loads
+  them again exactly as they were, which takes a moment with big sample
+  libraries. If the song was playing, it carries on from where it was.
+- Choosing a version is **one undo step**. A knob turned in a plug-in since
+  is kept in its version.
+- **Right-click 1 or 2** for **Delete Song Version** (deleting the one
+  playing plays the other, as version 1). Both versions are saved in the
+  song.
+
+![Song version 2 made and playing; the message line says what happened](guide/song-versions.png)
 
 ### The Random button
 
@@ -284,8 +307,10 @@ A track can have up to four versions, each with its own clips and its own
 plug-ins: try a part two ways and switch between them. The version button on
 the header (and the 1 to 4 buttons on the mixer strip) chooses which plays.
 Shift-click a version number in the mixer to switch every chosen track at
-once. The versions not playing wait loaded, and come back exactly as they
-were.
+once. The versions not playing have their plug-ins unloaded, so they cost
+nothing, and come back exactly as they were when chosen (a moment's wait
+with big sample libraries). For two versions of the whole song, see [Song
+versions](#song-versions).
 
 ### Folders
 

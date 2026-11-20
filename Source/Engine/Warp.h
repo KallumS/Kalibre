@@ -32,6 +32,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 
 namespace kal
 {
@@ -62,6 +63,11 @@ public:
 
     std::function<void()> onReady;
     void clear();
+    // Letting go (decision 0103): the files and warped audio nothing has asked for
+    // since the last time, forgotten. The engine calls it after each sync, so audio
+    // only the other song version plays (or an old warp of a clip) doesn't stay in memory.
+    void forgetUnused();
+    size_t bytesHeld() const;   // what's in memory, in bytes (tests)
 
     // Reading audio info without loading it.
     static bool describe (const juce::File&, double& seconds, double& sampleRate, int& channels);
@@ -76,9 +82,10 @@ public:
 private:
     double rate = 48000;
     juce::ThreadPool pool { 2 };
-    juce::CriticalSection lock;
+    mutable juce::CriticalSection lock;
     std::map<juce::String, std::shared_ptr<const CachedAudio>> ready;
     std::map<juce::String, bool> working;
+    std::set<juce::String> asked;   // since the last forgetUnused
 
     std::shared_ptr<const CachedAudio> load (const juce::File&);
     void handleAsyncUpdate() override;

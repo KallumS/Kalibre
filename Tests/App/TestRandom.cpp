@@ -320,3 +320,47 @@ TEST ("random: the master gets nothing by chance: the rack's Random isn't offere
     CHECK (c.randomSong ({}, 5));
     CHECK (c.project.master.devices.empty());
 }
+
+TEST ("song versions: 1 and 2 sit left of Random in the top bar; clicking 2 makes it, then each click chooses; 2 is hidden with the rest (0103)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.newProject();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        TopBar* bar = nullptr;
+        for (auto* ch : w.getChildren()) if (auto* b = dynamic_cast<TopBar*> (ch)) bar = b;
+        CHECK (bar != nullptr);
+        if (bar)
+        {
+            Button* random = nullptr;
+            for (auto* b : bar->getChildren())
+                if (auto* btn = dynamic_cast<Button*> (b); btn && btn->getButtonText() == "Random") random = btn;
+            CHECK (random != nullptr);
+            CHECK (bar->songOne.isVisible() && bar->songTwo.isVisible());
+            CHECK (bar->songOne.getRight() < bar->songTwo.getX());
+            if (random) CHECK (bar->songTwo.getRight() < random->getX());
+            CHECK (bar->songOne.getY() < 48);
+            CHECK (bar->songOne.getToggleState() && ! bar->songTwo.getToggleState());
+
+            bar->songTwo.triggerClick();
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            CHECK_EQ (c.project.songVersions(), 2);
+            CHECK_EQ (c.project.songVersion, 1);
+            CHECK (bar->songTwo.getToggleState() && ! bar->songOne.getToggleState());
+            bar->songOne.triggerClick();
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            CHECK_EQ (c.project.songVersion, 0);
+            CHECK (c.message.contains ("Song version 1"));
+
+            c.hiddenInTopBar.add ("Song Versions");
+            bar->resized();
+            CHECK (! bar->songOne.isVisible() && ! bar->songTwo.isVisible());
+        }
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

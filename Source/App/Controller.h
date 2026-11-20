@@ -282,6 +282,12 @@ public:
     void newVersion (Id track);
     // Chooses version `index` (0-3) on each of these tracks that has it (decision 0050).
     void chooseVersion (const std::vector<Id>& tracks, int index);
+    // Song versions (decision 0103), the top bar's 1 and 2: the whole song twice. The one
+    // not playing has its plug-ins unloaded and its audio let go of, its settings kept.
+    // Choosing one is an undo step; it plays on from where it was if it was playing.
+    void newSongVersion();
+    void chooseSongVersion (int index);
+    void deleteSongVersion (int index);
     // Freeze (decision 0080): the track rendered, quietly, through its own plug-ins to a
     // 32-bit float WAV, and its plug-ins unloaded with their states kept. Unfreezing
     // deletes the render and loads them again as they were.
@@ -455,6 +461,7 @@ private:
     // Undo and Redo that change which version plays (0103): the settings of the
     // plug-ins being unloaded, as they are now, go into the version they rest in.
     void carryPlayingStates (const Project& was);
+    Id syncedSongId = 0;   // the song version the engine's plug-ins are for (0103)
     std::vector<song::TrackMix> lastMix;   // the mix as last synced, for grouped tracks
     void timerCallback() override;
     void finishRecording();

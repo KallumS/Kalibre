@@ -192,7 +192,8 @@ void addAgentTools (mcp::Server& server, Controller& c)
                       { "time_signature", std::to_string (m.numerator) + "/" + std::to_string (m.denominator) },
                       { "cursor_beat", beatsOf (c.cursor) }, { "playing", c.engine.isPlaying() },
                       { "loop", { { "on", p.loop.on }, { "start_beat", beatsOf (p.loop.start) }, { "end_beat", beatsOf (p.loop.end) } } },
-                      { "chosen_track", c.focusTrack } };
+                      { "chosen_track", c.focusTrack },
+                      { "song_version", p.songVersion + 1 }, { "song_versions", p.songVersions() } };
         json tracks = json::array();
         for (auto& t : p.tracks) tracks.push_back (trackJson (c, t));
         song["tracks"] = tracks;
@@ -615,6 +616,17 @@ void addAgentTools (mcp::Server& server, Controller& c)
     {
         const auto label = c.history.redoLabel();
         return c.redo() ? Reply::ok ("Redid " + label + ".") : Reply::fail ("Nothing to redo.");
+    });
+    tool ("song_version", "Plays song version 1 or 2 (decision 0103): the whole song twice, each with its own tracks, clips, plug-ins, "
+                          "mix, tempo and key. Choosing 2 when there's only one makes it, a copy of 1. The version not playing has its "
+                          "plug-ins unloaded. One undo step. get_song says which plays.",
+          object ({ { "version", integer ("1 or 2.") } }, { "version" }), [&c] (const json& a)
+    {
+        const int v = a.contains ("version") && a["version"].is_number_integer() ? a["version"].get<int>() : 0;
+        if (v != 1 && v != 2) return Reply::fail ("The version is 1 or 2.");
+        c.chooseSongVersion (v - 1);
+        if (c.project.songVersion != v - 1) return Reply::fail (c.message.toStdString());
+        return Reply::ok ("Song version " + std::to_string (v) + " plays (" + std::to_string (c.project.songVersions()) + " in all).");
     });
 
     //--------------------------------------------------------------------------

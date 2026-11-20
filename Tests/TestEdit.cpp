@@ -344,3 +344,85 @@ TEST ("tracks: a Summing track takes no input; there's one Cue track, after the 
     edit::removeTrack (p, cue);
     CHECK (p.cue.empty());
 }
+
+#include "ProjectFile.h"
+
+TEST ("song versions: 2 starts as a copy of 1; each has its own tracks, tempo, markers and key; the name, details and timer are the song's (0103)")
+{
+    Project p;
+    p.name = "Song";
+    p.metadata.artist = "Me";
+    p.workSeconds = 60;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Bass");
+    p.tempo.setTempos ({ { 0, 100.0, false } });
+    CHECK_EQ (p.songVersions(), 1);
+    CHECK (! edit::selectSongVersion (p, 1));   // there's no version 2 yet
+
+    CHECK (edit::newSongVersion (p));
+    CHECK_EQ (p.songVersions(), 2);
+    CHECK_EQ (p.songVersion, 1);                // the copy is chosen
+    CHECK (p.track (t) != nullptr);
+    CHECK (! edit::newSongVersion (p));         // two at most
+    // Version 2 changes on its own.
+    edit::addTrack (p, TrackKind::Track, "Drums");
+    p.tempo.setTempos ({ { 0, 140.0, false } });
+    p.markers.push_back ({ p.newId(), PPQ * 4, "Drop" });
+    p.scale.root = 5;
+    p.name = "Song Renamed";
+    p.workSeconds = 90;
+
+    CHECK (edit::selectSongVersion (p, 0));
+    CHECK_EQ (p.songVersion, 0);
+    CHECK_EQ (p.tracks.size(), (size_t) 1);
+    CHECK (std::abs (p.tempo.bpmAt (0) - 100.0) < 1e-9);
+    CHECK (p.markers.empty());
+    CHECK_EQ (p.scale.root, 0);
+    CHECK_EQ (p.name, std::string ("Song Renamed"));   // the song's, not a version's
+    CHECK_EQ (p.metadata.artist, std::string ("Me"));
+    CHECK (std::abs (p.workSeconds - 90) < 1e-9);
+    const Id fresh = p.newId();
+
+    CHECK (edit::selectSongVersion (p, 1));
+    CHECK_EQ (p.tracks.size(), (size_t) 2);
+    CHECK (std::abs (p.tempo.bpmAt (0) - 140.0) < 1e-9);
+    CHECK_EQ (p.markers.size(), (size_t) 1);
+    CHECK_EQ (p.scale.root, 5);
+    CHECK (p.newId() > fresh);                  // ids are never handed out twice across versions
+
+    // Saved and opened: both versions, the chosen one playing.
+    auto back = file::load (file::save (p));
+    CHECK (back.has_value());
+    if (! back) return;
+    CHECK_EQ (back->songVersions(), 2);
+    CHECK_EQ (back->songVersion, 1);
+    CHECK_EQ (back->tracks.size(), (size_t) 2);
+    CHECK (edit::selectSongVersion (*back, 0));
+    CHECK_EQ (back->tracks.size(), (size_t) 1);
+
+    // Deleting the playing version leaves the other, as version 1.
+    CHECK (edit::deleteSongVersion (p, 1));
+    CHECK_EQ (p.songVersions(), 1);
+    CHECK_EQ (p.songVersion, 0);
+    CHECK_EQ (p.tracks.size(), (size_t) 1);
+}
+
+TEST ("song versions: the one playing is known by its id, which changes only when the other is chosen; a frozen render the other uses is found (0103)")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    p.track (t)->frozen = true;
+    p.track (t)->frozenFile = "/songs/Keys frozen.wav";
+    const Id first = p.songId;
+    CHECK (! edit::otherVersionUses (p, "/songs/Keys frozen.wav"));
+    edit::newSongVersion (p);
+    CHECK_EQ (p.songId, first);                 // the copy plays on: nothing needs loading again
+    CHECK (edit::otherVersionUses (p, "/songs/Keys frozen.wav"));
+    CHECK (! edit::otherVersionUses (p, "/songs/other.wav"));
+    edit::selectSongVersion (p, 0);
+    CHECK (p.songId != first);
+    edit::selectSongVersion (p, 1);
+    CHECK_EQ (p.songId, first);
+    // Deleting the one not playing changes nothing that plays.
+    edit::deleteSongVersion (p, 0);
+    CHECK_EQ (p.songId, first);
+}

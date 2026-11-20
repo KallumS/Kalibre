@@ -186,3 +186,19 @@ TEST ("agents: Kalibre listens on this Mac only when switched on; a web page is 
     CHECK_EQ (refused["id"].get<int>(), 8);
     CHECK (String (refused["error"]["message"].get<std::string>()).contains ("Studio tab"));
 }
+
+TEST ("agents: song_version makes version 2 and chooses between them; get_song says which plays (0103)")
+{
+    Studio s;
+    s.result ("create_track", { { "name", "Bass" } });
+    CHECK_EQ (s.result ("get_song")["song_versions"].get<int>(), 1);
+    s.result ("song_version", { { "version", 2 } });
+    CHECK_EQ (s.c.project.songVersions(), 2);
+    s.result ("create_track", { { "name", "Lead" } });
+    auto song = s.result ("get_song");
+    CHECK_EQ (song["song_version"].get<int>(), 2);
+    CHECK_EQ (song["tracks"].size(), (size_t) 2);
+    s.result ("song_version", { { "version", 1 } });
+    CHECK_EQ (s.result ("get_song")["tracks"].size(), (size_t) 1);
+    CHECK (s.call ("song_version", { { "version", 3 } })["isError"].get<bool>());
+}

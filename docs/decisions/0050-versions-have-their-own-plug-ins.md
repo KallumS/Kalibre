@@ -35,6 +35,8 @@ once (16 November).
 
 - Memory: every version's plug-ins stay loaded. Four versions of a big
   sampler is four samplers in memory.
+- Changed 20 November 2026 (0103): the versions not playing are unloaded,
+  their settings kept; choosing one loads it, so it's no longer instant.
 - 0006 said devices were shared by every version: no longer.
 
 ![Versions 1 to 4 in the mixer, two tracks chosen, and the Cue track after the master](../mixer-versions-and-cue.png)

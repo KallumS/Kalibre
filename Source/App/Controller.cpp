@@ -110,6 +110,13 @@ Controller::~Controller()
 //==============================================================================
 void Controller::syncEngine()
 {
+    // The other song version chosen (0103): every plug-in let go of, and the new
+    // version's made from their settings. Its devices have the same numbers.
+    if (project.songId != syncedSongId)
+    {
+        engine.newSong();
+        syncedSongId = project.songId;
+    }
     lastMix = song::mixOf (project);
     engine.setMappings (project.midiMappings);
     engine.sync (project, focusTrack, projectFolder());
@@ -229,6 +236,13 @@ void Controller::carryPlayingStates (const Project& was)
                             if (! playing.araState.empty()) d.araState = playing.araState;
                         }
     };
+    if (was.songId != project.songId)
+    {
+        // The other song version (0103): the one left goes into store as it is now.
+        if (was.songVersions() == 2 && project.songVersions() == 2 && was.songVersion != project.songVersion)
+            project.otherVersion = edit::storeSong (was);
+        return;
+    }
     for (auto& t : project.tracks)
         if (auto* before = was.track (t.id)) carry (*before, t);
 }
@@ -1405,10 +1419,12 @@ void Controller::freeze (Id id, bool on)
     if (! t || ! t->holdsClips()) return;
     if (! on)
     {
-        const File render (String (t->frozenFile));
+        const std::string renderPath = t->frozenFile;
+        const File render { String (renderPath) };
         apply ("Unfreeze", [id] (Project& p) { if (auto* x = p.track (id)) { x->frozen = false; x->frozenFile.clear(); } });
         // The render goes (Undo renders it again); the plug-ins come back with their states.
-        if (render.existsAsFile()) render.deleteFile();
+        // Not if the other song version plays it too (0103).
+        if (render.existsAsFile() && ! edit::otherVersionUses (project, renderPath)) render.deleteFile();
         say ("Unfrozen: the render is deleted and its plug-ins are loaded again, as they were.", false, true);
         return;
     }
@@ -1721,6 +1737,39 @@ void Controller::chooseVersion (const std::vector<Id>& ids, int index)
     if (! missing.empty())
         say (String ((int) missing.size()) + (missing.size() == 1 ? " track has" : " tracks have") + " no version " + String (index + 1)
              + ", so " + (missing.size() == 1 ? "it stays" : "they stay") + " as " + (missing.size() == 1 ? "it is." : "they are."));
+}
+
+void Controller::newSongVersion()
+{
+    if (project.songVersions() >= edit::maxSongVersions) { chooseSongVersion (1 - project.songVersion); return; }
+    apply ("New Song Version", [] (Project& p) { edit::newSongVersion (p); });
+    say ("Song version 2 made, a copy of version 1, and chosen. Change it freely: click 1 in the top bar to go back. "
+         "The version not playing has its plug-ins unloaded and its settings kept.", false, true);
+}
+
+void Controller::chooseSongVersion (int index)
+{
+    if (index == project.songVersion) return;
+    if (index >= project.songVersions()) { newSongVersion(); return; }
+    if (engine.isRecording()) { say ("Stop recording before choosing another song version.", true); return; }
+    const bool wasPlaying = engine.isPlaying();
+    const double at = engine.position();
+    if (wasPlaying) engine.stop();
+    selectedClip = 0;
+    selectedClips.clear();
+    selectedNotes.clear();
+    if (apply ("Song Version " + String (index + 1), [index] (Project& p) { edit::selectSongVersion (p, index); }))
+        say ("Song version " + String (index + 1) + ". Version " + String (2 - index) + "'s plug-ins are unloaded, their settings kept.", false, true);
+    if (wasPlaying) { engine.locate (at); engine.play(); }
+}
+
+void Controller::deleteSongVersion (int index)
+{
+    if (project.songVersions() < 2) return;
+    const bool playingOne = index == project.songVersion;
+    if (playingOne && engine.isRecording()) { say ("Stop recording before deleting this song version.", true); return; }
+    apply ("Delete Song Version " + String (index + 1), [index] (Project& p) { edit::deleteSongVersion (p, index); });
+    say ("Song version " + String (index + 1) + " deleted" + (playingOne ? String (": the other plays, as version 1.") : String (".")), false, true);
 }
 
 Id Controller::newMidiClip (Id track, Tick start, Tick length)

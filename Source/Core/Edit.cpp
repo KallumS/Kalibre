@@ -1,6 +1,7 @@
 #include "Edit.h"
 
 #include "AudioTools.h"
+#include "ProjectFile.h"
 
 #include <cmath>
 #include <limits>
@@ -311,6 +312,66 @@ void renameVersion (Project& p, Id id, int index, const std::string& name)
     if (auto* t = p.track (id))
         if (index >= 0 && index < static_cast<int> (t->versions.size()))
             t->versions[static_cast<size_t> (index)].name = name;
+}
+
+//==============================================================================
+// Song versions (decision 0103)
+
+StoredSong storeSong (const Project& p)
+{
+    Project q = p;
+    q.otherVersion = {};
+    q.songVersion = 0;
+    return { std::make_shared<const std::string> (file::save (q)) };
+}
+
+bool newSongVersion (Project& p)
+{
+    if (p.songVersions() >= maxSongVersions) return false;
+    // The copy plays on as version 2, so nothing has to load again; version 1
+    // is stored, with an id of its own.
+    Project first = p;
+    first.songId = p.newId();
+    p.otherVersion = storeSong (first);
+    p.songVersion = 1;
+    return true;
+}
+
+bool selectSongVersion (Project& p, int index)
+{
+    if (index == p.songVersion || index < 0 || index >= p.songVersions()) return false;
+    auto other = file::load (*p.otherVersion.json);
+    if (! other) return false;
+    Project next = std::move (*other);
+    // What's the song's, not a version's.
+    next.name = p.name;
+    next.metadata = p.metadata;
+    next.workSeconds = p.workSeconds;
+    next.sampleRate = p.sampleRate;
+    next.nextId = std::max (next.nextId, p.nextId);
+    next.otherVersion = storeSong (p);
+    next.songVersion = index;
+    p = std::move (next);
+    return true;
+}
+
+bool deleteSongVersion (Project& p, int index)
+{
+    if (p.songVersions() < 2 || index < 0 || index >= p.songVersions()) return false;
+    if (index == p.songVersion && ! selectSongVersion (p, 1 - index)) return false;
+    p.otherVersion = {};
+    p.songVersion = 0;
+    return true;
+}
+
+bool otherVersionUses (const Project& p, const std::string& f)
+{
+    if (p.otherVersion.empty() || f.empty()) return false;
+    const auto other = file::load (*p.otherVersion.json);
+    if (! other) return false;
+    for (auto& t : other->tracks)
+        if (t.frozenFile == f) return true;
+    return false;
 }
 
 //==============================================================================

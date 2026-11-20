@@ -119,6 +119,13 @@ std::string save (const Project& p)
     j["surround"] = p.surround;
     j["sampleRate"] = p.sampleRate;
     j["nextId"] = p.nextId;
+    // Song versions (0103): the one not playing, inside, as it would be saved.
+    j["songId"] = p.songId;
+    if (! p.otherVersion.empty())
+    {
+        j["songVersion"] = p.songVersion;
+        j["otherVersion"] = nlohmann::json::parse (*p.otherVersion.json);
+    }
     return j.dump (1, '\t');
 }
 
@@ -179,6 +186,14 @@ std::optional<Project> load (const std::string& text, std::string* error)
         if (j.contains ("surround")) p.surround = j.at ("surround").get<SurroundFormat>();
         p.sampleRate = j.value ("sampleRate", p.sampleRate);
         p.nextId = j.value ("nextId", p.nextId);
+        p.songId = j.value ("songId", p.songId);
+        if (j.contains ("otherVersion") && j.at ("otherVersion").is_object())
+        {
+            const auto& other = j.at ("otherVersion");
+            p.otherVersion.json = std::make_shared<const std::string> (other.dump());
+            p.songVersion = std::clamp (j.value ("songVersion", 0), 0, 1);
+            p.nextId = std::max (p.nextId, other.value ("nextId", p.nextId));
+        }
 
         // Never hand out an id already in use, whatever the file said.
         Id highest = p.master.id;
