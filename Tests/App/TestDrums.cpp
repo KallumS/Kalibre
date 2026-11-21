@@ -434,12 +434,24 @@ TEST ("sampler: Random Sample loads any sound from the Sounds folders, a new one
         auto* s = dynamic_cast<KalibreSampler*> (engine.instance (dev));
         CHECK (s != nullptr);
         if (! s) return;
+        const auto start = c.history.size();
+        // Undo only this test's own steps, and look the Sampler up again after: never one that's gone.
+        auto undo = [&]
+        {
+            CHECK (c.history.size() > start);
+            if (c.history.size() <= start) return false;
+            c.undo();
+            s = dynamic_cast<KalibreSampler*> (engine.instance (dev));
+            CHECK (s != nullptr);
+            return s != nullptr;
+        };
         std::unique_ptr<AudioProcessorEditor> ed (s->createEditor());
         ed->setSize (1000, 300);
         auto* random = buttonNamed (*ed, "Random Sample");
         CHECK (random != nullptr);
         if (! random) return;
-        auto click = [random] { random->triggerClick(); MessageManager::getInstance()->runDispatchLoopUntil (50); };
+        // Clicked at once, not posted: a slow machine can't put the clicks out of step with the checks.
+        auto click = [random] { if (random->onClick) random->onClick(); };
 
         // No sounds scanned: said, nothing changed.
         library::Index ix;
@@ -477,9 +489,9 @@ TEST ("sampler: Random Sample loads any sound from the Sounds folders, a new one
         CHECK_EQ (roundToInt (s->value (KalibreSampler::Root)), 57);
 
         // Undo: the pad again; then none, Root back to C4.
-        c.undo();
+        if (! undo()) return;
         CHECK (s->file() == pad);
-        c.undo();
+        if (! undo()) return;
         CHECK (s->sample().getNumSamples() == 0);
         CHECK_EQ (roundToInt (s->value (KalibreSampler::Root)), 60);
 
@@ -491,7 +503,7 @@ TEST ("sampler: Random Sample loads any sound from the Sounds folders, a new one
         target->itemDropped (DragAndDropTarget::SourceDetails (var ("file:" + loop.getFullPathName()), nullptr, {}));
         CHECK_EQ (c.history.size(), steps + 1);
         CHECK (s->file() == loop);
-        c.undo();
+        if (! undo()) return;
         CHECK (s->sample().getNumSamples() == 0);
         c.soundsIndex = nullptr;
     }
