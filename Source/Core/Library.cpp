@@ -1,4 +1,5 @@
 #include "Library.h"
+#include "DrumSounds.h"
 
 #include <nlohmann/json.hpp>
 
@@ -165,8 +166,10 @@ bool isFavourite (const Settings& s, const std::string& path)
 }
 
 //==============================================================================
-std::vector<Row> rows (const Index& index, const Settings& s, const std::string& filter)
+std::vector<Row> rows (const Index& index, const Settings& s, const std::string& filter, drumsound::Cache* drums)
 {
+    drumsound::Cache own;
+    if (drums == nullptr) drums = &own;
     const auto want = lower (filter);
     std::vector<std::string> roots;
     for (auto& f : s.folders) roots.push_back (trimSlash (f));
@@ -178,6 +181,12 @@ std::vector<Row> rows (const Index& index, const Settings& s, const std::string&
         if (! item.readable) continue;
         if (! want.empty() && lower (nameOf (path)).find (want) == std::string::npos) continue;
         if (s.favouritesOnly && ! isFavourite (s, path)) continue;
+        if (s.drumsOnly)
+        {
+            const auto v = drums->of (item);
+            if (! v.drum) continue;
+            if (s.drumKind >= 0 && ! drumsound::fits ((drumsound::Kind) s.drumKind, v.kind)) continue;
+        }
         const std::string* root = nullptr;
         for (auto& r : roots)
             if (isInside (path, r) && (! root || r.size() > root->size())) root = &r;
@@ -194,7 +203,7 @@ std::vector<Row> rows (const Index& index, const Settings& s, const std::string&
         return out;
     }
 
-    const bool openAll = ! want.empty() || s.favouritesOnly;
+    const bool openAll = ! want.empty() || s.favouritesOnly || s.drumsOnly;
     for (auto& root : roots)
     {
         const auto found = byRoot.find (root);
@@ -270,6 +279,8 @@ std::string toJson (const Settings& s)
     j["seed"] = s.seed;
     j["sync"] = s.sync;
     j["autoPlay"] = s.autoPlay;
+    j["drumsOnly"] = s.drumsOnly;
+    j["drumKind"] = s.drumKind;
     j["open"] = std::vector<std::string> (s.open.begin(), s.open.end());
     return j.dump (1);
 }
@@ -288,6 +299,8 @@ bool fromJson (const std::string& text, Settings& s)
     d.seed = j.value ("seed", (std::uint32_t) 1);
     d.sync = j.value ("sync", true);
     d.autoPlay = j.value ("autoPlay", true);
+    d.drumsOnly = j.value ("drumsOnly", false);
+    d.drumKind = j.value ("drumKind", -1);
     for (auto& f : j.value ("open", std::vector<std::string>())) d.open.insert (f);
     s = d;
     return true;
@@ -314,6 +327,7 @@ std::string toJson (const Index& index)
             j["note"] = it.note;
             j["cents"] = it.cents;
             j["analysis"] = it.analysis;
+            if (it.onsetMs >= 0) { j["onset"] = it.onsetMs; j["attack"] = it.attackMs; j["tail"] = it.tailDb; j["zcr"] = it.zcr; }
             j["seconds"] = it.seconds;
             j["rate"] = it.sampleRate;
             j["channels"] = it.channels;
@@ -355,6 +369,10 @@ bool fromJson (const std::string& text, Index& index)
         it.note = e.value ("note", -1);
         it.cents = e.value ("cents", 0.0);
         it.analysis = e.value ("analysis", 0);
+        it.onsetMs = e.value ("onset", -1.0);
+        it.attackMs = e.value ("attack", -1.0);
+        it.tailDb = e.value ("tail", 0.0);
+        it.zcr = e.value ("zcr", -1.0);
         it.seconds = e.value ("seconds", 0.0);
         it.sampleRate = e.value ("rate", 0.0);
         it.channels = e.value ("channels", 0);

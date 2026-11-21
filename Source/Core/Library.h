@@ -18,6 +18,8 @@
 #include <string>
 #include <vector>
 
+namespace kal::drumsound { class Cache; }
+
 namespace kal::library
 {
 
@@ -61,6 +63,9 @@ struct Item
     double lufs = silentDb, peakDb = silentDb;
     int note = -1;
     double cents = 0;
+    // Its shape as a hit (0106; audiotools::hitShape): when it starts, how fast it
+    // rises, how far it dies away, how bright it is; -1 when not heard.
+    double onsetMs = -1, attackMs = -1, tailDb = 0, zcr = -1;
     // What the scan that read it knew how to hear: older entries are read again.
     int analysis = 0;
 
@@ -72,7 +77,9 @@ struct Item
 };
 
 // The scan's version: an item read by an older scan is read again (0095).
-inline constexpr int analysisVersion = 2;
+// Version 3 (0106) adds the hit's shape; a version 2 entry has only that
+// added, from its first seconds, not the whole of it heard again.
+inline constexpr int analysisVersion = 3;
 
 // Columns in an Item's waveform.
 inline constexpr int peakColumns = 160;
@@ -94,6 +101,8 @@ struct Settings
     bool sync = true;                    // previews follow the song's tempo
     bool autoPlay = true;                // choosing a sound plays it (off: click its picture to hear it)
     std::set<std::string> open;          // folders shown open
+    bool drumsOnly = false;              // only drum sounds (0106)
+    int drumKind = -1;                   // and only this kind (a drumsound::Kind), -1 every kind
     bool operator== (const Settings&) const = default;
 };
 
@@ -131,7 +140,8 @@ bool isFavourite (const Settings&, const std::string& path);
 
 // The rows to show. `filter` keeps items whose name holds it (any case);
 // a filter or Favourites Only opens every folder that has something to show.
-std::vector<Row> rows (const Index&, const Settings&, const std::string& filter = {});
+// With Drums on (0106), only drums: `drums` keeps their verdicts between calls.
+std::vector<Row> rows (const Index&, const Settings&, const std::string& filter = {}, drumsound::Cache* drums = nullptr);
 
 // The items alone, in the order `rows` shows them (for Up and Down, and tests).
 std::vector<std::string> itemsInOrder (const std::vector<Row>&);

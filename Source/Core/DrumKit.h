@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "DrumSounds.h"
 #include "Library.h"
 #include "Model.h"
 #include "Patterns.h"
@@ -69,12 +70,11 @@ void removePad (Kit&, int index);
 std::string toJson (const Kit&);
 std::optional<Kit> fromJson (const std::string&);
 
-// What kind of drum a pad's name, or a sound's name and folders, says.
-enum class Kind { Other, Kick, Snare, Clap, ClosedHat, OpenHat, Hat, Tom, Crash, Ride, Cymbal, Rim, Shaker, Percussion };
-Kind kindOf (const std::string& nameOrPath);
-// A one-shot: a readable audio file, short, not a loop.
-bool isOneShot (const library::Item&);
-// A sound for each pad from the index (empty where none fits); a new choice each seed.
+// What kind of drum a pad's name, or a sound's name and folders, says (DrumSounds, 0106).
+using drumsound::Kind;
+using drumsound::kindOf;
+// A drum sound for each pad from the index (DrumSounds' verdict: name, length,
+// shape), of the pad's kind where there's one; empty where none fits; a new choice each seed.
 std::vector<std::string> randomSamples (const Kit&, const library::Index&, unsigned seed);
 
 // Notes (a Good Idea groove, General MIDI drums) as the kit's pattern: each on

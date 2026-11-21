@@ -106,4 +106,14 @@ TempoGuess tempoOf (const float* mono, int n, double rate);
 // median): -1 when most of it has no one pitch (drums, chords, noise).
 int noteOf (const float* mono, int n, double rate, double* cents = nullptr);
 
+// The shape of a hit (decision 0106), for telling drums from other sounds:
+// when it starts (the first millisecond at a tenth of its loudest), how long
+// it takes to rise from there to nine tenths of it, how loud its last tenth
+// is against its loudest (dB; very negative when it dies away), and how bright
+// it is (zero crossings a second in the 50 ms after it starts: a kick's a few
+// hundred, a snare's thousands, a hat's ten thousand and more). Up to the first
+// 10 seconds are looked at. onsetMs is -1 for silence.
+struct HitShape { double onsetMs = -1, attackMs = -1, tailDb = 0, zcr = -1; };
+HitShape hitShape (const float* mono, int n, double rate);
+
 } // namespace kal::audiotools

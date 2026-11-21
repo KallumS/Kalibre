@@ -71,6 +71,7 @@ public:
     bool newTrackFrom (const std::string& path, NewTrack);
     bool putAtCursor (const std::string& path);
     const library::Item* item (const std::string& path) const;
+    drumsound::Verdict drumOf (const library::Item& it) { return drumCache.of (it); }
     std::string chosenPath() const;
 
 private:
@@ -86,6 +87,11 @@ private:
     theme::HouseButton foldersView { "Folders", "Show the sounds in their folders." };
     theme::HouseButton flatView { "All Items", "Every sound in one list, without folders." };
     theme::HouseButton favouritesOnly { juce::String::fromUTF8 ("\xe2\x98\x85 Only"), "Show only favourites: sounds and folders marked with a star.", true };
+    theme::HouseButton drumsButton { juce::String::fromUTF8 ("Drums \xe2\x96\xbe"), "Show only drum sounds, or one kind of them: kicks, snares, hats... "
+                                                                                    "A drum is short, starts with a hit and dies away; its kind is read from its name or folder, "
+                                                                                    "or heard when they don't say.", true };
+    drumsound::Cache drumCache;          // each sound's verdict, kept between filterings (0106)
+    void drumsMenu();
     theme::HouseButton orderButton { juce::String::fromUTF8 ("A to Z \xe2\x96\xbe"), "The order: A to Z, or shuffled (within each folder, or the whole list)." };
     theme::HouseButton syncButton { "Sync", "Previews play at the song's tempo: MIDI always, a sample when its tempo is known "
                                             "(in its name, like \"Drums 96bpm\", or in the file). Off: as they were made.", true };

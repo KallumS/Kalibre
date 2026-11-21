@@ -68,11 +68,37 @@ void LibraryScanner::listen (AudioFormatReader& r, library::Item& it)
     std::vector<float> mono ((size_t) n);
     for (int i = 0; i < n; ++i) mono[(size_t) i] = buf.getNumChannels() > 1 ? 0.5f * (left[i] + right[i]) : left[i];
     it.note = audiotools::noteOf (mono.data(), n, r.sampleRate, &it.cents);
+    const auto shape = audiotools::hitShape (mono.data(), n, r.sampleRate);   // 0106
+    it.onsetMs = shape.onsetMs;
+    it.attackMs = shape.attackMs;
+    it.tailDb = shape.tailDb;
+    it.zcr = shape.zcr;
     if (it.bpm <= 0)
     {
         const auto g = audiotools::tempoOf (mono.data(), n, r.sampleRate);
         if (g.bpm > 0) { it.bpm = g.bpm; it.bpmFrom = library::Item::TempoFrom::Heard; it.loop = g.loop; }
     }
+}
+
+// A sound read by the last version of the scan (0095): only its hit's shape (0106)
+// added, from as much as a drum could be (8.5 seconds), not all of it heard again.
+bool LibraryScanner::topUp (const File& f, library::Item& it, AudioFormatManager& fm)
+{
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    if (! r || r->sampleRate <= 0 || r->lengthInSamples <= 0) return false;
+    const int n = (int) jmin<int64> (r->lengthInSamples, (int64) (r->sampleRate * 8.5));
+    AudioBuffer<float> buf (jmax (1, jmin (2, (int) r->numChannels)), n);
+    if (! r->read (&buf, 0, n, 0, true, buf.getNumChannels() > 1)) return false;
+    std::vector<float> mono ((size_t) n);
+    for (int i = 0; i < n; ++i)
+        mono[(size_t) i] = buf.getNumChannels() > 1 && r->numChannels > 1 ? 0.5f * (buf.getSample (0, i) + buf.getSample (1, i)) : buf.getSample (0, i);
+    const auto shape = audiotools::hitShape (mono.data(), n, r->sampleRate);
+    it.onsetMs = shape.onsetMs;
+    it.attackMs = shape.attackMs;
+    it.tailDb = shape.tailDb;
+    it.zcr = shape.zcr;
+    it.analysis = library::analysisVersion;
+    return true;
 }
 
 bool LibraryScanner::analyse (const File& f, library::Item& it, AudioFormatManager& fm)
@@ -205,7 +231,11 @@ void LibraryScanner::run()
     {
         if (threadShouldExit()) break;
         library::Item item;
-        analyse (File (path), item, fm);
+        const auto cached = work.items.find (path);
+        const bool onlyShape = cached != work.items.end() && cached->second.size == info.first && cached->second.modified == info.second
+                            && cached->second.kind == library::Kind::Audio && cached->second.analysis == 2;
+        if (onlyShape) { item = cached->second; if (! topUp (File (path), item, fm)) item.analysis = library::analysisVersion; }
+        else analyse (File (path), item, fm);
         ++analysed;
         item.size = info.first;
         item.modified = info.second;

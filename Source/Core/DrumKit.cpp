@@ -146,67 +146,6 @@ std::optional<Kit> fromJson (const std::string& text)
 //==============================================================================
 namespace
 {
-// Words, lower case: split at anything not a letter or digit, where a small
-// letter meets a capital ("SnareTight"), and where letters meet digits ("BD808").
-std::vector<std::string> wordsOf (const std::string& s)
-{
-    std::vector<std::string> out;
-    std::string w;
-    auto kind = [] (char c) { return std::isdigit ((unsigned char) c) ? 1 : std::isalpha ((unsigned char) c) ? 2 : 0; };
-    for (size_t i = 0; i < s.size(); ++i)
-    {
-        const char c = s[i];
-        const bool split = kind (c) == 0 || (! w.empty() && kind (c) != kind (s[i - 1]))
-                        || (! w.empty() && std::isupper ((unsigned char) c) && std::islower ((unsigned char) s[i - 1]));
-        if (split && ! w.empty()) { out.push_back (w); w.clear(); }
-        if (kind (c) != 0) w += (char) std::tolower ((unsigned char) c);
-    }
-    if (! w.empty()) out.push_back (w);
-    return out;
-}
-
-Kind kindOfWords (const std::vector<std::string>& ws)
-{
-    auto has = [&] (std::initializer_list<const char*> any) { for (auto& w : ws) for (auto* a : any) if (w == a) return true; return false; };
-    auto starts = [&] (std::initializer_list<const char*> any) { for (auto& w : ws) for (auto* a : any) if (w.rfind (a, 0) == 0) return true; return false; };
-    const bool hat = starts ({ "hat", "hihat", "hh" }) || (has ({ "hi" }) && has ({ "hat", "hats" }));
-    if (has ({ "ohh", "oh" }) || (hat && has ({ "open", "op", "o" }))) return Kind::OpenHat;
-    if (has ({ "chh", "ch" }) || (hat && has ({ "closed", "close", "cl", "c" }))) return Kind::ClosedHat;
-    if (hat) return Kind::Hat;
-    if (starts ({ "kick", "kik", "bassdrum" }) || has ({ "bd", "kck" }) || (has ({ "bass" }) && has ({ "drum" }))) return Kind::Kick;
-    if (starts ({ "snare", "snr" }) || has ({ "sd", "sn" })) return Kind::Snare;
-    if (starts ({ "clap", "clp" })) return Kind::Clap;
-    if (starts ({ "rim", "sidestick" }) || has ({ "stick", "rs" })) return Kind::Rim;
-    if (starts ({ "tom" })) return Kind::Tom;
-    if (starts ({ "crash" })) return Kind::Crash;
-    if (starts ({ "ride" })) return Kind::Ride;
-    if (starts ({ "cymbal", "cym", "splash", "china" })) return Kind::Cymbal;
-    if (starts ({ "shaker", "shake", "tamb" })) return Kind::Shaker;
-    if (starts ({ "perc", "conga", "bongo", "cowbell", "clave", "block" })) return Kind::Percussion;
-    return Kind::Other;
-}
-
-// A sound's kind: its file name first, then its folders, nearest first.
-Kind kindOfSound (const std::string& path)
-{
-    std::vector<std::string> parts;
-    std::string part;
-    for (char c : path)
-    {
-        if (c == '/' || c == '\\') { if (! part.empty()) parts.push_back (part); part.clear(); }
-        else part += c;
-    }
-    if (! part.empty()) parts.push_back (part);
-    for (int i = (int) parts.size() - 1, depth = 0; i >= 0 && depth < 4; --i, ++depth)
-    {
-        auto name = parts[(size_t) i];
-        if (depth == 0) if (auto dot = name.rfind ('.'); dot != std::string::npos) name = name.substr (0, dot);
-        const auto k = kindOfWords (wordsOf (name));
-        if (k != Kind::Other) return k;
-    }
-    return Kind::Other;
-}
-
 // What a pad would take, best first.
 std::vector<Kind> wants (Kind pad)
 {
@@ -226,30 +165,15 @@ std::vector<Kind> wants (Kind pad)
 }
 } // namespace
 
-Kind kindOf (const std::string& s)
-{
-    if (s.find ('/') != std::string::npos || s.find ('\\') != std::string::npos) return kindOfSound (s);
-    return kindOfWords (wordsOf (s));
-}
-
-bool isOneShot (const library::Item& it)
-{
-    if (it.kind != library::Kind::Audio || ! it.readable || it.loop) return false;
-    if (it.seconds <= 0.01 || it.seconds > 4.0) return false;
-    for (auto& w : wordsOf (it.path.substr (it.path.find_last_of ("/\\") == std::string::npos ? 0 : it.path.find_last_of ("/\\") + 1)))
-        if (w == "loop" || w == "loops" || w == "bpm") return false;
-    return true;
-}
-
+// Only drums (decision 0106: name, length and shape), each pad a sound of its kind;
+// a pad whose kind none has takes a drum of no kind its name says.
 std::vector<std::string> randomSamples (const Kit& k, const library::Index& index, unsigned seed)
 {
     std::map<Kind, std::vector<std::string>> byKind;
-    std::vector<std::string> any;
     for (auto& [path, it] : index.items)
     {
-        if (! isOneShot (it)) continue;
-        byKind[kindOfSound (path)].push_back (path);
-        any.push_back (path);
+        const auto v = drumsound::of (it);
+        if (v.drum) byKind[v.kind].push_back (path);
     }
     std::mt19937 rng (seed);
     std::set<std::string> taken;
@@ -270,10 +194,10 @@ std::vector<std::string> randomSamples (const Kit& k, const library::Index& inde
                 if (chosen = pick (it->second); ! chosen.empty()) break;
         if (chosen.empty())
         {
-            // Nothing says it's this drum: any one-shot that isn't another drum's.
             std::vector<std::string> spare;
-            for (auto& p : any) if (kindOfSound (p) == Kind::Other || kindOfSound (p) == Kind::Percussion) spare.push_back (p);
-            chosen = pick (spare.empty() ? any : spare);
+            for (auto kind : { Kind::Other, Kind::Percussion })
+                if (auto it = byKind.find (kind); it != byKind.end()) spare.insert (spare.end(), it->second.begin(), it->second.end());
+            chosen = pick (spare);
         }
         if (! chosen.empty()) taken.insert (chosen);
         out.push_back (chosen);
