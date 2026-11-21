@@ -405,7 +405,9 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         {
             m.addItem (item (c.engine.isPlaying() ? "Stop" : "Play", [this] { c.togglePlay(); }, "Space"));
             m.addItem (item ("Record", [this] { c.record(); }, k ("record"), true, c.engine.isRecording()));
+            m.addItem (item ("Stop and Go to the Start", [this] { c.stopAndGoToStart(); }, k ("stopStart")));
             m.addItem (item ("Go to the Start", [this] { c.goToStart(); }, "Return"));
+            m.addItem (item ("Go to the End", [this] { c.goToEnd(); }, k ("end")));
             m.addSeparator();
             m.addItem (item ("Loop", [this] { c.toggleLoop(); }, k ("loop"), true, p.loop.on));
             m.addItem (item ("Punch In and Out", [this] { c.apply ("Punch", [] (Project& pr) { pr.punch.on = ! pr.punch.on; }); }, {}, true, p.punch.on));

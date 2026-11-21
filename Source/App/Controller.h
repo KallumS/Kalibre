@@ -203,6 +203,8 @@ public:
     void arm (Id track, ArmFor);
     void locate (Tick);
     void goToStart();
+    void goToEnd();             // where the last clip ends (0107)
+    void stopAndGoToStart();    // the transport's Stop (0107)
     void toggleLoop();
     Tick playhead() const;
     void tapTempo();

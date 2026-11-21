@@ -61,6 +61,14 @@ iZotope, OTT, Soothe2, Auto-Tune) from their manuals, not checked.
 
 ## Consequences
 
+- Amended 21 November: the report froze Kalibre at its end on the
+  musician's Mac (macOS: not responding; nothing written). Its text was
+  built by appending to a juce::String, which grows only as far as each
+  append needs, so every line copied the whole report so far; with hundreds
+  of thousands of controls it never finished. Now built in a std::string, on
+  a thread of its own; a test of 300 plug-ins with 1,500 controls each hung
+  before and takes 5 seconds (unoptimised) now.
+
 - Kept on purpose, costing some randomness, never safety: EQ band gains
   (dB boosts), macros, an envelope's sustain level, Knee Level, note-off
   settings, a sampler's envelope and loop switches. Glide and portamento,

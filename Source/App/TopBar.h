@@ -51,7 +51,9 @@ public:
     void update();
 
     BarButton start { juce::String::fromUTF8 ("\xe2\x8f\xae"), "Go to the start. (Return)" };
-    BarButton playButton { juce::String::fromUTF8 ("\xe2\x96\xb6"), "Play from the cursor, or stop. (Space)" };
+    BarButton end { juce::String::fromUTF8 ("\xe2\x8f\xad"), "Go to the end: where the last clip on the timeline ends. (End)" };
+    BarButton stopButton { juce::String::fromUTF8 ("\xe2\x96\xa0"), "Stop, and go back to the start of the song." };
+    BarButton playButton { juce::String::fromUTF8 ("\xe2\x96\xb6"), "Play from the cursor; lit while it plays. Click again to stop where playing began. (Space)" };
     BarButton recordButton { juce::String::fromUTF8 ("\xe2\x97\x8f"), "Record onto the armed tracks, or the chosen one. (R)" };
     BarButton loop { "Loop", "Repeat the loop range while playing. (L)", true };
     BarButton punch { "Punch", "Record only inside the punch range.", true };

@@ -457,6 +457,8 @@ void MainComponent::registerKeys()
     auto zone = [this] (ZoneTab t) { return [this, t] { c.zoneTab = t; shownZoneTab = t; showLowerZone(); c.viewChanged(); }; };
     keys.add ("play", "Play or Stop", K (K::spaceKey), [this] { c.togglePlay(); });
     keys.add ("start", "Go to the Start", K (K::returnKey), [this] { c.goToStart(); });
+    keys.add ("end", "Go to the End", K (K::endKey), [this] { c.goToEnd(); });
+    keys.add ("stopStart", "Stop and Go to the Start", K (K::homeKey), [this] { c.stopAndGoToStart(); });
     keys.add ("record", "Record", K ('r'), [this] { c.record(); });
     keys.add ("loop", "Loop", K ('l'), [this] { c.toggleLoop(); });
     keys.add ("dismiss", "Let Go of the Choice", K (K::escapeKey), [this] { c.selectedNotes.clear(); c.selectedClips.clear(); c.range = {}; c.dismiss(); });
