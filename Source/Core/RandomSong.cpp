@@ -331,23 +331,44 @@ std::string whyKept (const std::string& name, const std::string& unit, const std
 
     // #001, a number: a host slot, wired to anything.
     if (ws.empty() || std::none_of (name.begin(), name.end(), [] (char ch) { return std::isalpha ((unsigned char) ch); })) return "unknown";
-    // Measured in semitones or cents: tuning.
+    // MIDI's controllers and a host's slots, as Steinberg's instruments list every one
+    // ("Contr. 14", "SoundCont 5", "Gen.Purp.5", "DataEntMSB", "OmniModeOn", "Automation 160",
+    // "S10 L3 QC6"), and a multi-output sampler's insert slots ("Ch 14 Ins 1 P 9"): not the sound,
+    // or wired to anything. From the musician's Random Settings Report (0104).
+    if (has ({ "lsb", "msb", "contr", "omni", "foot", "footct" }) || hasStart ({ "omnimod" })
+        || (has ({ "sound" }) && has ({ "cont" })) || (has ({ "gen" }) && hasStart ({ "purp" }))
+        || (has ({ "data" }) && has ({ "ent", "incr", "decr" })) || (has ({ "local", "breath" }) && has ({ "ctrl" })))
+        return "not sound";
+    if (hasStart ({ "automation", "assignable", "unassigned" }) || has ({ "qc" })
+        || (has ({ "ch", "bus" }) && has ({ "ins" }) && has ({ "p" }))
+        || (has ({ "slot", "mm", "mod", "matrix" }) && has ({ "source", "target", "destination", "dest", "src" })))
+        return "unknown";
+    // Measured in semitones or cents: tuning (Vital's filters are in semitones: not those).
     {
         std::string u;
         for (char ch : unit) if (! std::isspace ((unsigned char) ch)) u += (char) std::tolower ((unsigned char) ch);
+        if (u == "reserved") return "unknown";
+        // Not an LFO's rate in octaves (Tremolator's RateMod), nor Vital's filters in semitones.
+        const bool notTuning = hasStart ({ "rate", "lfo", "speed", "cutoff", "filter", "freq", "center", "centre", "band", "res", "eq" });
         if (isAny (u, { "st", "ct", "cent", "cents" })) return "pitch";
+        if ((u == "oct" || u.find ("semi") != std::string::npos) && ! notTuning) return "pitch";
+        // A frequency offset in Hz: an oscillator moved off its note (Serum's Hz Offset).
+        if ((u == "hz" || has ({ "hz" })) && has ({ "offset" })) return "pitch";
     }
     // Whole names: a word alone is one thing; in a longer name, often another.
     {
         std::string whole;
         for (auto& w : ws) whole += (whole.empty() ? "" : " ") + w;
         if (isAny (whole, { "in", "amp", "amplifier" })) return "volume";
-        if (isAny (whole, { "key", "scale", "shift", "speed" })) return "pitch";   // Auto-Tune's Key, Valhalla's Shift, a sampler's Speed
+        if (isAny (whole, { "key", "scale", "shift" })) return "pitch";   // Auto-Tune's Key, Valhalla's Shift
+        // A sampler's Speed; not a tape machine's in inches a second (Satin's 7.5/15/30 is its tone).
+        if (whole == "speed" && unit.find ("ips") == std::string::npos) return "pitch";
         if (isAny (whole, { "voices" })) return "not sound";                       // polyphony; Unison Voices is the sound
     }
     if (has ({ "shift" }) && hasStart ({ "freq", "frq" })) return "pitch";
     if (has ({ "speed" }) && has ({ "sample", "tape", "play", "playback" })) return "pitch";
     if (has ({ "pm" }) && ! has ({ "fm" })) return "pitch";                         // Dexed's LFO PM Depth
+    if (has ({ "pb" })) return "pitch";                                             // pitch bend: "PB Range Up"
     // Volume inside a word of its own: FXlevel, OutGain.
     for (auto& w : ws)
         if (w.find ("level") != std::string::npos || w.find ("gain") != std::string::npos || w.find ("volume") != std::string::npos) return "volume";
@@ -359,13 +380,20 @@ std::string whyKept (const std::string& name, const std::string& unit, const std
     }
     // Tuning first ("Master Tune" is tuning), then volume, then what isn't the sound.
     const bool filterSem = has ({ "sem" }) && hasStart ({ "filter" });   // Odin's SEM filter, the Oberheim one
+    // A delay's note is a time (1/8, 1/16), not a pitch: EchoBoy's Echo1Note, "StDly Base Note".
+    const bool noteIsTime = has ({ "echo", "rhythm", "dly", "delay", "sync", "time", "division", "rate", "repeat" });
     for (auto& w : ws)
-        if (startsWithAny (w, { "tune", "retune", "finetun", "pitch", "pbend", "transp", "detun", "semi", "octave", "bend", "vibrato", "drift", "flutter" })
-            || (isAny (w, { "fine", "coarse", "crs", "cent", "cents", "sem", "oct", "note", "root", "vib", "wow" }) && ! (w == "sem" && filterSem)))
+        if (startsWithAny (w, { "tune", "tuning", "tuned", "retune", "finetun", "pitch", "pbend", "transp", "detun", "semi", "octave", "bend",
+                                "vibrato", "drift", "flutter" })
+            || (isAny (w, { "fine", "coarse", "crs", "cent", "cents", "sem", "oct", "note", "root", "vib", "wow" })
+                && ! (w == "sem" && filterSem) && ! (w == "note" && noteIsTime)))
             return "pitch";
+    // An input's or output's mode or envelope is the sound ("Output Mode", "Output Limiter Release").
+    const bool aboutTheLevel = ! has ({ "mode", "type", "select", "routing", "source", "release", "attack", "diffusion" });
     for (auto& w : ws)
-        if (startsWithAny (w, { "volum", "lvl", "loud", "output", "trim", "makeup", "ceiling", "amplitude", "fader", "atten" })
-            || isAny (w, { "vol", "out", "input", "master", "main", "return", "expression" }))
+        if (startsWithAny (w, { "volum", "lvl", "loud", "makeup", "ceiling", "amplitude", "fader", "atten" })
+            || isAny (w, { "vol", "master", "main", "return", "expression" })
+            || (aboutTheLevel && (startsWithAny (w, { "output", "trim" }) || isAny (w, { "out", "input", "expr" }))))
             return "volume";
     if (has ({ "param", "parameter", "macro", "unused", "reserved", "cc" })) return "unknown";
     for (auto& w : ws)
@@ -376,10 +404,16 @@ std::string whyKept (const std::string& name, const std::string& unit, const std
             || isAny (w, { "randomize", "randomise", "mpe", "meter", "meters", "view", "display", "window", "gonio", "next", "prev",
                            "previous", "quality", "hq", "bpm", "sc" }))
             return "not sound";
-    // Where a sound comes from, and what tunes it or switches it off.
-    if (has ({ "osc", "oscillator", "op", "operator", "engine", "sample", "sub", "noise", "layer", "part", "voice", "carrier", "modulator" }))
+    // Where a sound comes from, and what tunes it or switches it off. Serum names its
+    // oscillators A, B and C: a name's first word a lone letter is one.
+    // Only a letter and one word ("A Enable", "A Ratio"): Chromaphone's and Padshop's layers are
+    // A and B too, and their "A Env: On" isn't a source switched off.
+    const bool letterSource = ws.size() == 2 && ws[0].size() == 1 && ws[0][0] >= 'a' && ws[0][0] <= 'e';
+    if (letterSource || has ({ "osc", "oscillator", "op", "operator", "engine", "sample", "sub", "noise", "layer", "part", "voice", "carrier",
+                               "modulator", "vco", "dco" }))
     {
         if (hasStart ({ "freq", "frq", "ratio" })) return "pitch";                  // an oscillator's frequency, an FM ratio
+        if (has ({ "range" })) return "pitch";                                       // its footage, an octave a step
         if (hasStart ({ "keytrack", "kbd", "keyfollow" }) || (has ({ "key" }) && has ({ "track", "follow" }))) return "pitch";
         if (has ({ "switch", "on", "enable", "enabled", "active", "power" })) return "silence";
     }

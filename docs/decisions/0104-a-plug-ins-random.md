@@ -68,6 +68,19 @@ iZotope, OTT, Soothe2, Auto-Tune) from their manuals, not checked.
   of thousands of controls it never finished. Now built in a std::string, on
   a thread of its own; a test of 300 plug-ins with 1,500 controls each hung
   before and takes 5 seconds (unoptimised) now.
+- Amended 21 November: fitted to the musician's own report (508 plug-ins,
+  about 600,000 controls). Every name was judged again by the old and the new
+  rule and each change read. Now kept: MIDI controller slots and host slots
+  (Steinberg's HALion and Groove Agent: "Foot Ctrl", "Data Entry MSB",
+  "Ch1 Ins1 P3", "MM Slot 4 Destination"), Serum's and XILS's tuning
+  ("A Ratio", "A Hz Offset", "Osc 1 Range", "Tuning Mode"), pitch-bend range,
+  anything measured in semitones, cents or octaves. Now random: a delay's
+  note, which is a time (EchoBoy's Echo Note, "StDly Base Note", "LFO Sync
+  Note"); an input's or output's mode or diffusion ("Input Mode", "InOutMode");
+  an LFO's rate in octaves (Tremolator's RateMod); a tape machine's speed
+  (Satin's 7.5/15/30 ips is its tone). Chromaphone's and Padshop's A and B
+  layers stay random: only "A Enable"-style names (a letter and one word) are
+  Serum's oscillators.
 
 - Kept on purpose, costing some randomness, never safety: EQ band gains
   (dB boosts), macros, an envelope's sustain level, Knee Level, note-off
