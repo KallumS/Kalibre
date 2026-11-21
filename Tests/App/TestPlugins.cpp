@@ -381,3 +381,27 @@ TEST ("plug-ins: the Random Settings Report reads every plug-in's controls in th
     for (auto& pc : got) riffer |= pc.type.name == "Riffer" && pc.problem.isEmpty();
     CHECK (riffer);
 }
+
+TEST ("plug-ins: the Random Settings Report of a big library (300 plug-ins, 1,500 controls each) is written in seconds, not frozen (0104)")
+{
+    std::vector<PluginManager::PluginControls> all (300);
+    for (size_t p = 0; p < all.size(); ++p)
+    {
+        all[p].type.name = "Synth " + String ((int) p);
+        all[p].type.manufacturerName = "Maker";
+        all[p].type.pluginFormatName = "VST3";
+        for (int c = 0; c < 1500; ++c)
+            all[p].controls.push_back ({ c % 3 == 0 ? "Osc " + String (c) + " Fine" : "Filter " + String (c) + " Cutoff", c % 7 == 0 ? "Hz" : "" });
+    }
+    const auto started = Time::getMillisecondCounter();
+    int plugins = 0, controls = 0;
+    const auto text = randomReportText (all, &plugins, &controls);
+    const auto took = Time::getMillisecondCounter() - started;
+    std::printf ("    %d plug-ins, %d controls, %d characters, in %u ms\n", plugins, controls, text.length(), took);
+    CHECK_EQ (plugins, 300);
+    CHECK_EQ (controls, 450000);
+    CHECK (text.contains ("== Synth 299 (Maker, VST3) =="));
+    CHECK (text.contains ("kept: pitch"));
+    CHECK (text.contains ("In all: 300 plug-ins, 450000 controls"));
+    CHECK (took < 20000);
+}

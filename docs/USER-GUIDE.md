@@ -153,15 +153,21 @@ of the window, in the middle, under the lower zone:
 | Button | What it does |
 | --- | --- |
 | **⏮ Go to Start** | The cursor to the start (Return). |
-| **▶ Play / ■ Stop** | Space. Playing starts from the cursor. |
+| **⏭ Go to End** | The cursor to where the last clip on the timeline ends (End). |
+| **■ Stop** | Stops, and goes back to the start of the song (Home). |
+| **▶ Play** | Space. Playing starts from the cursor; lit while it plays. Click it (or Space) again to stop and go back to where playing began. |
 | **● Record** | R. Records on armed tracks ([Section 11](#11-recording)). A red ring while recording. |
 | **Loop** | L. Plays the loop range round and round. Draw the range in the lower half of the ruler. |
 | **Punch** | Records only inside the punch range (Transport > Set the Punch Range to the Loop). |
 | **Click** | The metronome. Its subdivisions are in Transport > Metronome Clicks. |
 | **Count-in** | A bar of clicks before recording starts. |
 
+![The transport: Go to Start, Go to End, Stop, Play, Record; Loop, Punch, Click, Count-in](guide/transport.png)
+
 Right-click the transport for the same menu as the top bar's: Loop, Punch,
-Click and Count-in can be hidden there.
+Click and Count-in can be hidden there. In a small window with large text,
+those that don't fit are hidden from the right; they're in the Transport menu
+still.
 
 ### The top bar
 
@@ -1494,7 +1500,9 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | --- | --- |
 | Play / Stop | Space |
 | Record | R |
+| Stop and Go to the Start | Home |
 | Go to the Start | Return |
+| Go to the End | End |
 | Loop | L |
 | Punch In and Out | |
 | Set the Punch Range to the Loop | |
@@ -1569,6 +1577,8 @@ the Mac says ⌘.*
 | --- | --- |
 | Space | Play or Stop |
 | Return | Go to the Start |
+| Home | Stop and Go to the Start |
+| End | Go to the End (where the last clip ends) |
 | R | Record |
 | L | Loop |
 | ⇧⌘R | Capture MIDI |

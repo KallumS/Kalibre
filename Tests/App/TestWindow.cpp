@@ -273,6 +273,52 @@ TEST ("lower zone and browser: a double-click on their dots opens them at their 
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
 
+TEST ("transport: Go to End goes to where the last clip ends; Stop stops and goes back to the start; Go to Start, Go to End, Stop, Play, Record in that order (0107)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id a = edit::addTrack (c.project, TrackKind::Track, "A");
+        const Id b = edit::addTrack (c.project, TrackKind::Track, "B");
+        edit::addMidiClip (c.project, a, 0, PPQ * 4);
+        edit::addMidiClip (c.project, b, PPQ * 10, PPQ * 6);
+        c.refresh();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        auto& t = w.transportBar();
+        CHECK (t.start.getRight() < t.end.getX());
+        CHECK (t.end.getRight() < t.stopButton.getX());
+        CHECK (t.stopButton.getRight() < t.playButton.getX());
+        CHECK (t.playButton.getRight() < t.recordButton.getX());
+
+        t.end.triggerClick();
+        MessageManager::getInstance()->runDispatchLoopUntil (20);
+        CHECK_EQ (c.cursor, PPQ * 16);
+
+        c.locate (PPQ * 2);
+        c.play();
+        CHECK (engine.isPlaying());
+        t.update();
+        CHECK (t.playButton.getToggleState());   // lit while playing, still ▶
+        t.stopButton.triggerClick();
+        MessageManager::getInstance()->runDispatchLoopUntil (20);
+        CHECK (! engine.isPlaying());
+        CHECK_EQ (c.cursor, (Tick) 0);
+        // Stopped already: back to the start too.
+        c.locate (PPQ * 3);
+        c.stopAndGoToStart();
+        CHECK_EQ (c.cursor, (Tick) 0);
+        // The keys: End and Home.
+        CHECK (c.keys.textFor ("end").isNotEmpty());
+        CHECK (c.keys.textFor ("stopStart").isNotEmpty());
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
 TEST ("transport: Go to Start, Play, Record, Loop, Punch, Click and Count-in sit in the middle along the bottom, under the lower zone (0095)")
 {
     theme::LookAndFeel look;
@@ -295,7 +341,7 @@ TEST ("transport: Go to Start, Play, Record, Loop, Punch, Click and Count-in sit
         // Centred: as much room either side.
         const int left = t.start.getX(), right = t.getWidth() - t.countIn.getRight();
         CHECK (std::abs (left - right) <= 2);
-        for (auto* b : { &t.start, &t.playButton, &t.recordButton, &t.loop, &t.punch, &t.click, &t.countIn })
+        for (auto* b : { &t.start, &t.end, &t.stopButton, &t.playButton, &t.recordButton, &t.loop, &t.punch, &t.click, &t.countIn })
             CHECK (b->isVisible());
         // They do what they did at the top.
         CHECK (! c.project.metronome.on);

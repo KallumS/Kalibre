@@ -416,7 +416,7 @@ bool TopBar::inTransport (const String& name)
 TransportBar::TransportBar (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Transport");
-    for (auto* b : { &start, &playButton, &recordButton, &loop, &punch, &click, &countIn })
+    for (auto* b : { &start, &end, &stopButton, &playButton, &recordButton, &loop, &punch, &click, &countIn })
     {
         addAndMakeVisible (b);
         b->onRightClick = [this] { if (onMenu) onMenu(); };
@@ -425,6 +425,10 @@ TransportBar::TransportBar (Controller& ctrl) : c (ctrl)
     recordButton.setTitle ("Record");
     start.setTitle ("Go to Start");
     start.onClick = [this] { c.goToStart(); };
+    end.setTitle ("Go to End");
+    end.onClick = [this] { c.goToEnd(); };
+    stopButton.setTitle ("Stop");
+    stopButton.onClick = [this] { c.stopAndGoToStart(); };
     playButton.onClick = [this] { c.togglePlay(); };
     recordButton.onClick = [this] { c.record(); };
     loop.onClick = [this] { c.toggleLoop(); };
@@ -447,8 +451,7 @@ void TransportBar::update()
 {
     const auto& p = c.project;
     playButton.setToggleState (c.engine.isPlaying(), dontSendNotification);
-    playButton.setButtonText (c.engine.isPlaying() ? String::fromUTF8 ("\xe2\x96\xa0") : String::fromUTF8 ("\xe2\x96\xb6"));
-    playButton.setTitle (c.engine.isPlaying() ? "Stop" : "Play");
+    playButton.setTitle ("Play");   // always ▶, lit while playing: Stop (■) is its own button (0107)
     const bool recording = c.engine.isRecording();
     if (recordButton.getToggleState() != recording) { recordButton.setToggleState (recording, dontSendNotification); repaint(); }
     loop.setToggleState (p.loop.on, dontSendNotification);
@@ -476,10 +479,11 @@ void TransportBar::paint (Graphics& g)
 
 void TransportBar::resized()
 {
-    // In the middle: Go to Start, Play, Record; a gap; Loop, Punch, Click, Count-in.
+    // In the middle: Go to Start, Go to End, Stop, Play, Record; a gap; Loop, Punch, Click, Count-in.
     const int gap = theme::px (6);
     const int ch = theme::px (28);
-    std::vector<std::pair<Component*, int>> row { { &start, theme::px (32) }, { &playButton, theme::px (40) }, { &recordButton, theme::px (32) } };
+    std::vector<std::pair<Component*, int>> row { { &start, theme::px (32) }, { &end, theme::px (32) }, { &stopButton, theme::px (32) },
+                                                  { &playButton, theme::px (40) }, { &recordButton, theme::px (32) } };
     std::vector<std::pair<Component*, int>> toggles;
     for (auto* b : { &loop, &punch, &click, &countIn })
     {
@@ -487,11 +491,22 @@ void TransportBar::resized()
         b->setVisible (shown);
         if (shown) toggles.push_back ({ b, b->idealWidth() });
     }
-    int total = 0;
-    for (auto& [comp, w] : row) total += w + gap;
-    if (! toggles.empty()) total += gap * 2;
-    for (auto& [comp, w] : toggles) total += w + gap;
-    total -= gap;
+    auto width = [&]
+    {
+        int total = 0;
+        for (auto& [comp, w] : row) total += w + gap;
+        if (! toggles.empty()) total += gap * 2;
+        for (auto& [comp, w] : toggles) total += w + gap;
+        return total - gap;
+    };
+    // Too narrow (a small window, large text): the toggles go from the right, rather
+    // than off the edge; they're in the Transport menu still.
+    while (! toggles.empty() && width() > getWidth() - theme::px (8))
+    {
+        toggles.back().first->setVisible (false);
+        toggles.pop_back();
+    }
+    const int total = width();
     int x = (getWidth() - total) / 2;
     const int y = (getHeight() - ch) / 2 + 1;
     for (auto& [comp, w] : row) { comp->setBounds (x, y, w, ch); x += w + gap; }

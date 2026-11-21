@@ -873,6 +873,15 @@ void Controller::locate (Tick t)
 
 void Controller::goToStart() { locate (0); }
 
+// The transport's Go to End and Stop (0107).
+void Controller::goToEnd() { locate (project.lastClipEnd()); }
+
+void Controller::stopAndGoToStart()
+{
+    if (engine.isPlaying()) stop();
+    locate (0);
+}
+
 void Controller::toggleLoop()
 {
     apply (project.loop.on ? "Loop Off" : "Loop On", [] (Project& p) { p.loop.on = ! p.loop.on; });

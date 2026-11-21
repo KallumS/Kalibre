@@ -426,3 +426,19 @@ TEST ("song versions: the one playing is known by its id, which changes only whe
     edit::deleteSongVersion (p, 0);
     CHECK_EQ (p.songId, first);
 }
+
+TEST ("transport: the end of the song is where its last clip ends, on any track; 0 with none (0107)")
+{
+    Project p;
+    CHECK_EQ (p.lastClipEnd(), (Tick) 0);
+    const Id a = edit::addTrack (p, TrackKind::Track, "A");
+    const Id b = edit::addTrack (p, TrackKind::Track, "B");
+    edit::addMidiClip (p, a, 0, PPQ * 4);
+    edit::addMidiClip (p, b, PPQ * 6, PPQ * 3);
+    edit::addMidiClip (p, a, PPQ * 2, PPQ * 2);
+    CHECK_EQ (p.lastClipEnd(), PPQ * 9);
+    // A version not playing doesn't count; muted clips do (they're on the timeline).
+    edit::newVersion (p, b);
+    p.track (b)->clips().clear();
+    CHECK_EQ (p.lastClipEnd(), PPQ * 4);
+}

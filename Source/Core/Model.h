@@ -646,6 +646,8 @@ struct Project
 
     // The end of the last clip, rounded up to a bar; at least 16 bars.
     Tick endTick() const;
+    // Where the last clip on any track ends, as the playing versions have them; 0 with none (0107).
+    Tick lastClipEnd() const;
 
     bool operator== (const Project&) const = default;
 };

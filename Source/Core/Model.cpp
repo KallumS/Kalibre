@@ -112,6 +112,14 @@ Id Project::outputOf (Id id) const
     return t->parent;
 }
 
+Tick Project::lastClipEnd() const
+{
+    Tick end = 0;
+    for (auto& t : tracks)
+        for (auto& c : t.clips()) end = std::max (end, c.end());
+    return end;
+}
+
 Tick Project::endTick() const
 {
     Tick end = 0;
