@@ -224,3 +224,49 @@ TEST ("random settings: pitch tools and utilities have no Random; synths and eff
     for (auto* n : { "Serum", "Vital", "Tunefish 4", "Kalibre Synth", "Pro-Q 3", "Valhalla VintageVerb", "Decapitator", "OTT", "Surge XT" })
         CHECK (whyNoRandom (n).empty());
 }
+
+
+TEST ("random settings: names from the musician's own plug-ins (the Random Settings Report of 508): Serum 2, XILS 4, EchoBoy, HALion, Groove Agent (0104)")
+{
+    using randomsong::whyKept;
+    auto kept = [] (const char* n, const char* unit, const char* why)
+    {
+        const auto got = whyKept (n, unit);
+        if (got != why) std::printf ("    %s [%s]: %s, not %s\n", n, unit, got.c_str(), why);
+        CHECK_EQ (got, std::string (why));
+    };
+    // Tuning, however it's written.
+    kept ("Main Tuning", "", "pitch");
+    kept ("VCO1 Tuning", "semi-tone", "pitch");
+    kept ("Global Tuning ", "semi-tone", "pitch");
+    kept ("TuningMode", "", "pitch");
+    kept ("Spread", "semitones", "pitch");
+    kept ("A Hz Offset", "Hz", "pitch");
+    kept ("A Ratio", "", "pitch");
+    kept ("Osc 3 Range", "", "pitch");
+    kept ("VCO2 Range", "", "pitch");
+    kept ("PB Range Up", "", "pitch");
+    // Serum's oscillators are A, B and C: switched off, silence.
+    kept ("A Enable", "", "silence");
+    kept ("B Enable", "", "silence");
+    // Expression is volume.
+    kept ("Expr. LSB", "", "not sound");
+    kept ("Expression", "", "volume");
+    // MIDI's controllers and host slots, as Steinberg's instruments name them: not the sound.
+    for (auto* n : { "Contr. 14", "SoundCont 5", "Gen.Purp.5", "FootCt LSB", "BrthCt LSB", "DataEntMSB", "DataEntLSB", "Data Incr ",
+                     "Non-RegLSB", "Reg MSB", "OmniModeOn", "OmniModOff", "Local Ctrl", "BreathCtrl" })
+        kept (n, "", "not sound");
+    for (auto* n : { "Automation 160", "Host Automation 24", "Assignable 84", "Unassigned:112", "S10 L3 QC6", "S31 QC9 not in use",
+                     "Ch 14 Ins 1 P 9", "Bus 2 Ins 1 P 10", "Slot 8 Source", "Slot 2 Target", "MM Destination 7" })
+        kept (n, "", "unknown");
+
+    // Still the sound: a delay's note value, modes beside an output, a filter in semitones.
+    for (auto* n : { "Echo1Note", "RhythmNote", "FX2 StDly Right Base Note", "FX3 VChor Output Mode", "Output Limiter Release",
+                     "Cutoff", "Filter 2 Key-Trk", "VCO 2 FM Ctrl In 2 Amt", "Legato Sw", "Slope", "A Env: On", "B Arp Enable",
+                     "A EQ Mid2 Freq", "B LFO 1 Frequency", "RateMod", "Speed", "FX1 Rotry Amp Expr Mod Mode" })
+    {
+        const auto why = whyKept (n, std::string (n) == "Cutoff" ? "semitones" : std::string (n) == "RateMod" ? "oct" : std::string (n) == "Speed" ? "ips" : "");
+        if (! why.empty()) std::printf ("    %s: %s\n", n, why.c_str());
+        CHECK (why.empty());
+    }
+}
