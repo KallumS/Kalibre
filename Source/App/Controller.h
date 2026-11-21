@@ -13,6 +13,7 @@
 #include "WorkClock.h"
 #include "Library.h"
 #include "RandomSong.h"
+#include "DrumKit.h"
 #include "Edit.h"
 #include "AutoCc.h"
 #include "Engine.h"
@@ -291,6 +292,11 @@ public:
     // not playing has its plug-ins unloaded and its audio let go of, its settings kept.
     // Choosing one is an undo step; it plays on from where it was if it was playing.
     void newSongVersion();
+    // Kalibre Drums (0105): the device a plug-in instance is, and its pattern dropped on a track at a tick.
+    Id deviceOf (const juce::AudioProcessor*) const;
+    Id dropDrumPattern (const juce::AudioProcessor* drums, Id track, Tick at);
+    // The kit of the track's Kalibre Drums, if it plays one: the drum grid's rows (0105).
+    std::optional<drumkit::Kit> drumKitOn (Id track) const;
     void chooseSongVersion (int index);
     void deleteSongVersion (int index);
     // Freeze (decision 0080): the track rendered, quietly, through its own plug-ins to a

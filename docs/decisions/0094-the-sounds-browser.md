@@ -92,6 +92,14 @@ its own speed.
 
 ## Consequences
 
+- Amended 21 November: a first scan of a big library was saved only when
+  it finished, and quitting gave the scan four seconds to stop, so it began
+  again at every start. The index is now saved every few seconds while
+  sounds are read, so a scan cut short carries on where it was; only new
+  and changed files are read, and the Sounds tab says "Checking N sounds
+  for changes…" while the rest are only looked at.
+
+
 - A sample's tempo is only known from its name or its ACID chunk. Loops
   without either play at their own speed; Sync can't stretch them.
 - Previews are rendered before they play: a long sample, stretched, takes a

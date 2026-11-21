@@ -2040,13 +2040,21 @@ void Arrange::filesDropped (const StringArray& files, int x, int y)
 
 bool Arrange::isInterestedInDragSource (const SourceDetails& d)
 {
-    return d.description.toString().startsWith ("plugin:") || d.description.toString().startsWith ("file:");
+    const auto t = d.description.toString();
+    return t.startsWith ("plugin:") || t.startsWith ("file:") || t.startsWith ("drums:");
 }
 
 void Arrange::itemDropped (const SourceDetails& d)
 {
     const auto* row = rowAt (d.localPosition.y);
     const auto text = d.description.toString();
+    if (text.startsWith ("drums:"))
+    {
+        // Kalibre Drums' pattern (0105), dragged from its window: a clip where it's let go.
+        const auto* from = reinterpret_cast<const AudioProcessor*> ((pointer_sized_int) text.fromFirstOccurrenceOf ("drums:", false, false).getHexValue64());
+        c.dropDrumPattern (from, row && row->isClips() ? row->track : 0, c.arrangeSnap (std::max<Tick> (0, tickAt ((float) d.localPosition.x))));
+        return;
+    }
     if (text.startsWith ("file:"))
     {
         filesDropped ({ text.fromFirstOccurrenceOf ("file:", false, false) }, d.localPosition.x, d.localPosition.y);

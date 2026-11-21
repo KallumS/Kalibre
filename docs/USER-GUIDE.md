@@ -780,6 +780,7 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 | Device | Kind | What it is |
 | --- | --- | --- |
 | **Kalibre Synth** | Instrument | A simple synthesiser. |
+| **Kalibre Drums** | Instrument | A drum kit: pads of samples or plug-ins, with its own steps that play with the song or drag out to the timeline. [Below](#kalibre-drums). |
 | **Kalibre Sampler** | Instrument | Plays a sample three ways (**Mode**): **Keys**, across the keyboard; **Slices**, cut at its hits, a key each from the root note up; **Granular**, as many short grains, so **Speed** changes how fast it plays without changing its pitch (0 holds it still). [Below](#kalibre-sampler). |
 | **Trombolese** | Instrument | A physical model of a trombone crossed with an oboe: one note at a time, sliding between held notes; Bore and Reed morph, the mod wheel on the bore. In tune from note 34 to 84. |
 | **Hardware Insert** | Effect | Outboard gear in the chain: out to the interface and back, its round trip measured. |
@@ -817,6 +818,50 @@ never clicks; keys past the last slice play nothing. Split a drum loop
 into a kit: Slices, then play the hits from the keys.
 
 ![Kalibre Sampler in Slices: a drum loop cut at its hits, a key each](guide/sampler-slices.png)
+
+### Kalibre Drums
+
+A drum kit with its own steps. **Add > Kalibre > Kalibre Drums**.
+
+![Kalibre Drums: samples on most pads, a synth on the clap, a beat in its steps](guide/kalibre-drums.png)
+
+**Pads.** Eight to start (Kick, Snare, Clap, Closed Hat, Open Hat, Low Tom,
+High Tom, Crash), up to 16 with **+ Pad**. Each plays a **sample** or a
+**plug-in**:
+
+- **Drag a sound** from the Sounds tab (or the Finder) onto a pad's row.
+- **Drag a plug-in** from the browser onto a pad's row, or right-click the
+  pad > **Play It with a Plug-in**: a drum synth plays that pad. Click the
+  pad's name to see its plug-in beside the steps.
+- **Random Samples** gives every pad a sound from your Sounds folders: a kick
+  for the kick, a snare for the snare, read from the names of the sounds and
+  their folders ("Kick 05", "BD_808", "Snares/", "HH Closed", "OHH"). Only
+  short one-shots, never loops; never the same one twice. Pads with
+  plug-ins keep them. Click again for others; **Undo** for the last.
+
+Click a pad's name to hear it. **M** mutes it; the two knobs are its volume
+and pan. Right-click a pad for **Rename…**, **Played by** (its note),
+**Choose a Sample…**, **Note Sent to the Plug-in**, **Clear Its Sound**,
+**Choke Group** (pads in a group stop each other: the closed hat stops the
+open one, as on a real kit) and **Take Out This Pad**.
+
+**Steps.** Click a step on or off; drag along a row to paint; **Option**-click
+for a loud, then a soft hit. **16 Steps ▾** chooses 8 to 64 steps, each an
+eighth, a sixteenth, a sixteenth triplet or a thirty-second. **Swing** plays
+every second step later. **Random Beat** is a new groove from Good Idea on
+your pads, every click. **Clear** takes every hit out.
+
+**Play Pattern** (lit) plays the steps while the song plays, from the song's
+start and round the loop. **Drag to Timeline**: drag it onto a track in the
+arrangement and the beat is a clip there, which the drum grid opens to change
+or vary it. On the drums' own track, Play Pattern switches off, so the beat
+isn't heard twice. Clips' notes play the pads, so beats can live in clips,
+section by section.
+
+On a track playing Kalibre Drums, the **drum grid** (Editor > Drums) has the
+kit's pads for rows, with their names, and its Random puts every hit on one.
+
+Every change in it is one undo step.
 
 ### The Container
 

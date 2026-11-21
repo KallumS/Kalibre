@@ -1,4 +1,5 @@
 #include "DeviceRack.h"
+#include "DrumMachine.h"
 #include "NoteSplitterEditor.h"
 
 #include "Modulation.h"
@@ -742,6 +743,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     for (auto& [maker, menu] : byMaker[2]) effects.addSubMenu (maker, menu);
     kalibre.addItem ("Kalibre Synth", [&c, track] { c.addBuiltIn (track, synthRef(), DeviceRole::Instrument); });
     kalibre.addItem ("Kalibre Sampler", [&c, track] { c.addBuiltIn (track, samplerRef(), DeviceRole::Instrument); });
+    kalibre.addItem ("Kalibre Drums (a Kit of Samples and Plug-ins, with Steps)", [&c, track] { c.addBuiltIn (track, drumsRef(), DeviceRole::Instrument); });
     kalibre.addItem ("Trombolese (a Trombone Crossed with an Oboe)", [&c, track] { c.addBuiltIn (track, tromboleseRef(), DeviceRole::Instrument); });
     kalibre.addItem ("Hardware Insert (Outboard Gear)", [&c, track] { c.addBuiltIn (track, hardwareInsertRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();

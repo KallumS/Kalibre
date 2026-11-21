@@ -72,6 +72,7 @@ protected:
 
     void read();
     void write (const juce::String& label);
+    std::vector<patterns::Lane> kitLanes (int steps) const;
     int stepsFor (const Clip&) const;
     juce::Rectangle<int> cellArea() const;
     int nameWidth() const { return theme::px (96); }

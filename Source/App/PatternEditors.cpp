@@ -153,6 +153,20 @@ int DrumGrid::stepsFor (const Clip& clip) const
     return jlimit (1, 64, (int) (patterns::windowOf (clip).length / jmax<Tick> (1, c.grid)));
 }
 
+// The rows: the pads of the track's Kalibre Drums, named as they're named there (0105); else General MIDI's usual kit.
+std::vector<patterns::Lane> DrumGrid::kitLanes (int steps) const
+{
+    const Track* owner = nullptr;
+    if (c.project.clip (c.selectedClip, &owner) && owner)
+        if (const auto kit = c.drumKitOn (owner->id))
+        {
+            std::vector<patterns::Lane> lanes;
+            for (auto& p : kit->pads) lanes.push_back ({ p.name, p.note, std::vector<int> ((size_t) steps, 0), {}, {}, {}, {} });
+            return lanes;
+        }
+    return patterns::standardKit (steps);
+}
+
 void DrumGrid::read()
 {
     const auto* clip = c.project.clip (c.selectedClip);
@@ -162,7 +176,7 @@ void DrumGrid::read()
     grid.steps = stepsFor (*clip);
     grid.swing = clip->drumsFeel.swing;
     grid.gate = clip->drumsFeel.gate;
-    grid.lanes = patterns::standardKit (grid.steps);
+    grid.lanes = kitLanes (grid.steps);
     grid = patterns::readGrid (clip->midi, grid, patterns::windowOf (*clip).from, NoteFrom::Drums);
     feel.set (clip->drumsFeel);
 }
@@ -213,9 +227,23 @@ void DrumGrid::random()
     const auto idea = ideas::drums (bars, meter.numerator, meter.denominator, newSeed());
     if (! idea.error.empty()) { c.say ("Good Idea's engine failed: " + String (idea.error), true); return; }
     MidiData made;
-    for (auto n : idea.notes) { n.from = NoteFrom::Drums; made.notes.push_back (n); }
+    const Track* owner = nullptr;
+    c.project.clip (clip->id, &owner);
+    const auto kit = owner ? c.drumKitOn (owner->id) : std::nullopt;
+    for (auto n : idea.notes)
+    {
+        n.from = NoteFrom::Drums;
+        // Played by Kalibre Drums: each hit on the pad nearest its kind (0105).
+        if (kit)
+        {
+            const int pad = drumkit::padFor (*kit, n.pitch);
+            if (pad < 0) continue;
+            n.pitch = kit->pads[(size_t) pad].note;
+        }
+        made.notes.push_back (n);
+    }
     auto layout = grid;
-    layout.lanes = patterns::standardKit (grid.steps);
+    layout.lanes = kitLanes (grid.steps);
     grid = patterns::readGrid (made, layout, 0, NoteFrom::Drums);
     write ("Random Drums");
     c.say (said (idea), false, true);

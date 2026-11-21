@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "DrumMachine.h"
 #include "LibraryScanner.h"
 #include "ReaperScripts.h"
 #include "NoteSplitter.h"
@@ -29,6 +30,19 @@ Controller::Controller (Engine& e) : engine (e)
     insertToolBlock = [this] (AudioPluginInstance& from, const ToolBlock& b) { return placeToolBlock (from, b); };
     setJsfxExportHandler ([this] (AudioPluginInstance& from, const AudioBuffer<float>& audio, double rate) { printFromDevice (from, audio, rate); });
     engine.cache.onReady = [this] { syncEngine(); sendChangeMessage(); };
+    // Kalibre Drums (0105): each edit in its window one undo step; its Random Samples from the Sounds tab.
+    DrumMachine::edit = [this] (DrumMachine& dm, const String& label, std::function<void()> change)
+    {
+        const Id id = deviceOf (&dm);
+        if (id == 0) { change(); return; }
+        storeDeviceStates();
+        const Project before = project;
+        change();
+        changedDevice = id;
+        pluginChanged (before, label);
+    };
+    DrumMachine::sounds = [this] { return soundsIndex ? soundsIndex() : nullptr; };
+    DrumMachine::say = [this] (const String& m, bool warning) { say (m, warning, ! warning); };
     engine.onAudioReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onLearned = [this] (int channel, int controller)
     {
@@ -102,6 +116,9 @@ Controller::~Controller()
     setJsfxExportHandler ({});
     reaperScripts.reset();
     engine.cache.onReady = nullptr;
+    DrumMachine::edit = nullptr;
+    DrumMachine::sounds = nullptr;
+    DrumMachine::say = nullptr;
     engine.onTouched = nullptr;
     engine.onMessage = nullptr;
     insertToolBlock = nullptr;
@@ -1737,6 +1754,64 @@ void Controller::chooseVersion (const std::vector<Id>& ids, int index)
     if (! missing.empty())
         say (String ((int) missing.size()) + (missing.size() == 1 ? " track has" : " tracks have") + " no version " + String (index + 1)
              + ", so " + (missing.size() == 1 ? "it stays" : "they stay") + " as " + (missing.size() == 1 ? "it is." : "they are."));
+}
+
+Id Controller::deviceOf (const AudioProcessor* p) const
+{
+    if (p == nullptr) return 0;
+    auto in = [&] (const Track& t) -> Id { for (auto& d : t.devices) if (engine.instance (d.id) == p) return d.id; return 0; };
+    for (auto& t : project.tracks) if (auto id = in (t)) return id;
+    for (auto& t : project.cue) if (auto id = in (t)) return id;
+    return in (project.master);
+}
+
+std::optional<drumkit::Kit> Controller::drumKitOn (Id track) const
+{
+    const auto* t = project.track (track);
+    if (! t) return std::nullopt;
+    for (auto& d : t->devices)
+        if (d.active)
+            if (auto* dm = dynamic_cast<DrumMachine*> (engine.instance (d.id))) return dm->kit();
+    return std::nullopt;
+}
+
+// The drums' pattern dragged onto the arrangement (0105): a clip of the drum grid's
+// notes; on the device's own track its pattern is switched off, so it isn't heard twice.
+Id Controller::dropDrumPattern (const AudioProcessor* from, Id track, Tick at)
+{
+    const Id dev = deviceOf (from);
+    auto* dm = dynamic_cast<DrumMachine*> (engine.instance (dev));
+    if (! dm) return 0;
+    Track* owner = nullptr;
+    project.device (dev, &owner);
+    const auto* target = project.track (track);
+    if (! target || ! target->holdsClips()) track = owner ? owner->id : 0;
+    if (track == 0) return 0;
+    const auto kit = dm->kit();
+    Clip clip;
+    clip.kind = Clip::Kind::Midi;
+    clip.name = "Beat";
+    clip.start = std::max<Tick> (0, at);
+    clip.length = drumkit::patternLength (kit);
+    clip.midi = drumkit::patternNotes (kit);
+    for (auto& n : clip.midi.notes) n.id = 0;
+    storeDeviceStates();
+    const Project before = project;
+    const bool own = owner && owner->id == track;
+    if (own && kit.playsPattern)
+    {
+        auto off = kit;
+        off.playsPattern = false;
+        dm->setKit (off);
+    }
+    const Id made = edit::addClip (project, track, clip);
+    changedDevice = own ? dev : 0;
+    pluginChanged (before, "Drag the Beat to the Timeline");
+    selectClip (made);
+    say (own && kit.playsPattern ? "The beat is a clip on the timeline, which the drum grid opens. Kalibre Drums' own pattern is switched off, "
+                                   "so it isn't heard twice: Play Pattern turns it back on."
+                                 : "The beat is a clip on the timeline, which the drum grid opens.", false, true);
+    return made;
 }
 
 void Controller::newSongVersion()
