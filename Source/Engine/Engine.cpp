@@ -266,7 +266,7 @@ void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
         if (learning.load() && midimap::keyOf (bytes, channel, controller))
         {
             learning = false;
-            MessageManager::callAsync ([this, channel, controller] { if (onLearned) onLearned (channel, controller); });
+            MessageManager::callAsync ([this, alive = std::weak_ptr<bool> (aliveToken), channel, controller] { if (! alive.expired() && onLearned) onLearned (channel, controller); });
             return;
         }
         const std::lock_guard<std::mutex> lock (mappingLock);
@@ -275,7 +275,7 @@ void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
         {
             const auto map = mappings[(size_t) index];
             const double value = midimap::normalised (bytes);
-            MessageManager::callAsync ([this, map, value] { if (onMapped) onMapped (map, value); });
+            MessageManager::callAsync ([this, alive = std::weak_ptr<bool> (aliveToken), map, value] { if (! alive.expired() && onMapped) onMapped (map, value); });
             return;
         }
     }
@@ -285,7 +285,7 @@ void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
     {
         const int pitch = m.getNoteNumber(), velocity = m.getVelocity();
         const bool on = m.isNoteOn();
-        MessageManager::callAsync ([this, pitch, velocity, on] { if (onStepKey) onStepKey (pitch, velocity, on); });
+        MessageManager::callAsync ([this, alive = std::weak_ptr<bool> (aliveToken), pitch, velocity, on] { if (! alive.expired() && onStepKey) onStepKey (pitch, velocity, on); });
     }
 
     auto queued = m;
@@ -331,8 +331,9 @@ Id Engine::deviceIdOf (AudioProcessor* p) const
 
 void Engine::touched (AudioProcessor* p, int index, float value, int gesture)
 {
-    auto send = [this, p, index, value, gesture]
+    auto send = [this, alive = std::weak_ptr<bool> (aliveToken), p, index, value, gesture]
     {
+        if (alive.expired()) return;   // sent from another thread, arrived after this engine had gone
         const Id dev = deviceIdOf (p);
         if (dev == 0 || ! onTouched) return;
         Touch t;
@@ -360,8 +361,9 @@ void Engine::audioProcessorParameterChangeGestureEnd (AudioProcessor* p, int ind
 void Engine::audioProcessorChanged (AudioProcessor* p, const ChangeDetails& d)
 {
     if (d.latencyChanged)
-        MessageManager::callAsync ([this, p]
+        MessageManager::callAsync ([this, alive = std::weak_ptr<bool> (aliveToken), p]
         {
+            if (alive.expired()) return;
             // The wrapper takes on the plug-in's new latency before the graph lines things up again.
             for (auto& [id, node] : deviceNodes)
                 if (pluginOf (node) == p)
@@ -369,7 +371,8 @@ void Engine::audioProcessorChanged (AudioProcessor* p, const ChangeDetails& d)
             graph.rebuild();
         });
     if (d.nonParameterStateChanged && onDevicePluginChanged)
-        MessageManager::callAsync ([this] { if (onDevicePluginChanged) onDevicePluginChanged(); });
+        // Only while this engine lives: a message can arrive after it has gone (a test's engine, or a song closed).
+        MessageManager::callAsync ([this, alive = std::weak_ptr<bool> (aliveToken)] { if (! alive.expired() && onDevicePluginChanged) onDevicePluginChanged(); });
 }
 
 // Delay compensation and automation (0096): a track's lanes are drawn for the

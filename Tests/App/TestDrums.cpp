@@ -509,3 +509,43 @@ TEST ("sampler: Random Sample loads any sound from the Sounds folders, a new one
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("engine: a message a plug-in sent arrives safely after its controller, or its engine, has gone (the macOS crash after 0108)")
+{
+    // A controller gone, the engine still here: nothing of the controller's is left to call.
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        {
+            Controller c (engine);
+            CHECK ((bool) engine.onDevicePluginChanged);
+        }
+        CHECK (! engine.onDevicePluginChanged);
+        CHECK (! engine.onAudioReady);
+        CHECK (! engine.onLearned);
+        CHECK (! engine.onMapped);
+        CHECK (! engine.onStepKey);
+        CHECK (! engine.onTouched);
+    }
+    // An engine gone with a plug-in's "my settings changed" still on its way: it's dropped.
+    {
+        int calls = 0;
+        {
+            PluginManager plugins;
+            Engine engine (plugins);
+            Controller c (engine);
+            c.project = Project();
+            const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+            const Id dev = edit::addDevice (c.project, t, samplerRef(), DeviceRole::Instrument);
+            c.refresh();
+            auto* s = dynamic_cast<KalibreSampler*> (engine.instance (dev));
+            CHECK (s != nullptr);
+            if (! s) return;
+            engine.onDevicePluginChanged = [&calls] { ++calls; };
+            String error;
+            CHECK (s->load (flatSound ("Late", 0.2, 0.3f), error));   // tells the engine, by a message
+        }
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        CHECK_EQ (calls, 0);
+    }
+}

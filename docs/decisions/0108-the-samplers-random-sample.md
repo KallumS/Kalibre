@@ -35,3 +35,12 @@ the app: nothing scanned said and nothing changed; a pad heard as A3 loaded
 with its Root Note A3; a loop next, the Root Note kept; each an undo step;
 undone to the pad, then to none (Root back to C4); a dropped sound one undo
 step. Hear it on the Mac.
+
+- Amended 21 November: the macOS tests crashed (segfault, then a bus error
+  a test earlier) though Linux passed. A plug-in's "my settings changed"
+  (`updateHostDisplay`), which every sample loaded now sends, reached the
+  engine as a message holding a raw `this`; when the test's engine, or its
+  controller, was gone before it arrived, it ran on freed memory. The
+  engine's messages now check its alive token, and the Controller clears the
+  engine's callbacks when it goes. A test failed first (the callbacks left
+  set; the message delivered to a gone engine) and passes now.

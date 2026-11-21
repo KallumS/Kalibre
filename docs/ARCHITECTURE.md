@@ -168,6 +168,7 @@ performance core, each as soon as what feeds it is done (0078).
 - A plug-in's role is `PluginManager::roleOf` (the user's filing, what the scan learned, then the description), never the static `roleFor` alone (0069).
 - Nothing important along the bottom but the transport (0095, asked for): the message line stays at the top.
 - Kalibre Sampler's slices are found on the audio thread from `candidates`, made when the sample loads: never call `transients` there (it allocates).
+- A message the engine sends itself (`MessageManager::callAsync`) carries `std::weak_ptr<bool> (aliveToken)` and does nothing once it's expired; the Controller clears every engine callback it set (`onDevicePluginChanged`, `onLearned`...) in its destructor. A message can arrive after either has gone: on the Mac a plug-in's "settings changed" arriving after its engine crashed the tests (0108).
 - The crash handler may only use calls safe in a signal handler: no allocation, no JUCE (0073).
 - Audio Kalibre writes for itself goes through `audiofile::floatWav` (0079); audio brought in that isn't 32-bit float WAV is copied as one.
 - Rendering one track (`Engine::renderTrack`, freeze and bounce, 0080) wires only it out; an offline plan leaves out what can't reach the output.

@@ -136,8 +136,14 @@ Controller::~Controller()
     KalibreSampler::edit = nullptr;
     KalibreSampler::sounds = nullptr;
     KalibreSampler::say = nullptr;
+    // Every engine callback that comes back here: a message sent before this went can arrive after.
     engine.onTouched = nullptr;
     engine.onMessage = nullptr;
+    engine.onDevicePluginChanged = nullptr;
+    engine.onAudioReady = nullptr;
+    engine.onLearned = nullptr;
+    engine.onMapped = nullptr;
+    engine.onStepKey = nullptr;
     insertToolBlock = nullptr;
 }
 
