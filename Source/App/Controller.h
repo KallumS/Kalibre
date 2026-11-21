@@ -33,6 +33,8 @@ namespace kal
 // says of it (its bypass, meters, its own input and output gain, controls a host can't set),
 // then its name and unit (randomsong::whyKept).
 juce::String randomVerdict (const PluginManager::Control&, const juce::String& plugin);
+// The Random Settings Report's text: every plug-in's controls, each random or kept and why.
+juce::String randomReportText (const std::vector<PluginManager::PluginControls>&, int* plugins = nullptr, int* controls = nullptr);
 
 // VST3 effects once filed as MIDI effects, put right on opening (decision 0058).
 void refileEffects (Project&, const PluginManager&);
@@ -386,7 +388,8 @@ public:
     // Every scanned plug-in's controls, each marked random or kept and why, written to `out`
     // (Plug-in Manager > Random Settings Report..., 0104). Each plug-in is read in the helper.
     void randomSettingsReport (const juce::File& out);
-    bool settingByChance = false;   // the plug-in's own reports of those changes aren't touches
+    bool settingByChance = false;
+    std::shared_ptr<bool> alive = std::make_shared<bool> (true);   // for work finished off the message thread   // the plug-in's own reports of those changes aren't touches
     void pluginChanged (const Project& before, const juce::String& label);
     Id changedDevice = 0;
 

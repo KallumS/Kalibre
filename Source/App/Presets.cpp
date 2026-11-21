@@ -165,6 +165,50 @@ int Controller::randomSettings (Id deviceId, unsigned seed)
     return changed;
 }
 
+// Written into a std::string, which grows by doubling: a juce::String grows only
+// as far as each append needs, so hundreds of thousands of lines were copied
+// whole at every one, and Kalibre froze at the end of a big library's report.
+String randomReportText (const std::vector<PluginManager::PluginControls>& all, int* pluginCount, int* controlCount)
+{
+    std::string text;
+    size_t lines = 0;
+    for (auto& pc : all) lines += pc.controls.size() + 2;
+    text.reserve (lines * 48 + 512);
+    auto add = [&text] (const String& s) { text += s.toStdString(); };
+    add ("Kalibre: Random Settings Report, " + Time::getCurrentTime().toString (true, true) + "\n\n"
+         "Every control of every plug-in Kalibre has scanned, and whether a plug-in's Random button changes it\n"
+         "(decision 0104). \"random\": chance may change it. \"kept\": it's left as it is, and why.\n\n");
+    int plugins = 0, random = 0, keptCount = 0;
+    for (auto& pc : all)
+    {
+        ++plugins;
+        add ("== " + pc.type.name + " (" + pc.type.manufacturerName + ", " + pc.type.pluginFormatName + ")");
+        if (const auto why = randomsong::whyNoRandom (pc.type.name.toStdString()); ! why.empty())
+        {
+            text += ": no Random, " + why + " ==\n\n";
+            continue;
+        }
+        if (pc.controls.empty()) { add (": " + (pc.problem.isNotEmpty() ? pc.problem : String ("no controls")) + " ==\n\n"); continue; }
+        text += " ==\n";
+        for (auto& ctl : pc.controls)
+        {
+            const auto why = randomVerdict (ctl, pc.type.name);
+            (why.isEmpty() ? random : keptCount) += 1;
+            std::string label = why.isEmpty() ? std::string ("random") : "kept: " + why.toStdString();
+            if (label.size() < 18) label.append (18 - label.size(), ' ');
+            text += "  " + label + ctl.name.toStdString();
+            if (ctl.unit.trim().isNotEmpty()) text += " (" + ctl.unit.trim().toStdString() + ")";
+            text += "\n";
+        }
+        text += "\n";
+    }
+    text += "In all: " + std::to_string (plugins) + " plug-ins, " + std::to_string (random + keptCount) + " controls, "
+          + std::to_string (random) + " random, " + std::to_string (keptCount) + " kept.\n";
+    if (pluginCount) *pluginCount = plugins;
+    if (controlCount) *controlCount = random + keptCount;
+    return String::fromUTF8 (text.data(), (int) text.size());
+}
+
 void Controller::randomSettingsReport (const File& out)
 {
     auto& pm = engine.plugins();
@@ -176,36 +220,23 @@ void Controller::randomSettingsReport (const File& out)
     };
     pm.readControls (progress, [this, out] (std::vector<PluginManager::PluginControls> all)
     {
-        String text;
-        text << "Kalibre: Random Settings Report, " << Time::getCurrentTime().toString (true, true) << "\n\n"
-             << "Every control of every plug-in Kalibre has scanned, and whether a plug-in's Random button changes it\n"
-             << "(decision 0104). \"random\": chance may change it. \"kept\": it's left as it is, and why.\n\n";
-        int plugins = 0, random = 0, keptCount = 0;
-        for (auto& pc : all)
+        say ("Writing the Random Settings Report" + ui::u8 ("\xe2\x80\xa6"));
+        // Written on a thread of its own: a big library's report is millions of characters.
+        auto shared = std::make_shared<std::vector<PluginManager::PluginControls>> (std::move (all));
+        Thread::launch ([shared, out, alive = std::weak_ptr<bool> (alive), this]
         {
-            ++plugins;
-            text << "== " << pc.type.name << " (" << pc.type.manufacturerName << ", " << pc.type.pluginFormatName << ")";
-            if (const auto why = randomsong::whyNoRandom (pc.type.name.toStdString()); ! why.empty())
+            int plugins = 0, controls = 0;
+            const auto text = randomReportText (*shared, &plugins, &controls);
+            const bool written = out.replaceWithText (text);
+            MessageManager::callAsync ([=]
             {
-                text << ": no Random, " << String (why) << " ==\n\n";
-                continue;
-            }
-            if (pc.controls.empty()) { text << ": " << (pc.problem.isNotEmpty() ? pc.problem : String ("no controls")) << " ==\n\n"; continue; }
-            text << " ==\n";
-            for (auto& ctl : pc.controls)
-            {
-                const auto why = randomVerdict (ctl, pc.type.name);
-                (why.isEmpty() ? random : keptCount) += 1;
-                text << "  " << (why.isEmpty() ? String ("random") : "kept: " + why).paddedRight (' ', 18) << ctl.name
-                     << (ctl.unit.trim().isNotEmpty() ? " (" + ctl.unit.trim() + ")" : String()) << "\n";
-            }
-            text << "\n";
-        }
-        text << "In all: " << plugins << " plug-ins, " << (random + keptCount) << " controls, " << random << " random, " << keptCount << " kept.\n";
-        if (! out.replaceWithText (text)) { say ("The Random Settings Report couldn't be written to " + out.getFullPathName() + ".", true); return; }
-        out.revealToUser();
-        say ("The Random Settings Report is on your Desktop: " + out.getFileName() + " (" + String (plugins) + " plug-ins, "
-             + String (random + keptCount) + " controls).");
+                if (alive.expired()) return;
+                if (! written) { say ("The Random Settings Report couldn't be written to " + out.getFullPathName() + ".", true); return; }
+                out.revealToUser();
+                say ("The Random Settings Report is on your Desktop: " + out.getFileName() + " (" + String (plugins) + " plug-ins, "
+                     + String (controls) + " controls).");
+            });
+        });
     });
 }
 
