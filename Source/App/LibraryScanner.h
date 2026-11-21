@@ -5,8 +5,10 @@
     It runs on its own thread. Only files Kalibre can read are looked at
     (audio formats this Mac can decode, and MIDI), and a file already in the
     index is read again only if its size or date has changed, so after the
-    first time a scan takes moments. What it learns is handed to the message
-    thread in batches (`onChange`), and the index is saved when it's done.
+    first time a scan only checks. What it learns is handed to the message
+    thread in batches (`onChange`), and the index is saved every few seconds
+    while it reads and when it's done, so a first scan cut short by quitting
+    carries on where it was.
 */
 
 #pragma once
@@ -39,6 +41,11 @@ public:
     int filesFound() const { return found.load(); }
     int filesRead() const { return read.load(); }
     int filesAnalysed() const { return analysed.load(); }   // read again this scan: new or changed
+    int filesToRead() const { return toRead.load(); }       // new or changed, to be read this scan
+    // The index is saved this often while reading (and when done), so a scan cut
+    // short (Kalibre quit mid-way) carries on where it was next time.
+    int saveEveryMs = 5000;
+    std::function<void()> afterEach;   // tests: called on the scan's thread after each sound read
     std::function<void()> onChange;
 
     // "*.wav;*.flac;...;*.mid;*.midi": every file this Mac's Kalibre can read.
@@ -57,7 +64,7 @@ private:
     library::Index shared;               // the thread's latest, handed over
     bool fresh = false;
     std::vector<std::string> folders;    // set before the thread starts
-    std::atomic<int> found { 0 }, read { 0 }, analysed { 0 };
+    std::atomic<int> found { 0 }, read { 0 }, analysed { 0 }, toRead { 0 };
 
     void run() override;
     void handleAsyncUpdate() override;

@@ -176,6 +176,44 @@ TEST ("sounds: the chosen folders are scanned for what Kalibre can read, each on
     CHECK (later.index().items == scanner.index().items);
 }
 
+TEST ("sounds: what a scan has read is saved as it goes, so one stopped part-way (Kalibre quit) carries on where it was; known sounds are only checked")
+{
+    const auto dir = libraryFolder ("scan-resume");
+    WavAudioFormat wav;
+    for (int i = 0; i < 30; ++i) writeAudio (dir.getChildFile ("Hit " + String (i) + ".wav"), wav, 0.2);
+    const auto indexFile = libraryFolder ("scan-resume-store").getChildFile ("Library Index.json");
+    indexFile.deleteFile();
+    WaitableEvent paused, carryOn;
+    const auto atQuit = indexFile.getSiblingFile ("Library Index at quit.json");
+    {
+        LibraryScanner first (indexFile);
+        first.saveEveryMs = 0;   // after every sound, so the test needn't wait
+        std::atomic<int> seen { 0 };
+        first.afterEach = [&] { if (++seen == 10) { paused.signal(); carryOn.wait (20000); } };
+        first.scan ({ dir.getFullPathName().toStdString() });
+        CHECK (paused.wait (20000));
+        CHECK_EQ (first.filesToRead(), 30);
+        // What's on the disk if Kalibre were quit here and the scan cut off.
+        atQuit.deleteFile();
+        CHECK (indexFile.copyFileTo (atQuit));
+        carryOn.signal();
+        CHECK (first.waitUntilDone (20000));
+    }
+    // The next start knows the ten, and reads only the rest.
+    LibraryScanner later (atQuit);
+    CHECK ((int) later.index().items.size() >= 10);
+    later.scan ({ dir.getFullPathName().toStdString() });
+    CHECK (later.waitUntilDone (20000));
+    CHECK (later.filesAnalysed() <= 20);
+    CHECK_EQ ((int) later.index().items.size(), 30);
+    // Nothing new: every sound is only checked, none read.
+    LibraryScanner again (indexFile);
+    again.scan ({ dir.getFullPathName().toStdString() });
+    CHECK (again.waitUntilDone (20000));
+    CHECK_EQ (again.filesToRead(), 0);
+    CHECK_EQ (again.filesAnalysed(), 0);
+}
+
 TEST ("sounds: a preview follows the song's tempo with Sync on, a sample when its tempo is known, MIDI always; off, as made")
 {
     const auto dir = makeSounds ("preview");

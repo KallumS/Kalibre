@@ -40,6 +40,7 @@ void LibraryScanner::scan (const std::vector<std::string>& toScan)
     found = 0;
     read = 0;
     analysed = 0;
+    toRead = 0;
     startThread (Thread::Priority::low);
 }
 
@@ -184,28 +185,39 @@ void LibraryScanner::run()
         fresh = true;
         triggerAsyncUpdate();
     };
-    handOver();
-    auto lastHandOver = Time::getMillisecondCounter();
-    int n = 0;
+    auto save = [this, &work]
+    {
+        indexFile.getParentDirectory().createDirectory();
+        indexFile.replaceWithText (library::toJson (work));
+    };
+    // Only what's new or changed is read; the rest was only checked.
+    std::vector<std::pair<std::string, std::pair<int64, int64>>> pending;
     for (auto& [path, info] : files)
     {
-        if (threadShouldExit()) break;
-        ++n;
         const auto cached = work.items.find (path);
-        if (! library::needsScan (cached != work.items.end() ? &cached->second : nullptr, info.first, info.second)) { read = n; continue; }
+        if (library::needsScan (cached != work.items.end() ? &cached->second : nullptr, info.first, info.second)) pending.push_back ({ path, info });
+    }
+    toRead = (int) pending.size();
+    handOver();
+    auto lastHandOver = Time::getMillisecondCounter(), lastSave = lastHandOver;
+    int n = 0;
+    for (auto& [path, info] : pending)
+    {
+        if (threadShouldExit()) break;
         library::Item item;
         analyse (File (path), item, fm);
         ++analysed;
         item.size = info.first;
         item.modified = info.second;
         work.items[path] = std::move (item);
-        read = n;
-        if (Time::getMillisecondCounter() - lastHandOver > 400) { handOver(); lastHandOver = Time::getMillisecondCounter(); }
+        read = ++n;
+        const auto now = Time::getMillisecondCounter();
+        if (now - lastSave >= (uint32) jmax (0, saveEveryMs)) { save(); lastSave = now; }
+        if (now - lastHandOver > 400) { handOver(); lastHandOver = now; }
+        if (afterEach) afterEach();
     }
-    read = (int) files.size();
     handOver();
-    indexFile.getParentDirectory().createDirectory();
-    indexFile.replaceWithText (library::toJson (work));
+    save();
 }
 
 void LibraryScanner::handleAsyncUpdate()

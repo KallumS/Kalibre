@@ -636,8 +636,8 @@ String LibraryView::status() const
 {
     if (s.folders.empty()) return "No folders chosen yet.";
     if (scan->scanning())
-        return scan->filesRead() > 0 ? "Reading " + String (scan->filesRead()) + " of " + String (scan->filesFound()) + u8 (" sounds\xe2\x80\xa6")
-                                     : "Looking for sounds" + u8 ("\xe2\x80\xa6") + " " + String (scan->filesFound()) + " found";
+        return scan->filesToRead() > 0 ? "Reading new sounds: " + String (scan->filesRead()) + " of " + String (scan->filesToRead()) + u8 ("\xe2\x80\xa6")
+                                       : "Checking " + String (scan->filesFound()) + " sounds for changes" + u8 ("\xe2\x80\xa6");
     int items = 0;
     for (auto& r : rows) if (r.type == library::Row::Type::Item) ++items;
     int total = 0;
