@@ -104,3 +104,7 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0100. Midi Suggester's engine, for chords, a bass and melodies](0100-midi-suggesters-engine.md)
 - [0101. The Random button: a whole song by chance; a new song lets go of the last one's plug-ins](0101-the-random-button.md)
 - [0102. Random devices in the rack, a random scale, and plug-ins that can't load](0102-random-devices-and-scale.md)
+- [0103. Song versions 1 and 2; versions not playing are unloaded](0103-song-versions-and-versions-unloaded.md)
+- [0104. A plug-in's Random: its controls by chance, volume, tuning and pitch left alone](0104-a-plug-ins-random.md)
+- [0105. Kalibre Drums: a kit of samples and plug-ins, with its own steps](0105-kalibre-drums.md)
+- [0106. Telling drum sounds: name, length and the shape of the hit; the scan at half a million sounds](0106-telling-drum-sounds.md)

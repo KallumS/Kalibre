@@ -102,8 +102,28 @@ public:
     juce::File listFile() const { return file; }
     juce::File logFile() const { return file.getSiblingFile ("Plug-in Scan.log"); }
 
+    // The Random Settings Report (decision 0104): every scanned plug-in's controls,
+    // read by opening each in the helper again, so one that crashes can't close
+    // Kalibre; Kalibre's own devices are read here. `done` is called on the
+    // message thread with every plug-in, in the list's order.
+    struct Control
+    {
+        juce::String name, unit;
+        int category = 0;               // juce::AudioProcessorParameter::Category
+        bool automatable = true, meta = false, bypass = false;
+    };
+    struct PluginControls
+    {
+        juce::PluginDescription type;
+        std::vector<Control> controls;
+        juce::String problem;           // why it couldn't be read
+    };
+    void readControls (Progress, std::function<void (std::vector<PluginControls>)> done);
+    bool readingControls() const { return controlsReader != nullptr; }
+    static std::vector<Control> controlsOf (juce::AudioProcessor&);
+
     // The helper. main() hands over when the first argument is workerFlag:
-    //   Kalibre --kalibre-scan <format> <file or identifier> <result file>
+    //   Kalibre --kalibre-scan <format> <file or identifier> <result file> [controls]
     static constexpr const char* workerFlag = "--kalibre-scan";
     static int runWorker (int argc, char* argv[]);
     // Every format, in the app and in the helper. Tests add their own here.
@@ -135,6 +155,11 @@ private:
     };
     class Worker;
     std::unique_ptr<Worker> worker;
+    class ControlsReader;
+    std::unique_ptr<ControlsReader> controlsReader;
+    std::function<void (std::vector<PluginControls>)> controlsDone;
+    void finishControls();
+    std::shared_ptr<bool> alive = std::make_shared<bool> (true);
     std::mutex resultsLock;
     std::vector<Result> results;
     size_t total = 0, done = 0;

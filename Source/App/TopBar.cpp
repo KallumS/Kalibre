@@ -29,6 +29,15 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
         addAndMakeVisible (b);
         b->onRightClick = [this] { showMenu(); };
     }
+    for (int i = 0; i < 2; ++i)
+    {
+        auto& b = i == 0 ? songOne : songTwo;
+        addAndMakeVisible (b);
+        b.setTitle ("Song Version " + String (i + 1));
+        b.setClickingTogglesState (false);
+        b.onClick = [this, i] { c.chooseSongVersion (i); };
+        b.onRightClick = [this, i] { songVersionMenu (i); };
+    }
     addAndMakeVisible (undoMessage);
     for (auto* r : { &position, &tempo, &signature, &grid, &scale, &chord, &timer, &cpu, &load })
     {
@@ -112,7 +121,7 @@ TopBar::~TopBar() { c.removeChangeListener (this); }
 const StringArray& TopBar::hideable()
 {
     static const StringArray names { "Loop", "Punch", "Click", "Count-in", "Position", "Tempo", "Tap", "Time Signature",
-                                     "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay", "Random" };
+                                     "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay", "Song Versions", "Random" };
     return names;
 }
 
@@ -121,7 +130,7 @@ static int widthOf (const String& name)
 {
     static const std::map<String, int> w { { "Loop", 52 }, { "Punch", 64 }, { "Click", 56 }, { "Count-in", 82 }, { "Position", 130 },
                                            { "Tempo", 80 }, { "Tap", 46 }, { "Time Signature", 56 }, { "Grid", 64 }, { "Scale", 150 },
-                                           { "Chord", 170 }, { "Timer", 104 }, { "Follow", 70 }, { "CPU", 56 }, { "Delay", 76 }, { "Random", 80 } };
+                                           { "Chord", 170 }, { "Timer", 104 }, { "Follow", 70 }, { "CPU", 56 }, { "Delay", 76 }, { "Song Versions", 64 }, { "Random", 80 } };
     auto it = w.find (name);
     return it == w.end() ? 0 : it->second;
 }
@@ -173,6 +182,7 @@ Component* TopBar::itemNamed (const String& name)
 {
     static const char* names[] { "Position", "Tempo", "Tap", "Time Signature", "Grid", "Scale", "Chord", "Timer", "Follow", "CPU", "Delay", "Random" };
     Component* items[] { &position, &tempo, &tap, &signature, &grid, &scale, &chord, &timer, &follow, &load, &cpu, &random };
+    if (name == "Song Versions") return &songOne;   // songTwo follows it
     for (size_t i = 0; i < std::size (names); ++i) if (name == names[i]) return items[i];
     return nullptr;
 }
@@ -194,6 +204,15 @@ void TopBar::resized()
     {
         const int rw = random.idealWidth();
         random.setBounds (r.removeFromRight (rw).withSizeKeepingCentre (rw, ch));
+        r.removeFromRight (gap * 2);
+    }
+    // Song versions 1 and 2 (0103), beside it.
+    if (shown ("Song Versions"))
+    {
+        const int side = ch + theme::px (4);
+        songTwo.setBounds (r.removeFromRight (side).withSizeKeepingCentre (side, ch));
+        r.removeFromRight (theme::px (3));
+        songOne.setBounds (r.removeFromRight (side).withSizeKeepingCentre (side, ch));
         r.removeFromRight (gap * 2);
     }
     // Where the song is, and what it's in (the transport is at the bottom of the window, 0095).
@@ -225,6 +244,7 @@ void TopBar::resized()
     for (auto& name : hideable())
         if (auto* comp = itemNamed (name))
             comp->setVisible (shown (name.toRawUTF8()) && comp->getRight() <= getWidth() - theme::px (4) && comp->getWidth() >= theme::px (24));
+    songTwo.setVisible (songOne.isVisible());
 
     const int barsHeight = (twoRows ? 2 : 1) * rowH;
     auto m = getLocalBounds().withTop (barsHeight).reduced (theme::px (12), theme::px (2));
@@ -271,6 +291,21 @@ void TopBar::update()
         if (timer.value != shown || timer.label != label) { timer.value = shown; timer.label = label; timer.repaint(); }
     }
     chord.setTitle ("Chord: " + (name.isEmpty() ? String ("none") : name));
+    {
+        // Song versions (0103): the one playing lit; 2 in the quieter grey until it's made.
+        const int playing = p.songVersion;
+        const bool two = p.songVersions() == 2;
+        songOne.setToggleState (playing == 0, dontSendNotification);
+        songTwo.setToggleState (playing == 1, dontSendNotification);
+        songTwo.setColour (TextButton::textColourOffId, two ? theme::text : theme::textSecondary);
+        const String tipOne = playing == 0 ? "Song version 1, playing." : "Song version 1. Click to play it: its plug-ins load again as they were, and version 2's are unloaded.";
+        const String tipTwo = ! two ? "Song version 2. Click to make it: a copy of the whole song to change freely, with 1 kept as it is. "
+                                      "The version not playing has its plug-ins unloaded and its audio let go of, so it costs almost nothing."
+                            : playing == 1 ? "Song version 2, playing."
+                                           : "Song version 2. Click to play it: its plug-ins load again as they were, and version 1's are unloaded.";
+        if (songOne.getTooltip() != theme::wrapTip (tipOne + " Right-click for more.")) songOne.setTip (tipOne + " Right-click for more.");
+        if (songTwo.getTooltip() != theme::wrapTip (tipTwo + " Right-click for more.")) songTwo.setTip (tipTwo + " Right-click for more.");
+    }
 
     const int latency = c.engine.latencySamples();
     cpu.value = String (latency * 1000.0 / jmax (1.0, c.engine.sampleRate()), 1) + " ms";
@@ -325,6 +360,18 @@ std::vector<int> TopBar::heldPitches() const
 }
 
 // Right-click the bar: what it shows, and how often the CPU reading changes (0070).
+void TopBar::songVersionMenu (int index)
+{
+    PopupMenu m;
+    const bool two = c.project.songVersions() == 2;
+    m.addItem (index == 0 ? "Play Song Version 1" : two ? "Play Song Version 2" : "New Song Version", index != c.project.songVersion,
+               false, [this, index] { c.chooseSongVersion (index); });
+    m.addItem ("Delete Song Version " + String (index + 1), two, false, [this, index] { c.deleteSongVersion (index); });
+    m.addSeparator();
+    m.addItem ("Show in the Bar...", [this] { showMenu(); });
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (index == 0 ? &songOne : &songTwo));
+}
+
 void TopBar::showMenu()
 {
     PopupMenu m;

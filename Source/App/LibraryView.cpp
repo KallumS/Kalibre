@@ -71,7 +71,7 @@ void drawSound (Graphics& g, const library::Item& it, Rectangle<float> r, Colour
     }
 }
 
-String details (const library::Item& it)
+String details (const library::Item& it, const drumsound::Verdict* drum = nullptr)
 {
     String s;
     if (it.kind == library::Kind::Midi)
@@ -86,6 +86,8 @@ String details (const library::Item& it)
     if (it.bpm > 0)
         s << " " << u8 ("\xc2\xb7") << " " << (it.tempoTrusted() ? "" : "about ")
           << String (it.bpm, it.bpm == std::floor (it.bpm) ? 0 : 1) << " BPM";
+    // A drum, and which (0106): heard when its name and folders don't say.
+    if (drum && drum->drum) s << " " << u8 ("\xc2\xb7") << " " << String (drumsound::nameOf (drum->kind)) << (drum->heard ? " (Heard)" : "");
     return s;
 }
 
@@ -132,7 +134,8 @@ struct LibraryView::Strip : public Component
         g.drawText (File (path).getFileNameWithoutExtension(), inner.removeFromTop ((float) theme::px (16)), Justification::centredLeft, true);
         g.setColour (theme::textSecondary);
         g.setFont (theme::font (theme::smallPoints));
-        g.drawText (details (*it), inner.removeFromTop ((float) theme::px (14)), Justification::centredLeft, true);
+        const auto drum = view.drumOf (*it);
+        g.drawText (details (*it, &drum), inner.removeFromTop ((float) theme::px (14)), Justification::centredLeft, true);
         if (const auto h = heard (*it); h.isNotEmpty())
             g.drawText (h, inner.removeFromTop ((float) theme::px (14)), Justification::centredLeft, true);
         inner.removeFromTop (4);
@@ -197,7 +200,8 @@ struct LibraryView::Model : public ListBoxModel
         {
             g.setColour (theme::textSecondary);
             g.setFont (theme::font (theme::smallPoints));
-            g.drawText (details (*it), textX, h * 3 / 5, textW, h * 2 / 5, Justification::topLeft, true);
+            const auto drum = view.drumOf (*it);
+            g.drawText (details (*it, &drum), textX, h * 3 / 5, textW, h * 2 / 5, Justification::topLeft, true);
             drawSound (g, *it, Rectangle<int> (w - thumbW - 6, 4, thumbW, h - 8).toFloat(), theme::edge);
         }
     }
@@ -328,7 +332,7 @@ LibraryView::LibraryView (Controller& ctrl)
         b->setRadioGroupId (41);
         b->setClickingTogglesState (true);
     }
-    for (auto* b : { &foldersView, &flatView, &favouritesOnly, &orderButton, &syncButton, &autoPlayButton, &editFolders })
+    for (auto* b : { &foldersView, &flatView, &favouritesOnly, &drumsButton, &orderButton, &syncButton, &autoPlayButton, &editFolders })
         addAndMakeVisible (b);
     addChildComponent (chooseButton);
     foldersView.onClick = [this] { if (s.flat) { s.flat = false; saveSettings(); refreshRows(); } };
@@ -343,6 +347,8 @@ LibraryView::LibraryView (Controller& ctrl)
         strip->repaint();
     };
     orderButton.onClick = [this] { orderMenu(); };
+    drumsButton.setClickingTogglesState (false);
+    drumsButton.onClick = [this] { drumsMenu(); };
     editFolders.onClick = [this] { if (onEditFolders) onEditFolders(); else chooseFolders(); };
     chooseButton.onClick = [this] { chooseFolders(); };
 
@@ -407,10 +413,23 @@ std::string LibraryView::chosenPath() const
     return preview->playingPath().toStdString();
 }
 
+// Drums (0106): every sound, every drum, or one kind of drum.
+void LibraryView::drumsMenu()
+{
+    PopupMenu m;
+    m.addItem ("All Sounds", true, ! s.drumsOnly, [this] { s.drumsOnly = false; saveSettings(); refreshRows(); });
+    m.addItem ("All Drums", true, s.drumsOnly && s.drumKind < 0, [this] { s.drumsOnly = true; s.drumKind = -1; saveSettings(); refreshRows(); });
+    m.addSeparator();
+    for (auto k : drumsound::kinds())
+        m.addItem (String (drumsound::nameOf (k)) + (k == drumsound::Kind::Percussion ? String() : String ("s")), true, s.drumsOnly && s.drumKind == (int) k,
+                   [this, k] { s.drumsOnly = true; s.drumKind = (int) k; saveSettings(); refreshRows(); });
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&drumsButton));
+}
+
 void LibraryView::refreshRows()
 {
     const auto chosen = listBox.getSelectedRow() >= 0 && listBox.getSelectedRow() < (int) rows.size() ? rows[(size_t) listBox.getSelectedRow()].path : std::string();
-    rows = library::rows (scan->index(), s, filter.toStdString());
+    rows = library::rows (scan->index(), s, filter.toStdString(), &drumCache);
     listBox.updateContent();
     // The same one stays chosen, wherever it is now.
     int again = -1;
@@ -420,6 +439,8 @@ void LibraryView::refreshRows()
     foldersView.setToggleState (! s.flat, dontSendNotification);
     flatView.setToggleState (s.flat, dontSendNotification);
     favouritesOnly.setToggleState (s.favouritesOnly, dontSendNotification);
+    drumsButton.setToggleState (s.drumsOnly, dontSendNotification);
+    drumsButton.setButtonText ((s.drumsOnly && s.drumKind >= 0 ? String (drumsound::nameOf ((drumsound::Kind) s.drumKind)) : String ("Drums")) + u8 (" \xe2\x96\xbe"));
     syncButton.setToggleState (s.sync, dontSendNotification);
     autoPlayButton.setToggleState (s.autoPlay, dontSendNotification);
     orderButton.setButtonText (s.shuffled ? u8 ("Shuffled \xe2\x96\xbe") : u8 ("A to Z \xe2\x96\xbe"));
@@ -635,15 +656,16 @@ void LibraryView::askOnFirstRun (std::function<void()> chose)
 String LibraryView::status() const
 {
     if (s.folders.empty()) return "No folders chosen yet.";
+    if (scan->openingIndex()) return "Opening the list of your sounds" + u8 ("\xe2\x80\xa6");
     if (scan->scanning())
-        return scan->filesRead() > 0 ? "Reading " + String (scan->filesRead()) + " of " + String (scan->filesFound()) + u8 (" sounds\xe2\x80\xa6")
-                                     : "Looking for sounds" + u8 ("\xe2\x80\xa6") + " " + String (scan->filesFound()) + " found";
+        return scan->filesToRead() > 0 ? "Reading new sounds: " + String (scan->filesRead()) + " of " + String (scan->filesToRead()) + u8 ("\xe2\x80\xa6")
+                                       : "Checking " + String (scan->filesFound()) + " sounds for changes" + u8 ("\xe2\x80\xa6");
     int items = 0;
     for (auto& r : rows) if (r.type == library::Row::Type::Item) ++items;
     int total = 0;
     for (auto& [p, it] : scan->index().items) if (it.readable) ++total;
     const String folders = String ((int) s.folders.size()) + ((int) s.folders.size() == 1 ? " folder" : " folders");
-    if (filter.isNotEmpty() || s.favouritesOnly) return String (items) + " of " + String (total) + " sounds";
+    if (filter.isNotEmpty() || s.favouritesOnly || s.drumsOnly) return String (items) + " of " + String (total) + " sounds";
     return String (total) + " sounds in " + folders;
 }
 
@@ -681,7 +703,7 @@ void LibraryView::resized()
         for (auto* b : buttons) { b->setBounds (line.removeFromLeft (w)); line.removeFromLeft (gap); }
         r.removeFromTop (4);
     };
-    row ({ &foldersView, &flatView, &favouritesOnly });
+    row ({ &foldersView, &flatView, &favouritesOnly, &drumsButton });
     row ({ &orderButton, &syncButton, &autoPlayButton, &editFolders });
     r.removeFromTop (theme::px (20));   // the status line
     strip->setBounds (r.removeFromTop (theme::px (106)));

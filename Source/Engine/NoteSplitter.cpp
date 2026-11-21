@@ -66,7 +66,7 @@ void NoteSplitOutput::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
     const auto now = from ? from->played.load (std::memory_order_acquire) : seen;
     if (from == nullptr || now == seen)
     {
-        // The splitter didn't play (bypassed, parked, removed): what it started, ended.
+        // The splitter didn't play (bypassed, unloaded, removed): what it started, ended.
         for (int key = 0; key < (int) sounding.size(); ++key)
             if (sounding[(size_t) key])
             {

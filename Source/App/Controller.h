@@ -13,6 +13,7 @@
 #include "WorkClock.h"
 #include "Library.h"
 #include "RandomSong.h"
+#include "DrumKit.h"
 #include "Edit.h"
 #include "AutoCc.h"
 #include "Engine.h"
@@ -28,6 +29,11 @@
 
 namespace kal
 {
+// Why a device's Random leaves a control alone (decision 0104), or empty: what the plug-in
+// says of it (its bypass, meters, its own input and output gain, controls a host can't set),
+// then its name and unit (randomsong::whyKept).
+juce::String randomVerdict (const PluginManager::Control&, const juce::String& plugin);
+
 // VST3 effects once filed as MIDI effects, put right on opening (decision 0058).
 void refileEffects (Project&, const PluginManager&);
 
@@ -282,6 +288,17 @@ public:
     void newVersion (Id track);
     // Chooses version `index` (0-3) on each of these tracks that has it (decision 0050).
     void chooseVersion (const std::vector<Id>& tracks, int index);
+    // Song versions (decision 0103), the top bar's 1 and 2: the whole song twice. The one
+    // not playing has its plug-ins unloaded and its audio let go of, its settings kept.
+    // Choosing one is an undo step; it plays on from where it was if it was playing.
+    void newSongVersion();
+    // Kalibre Drums (0105): the device a plug-in instance is, and its pattern dropped on a track at a tick.
+    Id deviceOf (const juce::AudioProcessor*) const;
+    Id dropDrumPattern (const juce::AudioProcessor* drums, Id track, Tick at);
+    // The kit of the track's Kalibre Drums, if it plays one: the drum grid's rows (0105).
+    std::optional<drumkit::Kit> drumKitOn (Id track) const;
+    void chooseSongVersion (int index);
+    void deleteSongVersion (int index);
     // Freeze (decision 0080): the track rendered, quietly, through its own plug-ins to a
     // 32-bit float WAV, and its plug-ins unloaded with their states kept. Unfreezing
     // deletes the render and loads them again as they were.
@@ -361,6 +378,15 @@ public:
     void loadProgram (Id device, int index);
     void switchAB (Id device);           // the other of the two settings being compared
     void copyToOther (Id device);        // the one heard now becomes the other too
+    // The device's Random button (decision 0104): every control set by chance but
+    // those for volume, tuning and pitch (randomsong::keepsItsValue), and meters.
+    // One undo step. Returns how many were changed. `seed` 0: a new chance each time.
+    int randomSettings (Id device, unsigned seed = 0);
+    juce::String whyNoRandom (Id device) const;   // "a pitch tool", "a utility", or empty
+    // Every scanned plug-in's controls, each marked random or kept and why, written to `out`
+    // (Plug-in Manager > Random Settings Report..., 0104). Each plug-in is read in the helper.
+    void randomSettingsReport (const juce::File& out);
+    bool settingByChance = false;   // the plug-in's own reports of those changes aren't touches
     void pluginChanged (const Project& before, const juce::String& label);
     Id changedDevice = 0;
 
@@ -452,6 +478,10 @@ private:
     void syncEngine();
     std::map<Id, int> deviceStates() const;
     void reloadChangedStates (const std::map<Id, int>&);
+    // Undo and Redo that change which version plays (0103): the settings of the
+    // plug-ins being unloaded, as they are now, go into the version they rest in.
+    void carryPlayingStates (const Project& was);
+    Id syncedSongId = 0;   // the song version the engine's plug-ins are for (0103)
     std::vector<song::TrackMix> lastMix;   // the mix as last synced, for grouped tracks
     void timerCallback() override;
     void finishRecording();

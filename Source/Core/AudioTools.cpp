@@ -483,4 +483,36 @@ int noteOf (const float* x, int n, double rate, double* centsOut)
     return note;
 }
 
+HitShape hitShape (const float* x, int n, double rate)
+{
+    HitShape h;
+    if (x == nullptr || n <= 0 || rate <= 0) return h;
+    n = std::min (n, (int) (rate * 10.0));
+    // The loudest of each millisecond.
+    const int w = std::max (1, (int) (rate / 1000.0));
+    const int frames = (n + w - 1) / w;
+    std::vector<float> env ((size_t) frames, 0.0f);
+    for (int i = 0; i < n; ++i) env[(size_t) (i / w)] = std::max (env[(size_t) (i / w)], std::abs (x[i]));
+    const float top = *std::max_element (env.begin(), env.end());
+    if (top < 1.0e-4f) return h;
+    int onset = 0;
+    while (onset < frames && env[(size_t) onset] < 0.1f * top) ++onset;
+    int risen = onset;
+    while (risen < frames && env[(size_t) risen] < 0.9f * top) ++risen;
+    h.onsetMs = onset * 1000.0 * w / rate;
+    h.attackMs = (risen - onset) * 1000.0 * w / rate;
+    // The last tenth of the sound, against its loudest.
+    const int tailFrom = std::max (onset, frames - std::max (1, frames / 10));
+    double sum = 0;
+    for (int f = tailFrom; f < frames; ++f) sum += env[(size_t) f];
+    const double tail = sum / std::max (1, frames - tailFrom);
+    h.tailDb = tail > 1.0e-9 ? 20.0 * std::log10 (tail / top) : -120.0;
+    // Brightness: zero crossings a second, just after it starts.
+    const int from = onset * w, to = std::min (n, from + (int) (rate * 0.05));
+    int crossings = 0;
+    for (int i = from + 1; i < to; ++i) if ((x[i - 1] < 0) != (x[i] < 0)) ++crossings;
+    h.zcr = to - from > 1 ? crossings * rate / (to - from) : 0;
+    return h;
+}
+
 } // namespace kal::audiotools

@@ -1,4 +1,6 @@
 #include "LibraryScanner.h"
+
+#include <fstream>
 #include "AudioTools.h"
 #include "Loudness.h"
 
@@ -15,14 +17,39 @@ double audioFileTempo (const String& fileName, const StringPairArray& metadata)
     return acid >= 40 && acid <= 300 ? acid : 0;
 }
 
-LibraryScanner::LibraryScanner (File f) : Thread ("Kalibre library scan"), indexFile (std::move (f))
+LibraryScanner::LibraryScanner (File f, int64 openLaterOver) : Thread ("Kalibre library scan"), indexFile (std::move (f))
 {
-    if (indexFile.existsAsFile()) library::fromJson (indexFile.loadFileAsString().toStdString(), live);
+    // A big index (tens of thousands of sounds) is opened on the scan's thread when
+    // it starts, so Kalibre isn't held up opening; a small one at once.
+    if (indexFile.existsAsFile())
+    {
+        if (indexFile.getSize() > openLaterOver) pendingOpen = true;
+        else
+        {
+            std::ifstream in (indexFile.getFullPathName().toStdString(), std::ios::binary);
+            library::readIndex (in, live);
+        }
+    }
+}
+
+// Written beside it and then put in its place, so a save cut short (Kalibre quit,
+// the Mac turned off) leaves the last one whole.
+bool LibraryScanner::saveIndex (const library::Index& index, const File& to)
+{
+    to.getParentDirectory().createDirectory();
+    const auto part = to.getSiblingFile (to.getFileName() + ".part");
+    {
+        std::ofstream out (part.getFullPathName().toStdString(), std::ios::binary | std::ios::trunc);
+        if (! out || ! library::writeIndex (index, out)) return false;
+    }
+    return part.moveFileTo (to);
 }
 
 LibraryScanner::~LibraryScanner()
 {
-    stopThread (4000);
+    // Time for the scan to save what it has read since its last save (a few
+    // seconds with half a million sounds); cut off, the last save stays whole.
+    stopThread (15000);
     cancelPendingUpdate();
 }
 
@@ -35,11 +62,17 @@ String LibraryScanner::wildcard()
 
 void LibraryScanner::scan (const std::vector<std::string>& toScan)
 {
+    {
+        // Still opening the index: it scans these folders once it's open.
+        const ScopedLock sl (lock);
+        if (pendingOpen && isThreadRunning()) { folders = toScan; return; }
+    }
     stopThread (4000);
     folders = toScan;
     found = 0;
     read = 0;
     analysed = 0;
+    toRead = 0;
     startThread (Thread::Priority::low);
 }
 
@@ -67,11 +100,37 @@ void LibraryScanner::listen (AudioFormatReader& r, library::Item& it)
     std::vector<float> mono ((size_t) n);
     for (int i = 0; i < n; ++i) mono[(size_t) i] = buf.getNumChannels() > 1 ? 0.5f * (left[i] + right[i]) : left[i];
     it.note = audiotools::noteOf (mono.data(), n, r.sampleRate, &it.cents);
+    const auto shape = audiotools::hitShape (mono.data(), n, r.sampleRate);   // 0106
+    it.onsetMs = shape.onsetMs;
+    it.attackMs = shape.attackMs;
+    it.tailDb = shape.tailDb;
+    it.zcr = shape.zcr;
     if (it.bpm <= 0)
     {
         const auto g = audiotools::tempoOf (mono.data(), n, r.sampleRate);
         if (g.bpm > 0) { it.bpm = g.bpm; it.bpmFrom = library::Item::TempoFrom::Heard; it.loop = g.loop; }
     }
+}
+
+// A sound read by the last version of the scan (0095): only its hit's shape (0106)
+// added, from as much as a drum could be (8.5 seconds), not all of it heard again.
+bool LibraryScanner::topUp (const File& f, library::Item& it, AudioFormatManager& fm)
+{
+    std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (f));
+    if (! r || r->sampleRate <= 0 || r->lengthInSamples <= 0) return false;
+    const int n = (int) jmin<int64> (r->lengthInSamples, (int64) (r->sampleRate * 8.5));
+    AudioBuffer<float> buf (jmax (1, jmin (2, (int) r->numChannels)), n);
+    if (! r->read (&buf, 0, n, 0, true, buf.getNumChannels() > 1)) return false;
+    std::vector<float> mono ((size_t) n);
+    for (int i = 0; i < n; ++i)
+        mono[(size_t) i] = buf.getNumChannels() > 1 && r->numChannels > 1 ? 0.5f * (buf.getSample (0, i) + buf.getSample (1, i)) : buf.getSample (0, i);
+    const auto shape = audiotools::hitShape (mono.data(), n, r->sampleRate);
+    it.onsetMs = shape.onsetMs;
+    it.attackMs = shape.attackMs;
+    it.tailDb = shape.tailDb;
+    it.zcr = shape.zcr;
+    it.analysis = library::analysisVersion;
+    return true;
 }
 
 bool LibraryScanner::analyse (const File& f, library::Item& it, AudioFormatManager& fm)
@@ -150,9 +209,31 @@ bool LibraryScanner::analyse (const File& f, library::Item& it, AudioFormatManag
 void LibraryScanner::run()
 {
     library::Index work;
+    if (pendingOpen)
+    {
+        opening = true;
+        {
+            std::ifstream in (indexFile.getFullPathName().toStdString(), std::ios::binary);
+            library::readIndex (in, work);
+        }
+        {
+            const ScopedLock sl (lock);
+            shared = work;
+            fresh = true;
+            pendingOpen = false;
+        }
+        opening = false;
+        triggerAsyncUpdate();
+    }
+    else
     {
         const ScopedLock sl (lock);
         work = live;   // live isn't changed off the message thread while this runs: it's only replaced here, from `shared`
+    }
+    std::vector<std::string> folders;
+    {
+        const ScopedLock sl (lock);
+        folders = this->folders;
     }
     AudioFormatManager fm;
     fm.registerBasicFormats();
@@ -184,28 +265,41 @@ void LibraryScanner::run()
         fresh = true;
         triggerAsyncUpdate();
     };
-    handOver();
-    auto lastHandOver = Time::getMillisecondCounter();
-    int n = 0;
+    auto save = [this, &work] { saveIndex (work, indexFile); };
+    // Only what's new or changed is read; the rest was only checked.
+    std::vector<std::pair<std::string, std::pair<int64, int64>>> pending;
     for (auto& [path, info] : files)
     {
-        if (threadShouldExit()) break;
-        ++n;
         const auto cached = work.items.find (path);
-        if (! library::needsScan (cached != work.items.end() ? &cached->second : nullptr, info.first, info.second)) { read = n; continue; }
+        if (library::needsScan (cached != work.items.end() ? &cached->second : nullptr, info.first, info.second)) pending.push_back ({ path, info });
+    }
+    toRead = (int) pending.size();
+    handOver();
+    // A big library is handed to the list less often: each hand-over copies it.
+    const uint32 handOverEvery = work.items.size() + pending.size() > 20000 ? 15000u : 400u;
+    auto lastHandOver = Time::getMillisecondCounter();
+    int n = 0, sinceSave = 0;
+    for (auto& [path, info] : pending)
+    {
+        if (threadShouldExit()) break;
         library::Item item;
-        analyse (File (path), item, fm);
+        const auto cached = work.items.find (path);
+        const bool onlyShape = cached != work.items.end() && cached->second.size == info.first && cached->second.modified == info.second
+                            && cached->second.kind == library::Kind::Audio && cached->second.analysis == 2;
+        if (onlyShape) { item = cached->second; if (! topUp (File (path), item, fm)) item.analysis = library::analysisVersion; }
+        else analyse (File (path), item, fm);
         ++analysed;
         item.size = info.first;
         item.modified = info.second;
         work.items[path] = std::move (item);
-        read = n;
-        if (Time::getMillisecondCounter() - lastHandOver > 400) { handOver(); lastHandOver = Time::getMillisecondCounter(); }
+        read = ++n;
+        if (++sinceSave >= jmax (1, saveEvery)) { save(); sinceSave = 0; }
+        const auto now = Time::getMillisecondCounter();
+        if (now - lastHandOver > handOverEvery) { handOver(); lastHandOver = now; }
+        if (afterEach) afterEach();
     }
-    read = (int) files.size();
     handOver();
-    indexFile.getParentDirectory().createDirectory();
-    indexFile.replaceWithText (library::toJson (work));
+    save();
 }
 
 void LibraryScanner::handleAsyncUpdate()

@@ -1,6 +1,10 @@
 // The browser's Sounds tab (decision 0094): scanning the chosen folders,
 // hearing a sound in time with the song, and bringing it into the song.
 #include "Check.h"
+#include <fstream>
+#include <functional>
+#include <map>
+#include "DrumSounds.h"
 #include "BuiltinInstruments.h"
 #include "Controller.h"
 #include "Edit.h"
@@ -174,6 +178,149 @@ TEST ("sounds: the chosen folders are scanned for what Kalibre can read, each on
     // Kept between runs: a new scanner starts from what the last one saved.
     LibraryScanner later (indexFile);
     CHECK (later.index().items == scanner.index().items);
+}
+
+TEST ("sounds: what a scan has read is saved as it goes, so one stopped part-way (Kalibre quit) carries on where it was; known sounds are only checked")
+{
+    const auto dir = libraryFolder ("scan-resume");
+    WavAudioFormat wav;
+    for (int i = 0; i < 30; ++i) writeAudio (dir.getChildFile ("Hit " + String (i) + ".wav"), wav, 0.2);
+    const auto indexFile = libraryFolder ("scan-resume-store").getChildFile ("Library Index.json");
+    indexFile.deleteFile();
+    WaitableEvent paused, carryOn;
+    const auto atQuit = indexFile.getSiblingFile ("Library Index at quit.json");
+    {
+        LibraryScanner first (indexFile);
+        first.saveEvery = 1;   // after every sound, so the test needn't scan 50,000
+        std::atomic<int> seen { 0 };
+        first.afterEach = [&] { if (++seen == 10) { paused.signal(); carryOn.wait (20000); } };
+        first.scan ({ dir.getFullPathName().toStdString() });
+        CHECK (paused.wait (20000));
+        CHECK_EQ (first.filesToRead(), 30);
+        // What's on the disk if Kalibre were quit here and the scan cut off.
+        atQuit.deleteFile();
+        CHECK (indexFile.copyFileTo (atQuit));
+        carryOn.signal();
+        CHECK (first.waitUntilDone (20000));
+    }
+    // The next start knows the ten, and reads only the rest.
+    LibraryScanner later (atQuit);
+    CHECK ((int) later.index().items.size() >= 10);
+    later.scan ({ dir.getFullPathName().toStdString() });
+    CHECK (later.waitUntilDone (20000));
+    CHECK (later.filesAnalysed() <= 20);
+    CHECK_EQ ((int) later.index().items.size(), 30);
+    // Nothing new: every sound is only checked, none read.
+    LibraryScanner again (indexFile);
+    again.scan ({ dir.getFullPathName().toStdString() });
+    CHECK (again.waitUntilDone (20000));
+    CHECK_EQ (again.filesToRead(), 0);
+    CHECK_EQ (again.filesAnalysed(), 0);
+}
+
+TEST ("sounds: a sound scanned by the last version has only its hit's shape added, not all of it heard again (0106)")
+{
+    const auto dir = makeSounds ("scan-topup");
+    const auto indexFile = libraryFolder ("scan-topup-store").getChildFile ("Library Index.json");
+    indexFile.deleteFile();
+    {
+        LibraryScanner first (indexFile);
+        first.scan ({ dir.getFullPathName().toStdString() });
+        CHECK (first.waitUntilDone (20000));
+    }
+    // As the last version left them: analysis 2, no shape, and a loudness to see kept.
+    library::Index old;
+    {
+        std::ifstream in (indexFile.getFullPathName().toStdString(), std::ios::binary);
+        CHECK (library::readIndex (in, old));
+    }
+    for (auto& [p, it] : old.items)
+        if (it.kind == library::Kind::Audio) { it.analysis = 2; it.onsetMs = it.attackMs = it.zcr = -1; it.tailDb = 0; it.lufs = -7.5; }
+    indexFile.replaceWithText (library::toJson (old));
+    LibraryScanner again (indexFile);
+    again.scan ({ dir.getFullPathName().toStdString() });
+    CHECK (again.waitUntilDone (20000));
+    CHECK_EQ (again.filesToRead(), 4);   // the four sounds; the MIDI file isn't heard
+    for (auto& [p, it] : again.index().items)
+        if (it.kind == library::Kind::Audio && it.readable)
+        {
+            CHECK_EQ (it.analysis, library::analysisVersion);
+            CHECK (it.onsetMs >= 0);
+            CHECK (it.zcr >= 0);
+            CHECK_EQ (it.lufs, -7.5);   // kept, not heard again
+        }
+}
+
+namespace
+{
+// A sound made of `f (seconds) -> sample`, at 44.1 kHz.
+void writeShaped (const File& f, double seconds, std::function<float (double)> shape)
+{
+    const double rate = 44100;
+    AudioBuffer<float> b (2, (int) (seconds * rate));
+    for (int i = 0; i < b.getNumSamples(); ++i) { const float v = shape (i / rate); b.setSample (0, i, v); b.setSample (1, i, v); }
+    f.getParentDirectory().createDirectory();
+    f.deleteFile();
+    WavAudioFormat wav;
+    std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+    if (auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (rate).withNumChannels (2).withBitsPerSample (16)))
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+}
+} // namespace
+
+TEST ("sounds: Drums shows only drum sounds, each with its kind: by its name, or heard in an unnamed hit; a kind on its own (0106)")
+{
+    const auto dir = libraryFolder ("drum-sounds");
+    const double pi = MathConstants<double>::pi;
+    writeShaped (dir.getChildFile ("Kick 1.wav"), 0.4, [=] (double t) { return (float) (0.8 * std::exp (-t * 12) * std::sin (2 * pi * 55 * t)); });
+    writeShaped (dir.getChildFile ("Snare 2.wav"), 0.3, [=] (double t) { return (float) (0.7 * std::exp (-t * 15) * std::sin (2 * pi * 2000 * t * (1 + t))); });
+    writeShaped (dir.getChildFile ("Pad Warm.wav"), 3.0, [=] (double t) { return (float) (0.5 * std::min (1.0, t) * std::sin (2 * pi * 220 * t)); });
+    Random rnd (5);
+    writeShaped (dir.getChildFile ("Misc/Thing.wav"), 0.15, [&] (double t) { return (float) (0.7 * std::exp (-t * 40) * (rnd.nextFloat() * 2 - 1)); });
+    Library lib (dir);
+    auto& v = lib.view;
+    v.settings().flat = true;
+    v.settings().drumsOnly = true;
+    v.refreshRows();
+    std::map<String, drumsound::Verdict> shown;
+    for (auto& r : v.shown())
+        if (r.type == library::Row::Type::Item)
+            if (auto* it = v.item (r.path)) shown[File (r.path).getFileNameWithoutExtension()] = v.drumOf (*it);
+    CHECK_EQ (shown.size(), (size_t) 3);   // not the pad
+    CHECK (shown.count ("Kick 1") && shown["Kick 1"].kind == drumsound::Kind::Kick && ! shown["Kick 1"].heard);
+    CHECK (shown.count ("Snare 2") && shown["Snare 2"].kind == drumsound::Kind::Snare);
+    CHECK (shown.count ("Thing") && shown["Thing"].heard);
+    if (shown.count ("Thing"))
+    {
+        if (shown["Thing"].kind != drumsound::Kind::ClosedHat) std::printf ("    Thing heard as %s\n", drumsound::nameOf (shown["Thing"].kind).c_str());
+        CHECK (shown["Thing"].kind == drumsound::Kind::ClosedHat);
+    }
+    // One kind.
+    v.settings().drumKind = (int) drumsound::Kind::Kick;
+    v.refreshRows();
+    int items = 0;
+    for (auto& r : v.shown()) items += r.type == library::Row::Type::Item;
+    CHECK_EQ (items, 1);
+}
+
+TEST ("sounds: a big index is opened on the scan's thread, not while Kalibre starts; what it knows isn't read again (0106)")
+{
+    const auto dir = makeSounds ("scan-big-index");
+    const auto indexFile = libraryFolder ("scan-big-index-store").getChildFile ("Library Index.json");
+    indexFile.deleteFile();
+    {
+        LibraryScanner first (indexFile);
+        first.scan ({ dir.getFullPathName().toStdString() });
+        CHECK (first.waitUntilDone (20000));
+    }
+    LibraryScanner later (indexFile, 0);   // every index "big"
+    CHECK (later.index().items.empty());
+    CHECK (later.openingIndex());
+    later.scan ({ dir.getFullPathName().toStdString() });
+    CHECK (later.waitUntilDone (20000));
+    CHECK (! later.openingIndex());
+    CHECK_EQ ((int) later.index().items.size(), 5);
+    CHECK_EQ (later.filesAnalysed(), 0);
 }
 
 TEST ("sounds: a preview follows the song's tempo with Sync on, a sample when its tempo is known, MIDI always; off, as made")

@@ -92,6 +92,13 @@ private:
                                  "(drums and a tune from Good Idea, chords and a bass from Midi Suggester), and loops from your sounds. "
                                  "Asks to save the song you have first." };
 
+public:
+    // Song versions (0103): 1 and 2, left of Random. 2, not made yet, is in the quieter grey;
+    // a click makes it, a copy of 1. Right-click either for New and Delete.
+    BarButton songOne { "1", "", true }, songTwo { "2", "", true };
+private:
+    void songVersionMenu (int index);
+
     struct Readout : public juce::Component, public juce::SettableTooltipClient
     {
         juce::String label, value;

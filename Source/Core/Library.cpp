@@ -1,8 +1,12 @@
 #include "Library.h"
+#include "DrumSounds.h"
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <istream>
+#include <iterator>
+#include <ostream>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -165,8 +169,10 @@ bool isFavourite (const Settings& s, const std::string& path)
 }
 
 //==============================================================================
-std::vector<Row> rows (const Index& index, const Settings& s, const std::string& filter)
+std::vector<Row> rows (const Index& index, const Settings& s, const std::string& filter, drumsound::Cache* drums)
 {
+    drumsound::Cache own;
+    if (drums == nullptr) drums = &own;
     const auto want = lower (filter);
     std::vector<std::string> roots;
     for (auto& f : s.folders) roots.push_back (trimSlash (f));
@@ -178,6 +184,12 @@ std::vector<Row> rows (const Index& index, const Settings& s, const std::string&
         if (! item.readable) continue;
         if (! want.empty() && lower (nameOf (path)).find (want) == std::string::npos) continue;
         if (s.favouritesOnly && ! isFavourite (s, path)) continue;
+        if (s.drumsOnly)
+        {
+            const auto v = drums->of (item);
+            if (! v.drum) continue;
+            if (s.drumKind >= 0 && ! drumsound::fits ((drumsound::Kind) s.drumKind, v.kind)) continue;
+        }
         const std::string* root = nullptr;
         for (auto& r : roots)
             if (isInside (path, r) && (! root || r.size() > root->size())) root = &r;
@@ -194,7 +206,7 @@ std::vector<Row> rows (const Index& index, const Settings& s, const std::string&
         return out;
     }
 
-    const bool openAll = ! want.empty() || s.favouritesOnly;
+    const bool openAll = ! want.empty() || s.favouritesOnly || s.drumsOnly;
     for (auto& root : roots)
     {
         const auto found = byRoot.find (root);
@@ -270,6 +282,8 @@ std::string toJson (const Settings& s)
     j["seed"] = s.seed;
     j["sync"] = s.sync;
     j["autoPlay"] = s.autoPlay;
+    j["drumsOnly"] = s.drumsOnly;
+    j["drumKind"] = s.drumKind;
     j["open"] = std::vector<std::string> (s.open.begin(), s.open.end());
     return j.dump (1);
 }
@@ -288,48 +302,90 @@ bool fromJson (const std::string& text, Settings& s)
     d.seed = j.value ("seed", (std::uint32_t) 1);
     d.sync = j.value ("sync", true);
     d.autoPlay = j.value ("autoPlay", true);
+    d.drumsOnly = j.value ("drumsOnly", false);
+    d.drumKind = j.value ("drumKind", -1);
     for (auto& f : j.value ("open", std::vector<std::string>())) d.open.insert (f);
     s = d;
     return true;
 }
 
+namespace
+{
+json itemJson (const std::string& path, const Item& it)
+{
+    json j;
+    j["path"] = path;
+    j["midi"] = it.kind == Kind::Midi;
+    j["size"] = it.size;
+    j["modified"] = it.modified;
+    j["readable"] = it.readable;
+    j["bpm"] = it.bpm;
+    j["bpmFrom"] = (int) it.bpmFrom;
+    j["loop"] = it.loop;
+    if (it.kind == Kind::Audio)
+    {
+        j["lufs"] = it.lufs;
+        j["peakDb"] = it.peakDb;
+        j["note"] = it.note;
+        j["cents"] = it.cents;
+        j["analysis"] = it.analysis;
+        if (it.onsetMs >= 0) { j["onset"] = it.onsetMs; j["attack"] = it.attackMs; j["tail"] = it.tailDb; j["zcr"] = it.zcr; }
+        j["seconds"] = it.seconds;
+        j["rate"] = it.sampleRate;
+        j["channels"] = it.channels;
+        std::string p;
+        for (auto v : it.peaks) { p += hex[v >> 4]; p += hex[v & 15]; }
+        j["peaks"] = p;
+    }
+    else
+    {
+        j["beats"] = it.beats;
+        json notes = json::array();
+        for (auto& n : it.notes) notes.push_back ({ n.start, n.length, n.pitch });
+        j["notes"] = notes;
+    }
+    return j;
+}
+
+// False when it isn't a sound's entry.
+bool itemFrom (const json& e, Item& it)
+{
+    if (! e.is_object() || ! e.contains ("path")) return false;
+    it.path = e.value ("path", std::string());
+    it.kind = e.value ("midi", false) ? Kind::Midi : Kind::Audio;
+    it.size = e.value ("size", (std::int64_t) 0);
+    it.modified = e.value ("modified", (std::int64_t) 0);
+    it.readable = e.value ("readable", true);
+    it.bpm = e.value ("bpm", 0.0);
+    it.bpmFrom = (Item::TempoFrom) std::clamp (e.value ("bpmFrom", it.bpm > 0 ? 1 : 0), 0, 3);
+    it.loop = e.value ("loop", false);
+    it.lufs = e.value ("lufs", silentDb);
+    it.peakDb = e.value ("peakDb", silentDb);
+    it.note = e.value ("note", -1);
+    it.cents = e.value ("cents", 0.0);
+    it.analysis = e.value ("analysis", 0);
+    it.onsetMs = e.value ("onset", -1.0);
+    it.attackMs = e.value ("attack", -1.0);
+    it.tailDb = e.value ("tail", 0.0);
+    it.zcr = e.value ("zcr", -1.0);
+    it.seconds = e.value ("seconds", 0.0);
+    it.sampleRate = e.value ("rate", 0.0);
+    it.channels = e.value ("channels", 0);
+    const auto p = e.value ("peaks", std::string());
+    auto nib = [] (char ch) { return ch <= '9' ? ch - '0' : ch - 'a' + 10; };
+    for (std::size_t i = 0; i + 1 < p.size(); i += 2) it.peaks.push_back ((std::uint8_t) (nib (p[i]) * 16 + nib (p[i + 1])));
+    it.beats = e.value ("beats", 0.0);
+    if (e.contains ("notes") && e["notes"].is_array())
+        for (auto& n : e["notes"])
+            if (n.is_array() && n.size() == 3) it.notes.push_back ({ n[0].get<float>(), n[1].get<float>(), n[2].get<int>() });
+    return true;
+}
+} // namespace
+
 std::string toJson (const Index& index)
 {
     json items = json::array();
-    for (auto& [path, it] : index.items)
-    {
-        json j;
-        j["path"] = path;
-        j["midi"] = it.kind == Kind::Midi;
-        j["size"] = it.size;
-        j["modified"] = it.modified;
-        j["readable"] = it.readable;
-        j["bpm"] = it.bpm;
-        j["bpmFrom"] = (int) it.bpmFrom;
-        j["loop"] = it.loop;
-        if (it.kind == Kind::Audio)
-        {
-            j["lufs"] = it.lufs;
-            j["peakDb"] = it.peakDb;
-            j["note"] = it.note;
-            j["cents"] = it.cents;
-            j["analysis"] = it.analysis;
-            j["seconds"] = it.seconds;
-            j["rate"] = it.sampleRate;
-            j["channels"] = it.channels;
-            std::string p;
-            for (auto v : it.peaks) { p += hex[v >> 4]; p += hex[v & 15]; }
-            j["peaks"] = p;
-        }
-        else
-        {
-            j["beats"] = it.beats;
-            json notes = json::array();
-            for (auto& n : it.notes) notes.push_back ({ n.start, n.length, n.pitch });
-            j["notes"] = notes;
-        }
-        items.push_back (j);
-    }
+    for (auto& [path, it] : index.items) items.push_back (itemJson (path, it));
     return json ({ { "version", 1 }, { "items", items } }).dump();
 }
 
@@ -340,32 +396,41 @@ bool fromJson (const std::string& text, Index& index)
     Index d;
     for (auto& e : j["items"])
     {
-        if (! e.is_object() || ! e.contains ("path")) continue;
         Item it;
-        it.path = e.value ("path", std::string());
-        it.kind = e.value ("midi", false) ? Kind::Midi : Kind::Audio;
-        it.size = e.value ("size", (std::int64_t) 0);
-        it.modified = e.value ("modified", (std::int64_t) 0);
-        it.readable = e.value ("readable", true);
-        it.bpm = e.value ("bpm", 0.0);
-        it.bpmFrom = (Item::TempoFrom) std::clamp (e.value ("bpmFrom", it.bpm > 0 ? 1 : 0), 0, 3);
-        it.loop = e.value ("loop", false);
-        it.lufs = e.value ("lufs", silentDb);
-        it.peakDb = e.value ("peakDb", silentDb);
-        it.note = e.value ("note", -1);
-        it.cents = e.value ("cents", 0.0);
-        it.analysis = e.value ("analysis", 0);
-        it.seconds = e.value ("seconds", 0.0);
-        it.sampleRate = e.value ("rate", 0.0);
-        it.channels = e.value ("channels", 0);
-        const auto p = e.value ("peaks", std::string());
-        auto nib = [] (char ch) { return ch <= '9' ? ch - '0' : ch - 'a' + 10; };
-        for (std::size_t i = 0; i + 1 < p.size(); i += 2) it.peaks.push_back ((std::uint8_t) (nib (p[i]) * 16 + nib (p[i + 1])));
-        it.beats = e.value ("beats", 0.0);
-        if (e.contains ("notes") && e["notes"].is_array())
-            for (auto& n : e["notes"])
-                if (n.is_array() && n.size() == 3) it.notes.push_back ({ n[0].get<float>(), n[1].get<float>(), n[2].get<int>() });
-        d.items[it.path] = std::move (it);
+        if (itemFrom (e, it)) d.items[it.path] = std::move (it);
+    }
+    index = std::move (d);
+    return true;
+}
+
+// The index a sound a line (0106): half a million sounds written and read
+// without the whole of it held as one JSON document.
+bool writeIndex (const Index& index, std::ostream& out)
+{
+    out << json ({ { "kalibreSounds", 2 }, { "items", index.items.size() } }).dump() << '\n';
+    for (auto& [path, it] : index.items) out << itemJson (path, it).dump() << '\n';
+    return (bool) out;
+}
+
+bool readIndex (std::istream& in, Index& index)
+{
+    std::string first;
+    if (! std::getline (in, first)) return false;
+    const auto head = json::parse (first, nullptr, false);
+    if (! head.is_object() || ! head.contains ("kalibreSounds"))
+    {
+        // The whole document, as Kalibre wrote it before.
+        std::string rest ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char>());
+        return fromJson (first + "\n" + rest, index);
+    }
+    Index d;
+    std::string line;
+    while (std::getline (in, line))
+    {
+        if (line.empty()) continue;
+        const auto e = json::parse (line, nullptr, false);
+        Item it;
+        if (itemFrom (e, it)) d.items[it.path] = std::move (it);
     }
     index = std::move (d);
     return true;

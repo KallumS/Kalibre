@@ -7,6 +7,7 @@
 #include "Engine.h"
 #include "ProjectFile.h"
 #include "PluginManager.h"
+#include "BuiltinInstruments.h"
 
 using namespace kal;
 using namespace juce;
@@ -137,7 +138,7 @@ AudioBuffer<float> read (const File& f)
 }
 } // namespace
 
-TEST ("versions: each plays its own plug-ins; the others wait loaded, and come back as they were")
+TEST ("versions: each plays its own plug-ins; the others are unloaded, and come back as they were (0103)")
 {
     PluginManager plugins;
     Engine engine (plugins);
@@ -153,14 +154,15 @@ TEST ("versions: each plays its own plug-ins; the others wait loaded, and come b
     engine.sync (p, 0, folder());
     auto* second = engine.instance (fx);
     CHECK (second != nullptr);
-    CHECK (! engine.stateOf (fx, v1).empty() || engine.stateOf (fx, v1).empty());   // version 1's is loaded too
+    CHECK (engine.stateOf (fx, v1).empty());   // version 1's isn't loaded (0103)
     edit::selectVersion (p, t, 0);
     engine.sync (p, 0, folder());
     auto* first = engine.instance (fx);
     CHECK (first != nullptr && first != second);
     edit::selectVersion (p, t, 1);
     engine.sync (p, 0, folder());
-    CHECK (engine.instance (fx) == second);   // kept, not made again: choosing is instant
+    CHECK (engine.instance (fx) != nullptr);
+    CHECK (engine.stateOf (fx, v1).empty());   // version 1's let go again
     (void) v2;
 
     // Each version is heard through its own plug-in.
@@ -380,6 +382,127 @@ TEST ("recording: what the interface sends is written as it came, sample for sam
         for (int i = 0; i + from < sent.getNumSamples() && i < got.getNumSamples(); ++i)
             worst = jmax (worst, std::abs (got.getSample (ch, i) - sent.getSample (ch, i + from)));
     CHECK_EQ (worst, 0.0f);
+}
+
+TEST ("versions: a version not playing keeps its plug-ins' settings, not the plug-ins; Undo keeps what was changed since (0103)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    const Id synth = edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+    c.refresh();
+    auto setting = [&]() -> float
+    {
+        auto* inst = engine.instance (synth);
+        return inst ? inst->getParameters()[3]->getValue() : -1.0f;   // Osc 2 Fine, a knob that goes smoothly
+    };
+    auto set = [&] (float v) { if (auto* inst = engine.instance (synth)) inst->getParameters()[3]->setValueNotifyingHost (v); };
+    set (0.73f);
+    const float first = setting();
+    c.newVersion (t);   // version 2, chosen, a copy
+    const Id v1 = c.project.track (t)->versions[0].id;
+    CHECK (std::abs (setting() - first) < 0.001f);
+    CHECK (engine.stateOf (synth, v1).empty());   // version 1's synth isn't in memory
+    set (0.21f);
+    const float second = setting();
+    c.chooseVersion ({ t }, 0);
+    CHECK (std::abs (setting() - first) < 0.001f);
+    c.chooseVersion ({ t }, 1);
+    CHECK (std::abs (setting() - second) < 0.001f);
+    // Changed on version 2, then Undo back to version 1: the change waits in version 2.
+    set (0.4f);
+    const float changed = setting();
+    c.undo();
+    CHECK_EQ (c.project.track (t)->activeVersion, 0);
+    CHECK (std::abs (setting() - first) < 0.001f);
+    c.redo();
+    CHECK_EQ (c.project.track (t)->activeVersion, 1);
+    CHECK (std::abs (setting() - changed) < 0.001f);
+    c.undo();
+    c.chooseVersion ({ t }, 1);
+    CHECK (std::abs (setting() - changed) < 0.001f);
+}
+
+TEST ("song versions: the one not playing has no plug-ins loaded and no audio in memory; choosing it brings them back as they were, as one undo step (0103)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id keys = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    const Id synth = edit::addDevice (c.project, keys, synthRef(), DeviceRole::Instrument);
+    const Id drums = edit::addTrack (c.project, TrackKind::Track, "Drums");
+    edit::addClip (c.project, drums, audioClip (clickFile (0.5), 0, PPQ * 4));
+    const Id pad = edit::addTrack (c.project, TrackKind::Track, "Pad");
+    edit::addDevice (c.project, pad, synthRef(), DeviceRole::Instrument);
+    c.refresh();
+    auto waitForAudio = [&]
+    {
+        for (int i = 0; i < 100 && engine.cache.bytesHeld() == 0; ++i) MessageManager::getInstance()->runDispatchLoopUntil (50);
+        return engine.cache.bytesHeld() > 0;
+    };
+    auto setting = [&]() -> float
+    {
+        auto* inst = engine.instance (synth);
+        return inst ? inst->getParameters()[3]->getValue() : -1.0f;
+    };
+    auto set = [&] (float v) { if (auto* inst = engine.instance (synth)) inst->getParameters()[3]->setValueNotifyingHost (v); };
+    CHECK (waitForAudio());
+    CHECK_EQ (engine.loadedPlugins(), 2);
+    set (0.73f);
+    const float first = setting();
+
+    // Version 2: a copy, chosen. Nothing loads again to make it.
+    auto* before = engine.instance (synth);
+    c.newSongVersion();
+    CHECK_EQ (c.project.songVersions(), 2);
+    CHECK_EQ (c.project.songVersion, 1);
+    CHECK (engine.instance (synth) == before);
+    // Version 2 without the drums and the pad: their plug-in and audio let go of.
+    c.apply ("Delete", [&] (Project& p) { edit::removeTrack (p, drums); edit::removeTrack (p, pad); });
+    CHECK_EQ (engine.loadedPlugins(), 1);
+    CHECK_EQ (engine.cache.bytesHeld(), (size_t) 0);
+    set (0.21f);
+    const float second = setting();
+
+    // Version 1: its plug-ins made again from their settings, its audio read again.
+    engine.play();
+    c.chooseSongVersion (0);
+    CHECK (engine.isPlaying());   // it plays on
+    engine.stop();
+    CHECK_EQ (c.project.songVersion, 0);
+    CHECK_EQ (c.project.tracks.size(), (size_t) 3);
+    CHECK_EQ (engine.loadedPlugins(), 2);
+    CHECK (std::abs (setting() - first) < 0.001f);
+    CHECK (waitForAudio());
+
+    // Version 2 again: version 1's two synths and its audio gone from memory.
+    c.chooseSongVersion (1);
+    CHECK_EQ (engine.loadedPlugins(), 1);
+    CHECK_EQ (engine.cache.bytesHeld(), (size_t) 0);
+    CHECK (std::abs (setting() - second) < 0.001f);
+
+    // One undo step; what was changed on the version left since goes with it.
+    set (0.4f);
+    const float changed = setting();
+    c.undo();
+    CHECK_EQ (c.project.songVersion, 0);
+    CHECK (std::abs (setting() - first) < 0.001f);
+    c.chooseSongVersion (1);
+    CHECK (std::abs (setting() - changed) < 0.001f);
+
+    // Saved and opened again: both versions there.
+    const auto f = File::getSpecialLocation (File::tempDirectory).getChildFile ("song-versions.kalibre");
+    CHECK (c.saveAs (f));
+    CHECK (c.open (f));
+    CHECK_EQ (c.project.songVersions(), 2);
+    CHECK_EQ (c.project.songVersion, 1);
+    CHECK (std::abs (setting() - changed) < 0.001f);
+    c.chooseSongVersion (0);
+    CHECK (std::abs (setting() - first) < 0.001f);
+    f.deleteFile();
 }
 
 TEST ("versions: choosing a number switches every chosen track that has it, and leaves the others")

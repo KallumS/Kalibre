@@ -1,4 +1,5 @@
 #include "AgentTools.h"
+#include "DrumMachine.h"
 
 #include "BuiltinInstruments.h"
 #include "ContainerProcessor.h"
@@ -98,6 +99,7 @@ std::vector<Addable> addable (Controller& c)
     auto own = [&out] (const String& name, PluginRef ref, DeviceRole role) { out.push_back ({ name, "Kalibre", "Kalibre", role, std::nullopt, ref }); };
     own ("Kalibre Synth", synthRef(), DeviceRole::Instrument);
     own ("Kalibre Sampler", samplerRef(), DeviceRole::Instrument);
+    own ("Kalibre Drums", drumsRef(), DeviceRole::Instrument);
     own ("Trombolese", tromboleseRef(), DeviceRole::Instrument);
     own ("Hardware Insert", hardwareInsertRef(), DeviceRole::AudioFx);
     own ("X/Y Morph", morphRef(), DeviceRole::Instrument);
@@ -192,7 +194,8 @@ void addAgentTools (mcp::Server& server, Controller& c)
                       { "time_signature", std::to_string (m.numerator) + "/" + std::to_string (m.denominator) },
                       { "cursor_beat", beatsOf (c.cursor) }, { "playing", c.engine.isPlaying() },
                       { "loop", { { "on", p.loop.on }, { "start_beat", beatsOf (p.loop.start) }, { "end_beat", beatsOf (p.loop.end) } } },
-                      { "chosen_track", c.focusTrack } };
+                      { "chosen_track", c.focusTrack },
+                      { "song_version", p.songVersion + 1 }, { "song_versions", p.songVersions() } };
         json tracks = json::array();
         for (auto& t : p.tracks) tracks.push_back (trackJson (c, t));
         song["tracks"] = tracks;
@@ -325,6 +328,16 @@ void addAgentTools (mcp::Server& server, Controller& c)
         const bool on = flagOr (a, "bypassed", true);
         change (c, String (on ? "Bypass " : "Un-bypass ") + d->plugin.name, [id, on] (Project& p) { if (auto* x = p.device (id)) x->bypassed = on; });
         return Reply::ok (on ? "Bypassed." : "Playing again.");
+    });
+    tool ("randomise_plugin", "Sets a device's controls by chance, as its Random button does (decision 0104): every control but those "
+                              "for volume, tuning and pitch (and bypass, mute and meters). One undo step.",
+          object ({ { "device", integer ("The device's id.") } }, { "device" }), [&c] (const json& a)
+    {
+        const Id id = idOf (a, "device");
+        if (! c.project.device (id)) return noDevice();
+        const int changed = c.randomSettings (id);
+        if (changed == 0) return Reply::fail (c.message.toStdString());
+        return Reply::ok (c.message.toStdString());
     });
 
     tool ("get_plugin_parameters", "A device's parameters: index, name, value (0 to 1) and what it reads as. `search` keeps those whose name holds it.",
@@ -615,6 +628,17 @@ void addAgentTools (mcp::Server& server, Controller& c)
     {
         const auto label = c.history.redoLabel();
         return c.redo() ? Reply::ok ("Redid " + label + ".") : Reply::fail ("Nothing to redo.");
+    });
+    tool ("song_version", "Plays song version 1 or 2 (decision 0103): the whole song twice, each with its own tracks, clips, plug-ins, "
+                          "mix, tempo and key. Choosing 2 when there's only one makes it, a copy of 1. The version not playing has its "
+                          "plug-ins unloaded. One undo step. get_song says which plays.",
+          object ({ { "version", integer ("1 or 2.") } }, { "version" }), [&c] (const json& a)
+    {
+        const int v = a.contains ("version") && a["version"].is_number_integer() ? a["version"].get<int>() : 0;
+        if (v != 1 && v != 2) return Reply::fail ("The version is 1 or 2.");
+        c.chooseSongVersion (v - 1);
+        if (c.project.songVersion != v - 1) return Reply::fail (c.message.toStdString());
+        return Reply::ok ("Song version " + std::to_string (v) + " plays (" + std::to_string (c.project.songVersions()) + " in all).");
     });
 
     //--------------------------------------------------------------------------

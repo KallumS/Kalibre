@@ -81,4 +81,23 @@ std::vector<DevicePick> devices (const Catalogue&, unsigned seed, bool instrumen
 // A loop: a sound long enough to loop, its tempo known.
 bool isLoop (const Sample&);
 
+// A device's Random button (decision 0104): which of a plug-in's controls chance
+// leaves alone. Learned from the names the open-source plug-ins give their
+// controls (Vital, Surge XT, Dexed, OB-Xf, Odin 2, Helm, Airwindows, Calf, LSP
+// and others, over 2,000 names) and the usual ones' manuals. By the control's
+// name, in words ("MasterVol" and "Osc1Pitch" are two each), its unit, and the
+// plug-in's name. Says why: "volume", "pitch", "silence" (a sound source's on
+// switch), "not sound" (presets, monitoring, quality, MIDI, mute, bypass) or
+// "unknown" (#001, Param 12, a macro or a modulation slot: wired to anything);
+// empty when chance may change it.
+std::string whyKept (const std::string& name, const std::string& unit = {}, const std::string& plugin = {});
+inline bool keepsItsValue (const std::string& name, const std::string& unit = {}, const std::string& plugin = {})
+{
+    return ! whyKept (name, unit, plugin).empty();
+}
+// Why a plug-in has no Random at all: "a pitch tool" (Auto-Tune, Little
+// AlterBoy, a pitch shifter, a harmoniser, a tuner) or "a utility" (gain, trim,
+// meters, analysers), whose controls are all volume or pitch. Empty otherwise.
+std::string whyNoRandom (const std::string& plugin);
+
 } // namespace kal::randomsong

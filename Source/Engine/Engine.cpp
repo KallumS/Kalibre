@@ -619,15 +619,11 @@ void Engine::sync (const Project& project, Id live, const File& folder)
     for (auto& c : project.cue) all.push_back (&c);   // after the master, heard but not exported (decision 0051)
     const Track* cue = project.cue.empty() || rendering ? nullptr : &project.cue.front();
 
-    // Nodes for every track, and for every active device: the playing
-    // version's wired in, the others' parked, loaded and silent (decision 0050).
+    // Nodes for every track, and for the playing version's active devices. The
+    // other versions' plug-ins aren't loaded: their settings wait in the song (0103).
     std::set<Id> wantedTracks, wantedDevices;
     std::set<VersionedId> wantedNodes;
     std::map<Id, Node::Ptr> playing;
-    auto park = [] (const Node::Ptr& node, bool parked)
-    {
-        if (auto* tp = dynamic_cast<TimedPlugin*> (node->getProcessor())) tp->parked = parked;
-    };
     trackDevices.clear();
     for (auto* t : all)
     {
@@ -650,25 +646,9 @@ void Engine::sync (const Project& project, Id live, const File& folder)
                 wantedNodes.insert ({ active, d.id });
                 playing[d.id] = node;
                 trackOf[d.id] = t->id;
-                park (node, false);
                 if (auto* tp = dynamic_cast<TimedPlugin*> (node->getProcessor())) tp->matchLoudness = d.matchLoudness;
             }
             else if (onMessage) onMessage (String (d.plugin.name) + " couldn't be loaded. " + error);
-        }
-        for (size_t v = 0; v < t->versions.size(); ++v)
-        {
-            const auto& version = t->versions[v];
-            if ((int) v == t->activeVersion) continue;
-            for (auto& d : version.devices)
-            {
-                if (! d.active) continue;
-                String error;
-                if (auto node = nodeForDevice (d, version.id, error))
-                {
-                    wantedNodes.insert ({ version.id, d.id });
-                    park (node, true);
-                }
-            }
         }
     }
     for (auto it = tracks.begin(); it != tracks.end();)
@@ -1157,6 +1137,8 @@ void Engine::sync (const Project& project, Id live, const File& folder)
             src->data.post (std::move (data));
         }
     }
+    // Audio no clip of this song asked for (the other song version's, an old warp) is let go of (0103).
+    cache.forgetUnused();
 }
 
 //==============================================================================

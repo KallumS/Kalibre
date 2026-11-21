@@ -244,3 +244,40 @@ TEST ("library: the scan's loudness, note and tempo are kept; an older scan's it
     it.lufs = library::silentDb;
     CHECK_EQ (library::loudnessText (it), std::string ("Peak -0.5 dB"));
 }
+
+#include <sstream>
+
+TEST ("library: the index saved a sound a line comes back the same; one saved by an older Kalibre, as one document, still opens (0106)")
+{
+    library::Index ix;
+    for (int i = 0; i < 3; ++i)
+    {
+        library::Item it;
+        it.path = "/Sounds/Kick " + std::to_string (i) + ".wav";
+        it.seconds = 0.5 + i;
+        it.size = 1000 + i;
+        it.modified = 1700000000000 + i;
+        it.peaks = { 10, 200, 30 };
+        it.onsetMs = 1;
+        it.attackMs = 2;
+        it.tailDb = -40;
+        it.zcr = 300;
+        it.analysis = library::analysisVersion;
+        ix.items[it.path] = it;
+    }
+    std::stringstream lines;
+    CHECK (library::writeIndex (ix, lines));
+    // A header and one line a sound.
+    int count = 0;
+    for (std::string l; std::getline (lines, l);) ++count;
+    CHECK_EQ (count, 4);
+    lines.clear();
+    lines.seekg (0);
+    library::Index back;
+    CHECK (library::readIndex (lines, back));
+    CHECK (back.items == ix.items);
+    std::stringstream old (library::toJson (ix));
+    library::Index fromOld;
+    CHECK (library::readIndex (old, fromOld));
+    CHECK (fromOld.items == ix.items);
+}

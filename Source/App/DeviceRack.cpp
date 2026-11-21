@@ -1,4 +1,5 @@
 #include "DeviceRack.h"
+#include "DrumMachine.h"
 #include "NoteSplitterEditor.h"
 
 #include "Modulation.h"
@@ -47,7 +48,7 @@ class DevicePanel : public Component, private ComponentListener
 public:
     DevicePanel (Controller& ctrl, Id dev, DeviceRack& r) : c (ctrl), id (dev), rack (r)
     {
-        for (auto* b : { &power, &bypass, &menu, &ab, &presets, &window, &match }) addAndMakeVisible (b);
+        for (auto* b : { &power, &bypass, &random, &menu, &ab, &presets, &window, &match }) addAndMakeVisible (b);
         ab.onClick = [this]
         {
             if (ModifierKeys::currentModifiers.isPopupMenu()) return;
@@ -56,6 +57,8 @@ public:
         presets.onClick = [this] { presetMenu(); };
         power.setTitle ("Plug-in On");
         bypass.setTitle ("Bypass");
+        random.setTitle ("Random Settings");
+        random.onClick = [this] { c.randomSettings (id); };
         menu.setTitle ("Plug-in Menu");
         window.setTitle ("Its Own Window");
         match.setTitle ("Match Loudness");
@@ -89,6 +92,16 @@ public:
         if (! d) return;
         power.setToggleState (d->active, dontSendNotification);
         bypass.setToggleState (d->bypassed, dontSendNotification);
+        {
+            // Pitch tools and utilities have no Random (0104): all their controls are volume or pitch.
+            const auto why = c.whyNoRandom (id);
+            random.setEnabled (d->active && c.engine.instance (id) != nullptr && why.isEmpty());
+            const String tip = why.isEmpty() ? "Set its controls by chance, for a new sound. Volume, tuning and pitch are left as they are. "
+                                               "One undo step; click again for another."
+                                             : "No Random here: " + String (d->plugin.name) + " is " + why + ", whose controls are all volume, tuning or pitch.";
+            if (random.getTooltip() != theme::wrapTip (tip)) random.setTip (tip);
+            random.setTitle ("Random Settings");
+        }
         match.setToggleState (d->matchLoudness, dontSendNotification);
         // Effects only; the Container has its own, for everything in it.
         const bool matchShown = match.isVisible();
@@ -237,6 +250,8 @@ public:
         header.removeFromRight (3);
         bypass.setBounds (header.removeFromRight (theme::px (30)));
         header.removeFromRight (3);
+        random.setBounds (header.removeFromRight (random.idealWidth (theme::smallControl)));
+        header.removeFromRight (3);
         power.setBounds (header.removeFromRight (theme::px (30)));
         header.removeFromRight (3);
         window.setBounds (header.removeFromRight (theme::px (30)));
@@ -367,6 +382,8 @@ public:
     Id id;
     theme::HouseButton power { ui::u8 ("\xe2\x8f\xbb"), "Switch the plug-in off (unloaded, settings kept) or on." };
     theme::HouseButton bypass { "B", "Bypass: let the sound through untouched, still loaded." };
+    theme::HouseButton random { "Random", "Set its controls by chance, for a new sound. Volume, tuning and pitch are left as they are. "
+                                          "One undo step; click again for another." };
     theme::HouseButton menu { ui::u8 ("\xe2\x80\xa6"), "Move, remove, automate or modulate." };
     theme::HouseButton ab { "Set A", "Compare two settings: click to switch between A and B. Copy one to the other in Presets." };
     theme::HouseButton presets { "Presets", "Save the settings as a preset, or load one." };
@@ -726,6 +743,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     for (auto& [maker, menu] : byMaker[2]) effects.addSubMenu (maker, menu);
     kalibre.addItem ("Kalibre Synth", [&c, track] { c.addBuiltIn (track, synthRef(), DeviceRole::Instrument); });
     kalibre.addItem ("Kalibre Sampler", [&c, track] { c.addBuiltIn (track, samplerRef(), DeviceRole::Instrument); });
+    kalibre.addItem ("Kalibre Drums (a Kit of Samples and Plug-ins, with Steps)", [&c, track] { c.addBuiltIn (track, drumsRef(), DeviceRole::Instrument); });
     kalibre.addItem ("Trombolese (a Trombone Crossed with an Oboe)", [&c, track] { c.addBuiltIn (track, tromboleseRef(), DeviceRole::Instrument); });
     kalibre.addItem ("Hardware Insert (Outboard Gear)", [&c, track] { c.addBuiltIn (track, hardwareInsertRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();

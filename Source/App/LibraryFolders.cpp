@@ -68,7 +68,8 @@ void LibraryFoldersView::paint (Graphics& g)
     g.setColour (theme::textSecondary);
     g.setFont (theme::font (theme::smallPoints));
     const auto& sc = library.scanner();
-    const String state = sc.scanning() ? "Looking: " + String (sc.filesRead()) + " of " + String (sc.filesFound()) + " sounds read"
+    const String state = sc.scanning() ? (sc.filesToRead() > 0 ? "Reading new sounds: " + String (sc.filesRead()) + " of " + String (sc.filesToRead())
+                                                               : "Checking " + String (sc.filesFound()) + " sounds for changes")
                                        : String ((int) sc.index().items.size()) + " sounds found";
     g.drawText (state, again.getRight() + theme::px (12), again.getY(), getWidth() - again.getRight() - theme::px (28), again.getHeight(), Justification::centredLeft, true);
 }

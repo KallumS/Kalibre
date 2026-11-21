@@ -1,5 +1,7 @@
 #include "RandomSong.h"
 
+#include <cctype>
+
 #include "Edit.h"
 #include "Ideas.h"
 #include "ScaleModel.h"
@@ -282,6 +284,128 @@ std::vector<DevicePick> devices (const Catalogue& cat, unsigned seed, bool instr
             out.push_back ({ *e, {} });
         }
     return out;
+}
+
+namespace
+{
+// A name in lower-case words: split where it isn't a letter or digit, where a small
+// letter meets a capital ("MasterVol"), and where letters meet digits ("Osc1").
+std::vector<std::string> wordsOf (const std::string& name)
+{
+    std::vector<std::string> words;
+    std::string w;
+    auto kind = [] (char ch) { return std::isdigit ((unsigned char) ch) ? 1 : std::isalpha ((unsigned char) ch) ? 2 : 0; };
+    for (size_t i = 0; i < name.size(); ++i)
+    {
+        const char ch = name[i];
+        const bool split = kind (ch) == 0
+                        || (! w.empty() && kind (ch) != kind (name[i - 1]))
+                        || (! w.empty() && std::isupper ((unsigned char) ch) && std::islower ((unsigned char) name[i - 1]))
+                        || (! w.empty() && std::isupper ((unsigned char) ch) && std::isupper ((unsigned char) name[i - 1])
+                            && i + 1 < name.size() && std::islower ((unsigned char) name[i + 1]));   // "GTune", "HQMode"
+        if (split && ! w.empty()) { words.push_back (w); w.clear(); }
+        if (kind (ch) != 0) w += (char) std::tolower ((unsigned char) ch);
+    }
+    if (! w.empty()) words.push_back (w);
+    return words;
+}
+
+bool startsWithAny (const std::string& w, std::initializer_list<const char*> starts)
+{
+    for (auto* s : starts) if (w.rfind (s, 0) == 0) return true;
+    return false;
+}
+
+bool isAny (const std::string& w, std::initializer_list<const char*> whole)
+{
+    for (auto* s : whole) if (w == s) return true;
+    return false;
+}
+} // namespace
+
+std::string whyKept (const std::string& name, const std::string& unit, const std::string& plugin)
+{
+    const auto ws = wordsOf (name);
+    auto has = [&] (std::initializer_list<const char*> whole) { for (auto& w : ws) if (isAny (w, whole)) return true; return false; };
+    auto hasStart = [&] (std::initializer_list<const char*> starts) { for (auto& w : ws) if (startsWithAny (w, starts)) return true; return false; };
+
+    // #001, a number: a host slot, wired to anything.
+    if (ws.empty() || std::none_of (name.begin(), name.end(), [] (char ch) { return std::isalpha ((unsigned char) ch); })) return "unknown";
+    // Measured in semitones or cents: tuning.
+    {
+        std::string u;
+        for (char ch : unit) if (! std::isspace ((unsigned char) ch)) u += (char) std::tolower ((unsigned char) ch);
+        if (isAny (u, { "st", "ct", "cent", "cents" })) return "pitch";
+    }
+    // Whole names: a word alone is one thing; in a longer name, often another.
+    {
+        std::string whole;
+        for (auto& w : ws) whole += (whole.empty() ? "" : " ") + w;
+        if (isAny (whole, { "in", "amp", "amplifier" })) return "volume";
+        if (isAny (whole, { "key", "scale", "shift", "speed" })) return "pitch";   // Auto-Tune's Key, Valhalla's Shift, a sampler's Speed
+        if (isAny (whole, { "voices" })) return "not sound";                       // polyphony; Unison Voices is the sound
+    }
+    if (has ({ "shift" }) && hasStart ({ "freq", "frq" })) return "pitch";
+    if (has ({ "speed" }) && has ({ "sample", "tape", "play", "playback" })) return "pitch";
+    if (has ({ "pm" }) && ! has ({ "fm" })) return "pitch";                         // Dexed's LFO PM Depth
+    // Volume inside a word of its own: FXlevel, OutGain.
+    for (auto& w : ws)
+        if (w.find ("level") != std::string::npos || w.find ("gain") != std::string::npos || w.find ("volume") != std::string::npos) return "volume";
+    // An envelope or velocity sent to the amp is volume; the amp envelope's times are the sound.
+    if (has ({ "amp", "amplifier", "vca" }))
+    {
+        if (has ({ "vel", "velocity", "to" })) return "volume";
+        if (has ({ "eg", "env", "envelope" }) && ! hasStart ({ "attack", "decay", "sustain", "release", "hold", "loop", "curve", "delay" })) return "volume";
+    }
+    // Tuning first ("Master Tune" is tuning), then volume, then what isn't the sound.
+    const bool filterSem = has ({ "sem" }) && hasStart ({ "filter" });   // Odin's SEM filter, the Oberheim one
+    for (auto& w : ws)
+        if (startsWithAny (w, { "tune", "retune", "finetun", "pitch", "pbend", "transp", "detun", "semi", "octave", "bend", "vibrato", "drift", "flutter" })
+            || (isAny (w, { "fine", "coarse", "crs", "cent", "cents", "sem", "oct", "note", "root", "vib", "wow" }) && ! (w == "sem" && filterSem)))
+            return "pitch";
+    for (auto& w : ws)
+        if (startsWithAny (w, { "volum", "lvl", "loud", "output", "trim", "makeup", "ceiling", "amplitude", "fader", "atten" })
+            || isAny (w, { "vol", "out", "input", "master", "main", "return", "expression" }))
+            return "volume";
+    if (has ({ "param", "parameter", "macro", "unused", "reserved", "cc" })) return "unknown";
+    for (auto& w : ws)
+        if (startsWithAny (w, { "preset", "program", "patch", "bank", "init", "save", "load", "undo", "redo", "learn", "browser", "panic",
+                                "reset", "delta", "listen", "audition", "monitor", "oversampl", "lookahead", "latency", "sidechain", "midi",
+                                "channel", "polyphon", "wheel", "aftertouch", "pedal", "solo", "mute", "bypass", "polarity", "dither",
+                                "freewheel", "analy", "show", "graph", "select", "tab", "status", "visib" })
+            || isAny (w, { "randomize", "randomise", "mpe", "meter", "meters", "view", "display", "window", "gonio", "next", "prev",
+                           "previous", "quality", "hq", "bpm", "sc" }))
+            return "not sound";
+    // Where a sound comes from, and what tunes it or switches it off.
+    if (has ({ "osc", "oscillator", "op", "operator", "engine", "sample", "sub", "noise", "layer", "part", "voice", "carrier", "modulator" }))
+    {
+        if (hasStart ({ "freq", "frq", "ratio" })) return "pitch";                  // an oscillator's frequency, an FM ratio
+        if (hasStart ({ "keytrack", "kbd", "keyfollow" }) || (has ({ "key" }) && has ({ "track", "follow" }))) return "pitch";
+        if (has ({ "switch", "on", "enable", "enabled", "active", "power" })) return "silence";
+    }
+    if (has ({ "modulation", "matrix" }) && has ({ "amount", "destination", "source", "dest", "src" })) return "unknown";
+    // A limiter's threshold is its volume (a compressor's is the sound).
+    {
+        const auto pw = wordsOf (plugin);
+        bool limiter = false;
+        for (auto& w : pw) if (startsWithAny (w, { "limit", "maximi", "clip", "loudmax" })) limiter = true;
+        if (limiter && hasStart ({ "thresh", "thr" })) return "volume";
+    }
+    return {};
+}
+
+std::string whyNoRandom (const std::string& plugin)
+{
+    const auto pw = wordsOf (plugin);
+    if (std::find (pw.begin(), pw.end(), "alter") != pw.end() && std::find (pw.begin(), pw.end(), "boy") != pw.end()) return "a pitch tool";
+    for (auto& w : pw)
+    {
+        if (isAny (w, { "tune", "tuner", "autotune", "alterboy", "melodyne", "harmonizer", "harmoniser", "harmony", "shifter" }) || startsWithAny (w, { "pitch" }))
+            return "a pitch tool";
+        if (isAny (w, { "utility", "gain", "trim", "meter", "meters", "spectrum", "scope", "oscilloscope" }) || startsWithAny (w, { "analy" }))
+            return "a utility";
+    }
+    return {};
 }
 
 } // namespace kal::randomsong

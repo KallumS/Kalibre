@@ -58,6 +58,30 @@ resonant low-pass filter. Up to 16 notes at once.
 
 The mod wheel adds vibrato.
 
+### Kalibre Drums
+
+Kalibre's own drum machine (0105): a kit of pads, each a **sample** or a
+**plug-in** (a drum synth), each played by its note (General MIDI's drums to
+start), and a step pattern that plays with the song or drags out to the
+timeline as a clip the drum grid opens.
+
+| Control | Does |
+| --- | --- |
+| **Play Pattern** | Plays the steps while the song plays, from the song's start, round the loop. |
+| **Steps ▾** | 8 to 64 steps; each an eighth, sixteenth, sixteenth triplet or thirty-second. |
+| **Swing** | Every second step later, up to three quarters of a step. |
+| **Random Beat** | A Good Idea groove on the pads. |
+| **Random Samples** | A one-shot of its kind for each pad from the Sounds folders. |
+| **Clear**, **+ Pad** | Every hit out; another pad (16 at most). |
+| **Drag to Timeline** | The pattern as a clip where it's let go. |
+| A pad's name | Click to hear it; right-click for its note, sound, plug-in note, choke group, name, or to take it out. |
+| **M**, the knobs | Mute; volume (-36 to +12 dB) and pan. |
+
+A pad's sample is read into memory when chosen (30 seconds at most) and
+played as a one-shot; a pad's plug-in is sent its plug-in note (C3 unless
+chosen) on each hit and the note-off after the step. Pads in a choke group
+stop each other.
+
 ### Kalibre Sampler
 
 One sample, played three ways (**Mode**, 0095). **Drop an audio file onto

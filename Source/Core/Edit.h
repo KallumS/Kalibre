@@ -64,6 +64,21 @@ void selectVersion (Project&, Id track, int index);
 void renameVersion (Project&, Id track, int index, const std::string&);
 
 //==============================================================================
+// Song versions (decision 0103): the whole song, twice at most.
+
+inline constexpr int maxSongVersions = 2;
+// Version 2, a copy of 1, chosen; version 1 waits, stored. False if there are two.
+bool newSongVersion (Project&);
+// The other version plays; the one playing is stored. False if it's the one playing or isn't there.
+bool selectSongVersion (Project&, int index);
+// The other plays (as version 1) if it's the one playing that goes.
+bool deleteSongVersion (Project&, int index);
+// The version playing, as it's stored while the other plays.
+StoredSong storeSong (const Project&);
+// Whether the version not playing has a frozen track playing this render.
+bool otherVersionUses (const Project&, const std::string& file);
+
+//==============================================================================
 // Clips
 
 Id addClip (Project&, Id track, Clip);

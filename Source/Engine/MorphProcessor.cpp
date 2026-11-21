@@ -7,6 +7,7 @@
 #include "BuiltinInstruments.h"
 #include "Editors.h"
 #include "ContainerProcessor.h"
+#include "DrumMachine.h"
 #include "HardwareInsert.h"
 #include "Morph.h"
 #include "PluginManager.h"
@@ -348,6 +349,7 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "test-multiout") return std::make_unique<MultiOutTest>();
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
     if (ref.identifier == "container") return std::make_unique<ContainerProcessor> (pm);
+    if (ref.identifier == "drums") return std::make_unique<DrumMachine> (pm);   // decision 0105
     if (auto inst = makeInstrument (ref)) return inst;
     if (ref.identifier == "hardware-insert") return std::make_unique<HardwareInsert>();
     if (String (ref.identifier).startsWith ("test-gain:"))

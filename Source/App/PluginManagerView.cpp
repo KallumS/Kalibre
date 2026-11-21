@@ -38,12 +38,17 @@ PluginManagerView::PluginManagerView (Controller& ctrl) : c (ctrl)
     search.setTextToShowWhenEmpty ("Search by name, maker or format", theme::textSecondary);
     search.onTextChange = [this] { refresh(); };
     addAndMakeVisible (search);
-    for (auto* b : { &scanNew, &scanAgain, &turnOff, &turnOn, &reveal, &onlyOff }) addAndMakeVisible (b);
+    for (auto* b : { &scanNew, &scanAgain, &turnOff, &turnOn, &reveal, &onlyOff, &report }) addAndMakeVisible (b);
 
     scanNew.onClick = [this]
     {
         if (c.engine.plugins().scanning()) c.engine.plugins().cancelScan();
         else c.scanPlugins();
+        updateButtons();
+    };
+    report.onClick = [this]
+    {
+        c.randomSettingsReport (File::getSpecialLocation (File::userDesktopDirectory).getChildFile ("Kalibre Random Settings Report.txt"));
         updateButtons();
     };
     scanAgain.onClick = [this]
@@ -199,6 +204,7 @@ void PluginManagerView::updateButtons()
     turnOff.setEnabled (anyOn);
     turnOn.setEnabled (anyOff && ! busy);
     reveal.setEnabled (ch.size() == 1 && aFile);
+    report.setEnabled (! busy && ! c.engine.plugins().readingControls());
     resized();
     repaint (infoArea);
 }
@@ -363,6 +369,7 @@ void PluginManagerView::resized()
     place (reveal);
     bar.removeFromLeft (theme::px (8));
     place (onlyOff);
+    place (report);
     search.setBounds (bar.withWidth (jmin (bar.getWidth(), theme::px (260))));
     r.removeFromTop (theme::px (4));
     infoArea = r.removeFromTop (theme::px (30));

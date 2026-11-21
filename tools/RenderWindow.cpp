@@ -5,6 +5,7 @@
 
 #include "../Tests/App/Demo.h"
 #include "BuiltinInstruments.h"
+#include "DrumMachine.h"
 #include "ContainerProcessor.h"
 #include "Comp.h"
 #include "Song.h"
@@ -235,6 +236,13 @@ int main (int argc, char** argv)
             c.setStudio (was);
             window.browserWidth = 320;
         }
+        // Song versions 1 and 2 in the top bar (decision 0103): 2 made and playing.
+        {
+            c.newSongVersion();
+            shoot ("41-song-versions");
+            c.undo();
+            c.say ("This is the message line: what just happened, with Undo; then what is chosen, or what the pointer is over.", false, true);
+        }
         // The Sounds tab (decision 0094): a small library of drums, loops and MIDI.
         {
             const auto lib = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-library");
@@ -313,6 +321,13 @@ int main (int argc, char** argv)
             for (size_t i = 0; i < sv.shown().size(); ++i)
                 if (library::nameOf (sv.shown()[i].path) == "Chords Am F C G.mid") sv.list().selectRow ((int) i);
             shoot ("35-sounds-all-items-shuffled");
+            // Drums only (0106): each with its kind, read from its name or heard.
+            sv.settings().shuffled = false;
+            sv.settings().drumsOnly = true;
+            sv.refreshRows();
+            if (! sv.shown().empty()) sv.list().selectRow (0);
+            shoot ("43-sounds-drums");
+            sv.settings().drumsOnly = false;
             sv.settings().flat = false;
             sv.settings().shuffled = false;
             sv.useStore (LibraryView::defaultStore());   // not left pointing at the demo
@@ -648,6 +663,51 @@ int main (int argc, char** argv)
                 c.focusTrack = synthTrack;
                 c.refresh();
                 loopFile.deleteFile();
+            }
+            // Kalibre Drums (decision 0105): a kit of samples and a synth on a pad, a beat in its steps.
+            {
+                const Id drumTrack = edit::addTrack (c.project, TrackKind::Track, "Drums");
+                const Id dev = edit::addDevice (c.project, drumTrack, drumsRef(), DeviceRole::Instrument);
+                c.focusTrack = drumTrack;
+                c.refresh();
+                if (auto* dm = dynamic_cast<DrumMachine*> (c.engine.instance (dev)))
+                {
+                    auto kit = dm->kit();
+                    const char* names[] { "Kick 808", "Snare Tight", "", "HH Closed 2", "HH Open", "Tom Low", "Tom High", "Crash 1" };
+                    for (int i = 0; i < 8; ++i)
+                    {
+                        if (names[i][0] == 0) continue;
+                        const auto f = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-drums").getChildFile (String (names[i]) + ".wav");
+                        f.getParentDirectory().createDirectory();
+                        AudioBuffer<float> b (2, 9600);
+                        for (int n = 0; n < b.getNumSamples(); ++n)
+                            for (int ch = 0; ch < 2; ++ch) b.setSample (ch, n, (float) (0.5 * std::sin (n * 0.05 * (i + 1)) * std::exp (-n / 2000.0)));
+                        f.deleteFile();
+                        WavAudioFormat wavOut;
+                        std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+                        if (auto w = wavOut.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (24)))
+                            w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+                        kit.pads[(size_t) i].sample = f.getFullPathName().toStdString();
+                    }
+                    kit.pads[2].plugin = synthRef();
+                    kit.pads[0].pan = 0;
+                    kit.pads[3].volumeDb = -4;
+                    const int hits[8][16] = {
+                        { 1,0,0,0, 0,0,0,0, 1,0,1,0, 0,0,0,0 }, { 0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1 }, { 0,0,0,0, 0,0,0,0, 0,0,0,0, 1,0,0,0 },
+                        { 1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,0,0 }, { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,0 }, { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,1,0,0 },
+                        { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0 }, { 1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0 } };
+                    for (int l = 0; l < 8; ++l)
+                        for (int st = 0; st < 16; ++st) kit.pattern.lanes[(size_t) l].velocity[(size_t) st] = hits[l][st] ? (st % 4 == 0 ? 120 : 90) : 0;
+                    dm->setKit (kit);
+                }
+                c.zoneTab = ZoneTab::Devices;
+                window.lowerHeight = 380;
+                c.refresh();
+                MessageManager::getInstance()->runDispatchLoopUntil (300);
+                shoot ("42-kalibre-drums");
+                edit::removeTrack (c.project, drumTrack);
+                c.focusTrack = synthTrack;
+                c.refresh();
             }
             // A short zone: shown smaller to fit, its shape kept (decision 0058).
             window.lowerHeight = 250;

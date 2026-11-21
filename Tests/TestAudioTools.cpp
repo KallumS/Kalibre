@@ -4,6 +4,7 @@
 #include "Playback.h"
 
 #include <cmath>
+#include <functional>
 #include <vector>
 
 using namespace kal;
@@ -309,4 +310,51 @@ TEST ("edit: Reverse and Invert, for MIDI and audio clips (0095)")
     const auto compiled = playback::compile (p, *p.track (t));
     CHECK_EQ (compiled.audio.size(), (size_t) 1);
     CHECK (compiled.audio[0].gain < 0);
+}
+
+namespace
+{
+// A hit: `delayMs` of silence, a rise over `riseMs`, then a decay of `decayMs` (to 1/e) of `tone`.
+std::vector<float> hit (double rate, double seconds, double delayMs, double riseMs, double decayMs, std::function<float (int)> tone)
+{
+    std::vector<float> x ((size_t) (rate * seconds), 0.0f);
+    const int from = (int) (delayMs * rate / 1000);
+    for (size_t i = (size_t) from; i < x.size(); ++i)
+    {
+        const double t = (double) (i - (size_t) from) / rate * 1000.0;
+        const double env = (riseMs > 0 ? std::min (1.0, t / riseMs) : 1.0) * std::exp (-std::max (0.0, t - riseMs) / decayMs);
+        x[i] = (float) (0.8 * env * tone ((int) i));
+    }
+    return x;
+}
+} // namespace
+
+TEST ("hit shape: when a sound starts, how fast it rises, how far it dies away, and how bright it is (0106)")
+{
+    const double rate = 48000;
+    // A kick: low, at once, dying in a quarter of a second.
+    const auto kick = hit (rate, 0.5, 0, 0, 60, [=] (int i) { return (float) std::sin (tau * 55.0 * i / rate); });
+    const auto k = hitShape (kick.data(), (int) kick.size(), rate);
+    CHECK (k.onsetMs >= 0 && k.onsetMs < 2);
+    CHECK (k.attackMs >= 0 && k.attackMs < 10);
+    CHECK (k.tailDb < -20);
+    CHECK (k.zcr > 0 && k.zcr < 400);   // 55 Hz crosses zero 110 times a second
+
+    // A hat: noise, after 20 ms of silence, short.
+    unsigned seed = 7;
+    auto noise = [&seed] (int) { seed = seed * 1664525u + 1013904223u; return (float) ((seed >> 8) / 8388608.0 - 1.0); };
+    const auto hat = hit (rate, 0.3, 20, 0, 25, noise);
+    const auto h = hitShape (hat.data(), (int) hat.size(), rate);
+    CHECK (std::abs (h.onsetMs - 20) < 2);
+    CHECK (h.zcr > 9000);
+
+    // A pad: rising over half a second, held to the end.
+    const auto pad = hit (rate, 2.0, 0, 500, 100000, [=] (int i) { return (float) std::sin (tau * 220.0 * i / rate); });
+    const auto p = hitShape (pad.data(), (int) pad.size(), rate);
+    CHECK (p.attackMs > 300);
+    CHECK (p.tailDb > -6);
+
+    // Silence: nothing heard.
+    std::vector<float> none (4800, 0.0f);
+    CHECK (hitShape (none.data(), (int) none.size(), rate).onsetMs < 0);
 }
