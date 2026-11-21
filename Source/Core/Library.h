@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <map>
 #include <set>
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -154,5 +155,9 @@ std::string toJson (const Settings&);
 bool fromJson (const std::string&, Settings&);
 std::string toJson (const Index&);
 bool fromJson (const std::string&, Index&);
+// The index as Kalibre saves it: a line of its own for each sound (0106), so half a
+// million are written and read a line at a time. readIndex reads the older single document too.
+bool writeIndex (const Index&, std::ostream&);
+bool readIndex (std::istream&, Index&);
 
 } // namespace kal::library

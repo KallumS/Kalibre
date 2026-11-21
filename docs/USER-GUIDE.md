@@ -833,11 +833,12 @@ High Tom, Crash), up to 16 with **+ Pad**. Each plays a **sample** or a
 - **Drag a plug-in** from the browser onto a pad's row, or right-click the
   pad > **Play It with a Plug-in**: a drum synth plays that pad. Click the
   pad's name to see its plug-in beside the steps.
-- **Random Samples** gives every pad a sound from your Sounds folders: a kick
-  for the kick, a snare for the snare, read from the names of the sounds and
-  their folders ("Kick 05", "BD_808", "Snares/", "HH Closed", "OHH"). Only
-  short one-shots, never loops; never the same one twice. Pads with
-  plug-ins keep them. Click again for others; **Undo** for the last.
+- **Random Samples** gives every pad a drum sound from your Sounds folders, a
+  kick for the kick, a snare for the snare, told as the Sounds tab's **Drums**
+  tells them ([how](#how-a-drum-is-told)): by name, folder, length and the
+  shape of the hit. Never a loop or another instrument; never the same one
+  twice. Pads with plug-ins keep them. Click again for others; **Undo** for
+  the last.
 
 Click a pad's name to hear it. **M** mutes it; the two knobs are its volume
 and pan. Right-click a pad for **Rename…**, **Played by** (its note),
@@ -1113,18 +1114,45 @@ looks through them all again (**Look Again**). Only files Kalibre can play
 are listed: WAV, AIFF, FLAC, Ogg, MP3, AAC and ALAC (M4A, CAF), and MIDI.
 Each file is read once; after that only new and changed files are, so
 opening Kalibre doesn't wait. The line under the buttons says how far a scan
-has got, or how many sounds there are.
+has got ("Reading new sounds: 1,200 of 50,000…"; "Checking 500,000 sounds for
+changes…" while it only looks at the ones it knows), or how many sounds there
+are. A big first scan is saved every 50,000 sounds, so quitting part-way
+loses at most those: the next time, it carries on from there. With tens of
+thousands of sounds the list is opened in the background as Kalibre starts
+("Opening the list of your sounds…").
 
 | Control | Does |
 | --- | --- |
 | **Folders** | The sounds in their folders. Click a folder to open or shut it. |
 | **All Items** | Every sound in one list, without folders. |
 | **★ Only** | Only favourites: sounds and folders with a star, and everything inside a favourite folder. |
+| **Drums ▾** | Only drum sounds (**All Drums**), or one kind: **Kicks**, **Snares**, **Claps**, **Hats**, **Toms**, **Cymbals**, **Rims**, **Shakers**, **Percussion**. **All Sounds** shows everything again. [How a drum is told](#how-a-drum-is-told). |
 | **A to Z ▾** | The order: **A to Z**, or **Shuffle** (within each folder, or the whole list in All Items). It stays shuffled the same way until you choose **Shuffle Again**. |
 | **Sync** | Previews play at the song's tempo. MIDI always; a sample when its tempo is known: written in its name ("Drums 96bpm", "BPM120"), in the file (an ACID WAV), or heard in a loop (below). While the song plays, a preview starts on the next beat. Off: everything as it was made. |
 | **Auto-Play** | On: choosing a sound plays it. Off: choosing (a click, ↑ or ↓) is silent; click the chosen sound's picture at the top to hear it, and again to stop it. Right-click > **Play** works too. Remembered. |
 | **Folders…** | The Library Folders window. |
 | **Search** | At the top of the browser: only sounds whose names hold what you type. |
+
+#### How a drum is told
+
+![Drums: three drum sounds, each with its kind; the breakbeat left out](guide/sounds-drums.png)
+
+A drum sound is **short** (three seconds at most; a cymbal eight), and
+**shaped like a hit**: it starts at once, rises in a few milliseconds and
+dies away. Its **kind** is read from its **name** ("Kick 05", "BD_808",
+"Snare_Tight", "HH Closed", "OHH", "Crash 1"), or failing that its
+**folder's** ("Kicks/Punchy 01"). Words that say it isn't a drum rule it out:
+Loop, a tempo ("120bpm"), Fill, Pad, Vocal, Chord, Bass (but not Bass Drum),
+Riser, and a folder named for loops or pads.
+
+When neither its name nor its folder says, Kalibre **hears** its kind: low
+and dull, a kick; pitched in the middle, a tom; very bright and short, a
+closed hat (longer, an open hat; longer still, a cymbal); bright, a snare.
+Those show "(Heard)" after the kind, as "Snare (Heard)". Each sound's kind is
+in its line under its name.
+
+The first time Kalibre opens after this change, it reads the first seconds of
+every sound once more to hear its shape (not all of it again).
 
 At the top, **the chosen sound**: its name, length, format and tempo, and
 its waveform, or its notes for MIDI, with the playhead as it plays. For a

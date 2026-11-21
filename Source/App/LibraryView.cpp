@@ -656,6 +656,7 @@ void LibraryView::askOnFirstRun (std::function<void()> chose)
 String LibraryView::status() const
 {
     if (s.folders.empty()) return "No folders chosen yet.";
+    if (scan->openingIndex()) return "Opening the list of your sounds" + u8 ("\xe2\x80\xa6");
     if (scan->scanning())
         return scan->filesToRead() > 0 ? "Reading new sounds: " + String (scan->filesRead()) + " of " + String (scan->filesToRead()) + u8 ("\xe2\x80\xa6")
                                        : "Checking " + String (scan->filesFound()) + " sounds for changes" + u8 ("\xe2\x80\xa6");

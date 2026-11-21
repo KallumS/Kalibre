@@ -321,6 +321,13 @@ int main (int argc, char** argv)
             for (size_t i = 0; i < sv.shown().size(); ++i)
                 if (library::nameOf (sv.shown()[i].path) == "Chords Am F C G.mid") sv.list().selectRow ((int) i);
             shoot ("35-sounds-all-items-shuffled");
+            // Drums only (0106): each with its kind, read from its name or heard.
+            sv.settings().shuffled = false;
+            sv.settings().drumsOnly = true;
+            sv.refreshRows();
+            if (! sv.shown().empty()) sv.list().selectRow (0);
+            shoot ("43-sounds-drums");
+            sv.settings().drumsOnly = false;
             sv.settings().flat = false;
             sv.settings().shuffled = false;
             sv.useStore (LibraryView::defaultStore());   // not left pointing at the demo

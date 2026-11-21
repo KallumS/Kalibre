@@ -51,6 +51,7 @@
 | `Engine/PluginManager.*` | Scanning (each plug-in in a helper: Kalibre run with `--kalibre-scan`), turning plug-ins off and on, and making them (0047). The helper's `controls` mode reads every control for the Random Settings Report (0104). |
 | `Engine/MorphProcessor.*` | The X/Y morph (0018), and the latency and gain devices the tests use. |
 | `Engine/ContainerProcessor.*` | The Container: plug-ins in a row, each on a band, the mid or the sides (0055). |
+| `Core/DrumSounds.*` | Whether a sound is a drum, and which: name, folders, length, the hit's shape (0106). |
 | `Engine/DrumMachine.*`, `DrumMachineEditor.cpp`; `Core/DrumKit.*` | Kalibre Drums: pads of samples or hosted plug-ins, its own steps from the playhead; the kit as JSON, Random Samples, the pattern as notes (0105). |
 | `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |
 | `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |

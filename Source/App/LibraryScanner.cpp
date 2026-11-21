@@ -1,4 +1,6 @@
 #include "LibraryScanner.h"
+
+#include <fstream>
 #include "AudioTools.h"
 #include "Loudness.h"
 
@@ -15,14 +17,39 @@ double audioFileTempo (const String& fileName, const StringPairArray& metadata)
     return acid >= 40 && acid <= 300 ? acid : 0;
 }
 
-LibraryScanner::LibraryScanner (File f) : Thread ("Kalibre library scan"), indexFile (std::move (f))
+LibraryScanner::LibraryScanner (File f, int64 openLaterOver) : Thread ("Kalibre library scan"), indexFile (std::move (f))
 {
-    if (indexFile.existsAsFile()) library::fromJson (indexFile.loadFileAsString().toStdString(), live);
+    // A big index (tens of thousands of sounds) is opened on the scan's thread when
+    // it starts, so Kalibre isn't held up opening; a small one at once.
+    if (indexFile.existsAsFile())
+    {
+        if (indexFile.getSize() > openLaterOver) pendingOpen = true;
+        else
+        {
+            std::ifstream in (indexFile.getFullPathName().toStdString(), std::ios::binary);
+            library::readIndex (in, live);
+        }
+    }
+}
+
+// Written beside it and then put in its place, so a save cut short (Kalibre quit,
+// the Mac turned off) leaves the last one whole.
+bool LibraryScanner::saveIndex (const library::Index& index, const File& to)
+{
+    to.getParentDirectory().createDirectory();
+    const auto part = to.getSiblingFile (to.getFileName() + ".part");
+    {
+        std::ofstream out (part.getFullPathName().toStdString(), std::ios::binary | std::ios::trunc);
+        if (! out || ! library::writeIndex (index, out)) return false;
+    }
+    return part.moveFileTo (to);
 }
 
 LibraryScanner::~LibraryScanner()
 {
-    stopThread (4000);
+    // Time for the scan to save what it has read since its last save (a few
+    // seconds with half a million sounds); cut off, the last save stays whole.
+    stopThread (15000);
     cancelPendingUpdate();
 }
 
@@ -35,6 +62,11 @@ String LibraryScanner::wildcard()
 
 void LibraryScanner::scan (const std::vector<std::string>& toScan)
 {
+    {
+        // Still opening the index: it scans these folders once it's open.
+        const ScopedLock sl (lock);
+        if (pendingOpen && isThreadRunning()) { folders = toScan; return; }
+    }
     stopThread (4000);
     folders = toScan;
     found = 0;
@@ -177,9 +209,31 @@ bool LibraryScanner::analyse (const File& f, library::Item& it, AudioFormatManag
 void LibraryScanner::run()
 {
     library::Index work;
+    if (pendingOpen)
+    {
+        opening = true;
+        {
+            std::ifstream in (indexFile.getFullPathName().toStdString(), std::ios::binary);
+            library::readIndex (in, work);
+        }
+        {
+            const ScopedLock sl (lock);
+            shared = work;
+            fresh = true;
+            pendingOpen = false;
+        }
+        opening = false;
+        triggerAsyncUpdate();
+    }
+    else
     {
         const ScopedLock sl (lock);
         work = live;   // live isn't changed off the message thread while this runs: it's only replaced here, from `shared`
+    }
+    std::vector<std::string> folders;
+    {
+        const ScopedLock sl (lock);
+        folders = this->folders;
     }
     AudioFormatManager fm;
     fm.registerBasicFormats();
@@ -211,11 +265,7 @@ void LibraryScanner::run()
         fresh = true;
         triggerAsyncUpdate();
     };
-    auto save = [this, &work]
-    {
-        indexFile.getParentDirectory().createDirectory();
-        indexFile.replaceWithText (library::toJson (work));
-    };
+    auto save = [this, &work] { saveIndex (work, indexFile); };
     // Only what's new or changed is read; the rest was only checked.
     std::vector<std::pair<std::string, std::pair<int64, int64>>> pending;
     for (auto& [path, info] : files)
@@ -225,8 +275,10 @@ void LibraryScanner::run()
     }
     toRead = (int) pending.size();
     handOver();
-    auto lastHandOver = Time::getMillisecondCounter(), lastSave = lastHandOver;
-    int n = 0;
+    // A big library is handed to the list less often: each hand-over copies it.
+    const uint32 handOverEvery = work.items.size() + pending.size() > 20000 ? 15000u : 400u;
+    auto lastHandOver = Time::getMillisecondCounter();
+    int n = 0, sinceSave = 0;
     for (auto& [path, info] : pending)
     {
         if (threadShouldExit()) break;
@@ -241,9 +293,9 @@ void LibraryScanner::run()
         item.modified = info.second;
         work.items[path] = std::move (item);
         read = ++n;
+        if (++sinceSave >= jmax (1, saveEvery)) { save(); sinceSave = 0; }
         const auto now = Time::getMillisecondCounter();
-        if (now - lastSave >= (uint32) jmax (0, saveEveryMs)) { save(); lastSave = now; }
-        if (now - lastHandOver > 400) { handOver(); lastHandOver = now; }
+        if (now - lastHandOver > handOverEvery) { handOver(); lastHandOver = now; }
         if (afterEach) afterEach();
     }
     handOver();

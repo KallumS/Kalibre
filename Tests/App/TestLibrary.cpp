@@ -1,6 +1,7 @@
 // The browser's Sounds tab (decision 0094): scanning the chosen folders,
 // hearing a sound in time with the song, and bringing it into the song.
 #include "Check.h"
+#include <fstream>
 #include <functional>
 #include <map>
 #include "DrumSounds.h"
@@ -190,7 +191,7 @@ TEST ("sounds: what a scan has read is saved as it goes, so one stopped part-way
     const auto atQuit = indexFile.getSiblingFile ("Library Index at quit.json");
     {
         LibraryScanner first (indexFile);
-        first.saveEveryMs = 0;   // after every sound, so the test needn't wait
+        first.saveEvery = 1;   // after every sound, so the test needn't scan 50,000
         std::atomic<int> seen { 0 };
         first.afterEach = [&] { if (++seen == 10) { paused.signal(); carryOn.wait (20000); } };
         first.scan ({ dir.getFullPathName().toStdString() });
@@ -229,7 +230,10 @@ TEST ("sounds: a sound scanned by the last version has only its hit's shape adde
     }
     // As the last version left them: analysis 2, no shape, and a loudness to see kept.
     library::Index old;
-    library::fromJson (indexFile.loadFileAsString().toStdString(), old);
+    {
+        std::ifstream in (indexFile.getFullPathName().toStdString(), std::ios::binary);
+        CHECK (library::readIndex (in, old));
+    }
     for (auto& [p, it] : old.items)
         if (it.kind == library::Kind::Audio) { it.analysis = 2; it.onsetMs = it.attackMs = it.zcr = -1; it.tailDb = 0; it.lufs = -7.5; }
     indexFile.replaceWithText (library::toJson (old));
@@ -297,6 +301,26 @@ TEST ("sounds: Drums shows only drum sounds, each with its kind: by its name, or
     int items = 0;
     for (auto& r : v.shown()) items += r.type == library::Row::Type::Item;
     CHECK_EQ (items, 1);
+}
+
+TEST ("sounds: a big index is opened on the scan's thread, not while Kalibre starts; what it knows isn't read again (0106)")
+{
+    const auto dir = makeSounds ("scan-big-index");
+    const auto indexFile = libraryFolder ("scan-big-index-store").getChildFile ("Library Index.json");
+    indexFile.deleteFile();
+    {
+        LibraryScanner first (indexFile);
+        first.scan ({ dir.getFullPathName().toStdString() });
+        CHECK (first.waitUntilDone (20000));
+    }
+    LibraryScanner later (indexFile, 0);   // every index "big"
+    CHECK (later.index().items.empty());
+    CHECK (later.openingIndex());
+    later.scan ({ dir.getFullPathName().toStdString() });
+    CHECK (later.waitUntilDone (20000));
+    CHECK (! later.openingIndex());
+    CHECK_EQ ((int) later.index().items.size(), 5);
+    CHECK_EQ (later.filesAnalysed(), 0);
 }
 
 TEST ("sounds: a preview follows the song's tempo with Sync on, a sample when its tempo is known, MIDI always; off, as made")
