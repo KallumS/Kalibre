@@ -1,5 +1,6 @@
 #include "Controller.h"
 #include "DrumMachine.h"
+#include "BuiltinInstruments.h"
 #include "LibraryScanner.h"
 #include "ReaperScripts.h"
 #include "NoteSplitter.h"
@@ -42,6 +43,19 @@ Controller::Controller (Engine& e) : engine (e)
         pluginChanged (before, label);
     };
     DrumMachine::sounds = [this] { return soundsIndex ? soundsIndex() : nullptr; };
+    // Kalibre Sampler (0108): a sample loaded, by hand or by chance, one undo step.
+    KalibreSampler::edit = [this] (KalibreSampler& s, const String& label, std::function<void()> change)
+    {
+        const Id id = deviceOf (&s);
+        if (id == 0) { change(); return; }
+        storeDeviceStates();
+        const Project before = project;
+        change();
+        changedDevice = id;
+        pluginChanged (before, label);
+    };
+    KalibreSampler::sounds = DrumMachine::sounds;
+    KalibreSampler::say = [this] (const String& m, bool warning) { say (m, warning, ! warning); };
     DrumMachine::say = [this] (const String& m, bool warning) { say (m, warning, ! warning); };
     engine.onAudioReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onLearned = [this] (int channel, int controller)
@@ -119,6 +133,9 @@ Controller::~Controller()
     DrumMachine::edit = nullptr;
     DrumMachine::sounds = nullptr;
     DrumMachine::say = nullptr;
+    KalibreSampler::edit = nullptr;
+    KalibreSampler::sounds = nullptr;
+    KalibreSampler::say = nullptr;
     engine.onTouched = nullptr;
     engine.onMessage = nullptr;
     insertToolBlock = nullptr;

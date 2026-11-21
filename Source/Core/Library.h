@@ -131,6 +131,13 @@ double tempoFromName (const std::string& name);
 // True when the cached item doesn't describe the file as it is now.
 bool needsScan (const Item* cached, std::int64_t size, std::int64_t modified);
 
+// Random Sample (the Sampler's, decision 0108): any sound in the scanned
+// folders, of any kind (a loop, a one-shot, a note, a texture): audio the scan
+// could read, longer than nothing and no longer than the Sampler takes (ten
+// minutes), not `avoid` (the one it has). A new choice each seed; empty when
+// there's none. One pass, nothing copied: a library of half a million is fine.
+std::string randomSound (const Index&, unsigned seed, const std::string& avoid = {});
+
 // "C3 +12", the note and how far off it is; "" when there's none.
 std::string noteName (int note, double cents);
 // What the browser shows of a sample's loudness: "-12.3 LUFS", or its peak when too short to measure.

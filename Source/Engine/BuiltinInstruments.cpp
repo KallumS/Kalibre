@@ -180,6 +180,14 @@ public:
     {
         addAndMakeVisible (knobs);
         addAndMakeVisible (loadButton);
+        addAndMakeVisible (randomButton);
+        randomButton.onClick = [this]
+        {
+            String said;
+            const bool ok = proc.loadRandom (said);
+            if (KalibreSampler::say) KalibreSampler::say (said, ! ok);
+            repaint();
+        };
         loadButton.onClick = [this]
         {
             chooser = std::make_unique<FileChooser> ("Choose a sample", proc.file().getParentDirectory(), "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
@@ -209,7 +217,9 @@ public:
     void loadFile (const File& f)
     {
         String error;
-        if (! proc.load (f, error))
+        bool loaded = false;
+        proc.perform ("Load Sample", [&] { loaded = proc.load (f, error); });
+        if (! loaded)
         {
             // Asked inside the main window, never in one of its own (decision 0002).
             auto* w = new AlertWindow ("The sample couldn't be loaded", error, MessageBoxIconType::NoIcon);
@@ -230,7 +240,7 @@ public:
         if (data.getNumSamples() == 0)
         {
             g.setColour (theme::textSecondary);
-            g.drawFittedText ("Drop a sample here, from the browser or the Finder, or click Load Sample.", w, Justification::centred, 2);
+            g.drawFittedText ("Drop a sample here, from the browser or the Finder, or click Load Sample or Random Sample.", w, Justification::centred, 2);
             return;
         }
         const int n = data.getNumSamples();
@@ -274,12 +284,18 @@ public:
         g.drawText (proc.file().getFileName() + "   " + modeName, w.reduced (6, 4), Justification::topLeft, true);
     }
 
-    Rectangle<int> waveArea() const { return getLocalBounds().removeFromTop (getHeight() * 2 / 5).reduced (6).withTrimmedRight (loadButton.getWidth() + 8); }
+    Rectangle<int> waveArea() const
+    {
+        return getLocalBounds().removeFromTop (getHeight() * 2 / 5).reduced (6).withTrimmedRight (jmax (loadButton.getWidth(), randomButton.getWidth()) + 8);
+    }
 
     void resized() override
     {
         auto top = getLocalBounds().removeFromTop (getHeight() * 2 / 5).reduced (6);
-        loadButton.setBounds (top.removeFromRight (loadButton.idealWidth (theme::smallControl)).removeFromTop (theme::px (24)));
+        auto side = top.removeFromRight (jmax (loadButton.idealWidth (theme::smallControl), randomButton.idealWidth (theme::smallControl)));
+        loadButton.setBounds (side.removeFromTop (theme::px (24)));
+        side.removeFromTop (theme::px (4));
+        randomButton.setBounds (side.removeFromTop (theme::px (24)));
         knobs.setBounds (getLocalBounds().withTrimmedTop (getHeight() * 2 / 5));
     }
 
@@ -294,6 +310,8 @@ private:
     std::vector<int> slices;
     KnobPanel knobs;
     theme::HouseButton loadButton { ui::u8 ("Load Sample\xe2\x80\xa6"), "Choose the sample to play." };
+    theme::HouseButton randomButton { "Random Sample", "Any sound from your Sounds folders: a loop, a one-shot, a note, a texture. "
+                                                       "A melodic one plays in tune: its Root Note is set to the note it is. Click again for another." };
     std::unique_ptr<FileChooser> chooser;
 };
 } // namespace
@@ -606,6 +624,65 @@ bool KalibreSampler::load (const File& f, String& error)
     return true;
 }
 
+void KalibreSampler::unload()
+{
+    {
+        const SpinLock::ScopedLockType lock (swapLock);
+        data.setSize (2, 0);
+        candidates.clear();
+        sampleFile = File();
+        for (auto& v : voices) { v.env.reset(); v.note = -1; }
+    }
+    if (onLoaded) onLoaded();
+}
+
+std::function<void (KalibreSampler&, const String&, std::function<void()>)> KalibreSampler::edit;
+std::function<const library::Index*()> KalibreSampler::sounds;
+std::function<void (const String&, bool)> KalibreSampler::say;
+
+void KalibreSampler::perform (const String& label, std::function<void()> change)
+{
+    if (edit) edit (*this, label, std::move (change));
+    else change();
+}
+
+bool KalibreSampler::loadRandom (String& said)
+{
+    const auto* index = sounds ? sounds() : nullptr;
+    if (! index || index->items.empty())
+    {
+        said = "Random Sample chooses from your sounds: choose their folders in the browser's Sounds tab first.";
+        return false;
+    }
+    // A file the scan read may since have gone: a few tries.
+    const auto have = sampleFile.getFullPathName().toStdString();
+    for (int attempt = 0; attempt < 8; ++attempt)
+    {
+        const auto path = library::randomSound (*index, (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u, have);
+        if (path.empty()) break;
+        const File f (String::fromUTF8 (path.c_str()));
+        if (! f.existsAsFile()) continue;
+        const auto it = index->items.find (path);
+        const int note = it != index->items.end() ? it->second.note : -1;
+        bool loaded = false;
+        String error;
+        perform ("Random Sample", [this, f, note, &loaded, &error]
+        {
+            loaded = load (f, error);
+            // Played in tune: the key that plays it as recorded is the note it is.
+            if (loaded && note >= 0 && note <= 127)
+                params[Root]->setValueNotifyingHost (params[Root]->convertTo0to1 ((float) note));
+        });
+        if (! loaded) continue;
+        said = "Random Sample: " + f.getFileName()
+             + (note >= 0 ? " (" + String (library::noteName (note, 0)) + ", its Root Note)" : String())
+             + ". Click again for another; Undo for the last.";
+        return true;
+    }
+    said = "No sound in your folders could be loaded: scan them again in the browser's Sounds tab.";
+    return false;
+}
+
 void KalibreSampler::writeExtra (XmlElement& x) { x.setAttribute ("sample", sampleFile.getFullPathName()); }
 
 void KalibreSampler::readExtra (const XmlElement& x)
@@ -613,6 +690,7 @@ void KalibreSampler::readExtra (const XmlElement& x)
     const File f (x.getStringAttribute ("sample"));
     String error;
     if (f.existsAsFile() && f != sampleFile) load (f, error);
+    else if (x.getStringAttribute ("sample").isEmpty() && sampleFile != File()) unload();   // undone back to none
 }
 
 void KalibreSampler::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)

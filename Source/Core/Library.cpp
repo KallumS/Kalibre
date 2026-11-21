@@ -7,6 +7,7 @@
 #include <istream>
 #include <iterator>
 #include <ostream>
+#include <random>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -135,6 +136,21 @@ bool needsScan (const Item* cached, std::int64_t size, std::int64_t modified)
 {
     return cached == nullptr || cached->size != size || cached->modified != modified
            || (cached->kind == Kind::Audio && cached->readable && cached->analysis < analysisVersion);
+}
+
+std::string randomSound (const Index& index, unsigned seed, const std::string& avoid)
+{
+    // Reservoir sampling: the n-th fitting sound replaces the choice with a chance of 1 in n.
+    std::mt19937 rng (seed);
+    std::string chosen;
+    std::uint64_t n = 0;
+    for (auto& [path, it] : index.items)
+    {
+        if (it.kind != Kind::Audio || ! it.readable || it.seconds <= 0 || it.seconds > 600 || path == avoid) continue;
+        ++n;
+        if (std::uniform_int_distribution<std::uint64_t> (0, n - 1) (rng) == 0) chosen = path;
+    }
+    return chosen;
 }
 
 std::string noteName (int note, double cents)

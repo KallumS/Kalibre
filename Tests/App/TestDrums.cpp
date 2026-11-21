@@ -418,3 +418,82 @@ TEST ("drums: the pattern dragged from its window and let go over the drums' tra
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("sampler: Random Sample loads any sound from the Sounds folders, a new one each click, its Root Note the note it is; each one undo step, as is Load Sample (0108)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+        const Id dev = edit::addDevice (c.project, t, samplerRef(), DeviceRole::Instrument);
+        c.refresh();
+        auto* s = dynamic_cast<KalibreSampler*> (engine.instance (dev));
+        CHECK (s != nullptr);
+        if (! s) return;
+        std::unique_ptr<AudioProcessorEditor> ed (s->createEditor());
+        ed->setSize (1000, 300);
+        auto* random = buttonNamed (*ed, "Random Sample");
+        CHECK (random != nullptr);
+        if (! random) return;
+        auto click = [random] { random->triggerClick(); MessageManager::getInstance()->runDispatchLoopUntil (50); };
+
+        // No sounds scanned: said, nothing changed.
+        library::Index ix;
+        c.soundsIndex = [&ix] { return &ix; };
+        auto steps = c.history.size();
+        click();
+        CHECK_EQ (c.history.size(), steps);
+        CHECK (c.message.contains ("Sounds tab"));
+        CHECK (s->sample().getNumSamples() == 0);
+
+        // A pad, heard as A3: loaded, and played in tune from A3.
+        auto add = [&ix] (const String& name, double seconds, int note)
+        {
+            const auto f = flatSound (name, seconds, 0.3f);
+            library::Item it;
+            it.path = f.getFullPathName().toStdString();
+            it.seconds = seconds;
+            it.note = note;
+            ix.items[it.path] = it;
+            return f;
+        };
+        const auto pad = add ("Pad A3", 2.0, 57);
+        click();
+        CHECK_EQ (c.history.size(), steps + 1);
+        CHECK (s->file() == pad);
+        CHECK (s->sample().getNumSamples() > 0);
+        CHECK_EQ (roundToInt (s->value (KalibreSampler::Root)), 57);
+        CHECK (c.message.contains ("Pad A3"));
+
+        // A loop with no one note: the other one, the Root Note left as it is.
+        const auto loop = add ("Break 120bpm", 4.0, -1);
+        click();
+        CHECK_EQ (c.history.size(), steps + 2);
+        CHECK (s->file() == loop);
+        CHECK_EQ (roundToInt (s->value (KalibreSampler::Root)), 57);
+
+        // Undo: the pad again; then none, Root back to C4.
+        c.undo();
+        CHECK (s->file() == pad);
+        c.undo();
+        CHECK (s->sample().getNumSamples() == 0);
+        CHECK_EQ (roundToInt (s->value (KalibreSampler::Root)), 60);
+
+        // A sound dropped on it from the browser: one undo step too.
+        auto* target = dynamic_cast<DragAndDropTarget*> (ed.get());
+        CHECK (target != nullptr);
+        if (! target) return;
+        steps = c.history.size();
+        target->itemDropped (DragAndDropTarget::SourceDetails (var ("file:" + loop.getFullPathName()), nullptr, {}));
+        CHECK_EQ (c.history.size(), steps + 1);
+        CHECK (s->file() == loop);
+        c.undo();
+        CHECK (s->sample().getNumSamples() == 0);
+        c.soundsIndex = nullptr;
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

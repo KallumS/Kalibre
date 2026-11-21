@@ -807,7 +807,12 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 ### Kalibre Sampler
 
 Drop a sample on it (from the Sounds tab or the Finder) or click **Load
-Sample…**. Its knobs, group by group:
+Sample…**. Or click **Random Sample** for any sound from your Sounds folders:
+a loop, a one-shot, a note, a texture. Click again for another; ⌘Z goes back
+to the one before. When the sound is one note (a pad, a bass note, a voice),
+its **Root Note** is set to that note, so it plays in tune from the keys; the
+message line says which. Each new sample, however it's loaded, is one undo
+step. Its knobs, group by group:
 
 | Group | Knobs |
 | --- | --- |

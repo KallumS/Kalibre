@@ -10,7 +10,8 @@
     chosen), one a key from the root up; Granular, as many short grains, so its
     speed and its pitch are apart (Speed 0 holds it still). Start, end and a
     loop, Speed, an envelope and a filter, 32 voices. Drop a file on it from
-    the browser or the Finder, or click Load Sample.
+    the browser or the Finder, click Load Sample, or Random Sample for any
+    sound from the Sounds tab's folders (0108). Each is one undo step.
 
     Both are ordinary plug-ins to the rest of Kalibre: their knobs are
     parameters (automation, modulators, last touched, MIDI learn all work),
@@ -22,6 +23,7 @@
 
 #include "Model.h"
 #include "AudioTools.h"
+#include "Library.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -163,9 +165,21 @@ public:
 
     // Message thread.
     bool load (const juce::File&, juce::String& error);
+    void unload();
+    // Any sound from the scanned folders (0108), not the one it has; its Root
+    // set to the note the scan heard, when it heard one. False, with why, when
+    // none could be loaded. One undo step through `edit`.
+    bool loadRandom (juce::String& said);
     juce::File file() const { return sampleFile; }
     const juce::AudioBuffer<float>& sample() const { return data; }
     std::function<void()> onLoaded;
+
+    // Set by the app, as for Kalibre Drums: a change as one undo step (without
+    // it, done at once); the musician's scanned sounds; the message line.
+    static std::function<void (KalibreSampler&, const juce::String& label, std::function<void()> change)> edit;
+    static std::function<const library::Index*()> sounds;
+    static std::function<void (const juce::String&, bool warning)> say;
+    void perform (const juce::String& label, std::function<void()> change);
 
 private:
     struct Grain { double pos = 0, step = 1; int age = 0, length = 0; bool on = false; };
