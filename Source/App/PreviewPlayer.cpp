@@ -156,6 +156,32 @@ void PreviewPlayer::play (const library::Item& item, bool sync, double songBpm)
     });
 }
 
+void PreviewPlayer::remake (const library::Item& item, bool sync, double songBpm)
+{
+    const int id = ++requested;
+    const double rate = deviceRate.load();
+    auto alivePtr = alive;
+    pool.removeAllJobs (false, 0);
+    pool.addJob ([this, item, sync, songBpm, rate, id, alivePtr]
+    {
+        auto buffer = render (item, sync, songBpm, rate);
+        MessageManager::callAsync ([this, buffer = std::shared_ptr<AudioBuffer<float>> (std::move (buffer)), id, alivePtr]
+        {
+            if (! *alivePtr || id != requested.load()) return;
+            // How far through it is now, while the new one was being made.
+            const double through = progress();
+            if (through < 0) return;   // it ended meanwhile: nothing to carry on
+            auto s = std::make_unique<Sound>();
+            s->id = id;
+            if (buffer) s->buffer = std::move (*buffer);
+            s->startAt = (int) std::llround (through * s->buffer.getNumSamples());
+            length = s->buffer.getNumSamples();
+            position = s->startAt;
+            swap.post (std::move (s));
+        });
+    });
+}
+
 void PreviewPlayer::stop()
 {
     const int id = ++requested;
@@ -178,7 +204,7 @@ void PreviewPlayer::audioDeviceIOCallbackWithContext (const float* const*, int, 
     for (int c = 0; c < numOuts; ++c) if (outs[c]) FloatVectorOperations::clear (outs[c], n);
     auto* s = swap.take();
     if (! s) return;
-    if (s->id != playingId) { playingId = s->id; pos = -s->delay; }
+    if (s->id != playingId) { playingId = s->id; pos = s->startAt >= 0 ? s->startAt : -s->delay; }
     const int total = s->buffer.getNumSamples();
     if (pos >= total) return;
     const float gain = 0.8f;

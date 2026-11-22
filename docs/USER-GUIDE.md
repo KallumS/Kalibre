@@ -1167,7 +1167,7 @@ thousands of sounds the list is opened in the background as Kalibre starts
 | **★ Only** | Only favourites: sounds and folders with a star, and everything inside a favourite folder. |
 | **Drums ▾** | Only drum sounds (**All Drums**), or one kind: **Kicks**, **Snares**, **Claps**, **Hats**, **Toms**, **Cymbals**, **Rims**, **Shakers**, **Percussion**. **All Sounds** shows everything again. [How a drum is told](#how-a-drum-is-told). |
 | **A to Z ▾** | The order: **A to Z**, or **Shuffle** (within each folder, or the whole list in All Items). It stays shuffled the same way until you choose **Shuffle Again**. |
-| **Sync** | Previews play at the song's tempo. MIDI always; a sample when its tempo is known: written in its name ("Drums 96bpm", "BPM120"), in the file (an ACID WAV), or heard in a loop (below). While the song plays, a preview starts on the next beat. Off: everything as it was made. |
+| **Sync** | Previews play at the song's tempo. MIDI always; a sample when its tempo is known: written in its name ("Drums 96bpm", "BPM120"), in the file (an ACID WAV), or heard in a loop (below). While the song plays, a preview starts on the next beat. Off: everything as it was made. Switched while a sound plays, it changes at once, carrying on from where it was. |
 | **Auto-Play** | On: choosing a sound plays it. Off: choosing (a click, ↑ or ↓) is silent; click the chosen sound's picture at the top to hear it, and again to stop it. Right-click > **Play** works too. Remembered. |
 | **Folders…** | The Library Folders window. |
 | **Search** | At the top of the browser: only sounds whose names hold what you type. |

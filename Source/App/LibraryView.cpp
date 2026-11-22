@@ -338,7 +338,14 @@ LibraryView::LibraryView (Controller& ctrl)
     foldersView.onClick = [this] { if (s.flat) { s.flat = false; saveSettings(); refreshRows(); } };
     flatView.onClick = [this] { if (! s.flat) { s.flat = true; saveSettings(); refreshRows(); } };
     favouritesOnly.onClick = [this] { s.favouritesOnly = favouritesOnly.getToggleState(); saveSettings(); refreshRows(); };
-    syncButton.onClick = [this] { s.sync = syncButton.getToggleState(); saveSettings(); };
+    syncButton.onClick = [this]
+    {
+        s.sync = syncButton.getToggleState();
+        saveSettings();
+        // The sound playing now follows at once, from where it is (0122).
+        if (preview->isPlaying())
+            if (const auto* it = item (preview->playingPath().toStdString())) preview->remake (*it, s.sync, songBpm());
+    };
     autoPlayButton.onClick = [this]
     {
         s.autoPlay = autoPlayButton.getToggleState();
