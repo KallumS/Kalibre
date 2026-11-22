@@ -117,3 +117,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0113. DAW Battle Pass in Kalibre's look](0113-daw-battle-pass-in-kalibres-look.md)
 - [0114. X/Y Morph's corners in windows of their own](0114-x-y-morphs-corners-in-windows-of-their-own.md)
 - [0115. Closed windows wait before they're deleted](0115-closed-windows-wait-before-theyre-deleted.md)
+- [0116. Drops onto a device's window in the rack](0116-drops-onto-a-devices-window-in-the-rack.md)

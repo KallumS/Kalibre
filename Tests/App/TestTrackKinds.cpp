@@ -2512,3 +2512,40 @@ TEST ("windows: a plug-in's own window closed is emptied and hidden at once, and
     }
     editors::Retired::delayMs = was;
 }
+
+TEST ("sampler: a sound dragged from the browser onto Kalibre Sampler in the rack loads it, handed on by its panel (the Mac's native views, 0116)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Sampler");
+    c.focusTrack = t;
+    c.refresh();
+    DeviceRack rack (c);
+    rack.setSize (1400, 360);
+    OnScreen shown (rack);
+    Id dev = 0;
+    c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument); });
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    auto* sampler = dynamic_cast<KalibreSampler*> (engine.instance (dev));
+    CHECK (sampler != nullptr);
+    if (! sampler) return;
+    // The device's panel: the drop target Kalibre's drag finds when the window itself is out of its reach.
+    DragAndDropTarget* panel = nullptr;
+    std::function<void (Component&)> walk = [&] (Component& comp)
+    {
+        if (panel == nullptr && &comp != &rack && dynamic_cast<AudioProcessorEditor*> (&comp) == nullptr)
+            if (auto* d = dynamic_cast<DragAndDropTarget*> (&comp)) panel = d;
+        for (auto* ch : comp.getChildren()) walk (*ch);
+    };
+    walk (rack);
+    CHECK (panel != nullptr);
+    if (! panel) return;
+    const auto wav = clickFile (0.25);
+    DragAndDropTarget::SourceDetails d (var ("file:" + wav.getFullPathName()), nullptr, { 400, 200 });
+    CHECK (panel->isInterestedInDragSource (d));
+    panel->itemDropped (d);
+    CHECK_EQ (sampler->file(), wav);
+    CHECK_EQ (sampler->sample().getNumSamples() > 0, true);
+}

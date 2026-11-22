@@ -54,7 +54,7 @@ private:
 };
 
 //==============================================================================
-class DevicePanel : public Component, private ComponentListener
+class DevicePanel : public Component, public DragAndDropTarget, private ComponentListener
 {
 public:
     DevicePanel (Controller& ctrl, Id dev, DeviceRack& r) : c (ctrl), id (dev), rack (r)
@@ -84,6 +84,25 @@ public:
     }
 
     ~DevicePanel() override { dropEditor(); }
+
+    // Something dragged over the device's window (a sound from the browser onto Kalibre
+    // Sampler, or a Drums pad): handed to the window, at its own point (0116). On the Mac
+    // the window is in a native view of its own (0058) that Kalibre's drags never reach.
+    DragAndDropTarget* editorTarget() const { return editor ? dynamic_cast<DragAndDropTarget*> (editor.get()) : nullptr; }
+    SourceDetails forEditor (const SourceDetails& d) const
+    {
+        const auto at = clip.toContent (clip.getLocalPoint (this, d.localPosition).toFloat()).roundToInt();
+        return SourceDetails (d.description, d.sourceComponent.get(), at);
+    }
+    bool isInterestedInDragSource (const SourceDetails& d) override
+    {
+        auto* t = editorTarget();
+        return t != nullptr && t->isInterestedInDragSource (forEditor (d));
+    }
+    void itemDragEnter (const SourceDetails& d) override { if (auto* t = editorTarget()) t->itemDragEnter (forEditor (d)); }
+    void itemDragMove (const SourceDetails& d) override { if (auto* t = editorTarget()) t->itemDragMove (forEditor (d)); }
+    void itemDragExit (const SourceDetails& d) override { if (auto* t = editorTarget()) t->itemDragExit (forEditor (d)); }
+    void itemDropped (const SourceDetails& d) override { if (auto* t = editorTarget()) t->itemDropped (forEditor (d)); }
 
     // Put in the window (or taken out): its plug-in's window opens now if it waited.
     void parentHierarchyChanged() override
