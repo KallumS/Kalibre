@@ -556,6 +556,22 @@ std::pair<Tick, Tick> playedWindow (const Clip& c)
 }
 } // namespace
 
+void humanise (Project& p, Id clipId, Tick grid, unsigned seed, double amount)
+{
+    auto* c = midiClip (p, clipId);
+    if (! c || c->locked || c->midi.notes.empty()) return;
+    std::mt19937 rng (seed);
+    std::uniform_real_distribution<double> either (-1.0, 1.0);
+    const double reach = std::max<Tick> (1, grid) * amount;
+    for (auto& n : c->midi.notes)
+    {
+        const int v = (int) std::lround (n.velocity * (1.0 + amount * either (rng)));
+        n.velocity = std::clamp (v, 1, 127);
+        n.start = std::max<Tick> (0, n.start + (Tick) std::llround (reach * either (rng)));
+    }
+    sortNotes (c->midi);
+}
+
 void reverseClip (Project& p, Id clipId)
 {
     auto* c = p.clip (clipId);

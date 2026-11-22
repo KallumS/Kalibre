@@ -387,6 +387,7 @@ For every clip:
 | **Loop Its Content** | The clip's notes or audio repeat as you lengthen it. |
 | **Reverse** | Plays it backwards. MIDI: the notes and controllers in reverse order, within what the clip plays. Audio: the sound backwards. Again to undo it. |
 | **Invert (Upside Down)** | MIDI: the notes flipped, its highest note made its lowest and the rest mirrored between. Audio, **Invert (Polarity, Upside Down)**: the waveform flipped, which sounds the same alone but cancels against a copy. Ticked while on. |
+| **Humanise** | MIDI: each note a little different, by chance: its velocity up to 10% softer or harder, its start up to 10% of the editors' grid earlier or later (at 1/16, a fortieth of a beat); lengths kept. One undo step; again for another roll. |
 | **Mute**, **Lock** | |
 | **Consolidate the Chosen Clips** | Several clips on a track into one. Audio becomes a new file, normalised, the clip's gain making up for it. |
 

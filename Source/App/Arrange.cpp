@@ -1854,6 +1854,18 @@ void Arrange::clipMenu (Id id)
         {
             c.apply ("Invert", [chosen] (Project& p) { for (auto cid : chosen) edit::invertClip (p, cid); });
         });
+        // Humanise (0124): each note's velocity and timing a little different, by chance.
+        if (! audio)
+            m.addItem ("Humanise", true, false, [this, chosen]
+            {
+                const auto seed = (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u;
+                const Tick grid = c.grid;
+                c.apply ("Humanise", [chosen, seed, grid] (Project& p)
+                {
+                    unsigned k = 0;
+                    for (auto cid : chosen) edit::humanise (p, cid, grid, seed + k++);
+                });
+            });
         if (audio)
             m.addItem ("Split at Transients", clip->loopLength == 0 && ! clip->audio.reversed, false, [this, chosen]
             {
