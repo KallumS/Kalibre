@@ -370,6 +370,10 @@ public:
     // Devices.
     // `position`: where in the track's devices (its role's place still kept); -1, after its kind.
     void addPlugin (Id track, const juce::PluginDescription&, std::optional<DeviceRole> as = {}, int position = -1);
+    // A new track, named for the plug-in, with it on: one undo step (the browser, 0125).
+    Id addPluginOnNewTrack (const juce::PluginDescription&);
+    // Where a plug-in's file is on this Mac (its bundle), or none (0125).
+    static juce::File pluginFile (const juce::PluginDescription&);
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
     // The Note Splitter (decision 0083): how many outputs, the track each goes to,
     // and a new track for each output without one. Each one undo step.

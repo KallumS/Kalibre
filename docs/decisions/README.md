@@ -126,3 +126,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0122. Sync changes the sound playing](0122-sync-changes-the-sound-playing.md)
 - [0123. The Sounds in six orders](0123-the-sounds-in-six-orders.md)
 - [0124. Humanise](0124-humanise.md)
+- [0125. The browser's plug-ins by kind, and right-click](0125-the-browsers-plug-ins-by-kind.md)

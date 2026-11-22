@@ -4,66 +4,119 @@ namespace kal
 {
 using namespace juce;
 
+// The plug-ins under three headings (0125): MIDI Effects, Instruments, Audio Effects.
 struct Browser::PluginList : public ListBoxModel
 {
     PluginList (Controller& ctrl) : c (ctrl) {}
 
+    struct Line { int heading = -1; int type = -1; int count = 0; };   // a heading (its role) or a plug-in
+    std::vector<Line> lines;
+
     void filter (const String& text)
     {
-        shown.clear();
+        lines.clear();
         const auto types = c.engine.plugins().known().getTypes();
+        std::vector<int> byRole[3];
         for (int i = 0; i < types.size(); ++i)
         {
             const auto& d = types.getReference (i);
             if (text.isEmpty() || d.name.containsIgnoreCase (text) || d.manufacturerName.containsIgnoreCase (text)
                 || d.pluginFormatName.containsIgnoreCase (text) || d.category.containsIgnoreCase (text))
-                shown.push_back (i);
+                byRole[(int) c.engine.plugins().roleOf (d)].push_back (i);
         }
-        std::sort (shown.begin(), shown.end(), [&types] (int a, int b) { return types[a].name.compareIgnoreCase (types[b].name) < 0; });
+        for (int r = 0; r < 3; ++r)
+        {
+            if (byRole[r].empty()) continue;
+            std::sort (byRole[r].begin(), byRole[r].end(), [&types] (int a, int b) { return types[a].name.compareIgnoreCase (types[b].name) < 0; });
+            lines.push_back ({ r, -1, (int) byRole[r].size() });
+            for (int i : byRole[r]) lines.push_back ({ -1, i, 0 });
+        }
     }
 
-    int getNumRows() override { return (int) shown.size(); }
+    const PluginDescription* at (int row) const
+    {
+        if (row < 0 || row >= (int) lines.size() || lines[(size_t) row].type < 0) return nullptr;
+        types = c.engine.plugins().known().getTypes();
+        return &types.getReference (lines[(size_t) row].type);
+    }
+
+    int getNumRows() override { return (int) lines.size(); }
 
     void paintListBoxItem (int row, Graphics& g, int w, int h, bool selected) override
     {
-        const auto types = c.engine.plugins().known().getTypes();
-        if (row < 0 || row >= (int) shown.size()) return;
-        const auto& d = types.getReference (shown[(size_t) row]);
+        if (row < 0 || row >= (int) lines.size()) return;
+        const auto& line = lines[(size_t) row];
+        if (line.heading >= 0)
+        {
+            const char* names[] { "MIDI Effects", "Instruments", "Audio Effects" };
+            g.setColour (theme::text);
+            g.setFont (theme::font (theme::bodyPoints, true));
+            g.drawText (names[line.heading], 8, 0, w - 60, h, Justification::bottomLeft, true);
+            g.setColour (theme::textSecondary);
+            g.setFont (theme::font (theme::smallPoints));
+            g.drawText (String (line.count), w - 60, 0, 52, h, Justification::bottomRight, false);
+            g.setColour (theme::rule);
+            g.fillRect (8, h - 1, w - 16, 1);
+            return;
+        }
+        const auto* d = at (row);
+        if (! d) return;
         if (selected) { g.setColour (theme::rule); g.fillRect (0, 0, w, h); }
         g.setColour (theme::text);
         g.setFont (theme::font());
-        g.drawText (d.name, 8, 0, w - 70, h * 3 / 5, Justification::bottomLeft, true);
+        g.drawText (d->name, 8, 0, w - 70, h * 3 / 5, Justification::bottomLeft, true);
         g.setColour (theme::textSecondary);
         g.setFont (theme::font (theme::smallPoints));
-        const char* role[] { "MIDI effect", "Instrument", "Effect" };
-        g.drawText (d.manufacturerName + " " + ui::u8 ("\xc2\xb7") + " " + role[(int) c.engine.plugins().roleOf (d)], 8, h * 3 / 5, w - 70, h * 2 / 5, Justification::topLeft, true);
-        g.drawText (d.pluginFormatName, w - 60, 0, 52, h, Justification::centredRight, false);
+        g.drawText (d->manufacturerName, 8, h * 3 / 5, w - 70, h * 2 / 5, Justification::topLeft, true);
+        g.drawText (d->pluginFormatName, w - 60, 0, 52, h, Justification::centredRight, false);
     }
 
     var getDragSourceDescription (const SparseSet<int>& rows) override
     {
-        if (rows.isEmpty()) return {};
-        return "plugin:" + String (shown[(size_t) rows[0]]);
+        if (rows.isEmpty() || ! at (rows[0])) return {};
+        return "plugin:" + String (lines[(size_t) rows[0]].type);
+    }
+
+    void addToChosen (const PluginDescription& d)
+    {
+        Id track = c.focusTrack;
+        if (track == 0) { c.addPluginOnNewTrack (d); return; }
+        c.addPlugin (track, d);
     }
 
     void listBoxItemDoubleClicked (int row, const MouseEvent&) override
     {
-        const auto types = c.engine.plugins().known().getTypes();
-        if (row < 0 || row >= (int) shown.size()) return;
-        Id track = c.focusTrack;
-        const auto& d = types.getReference (shown[(size_t) row]);
-        if (track == 0) track = c.addTrack (TrackKind::Track, d.name);
-        c.addPlugin (track, d);
+        if (const auto* d = at (row)) addToChosen (*d);
+    }
+
+    // Right-click: a new track with it, the chosen track, or where its file is.
+    void listBoxItemClicked (int row, const MouseEvent& e) override
+    {
+        const auto* found = at (row);
+        if (! found || ! e.mods.isPopupMenu()) return;
+        const auto d = *found;
+        PopupMenu m;
+        m.addItem ("Add to a New Track", [this, d] { c.addPluginOnNewTrack (d); });
+        m.addItem ("Add to the Chosen Track", c.project.track (c.focusTrack) != nullptr, false, [this, d] { addToChosen (d); });
+        m.addSeparator();
+        const auto file = Controller::pluginFile (d);
+        m.addItem ("Show in Finder", file.exists(), false, [file] { file.revealToUser(); });
+        m.showMenuAsync (PopupMenu::Options());
     }
 
     String getNameForRow (int row) override
     {
-        const auto types = c.engine.plugins().known().getTypes();
-        return row >= 0 && row < (int) shown.size() ? types[shown[(size_t) row]].name : String();
+        if (row >= 0 && row < (int) lines.size() && lines[(size_t) row].heading >= 0)
+        {
+            const char* names[] { "MIDI Effects", "Instruments", "Audio Effects" };
+            return names[lines[(size_t) row].heading];
+        }
+        const auto* d = at (row);
+        return d ? d->name : String();
     }
 
     Controller& c;
-    std::vector<int> shown;
+    mutable Array<PluginDescription> types;
 };
 
 struct Browser::PresetList : public ListBoxModel

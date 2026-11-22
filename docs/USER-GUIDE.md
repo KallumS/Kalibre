@@ -1125,7 +1125,7 @@ Four tabs, in two rows:
 
 | Tab | What's in it |
 | --- | --- |
-| **Plug-ins** | Every plug-in found, by kind. Search; drag one onto a track or into the rack. **Scan** looks for new ones. |
+| **Plug-ins** | Every plug-in found, under **MIDI Effects**, **Instruments** and **Audio Effects**. Search; drag one onto a track or into the rack; double-click to add it to the chosen track. Right-click: **Add to a New Track** (one undo step), **Add to the Chosen Track**, **Show in Finder**. **Scan** looks for new ones. |
 | **Sounds** | Your samples and MIDI files, to hear and bring into the song ([below](#the-sounds-tab)). |
 | **Audio** | The audio interface, sample rate (as high as the interface goes: 44.1 to 192 kHz) and buffer size, inputs and outputs; **Use Every Core** (on unless you switch it off). |
 | **Presets** | Saved presets for the chosen track's plug-ins. |

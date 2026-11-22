@@ -529,3 +529,70 @@ TEST ("questions: shown near the top, under the top bar, across the middle (the 
     CHECK (tall.getBottom() <= 300);
     CHECK (tall.getY() >= 0);
 }
+
+TEST ("browser: plug-ins under MIDI Effects, Instruments and Audio Effects; right-click Add to a New Track is one undo step (0125)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        auto describe = [] (const String& name, bool instrument)
+        {
+            PluginDescription d;
+            d.name = name;
+            d.pluginFormatName = "Kalibre";
+            d.fileOrIdentifier = "test-gain:0";
+            d.manufacturerName = "Tests";
+            d.isInstrument = instrument;
+            d.category = instrument ? "Instrument" : "Effect";
+            d.numInputChannels = instrument ? 0 : 2;
+            d.numOutputChannels = 2;
+            d.uniqueId = name.hashCode();
+            return d;
+        };
+        plugins.known().addType (describe ("Zeta Verb", false));
+        plugins.known().addType (describe ("Alpha Synth", true));
+        plugins.known().addType (describe ("Beta Comp", false));
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        w.showBrowser (Browser::Tab::Plugins);
+        Browser* browser = nullptr;
+        for (auto* ch : w.getChildren()) if (auto* b = dynamic_cast<Browser*> (ch)) browser = b;
+        CHECK (browser != nullptr);
+        if (! browser) return;
+        auto* model = browser->pluginList().getListBoxModel();
+        StringArray rows;
+        for (int i = 0; i < model->getNumRows(); ++i) rows.add (model->getNameForRow (i));
+        // Instruments before Audio Effects, each A to Z under its heading.
+        // Instruments (Kalibre's own among them) before Audio Effects, each A to Z under its heading.
+        const int inst = rows.indexOf ("Instruments"), fx = rows.indexOf ("Audio Effects");
+        CHECK (inst >= 0 && fx > inst);
+        CHECK (rows.indexOf ("Alpha Synth") == inst + 1);
+        CHECK (rows.indexOf ("Beta Comp") == fx + 1 && rows.indexOf ("Zeta Verb") == fx + 2);
+        CHECK (! rows.contains ("MIDI Effects"));   // none of those here: no heading
+        // A heading can't be dragged; a plug-in can.
+        SparseSet<int> heading, plugin;
+        heading.addRange ({ inst, inst + 1 });
+        plugin.addRange ({ inst + 1, inst + 2 });
+        CHECK (model->getDragSourceDescription (heading).isVoid());
+        CHECK (model->getDragSourceDescription (plugin).toString().startsWith ("plugin:"));
+
+        // Add to a New Track: a track named for it, with it on, one undo step.
+        const auto tracks = c.project.tracks.size();
+        const auto steps = c.history.size();
+        const Id t = c.addPluginOnNewTrack (describe ("Beta Comp", false));
+        CHECK (t != 0);
+        CHECK_EQ (c.project.tracks.size(), tracks + 1);
+        CHECK_EQ (c.history.size(), steps + 1);
+        if (auto* track = c.project.track (t))
+        {
+            CHECK_EQ (track->name, std::string ("Beta Comp"));
+            CHECK_EQ (track->devices.size(), size_t (1));
+        }
+        CHECK_EQ (c.focusTrack, t);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
