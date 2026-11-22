@@ -320,3 +320,41 @@ TEST ("library: Random Sample chooses any sound the scan read, of any kind, neve
     CHECK (randomSound (one, 1, "/A.wav").empty());
     CHECK (randomSound (Index {}, 1).empty());
 }
+
+TEST ("library: the list in six orders: A to Z, Z to A, longest or shortest first, slowest or fastest first; a tempo not known last (0123)")
+{
+    Index ix;
+    auto add = [&] (const char* path, double seconds, double bpm)
+    {
+        Item it = audio (path);
+        it.seconds = seconds;
+        it.bpm = bpm;
+        ix.items[path] = it;
+    };
+    add ("/M/Beta.wav", 4, 120);
+    add ("/M/Alpha.wav", 1, 90);
+    add ("/M/Delta.wav", 8, 0);      // no tempo known
+    add ("/M/Gamma.wav", 2, 140);
+    Settings s;
+    s.folders = { "/M" };
+    s.flat = true;
+    auto order = [&] (Settings::Sort o)
+    {
+        s.sort = o;
+        std::vector<std::string> out;
+        for (auto& p : itemsInOrder (rows (ix, s))) out.push_back (nameOf (p));
+        return out;
+    };
+    using V = std::vector<std::string>;
+    CHECK (order (Settings::Sort::AToZ) == V ({ "Alpha.wav", "Beta.wav", "Delta.wav", "Gamma.wav" }));
+    CHECK (order (Settings::Sort::ZToA) == V ({ "Gamma.wav", "Delta.wav", "Beta.wav", "Alpha.wav" }));
+    CHECK (order (Settings::Sort::LongestFirst) == V ({ "Delta.wav", "Beta.wav", "Gamma.wav", "Alpha.wav" }));
+    CHECK (order (Settings::Sort::ShortestFirst) == V ({ "Alpha.wav", "Gamma.wav", "Beta.wav", "Delta.wav" }));
+    CHECK (order (Settings::Sort::SlowestFirst) == V ({ "Alpha.wav", "Beta.wav", "Gamma.wav", "Delta.wav" }));
+    CHECK (order (Settings::Sort::FastestFirst) == V ({ "Gamma.wav", "Beta.wav", "Alpha.wav", "Delta.wav" }));
+    // Kept with the settings.
+    s.sort = Settings::Sort::FastestFirst;
+    Settings back;
+    CHECK (fromJson (toJson (s), back));
+    CHECK (back.sort == Settings::Sort::FastestFirst);
+}

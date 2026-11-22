@@ -452,7 +452,11 @@ void LibraryView::refreshRows()
     drumsButton.setButtonText ((s.drumsOnly && s.drumKind >= 0 ? String (drumsound::nameOf ((drumsound::Kind) s.drumKind)) : String ("Drums")) + u8 (" \xe2\x96\xbe"));
     syncButton.setToggleState (s.sync, dontSendNotification);
     autoPlayButton.setToggleState (s.autoPlay, dontSendNotification);
-    orderButton.setButtonText (s.shuffled ? u8 ("Shuffled \xe2\x96\xbe") : u8 ("A to Z \xe2\x96\xbe"));
+    {
+        // Short, to fit its quarter of the row; the menu says them in full.
+        static const char* names[] { "A to Z", "Z to A", "Longest", "Shortest", "Slowest", "Fastest" };
+        orderButton.setButtonText ((s.shuffled ? String ("Shuffled") : String (names[(int) s.sort])) + u8 (" \xe2\x96\xbe"));
+    }
     chooseButton.setVisible (s.folders.empty());
     listBox.repaint();
     strip->repaint();
@@ -508,7 +512,13 @@ void LibraryView::toggleFavourite (const std::string& path)
 void LibraryView::orderMenu()
 {
     PopupMenu m;
-    m.addItem ("A to Z", true, ! s.shuffled, [this] { s.shuffled = false; saveSettings(); refreshRows(); });
+    using Sort = library::Settings::Sort;
+    const std::pair<Sort, const char*> orders[] { { Sort::AToZ, "A to Z" }, { Sort::ZToA, "Z to A" },
+                                                  { Sort::LongestFirst, "Longest to Shortest" }, { Sort::ShortestFirst, "Shortest to Longest" },
+                                                  { Sort::SlowestFirst, "Slowest to Fastest" }, { Sort::FastestFirst, "Fastest to Slowest" } };
+    for (auto [o, name] : orders)
+        m.addItem (name, true, ! s.shuffled && s.sort == o, [this, o = o] { s.shuffled = false; s.sort = o; saveSettings(); refreshRows(); });
+    m.addSeparator();
     m.addItem (s.shuffled ? "Shuffle Again" : "Shuffle", true, s.shuffled, [this]
     {
         s.shuffled = true;

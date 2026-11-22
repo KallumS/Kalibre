@@ -124,3 +124,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0120. The lanes under the ruler stay uncovered](0120-the-lanes-under-the-ruler-stay-uncovered.md)
 - [0121. A smooth playhead](0121-a-smooth-playhead.md)
 - [0122. Sync changes the sound playing](0122-sync-changes-the-sound-playing.md)
+- [0123. The Sounds in six orders](0123-the-sounds-in-six-orders.md)
