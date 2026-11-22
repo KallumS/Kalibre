@@ -5,6 +5,8 @@
 // measures a render, fixes it, renders the fix and checks it against the
 // library's own numbers, not the tool's opinion of itself.
 #include "Check.h"
+
+#include <array>
 #include "NoteFixer.h"
 
 #include <algorithm>
@@ -87,7 +89,7 @@ const int line[] { 60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60, 6
 std::vector<N> eighths (int shift = 0)
 {
     std::vector<N> p;
-    for (int i = 0; i < 20; ++i) p.push_back ({ 4 + i * 0.5, 0.25, line[i] + shift, (int[]) { 70, 90, 110 }[i % 3] });
+    for (int i = 0; i < 20; ++i) p.push_back ({ 4 + i * 0.5, 0.25, line[i] + shift, std::array<int, 3> { 70, 90, 110 }[(size_t) (i % 3)] });
     return p;
 }
 
@@ -160,7 +162,7 @@ TEST ("note fixer: low and high registers, legato, repeated notes")
         CHECK (med (t) <= 4 && worst (t) <= 20);
     }
     std::vector<N> legato;
-    for (int i = 0; i < 20; ++i) legato.push_back ({ 4.0 + i, 1.05, line[i], (int[]) { 70, 90, 110 }[i % 3] });
+    for (int i = 0; i < 20; ++i) legato.push_back ({ 4.0 + i, 1.05, line[i], std::array<int, 3> { 70, 90, 110 }[(size_t) (i % 3)] });
     auto a = notefix::analyse (render (legato), fs, notesOf (legato));
     CHECK (a.found >= 18);
     auto t = trueAfter (legato, a, notefix::plan (a, notesOf (legato)));

@@ -2,6 +2,8 @@
 // (decision 0052) and the Cue track (decision 0051), played through the live
 // audio path with a stand-in sound card, and exported.
 #include "Check.h"
+
+#include <array>
 #include "Controller.h"
 #include "Edit.h"
 #include "Engine.h"
@@ -2005,7 +2007,7 @@ Id sloppyLine (Controller& c, Id& track)
         n.start = (Tick) i * PPQ / 2;
         n.length = PPQ / 4;
         n.pitch = line[i];
-        n.velocity = (int[]) { 70, 90, 110 }[i % 3];
+        n.velocity = std::array<int, 3> { 70, 90, 110 }[(size_t) (i % 3)];   // a compound literal is C's, not C++'s (MSVC, 0129)
         edit::addNote (c.project, clip, n);
     }
     c.refresh();
@@ -2097,7 +2099,7 @@ TEST ("fix note timings and volume: moving the notes instead, and velocity for t
     bool softer = false, harder = false;
     for (auto& n : cl->midi.notes)
     {
-        const int was = (int[]) { 70, 90, 110 }[(n.start - cl->midi.notes.front().start + PPQ / 4) / (PPQ / 2) % 3];
+        const int was = std::array<int, 3> { 70, 90, 110 }[(size_t) ((n.start - cl->midi.notes.front().start + PPQ / 4) / (PPQ / 2) % 3)];
         (void) was;
         if (n.pitch == 64 && n.velocity < 60) softer = true;    // 64 was played at 110, 70, 70, 90
         if (n.pitch == 67 && n.velocity > 95) harder = true;    // 67 at 90, 90, 90, 70
