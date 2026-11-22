@@ -690,7 +690,11 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     add.onClick = [this] { addMenu (c, c.focusTrack, &add); };
     // Devices by chance (0102).
     strip.addAndMakeVisible (random);
-    random.onClick = [this] { c.randomDevices (c.focusTrack, (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u); };
+    // A click: the track's devices replaced by chance; Shift-click: added to them (0119).
+    random.onClick = [this]
+    {
+        c.randomDevices (c.focusTrack, (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u, ! ModifierKeys::currentModifiers.isShiftDown());
+    };
     MorphProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
         PopupMenu m;

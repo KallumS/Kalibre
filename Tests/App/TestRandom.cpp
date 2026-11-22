@@ -499,3 +499,69 @@ TEST ("random settings: a utility has no Random, and the button says why; the re
     CHECK (text.contains ("In all:"));
     out.deleteFile();
 }
+
+TEST ("random: a click on the rack's Random replaces the track's devices; Shift-click adds to them; each one undo step (0119)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.newProject();
+    const Id t = c.project.tracks.front().id;
+    CHECK (c.randomDevices (t, 11));                  // added, as Shift-click
+    std::set<Id> first;
+    for (auto& d : c.project.track (t)->devices) first.insert (d.id);
+    CHECK (! first.empty());
+    const auto before = c.history.size();
+    CHECK (c.randomDevices (t, 21, true));            // a click: replaced
+    CHECK_EQ (c.history.size(), before + 1);
+    int instruments = 0;
+    for (auto& d : c.project.track (t)->devices)
+    {
+        CHECK (first.count (d.id) == 0);              // none of what was there
+        instruments += d.role == DeviceRole::Instrument;
+    }
+    CHECK_EQ (instruments, 1);                         // an instrument again: the track plays notes
+    c.undo();
+    std::set<Id> back;
+    for (auto& d : c.project.track (t)->devices) back.insert (d.id);
+    CHECK (back == first);
+    // Shift-click: added to what's there, all of it kept.
+    CHECK (c.randomDevices (t, 22, false));
+    for (auto id : first) CHECK (c.project.device (id) != nullptr);
+}
+
+TEST ("random: Shift-click on the top bar's Random adds random tracks to this song, in its key and tempo, one undo step; a click makes a new song (0119)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.newProject();
+    c.apply ("Tempo", [] (Project& p) { p.tempo.setTempoAt (0, 97.0); p.scale.root = 3; p.scale.scale = 1; });
+    const Id mine = c.project.tracks.front().id;
+    c.apply ("Name", [mine] (Project& p) { p.track (mine)->name = "Mine"; });
+    const auto tracksBefore = c.project.tracks.size();
+    const auto steps = c.history.size();
+    library::Index none;
+    CHECK (c.randomSong (none, 7, true));
+    CHECK_EQ (c.history.size(), steps + 1);
+    CHECK (c.project.tracks.size() > tracksBefore);
+    CHECK (c.project.track (mine) != nullptr);
+    CHECK_EQ (c.project.track (mine)->name, std::string ("Mine"));
+    CHECK (std::abs (c.project.tempo.bpmAt (0) - 97.0) < 1.0e-9);
+    CHECK_EQ (c.project.scale.root, 3);
+    // Every id in the song still its own: tracks, devices and clips.
+    std::set<Id> ids { c.project.master.id };
+    bool clash = false;
+    for (auto& t : c.project.tracks)
+    {
+        clash |= ! ids.insert (t.id).second;
+        for (auto& d : t.devices) clash |= ! ids.insert (d.id).second;
+        for (auto& cl : t.clips()) clash |= ! ids.insert (cl.id).second;
+    }
+    CHECK (! clash);
+    c.undo();
+    CHECK_EQ (c.project.tracks.size(), tracksBefore);
+    // A click: a whole new song, this one let go of.
+    CHECK (c.randomSong (none, 8));
+    CHECK (c.project.track (mine) == nullptr || c.project.track (mine)->name != "Mine");
+}

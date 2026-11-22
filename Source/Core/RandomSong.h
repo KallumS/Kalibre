@@ -58,6 +58,12 @@ struct Options
     int maxTracks = 8;
     int maxEffects = 8;
     int maxMidiEffects = 2;
+    // Tracks to add to a song there is (Shift-click Random, 0119): made in its key and at
+    // its tempo, their ids counted on from its own, so they join it without clashing.
+    bool intoSong = false;
+    double bpm = 120;
+    ScaleChoice scale;
+    Id firstId = 1;
 };
 
 struct Result

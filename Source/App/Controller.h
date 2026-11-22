@@ -457,13 +457,17 @@ public:
     // scanned, Kalibre's own devices and the musician's sounds. Replaces the song
     // (the window asks to save first). `lastRandomParts`: a line a track.
     randomsong::Catalogue randomCatalogue (const library::Index& sounds);
-    bool randomSong (const library::Index& sounds, unsigned seed);
+    // `addTo` (Shift-click, 0119): its tracks added to this song instead, in its key and at
+    // its tempo, one undo step; the song kept.
+    bool randomSong (const library::Index& sounds, unsigned seed, bool addTo = false);
     std::vector<std::string> lastRandomParts;
     // The device rack's Random (0102): devices by chance onto a track, one undo step;
     // an instrument when it has none and plays notes. False when there was nothing to add.
-    bool randomDevices (Id track, unsigned seed);
+    // `replace` (a click, 0119): the track's devices taken out first, in the same undo step;
+    // Shift-click adds to them, as before.
+    bool randomDevices (Id track, unsigned seed, bool replace = false);
     std::function<const library::Index*()> soundsIndex;   // the Sounds tab's scan, for the Samplers' sounds
-    std::function<void()> onRandomSong;   // the top bar's button asks the window
+    std::function<void (bool addTo)> onRandomSong;   // the top bar's button asks the window
 
     // The engine's state of mind, for the window.
     std::function<void()> onTransportChanged;

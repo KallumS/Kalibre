@@ -71,12 +71,14 @@ Result make (const Catalogue& cat, const Options& opt)
 
     Result r;
     Project& p = r.project;
+    if (opt.intoSong) p.nextId = std::max<Id> (p.nextId, opt.firstId);
 
     // The loops it may use, and the tempo: often a loop's own, so it isn't stretched far.
     std::vector<Sample> loops;
     for (auto& s : cat.samples) if (isLoop (s)) loops.push_back (s);
     double bpm = between (82, 148);
     if (! loops.empty() && chance (0.5)) bpm = std::round (pick (loops, rng)->bpm);
+    if (opt.intoSong) bpm = opt.bpm;   // the song's own
     p.tempo.setTempoAt (0, bpm);
 
     // The key: mostly major or natural minor, now and then a mode.
@@ -84,6 +86,7 @@ Result make (const Catalogue& cat, const Options& opt)
     static const int scaleChoices[] { 0, 0, 1, 1, 1, 4, 7 };   // Major, Minor (Natural), Dorian, Mixolydian
     p.scale.root = rootIndexFor (pc);
     p.scale.scale = scaleChoices[between (0, 6)];
+    if (opt.intoSong) p.scale = opt.scale;
     const int bars = 8;
     const Tick bar = PPQ * 4, length = bar * bars;
     p.loop.start = 0;

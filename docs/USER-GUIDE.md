@@ -187,7 +187,7 @@ From left to right:
 | **CPU** | How busy the audio is: the highest in the last 2 seconds. Right-click > **Change the CPU Reading** for every 1 or 5 seconds. The mixer shows each track's share. |
 | **Delay** | How much the plug-ins delay the sound in all. Kalibre lines every track up by this much (plug-in delay compensation). |
 | **1 2** | Song versions: the whole song twice. The lit one plays. [Below](#song-versions). |
-| **Random** | At the very right: a whole new song by chance, ready to play. [Below](#the-random-button). |
+| **Random** | At the very right: a whole new song by chance, ready to play; **Shift-click** adds random tracks to this song instead. [Below](#the-random-button). |
 
 **Right-click the top bar** (or the transport) to hide any of these: **Show
 in the Bar** lists them with ticks; **Show Everything** brings them all back.
@@ -215,6 +215,9 @@ song: try a different arrangement, mix or sound, and switch back and forth.
 ![Song version 2 made and playing; the message line says what happened](guide/song-versions.png)
 
 ### The Random button
+
+**Shift-click Random** to keep this song and add random tracks to it, in its
+key and at its tempo, as one undo step.
 
 **Random** (also **File > New Random Song**) makes a new song by chance, to
 start from. If the song you have has changes, it asks to save it first.
@@ -695,7 +698,8 @@ ones either side of where you let go (MIDI effects still come first, then
 instruments, then audio effects). With no track chosen, a new track is made
 for it.
 
-**Random**, under **+ Add**, adds devices by chance to the chosen track, as
+**Random**, under **+ Add**, replaces the chosen track's devices with ones
+chosen by chance (**Shift-click** adds them to the devices it has instead), as
 the top bar's Random chooses them: an instrument if the track plays notes and
 has none (one that plays drums for a track named Drums, Beat or Perc, when
 you have one), one or two effects, and now and then a MIDI effect. They come
