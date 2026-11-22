@@ -459,6 +459,8 @@ void TrackHeader::mouseDoubleClick (const MouseEvent&) { name.showEditor(); }
 //==============================================================================
 Arrange::Arrange (Controller& ctrl) : c (ctrl)
 {
+    headerColumn.setInterceptsMouseClicks (false, true);
+    addAndMakeVisible (headerColumn);
     addAndMakeVisible (vbar);
     addAndMakeVisible (hbar);
     vbar.setAutoHide (false);
@@ -524,14 +526,15 @@ void Arrange::layoutRows()
     for (int i = headers.size(); --i >= 0;)
         if (! shown.count (headers[i]->id)) headers.remove (i);
     const int top = rulerHeight();
+    headerColumn.setBounds (0, top, headerWidth(), jmax (0, getHeight() - top));
     for (auto& r : rows)
     {
         if (! r.isClips()) continue;
         TrackHeader* h = nullptr;
         for (auto* x : headers) if (x->id == r.track) h = x;
-        if (! h) { h = headers.add (new TrackHeader (*this, c, r.track)); addAndMakeVisible (h); }
-        h->setBounds (0, top + r.y - scrollY, headerWidth(), r.h);
-        h->setVisible (top + r.y - scrollY + r.h > top && top + r.y - scrollY < getHeight());
+        if (! h) { h = headers.add (new TrackHeader (*this, c, r.track)); headerColumn.addAndMakeVisible (h); }
+        h->setBounds (0, r.y - scrollY, headerWidth(), r.h);
+        h->setVisible (r.y - scrollY + r.h > 0 && r.y - scrollY < headerColumn.getHeight());
         if (auto* t = c.project.track (r.track)) h->update (*t);
     }
     const auto lanes = laneArea();

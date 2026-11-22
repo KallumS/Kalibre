@@ -2333,7 +2333,15 @@ TEST ("track names: double-click opens the name to type, and it stays open while
         arrange.setSize (1200, 500);
         arrange.resized();
         TrackHeader* header = nullptr;
-        for (auto* ch : arrange.getChildren()) if (auto* h = dynamic_cast<TrackHeader*> (ch); h && h->id == t) header = h;
+        std::function<void (Component&)> find = [&] (Component& comp)
+        {
+            for (auto* ch : comp.getChildren())
+            {
+                if (auto* h = dynamic_cast<TrackHeader*> (ch); h && h->id == t) header = h;
+                else find (*ch);
+            }
+        };
+        find (arrange);
         CHECK (header != nullptr);
         if (! header) return;
         Label* name = nullptr;
@@ -2649,4 +2657,42 @@ TEST ("sampler: Keys, Slices and Granular are buttons along its top; each shows 
     auto grains = visibleKnobs();
     for (auto* k : { "Grain Size", "Density", "Spray", "Position", "Loop" }) CHECK (grains.contains (k));
     CHECK (! grains.contains ("Slice Sensitivity"));
+}
+
+TEST ("arrangement: scrolled down, the tracks' headers never cover the Sections and Chords lanes under the ruler (0120)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    for (int i = 0; i < 12; ++i) edit::addTrack (c.project, TrackKind::Track, "Track " + std::to_string (i + 1));
+    c.showSectionLane = c.showChordLane = true;
+    c.refresh();
+    Arrange arrange (c);
+    arrange.setSize (1200, 500);
+    arrange.resized();
+    // Scrolled down by a track and a half.
+    arrange.mouseWheelMove (MouseEvent (Desktop::getInstance().getMainMouseSource(), { 600.0f, 300.0f }, {}, 1.0f, 0, 0, 0, 0,
+                                        &arrange, &arrange, Time::getCurrentTime(), { 600.0f, 300.0f }, Time::getCurrentTime(), 1, false),
+                            MouseWheelDetails { 0.0f, -0.3f, false, false, false });
+    const int lanesBottom = arrange.rulerHeight();
+    CHECK (lanesBottom > 60);
+    int shown = 0;
+    std::function<void (Component&)> walk = [&] (Component& comp)
+    {
+        for (auto* ch : comp.getChildren())
+        {
+            if (auto* h = dynamic_cast<TrackHeader*> (ch); h && h->isVisible())
+            {
+                ++shown;
+                // Where it's drawn in the arrangement, cut to what shows of it.
+                const auto onScreen = arrange.getLocalArea (h, h->getLocalBounds())
+                                          .getIntersection (arrange.getLocalArea (h->getParentComponent(), h->getParentComponent()->getLocalBounds()));
+                CHECK (onScreen.isEmpty() || onScreen.getY() >= lanesBottom);
+            }
+            else walk (*ch);
+        }
+    };
+    walk (arrange);
+    CHECK (shown > 0);
 }
