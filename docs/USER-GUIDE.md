@@ -799,7 +799,7 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 | **Kalibre Sampler** | Instrument | Plays a sample three ways (**Mode**): **Keys**, across the keyboard; **Slices**, cut at its hits, a key each from the root note up; **Granular**, as many short grains, so **Speed** changes how fast it plays without changing its pitch (0 holds it still). [Below](#kalibre-sampler). |
 | **Trombolese** | Instrument | A physical model of a trombone crossed with an oboe: one note at a time, sliding between held notes; Bore and Reed morph, the mod wheel on the bore. In tune from note 34 to 84. |
 | **Hardware Insert** | Effect | Outboard gear in the chain: out to the interface and back, its round trip measured. |
-| **X/Y Morph** | Instrument or effect | Four corners, each a plug-in or a sample, mixed by where the dot is on a pad. Sample corners play the track's notes. X and Y can be automated and modulated. |
+| **X/Y Morph** | Instrument or effect | Four corners, each a plug-in or a sample, mixed by where the dot is on a pad. A corner's plug-in opens in a window of its own when it's loaded; click its letter (**A** to **D**) to open it again, right-click to change it. Sample corners play the track's notes. X and Y can be automated and modulated. |
 | **Container** | Effect | Up to eight plug-ins in a row, each on a band, the mid or the sides. |
 | **Note Splitter** | MIDI effect | A chord's notes, top to bottom, each to another track. |
 | **Instant Virtual Instrument** | Instrument | Builds an instrument from a sample, in its own window. |

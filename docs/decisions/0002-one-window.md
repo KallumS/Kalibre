@@ -13,7 +13,8 @@ DAW's own settings may open a window of their own. The first is the Plug-in
 Manager (0047). The music (tracks, editors, mixer, plug-in windows) stays in
 the one window, except that a plug-in's window can be moved out into a window
 of its own when asked (0056, also the user's choice). The keys and the studio are settings windows too
-(Help > Keys…, File > Studio, 0110).
+(Help > Keys…, File > Studio, 0110), and an X/Y Morph corner's plug-in has
+one (0114, asked for).
 
 ## Consequences
 

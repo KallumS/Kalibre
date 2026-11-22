@@ -2387,3 +2387,92 @@ TEST ("piano roll: a clip's notes wear its own track's colour, whichever track i
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+#include "MorphProcessor.h"
+
+TEST ("x/y morph: a corner's plug-in opens in a window of its own, from its letter or when loaded, never inside the device; it goes with its plug-in (0114)")
+{
+    PluginManager plugins;
+    MorphProcessor morph (plugins);
+    morph.setPlayConfigDetails (2, 2, 48000, 512);
+    morph.prepareToPlay (48000, 512);
+    String error;
+    // Loaded with a song: no window by itself.
+    CHECK (morph.loadPlugin (0, synthRef(), error));
+    CHECK (! morph.cornerWindowOpen (0));
+
+    // The device's window: the pad and four letters, no plug-in's window inside it.
+    editors::Owned editor (editors::open (morph));
+    CHECK (editor != nullptr);
+    if (! editor) return;
+    editor->setSize (360, 300);
+    std::function<void (Component&, std::vector<Component*>&)> all = [&] (Component& comp, std::vector<Component*>& out)
+    {
+        out.push_back (&comp);
+        for (auto* ch : comp.getChildren()) all (*ch, out);
+    };
+    std::vector<Component*> inside;
+    all (*editor, inside);
+    for (auto* comp : inside) CHECK (comp == editor.get() || dynamic_cast<AudioProcessorEditor*> (comp) == nullptr);
+    Button* a = nullptr;
+    for (auto* comp : inside) if (auto* b = dynamic_cast<Button*> (comp); b && b->getButtonText() == "A") a = b;
+    CHECK (a != nullptr);
+    if (! a) return;
+    CHECK (! a->getToggleState());
+
+    // Clicking A opens its window: the plug-in's own, in a window of its own.
+    a->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (morph.cornerWindowOpen (0));
+    auto* w = morph.cornerWindow (0);
+    CHECK (w != nullptr);
+    if (! w) return;
+    CHECK (w->isVisible());
+    CHECK (w->getName().contains ("A: Kalibre Synth"));
+    CHECK (dynamic_cast<AudioProcessorEditor*> (w->getContentComponent()) != nullptr);
+    CHECK (morph.corner (0).plugin->getActiveEditor() == w->getContentComponent());
+    CHECK (a->getToggleState());
+    // Its close button: gone, the plug-in told first.
+    w->closeButtonPressed();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (! morph.cornerWindowOpen (0));
+    CHECK (morph.corner (0).plugin->getActiveEditor() == nullptr);
+    CHECK (! a->getToggleState());
+
+    // Another plug-in in that corner, or Clear: the window goes before the plug-in does.
+    morph.showCornerWindow (0);
+    CHECK (morph.loadPlugin (0, samplerRef(), error));
+    CHECK (! morph.cornerWindowOpen (0));
+    morph.showCornerWindow (0);
+    CHECK (morph.cornerWindowOpen (0));
+    morph.clearCorner (0);
+    CHECK (! morph.cornerWindowOpen (0));
+    // Shut with the device's window and the corner still open: the device going takes it.
+    morph.loadPlugin (1, synthRef(), error);
+    morph.showCornerWindow (1);
+    editor.reset();
+    CHECK (morph.cornerWindowOpen (1));
+}
+
+TEST ("x/y morph: taken out of the song, its corners' windows close at once (0114)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Morph");
+    c.refresh();
+    Id dev = 0;
+    c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, morphRef(), DeviceRole::Instrument); });
+    auto* morph = dynamic_cast<MorphProcessor*> (engine.instance (dev));
+    CHECK (morph != nullptr);
+    if (! morph) return;
+    String error;
+    CHECK (morph->loadPlugin (0, synthRef(), error));
+    morph->showCornerWindow (0);
+    CHECK (morph->cornerWindowOpen (0));
+    const int windowsBefore = Desktop::getInstance().getNumComponents();
+    c.apply ("Remove", [&] (Project& p) { edit::removeDevice (p, dev); });
+    CHECK (engine.instance (dev) == nullptr);
+    CHECK_EQ (Desktop::getInstance().getNumComponents(), windowsBefore - 1);
+}

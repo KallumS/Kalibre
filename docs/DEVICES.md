@@ -332,8 +332,11 @@ synthetic.
 Four corners, **A**, **B**, **C** and **D**, each a plug-in or a sample, mixed
 by where the dot sits on the pad. Add it as an instrument (sample or
 instrument corners) or as an effect. Click **A…** to **D…** under the pad to
-choose each corner. Sample corners play the track's notes, pitched from
-middle C. Plug-in corners all run, lined up with the slowest. **X** and **Y**
+choose each corner. A plug-in's window opens in a window of its own when it's
+loaded, and again whenever its letter is clicked (the letter is lit while it's
+open); right-click a letter to change or clear the corner. It's never shown
+inside the X/Y Morph's own panel (0114). Sample corners play the track's
+notes, pitched from middle C. Plug-in corners all run, lined up with the slowest. **X** and **Y**
 are parameters: automate them or give them a modulator for movement.
 
 ---

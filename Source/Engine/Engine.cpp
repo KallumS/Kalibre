@@ -7,6 +7,7 @@
 #include "Surround.h"
 #include "Mp3Writer.h"
 #include "NoteSplitter.h"
+#include "MorphProcessor.h"
 
 namespace kal
 {
@@ -422,6 +423,9 @@ void Engine::newSong()
 void Engine::bury (Node::Ptr node)
 {
     if (! node) return;
+    // An X/Y Morph's corners' windows go with it, not when it's finally let go of (0114).
+    if (auto* morph = dynamic_cast<MorphProcessor*> (pluginOf (node)))
+        for (int c = 0; c < 4; ++c) morph->closeCornerWindow (c);
     graph.removeNode (node->nodeID);
     graveyard.push_back ({ node, Time::getMillisecondCounter() });
 }
