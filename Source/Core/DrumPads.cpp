@@ -122,9 +122,24 @@ drumkit::Kit asDrumKit (const Kit& k, const std::vector<int>& pads)
     return out;
 }
 
+// Pads of one kind (a closed hat, a crash) choose before pads that take any of a family (the pedal hat
+// takes any hat), so the pedal hat doesn't take the open hat's only sound.
 std::vector<std::string> randomSamples (const Kit& k, const std::vector<int>& pads, const library::Index& index, unsigned seed)
 {
-    return drumkit::randomSamples (asDrumKit (k, pads), index, seed);
+    auto general = [&k] (int pad)
+    {
+        const auto kind = drumkit::kindOf (nameOf (k, pad));
+        return kind == drumkit::Kind::Hat || kind == drumkit::Kind::Cymbal || kind == drumkit::Kind::Percussion || kind == drumkit::Kind::Other;
+    };
+    std::vector<size_t> order;
+    for (size_t i = 0; i < pads.size(); ++i) if (! general (pads[i])) order.push_back (i);
+    for (size_t i = 0; i < pads.size(); ++i) if (general (pads[i])) order.push_back (i);
+    std::vector<int> sorted;
+    for (auto i : order) sorted.push_back (pads[i]);
+    const auto chosen = drumkit::randomSamples (asDrumKit (k, sorted), index, seed);
+    std::vector<std::string> out (pads.size());
+    for (size_t j = 0; j < order.size() && j < chosen.size(); ++j) out[order[j]] = chosen[j];
+    return out;
 }
 
 } // namespace kal::drumpads

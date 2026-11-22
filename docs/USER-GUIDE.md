@@ -796,6 +796,7 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 | --- | --- | --- |
 | **Kalibre Synth** | Instrument | A simple synthesiser. |
 | **Kalibre Drums** | Instrument | A drum kit: pads of samples or plug-ins, with its own steps that play with the song or drag out to the timeline. [Below](#kalibre-drums). |
+| **Drum Pads** | Instrument | 128 pads, one for each note, sixteen shown: each a sample or a plug-in, with its own volume, pan, mute, solo and choke group. [Below](#drum-pads). |
 | **Kalibre Sampler** | Instrument | Plays a sample three ways (**Mode**): **Keys**, across the keyboard; **Slices**, cut at its hits, a key each from the root note up; **Granular**, as many short grains, so **Speed** changes how fast it plays without changing its pitch (0 holds it still). [Below](#kalibre-sampler). |
 | **Trombolese** | Instrument | A physical model of a trombone crossed with an oboe: one note at a time, sliding between held notes; Bore and Reed morph, the mod wheel on the bore. In tune from note 34 to 84. |
 | **Hardware Insert** | Effect | Outboard gear in the chain: out to the interface and back, its round trip measured. |
@@ -883,6 +884,54 @@ On a track playing Kalibre Drums, the **drum grid** (Editor > Drums) has the
 kit's pads for rows, with their names, and its Random puts every hit on one.
 
 Every change in it is one undo step.
+
+### Drum Pads
+
+128 pads, one for each note, sixteen shown at a time. **Add > Kalibre > Drum
+Pads**.
+
+![Drum Pads: sixteen of the 128 pads, the map of all of them on the left, the kick chosen](guide/drum-pads.png)
+
+**Which pad plays.** Each note plays its own pad: note 36 (C2) plays pad 36,
+the kick in General MIDI. So a drum part from anywhere plays the right pads,
+and every key of a keyboard has one. Pads are named for their note's drum
+(Kick, Snare, Closed Hat...) or, outside General MIDI's drums, for the note
+(C6); right-click > **Rename…** to call one what you like.
+
+**The pads.** Sixteen at a time, four rows of four, the lowest note at the
+bottom left. The narrow **map** on the left is all 128, a row of four a line,
+the highest at the top: a pad with a sound is lit, a soloed one yellow, a
+muted one dimmer, and the sixteen shown are framed. **Click or drag in the
+map**, or **scroll** over the pads, to show others, a row at a time. The
+pads shown and their notes are written above them. A pad lights as it plays.
+
+**A sound on a pad:**
+
+- **Drag a sound** from the Sounds tab (or the Finder) onto a pad. Several
+  sounds from the Finder go on that pad and the ones above it.
+- **Drag a plug-in** from the browser onto a pad, or **Plug-in ▾**: a drum
+  synth plays that pad. Its window shows beside the pad's controls.
+- **Choose a Sample…**, or **Random Samples**: a drum sound of its kind from
+  your Sounds folders for each of the sixteen shown (a kick for the kick, a
+  hat for the hats), told as the Sounds tab's **Drums** tells them. Pads
+  with plug-ins keep them. Click again for others; **Undo** for the last.
+
+**Click a pad** to hear it and choose it. Its controls are to the right:
+its name and note, its sound, **Clear**, **Rename…**, **Volume** and **Pan**
+(drag the knobs; double-click for 0 dB and the centre), **M** (mute), **S**
+(solo: with any pad soloed, only soloed pads are heard; **Unsolo All** at the
+top hears them all again), **Choke Group ▾** and, for a plug-in, **Sends ▾**
+(the note it's sent each hit: C4 unless chosen). **M** and **S** are on
+every pad too. Right-click a pad for all of these.
+
+**Choke groups.** Pads in the same group (1 to 8) stop each other: the closed
+hat stops the open one, as on a real kit. The three hats (42, 44, 46) are in
+group 1 to start. The stopped sound fades out in 2 ms, so it never clicks.
+
+On its track the **drum grid** (Editor > Drums) has a row for each pad with
+a sound, named as it's named, and its Random puts every hit on one. Every
+change in Drum Pads is one undo step; which sixteen are shown is kept with
+the song.
 
 ### The Container
 

@@ -84,6 +84,27 @@ played as a one-shot; a pad's plug-in is sent its plug-in note (C3 unless
 chosen) on each hit and the note-off after the step. Pads in a choke group
 stop each other.
 
+### Drum Pads
+
+Kalibre's own pad sampler (0113): **128 pads, one for each MIDI note**, each a
+**sample** or a **plug-in** (a drum synth), sixteen shown at a time. No steps
+inside: clips' notes and keyboards play it, each note its own pad.
+
+| Control | Does |
+| --- | --- |
+| **The sixteen pads** | Four rows of four, the lowest note at the bottom left. Click one to hear it and choose it; right-click for its menu; drop a sound (Sounds tab or Finder) or a plug-in (browser) on it. **M** mutes it, **S** solos it. |
+| **The map**, left | All 128, a row of four a line, the highest at the top: a sound lit, soloed in yellow, muted dimmer, the sixteen shown framed. Click or drag to show others; or scroll over the pads. |
+| **Random Samples** | A drum of its kind for each of the sixteen shown, from the Sounds folders. |
+| **Unsolo All** | Every pad heard again. |
+| The chosen pad | Its name and note; **Choose a Sample…**, **Plug-in ▾**, **Clear**, **Rename…**; **Volume** (-36 to +12 dB) and **Pan**; **M**, **S**; **Choke Group ▾** (None, 1 to 8); **Sends ▾**, the note its plug-in is sent. Its plug-in's window beside these. |
+
+A pad's sample is read into memory when chosen (30 seconds at most) and
+played as a one-shot, as loud as the hit; hit again, it starts again. Pads
+in a choke group stop each other, fading out in 2 ms (the hats, 42, 44 and
+46, are group 1 to start). With any pad soloed, only soloed pads are heard.
+A pad is named for its note's General MIDI drum until renamed; middle C is
+C4.
+
 ### Kalibre Sampler
 
 One sample, played three ways (**Mode**, 0095). **Drop an audio file onto

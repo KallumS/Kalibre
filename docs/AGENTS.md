@@ -56,6 +56,7 @@ connect Claude: the User Guide, [AI agents (MCP)](USER-GUIDE.md#ai-agents-mcp).
 | `set_loop` | The loop range in beats, on or off. |
 | `undo`, `redo` | |
 | (Kalibre Drums) | `add_plugin` with "Kalibre Drums"; notes in clips on General MIDI's drum notes play its pads (0105). |
+| (Drum Pads) | `add_plugin` with "Drum Pads"; each note in a clip plays the pad of that note, 0 to 127 (0113). |
 | `randomise_plugin` | A device's controls by chance, as its Random button (0104): volume, tuning and pitch left alone. One undo step. |
 | `song_version` | Plays song version 1 or 2 (making 2, a copy of 1, if there isn't one); one undo step (0103). `get_song` has `song_version` and `song_versions`. |
 | `export_mix` | The mix (or `every_track`) to a file; `record_tail`, `second_pass` as Export the Mix's. |

@@ -55,10 +55,9 @@ void DrumMachine::perform (const String& label, std::function<void()> change)
 }
 
 //==============================================================================
-DrumMachine::Sample DrumMachine::loadSample (const std::string& path, String& error)
+std::shared_ptr<const AudioBuffer<float>> readDrumSound (const std::string& path, double rate, String& error)
 {
     if (path.empty()) return nullptr;
-    if (auto it = sampleCache.find (path); it != sampleCache.end()) return it->second;
     AudioFormatManager fm;
     fm.registerBasicFormats();
     std::unique_ptr<AudioFormatReader> r (fm.createReaderFor (File (String (path))));
@@ -82,8 +81,15 @@ DrumMachine::Sample DrumMachine::loadSample (const std::string& path, String& er
             interp.process (ratio, raw.getReadPointer (c), out->getWritePointer (c), frames, raw.getNumSamples(), 0);
         }
     }
-    Sample s = out;
-    sampleCache[path] = s;
+    return out;
+}
+
+DrumMachine::Sample DrumMachine::loadSample (const std::string& path, String& error)
+{
+    if (path.empty()) return nullptr;
+    if (auto it = sampleCache.find (path); it != sampleCache.end()) return it->second;
+    Sample s = readDrumSound (path, rate, error);
+    if (s) sampleCache[path] = s;
     return s;
 }
 

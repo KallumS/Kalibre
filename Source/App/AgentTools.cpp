@@ -1,5 +1,6 @@
 #include "AgentTools.h"
 #include "DrumMachine.h"
+#include "DrumPadsDevice.h"
 
 #include "BuiltinInstruments.h"
 #include "ContainerProcessor.h"
@@ -110,6 +111,7 @@ std::vector<Addable> addable (Controller& c)
     own ("Kalibre Synth", synthRef(), DeviceRole::Instrument);
     own ("Kalibre Sampler", samplerRef(), DeviceRole::Instrument);
     own ("Kalibre Drums", drumsRef(), DeviceRole::Instrument);
+    own ("Drum Pads", drumPadsRef(), DeviceRole::Instrument);
     own ("Trombolese", tromboleseRef(), DeviceRole::Instrument);
     own ("Hardware Insert", hardwareInsertRef(), DeviceRole::AudioFx);
     own ("X/Y Morph", morphRef(), DeviceRole::Instrument);

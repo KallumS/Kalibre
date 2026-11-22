@@ -53,6 +53,7 @@
 | `Engine/ContainerProcessor.*` | The Container: plug-ins in a row, each on a band, the mid or the sides (0055). |
 | `Core/DrumSounds.*` | Whether a sound is a drum, and which: name, folders, length, the hit's shape (0106). |
 | `Engine/DrumMachine.*`, `DrumMachineEditor.cpp`; `Core/DrumKit.*` | Kalibre Drums: pads of samples or hosted plug-ins, its own steps from the playhead; the kit as JSON, Random Samples, the pattern as notes (0105). |
+| `Engine/DrumPadsDevice.*`, `DrumPadsEditor.cpp`; `Core/DrumPads.*` | Drum Pads: 128 pads, a note each, of samples or hosted plug-ins; volume, pan, mute, solo, choke groups with a 2 ms fade; the kit handed to the audio thread through `Swap`, the pads summed at 64 bits (0113). |
 | `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |
 | `Engine/SyncDevices.*` | Clock and timecode out, clock in, Ableton Link (0034). |
 | `Engine/Warp.*` | Audio in memory, and warping (0022); what no clip asked for at the last sync is let go of (0103). |

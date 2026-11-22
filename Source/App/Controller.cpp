@@ -1,5 +1,6 @@
 #include "Controller.h"
 #include "DrumMachine.h"
+#include "DrumPadsDevice.h"
 #include "BuiltinInstruments.h"
 #include "LibraryScanner.h"
 #include "ReaperScripts.h"
@@ -43,6 +44,18 @@ Controller::Controller (Engine& e) : engine (e)
         pluginChanged (before, label);
     };
     DrumMachine::sounds = [this] { return soundsIndex ? soundsIndex() : nullptr; };
+    // Drum Pads (0113): the same.
+    DrumPadsProcessor::edit = [this] (DrumPadsProcessor& dp, const String& label, std::function<void()> change)
+    {
+        const Id id = deviceOf (&dp);
+        if (id == 0) { change(); return; }
+        storeDeviceStates();
+        const Project before = project;
+        change();
+        changedDevice = id;
+        pluginChanged (before, label);
+    };
+    DrumPadsProcessor::sounds = DrumMachine::sounds;
     // Kalibre Sampler (0108): a sample loaded, by hand or by chance, one undo step.
     KalibreSampler::edit = [this] (KalibreSampler& s, const String& label, std::function<void()> change)
     {
@@ -57,6 +70,7 @@ Controller::Controller (Engine& e) : engine (e)
     KalibreSampler::sounds = DrumMachine::sounds;
     KalibreSampler::say = [this] (const String& m, bool warning) { say (m, warning, ! warning); };
     DrumMachine::say = [this] (const String& m, bool warning) { say (m, warning, ! warning); };
+    DrumPadsProcessor::say = DrumMachine::say;
     engine.onAudioReady = [this] { syncEngine(); sendChangeMessage(); };
     engine.onLearned = [this] (int channel, int controller)
     {
@@ -133,6 +147,9 @@ Controller::~Controller()
     DrumMachine::edit = nullptr;
     DrumMachine::sounds = nullptr;
     DrumMachine::say = nullptr;
+    DrumPadsProcessor::edit = nullptr;
+    DrumPadsProcessor::sounds = nullptr;
+    DrumPadsProcessor::say = nullptr;
     KalibreSampler::edit = nullptr;
     KalibreSampler::sounds = nullptr;
     KalibreSampler::say = nullptr;
@@ -635,7 +652,7 @@ void Controller::selectClip (Id id, bool openEditor)
     if (openEditor && clip && owner && clip->isMidi() && (editor == EditorKind::Drums || editor == EditorKind::PianoRoll))
     {
         bool drums = false;
-        for (auto& d : owner->devices) drums |= d.plugin.format == "Kalibre" && d.plugin.identifier == "drums";
+        for (auto& d : owner->devices) drums |= d.plugin.format == "Kalibre" && (d.plugin.identifier == "drums" || d.plugin.identifier == "drum-pads");
         for (auto& n : clip->midi.notes) drums |= n.from == NoteFrom::Drums;
         editor = drums ? EditorKind::Drums : EditorKind::PianoRoll;
     }
@@ -1817,7 +1834,12 @@ std::optional<drumkit::Kit> Controller::drumKitOn (Id track) const
     if (! t) return std::nullopt;
     for (auto& d : t->devices)
         if (d.active)
+        {
             if (auto* dm = dynamic_cast<DrumMachine*> (engine.instance (d.id))) return dm->kit();
+            // Drum Pads (0113): its pads that have a sound, lowest first.
+            if (auto* dp = dynamic_cast<DrumPadsProcessor*> (engine.instance (d.id)))
+                if (const auto pads = drumpads::sounding (dp->kit()); ! pads.empty()) return drumpads::asDrumKit (dp->kit(), pads);
+        }
     return std::nullopt;
 }
 

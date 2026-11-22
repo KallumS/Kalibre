@@ -117,6 +117,14 @@ TEST ("drum pads: Random Samples gives each pad shown a drum of its kind, never 
     CHECK_EQ (chosen[1], std::string ("/S/Snare 1.wav"));
     CHECK_EQ (chosen[2], std::string ("/S/HH Closed.wav"));
     CHECK_EQ (chosen[3], std::string ("/S/HH Open.wav"));
+    // The pedal hat (44) between them doesn't take the open hat's sound: pads of one kind choose before pads of any hat.
+    const auto hats = drumpads::randomSamples (k, { 42, 44, 46 }, ix, 7);
+    CHECK_EQ (hats.size(), (size_t) 3);
+    if (hats.size() == 3)
+    {
+        CHECK_EQ (hats[0], std::string ("/S/HH Closed.wav"));
+        CHECK_EQ (hats[2], std::string ("/S/HH Open.wav"));
+    }
     const auto dk = drumpads::asDrumKit (k, pads);
     CHECK_EQ (dk.pads.size(), (size_t) 4);
     CHECK_EQ (dk.pads[2].note, 42);

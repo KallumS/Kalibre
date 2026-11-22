@@ -302,7 +302,7 @@ public:
     // Kalibre Drums (0105): the device a plug-in instance is, and its pattern dropped on a track at a tick.
     Id deviceOf (const juce::AudioProcessor*) const;
     Id dropDrumPattern (const juce::AudioProcessor* drums, Id track, Tick at);
-    // The kit of the track's Kalibre Drums, if it plays one: the drum grid's rows (0105).
+    // The kit of the track's Kalibre Drums, or its Drum Pads' pads with sounds, if it plays one: the drum grid's rows (0105, 0113).
     std::optional<drumkit::Kit> drumKitOn (Id track) const;
     void chooseSongVersion (int index);
     void deleteSongVersion (int index);

@@ -37,6 +37,10 @@ class PluginManager;
 
 PluginRef drumsRef();
 
+// A drum's sound read whole into memory at `rate` (30 seconds at most), so playing it
+// is a copy; null, and `error` says why, when it can't be read. Drum Pads reads with it too.
+std::shared_ptr<const juce::AudioBuffer<float>> readDrumSound (const std::string& path, double rate, juce::String& error);
+
 class DrumMachine : public juce::AudioPluginInstance
 {
 public:
