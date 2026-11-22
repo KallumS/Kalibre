@@ -108,13 +108,10 @@ struct Browser::PresetList : public ListBoxModel
 };
 
 //==============================================================================
-Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl), keysPanel (ctrl.keys)
+Browser::Browser (Controller& ctrl) : c (ctrl)
 {
     setTitle ("Browser");
-    addChildComponent (studioView);
-    studioView.setViewedComponent (&studio, false);
-    studioView.setScrollBarsShown (true, false);
-    for (auto* b : { &pluginsTab, &presetsTab, &filesTab, &audioTab, &studioTab, &keysTab })
+    for (auto* b : { &pluginsTab, &presetsTab, &filesTab, &audioTab })
     {
         b->setRadioGroupId (3);
         b->setClickingTogglesState (true);
@@ -130,10 +127,7 @@ Browser::Browser (Controller& ctrl) : c (ctrl), studio (ctrl), keysPanel (ctrl.k
         c.say (cores.getToggleState() ? "The tracks play on " + String (c.engine.audioThreads()) + " cores at once."
                                       : String ("Everything plays on one core, one track after another."));
     };
-    studioTab.onClick = [this] { showTab (Tab::Studio); };
     presetsTab.onClick = [this] { showTab (Tab::Presets); };
-    keysTab.onClick = [this] { showTab (Tab::Keys); };
-    addChildComponent (keysPanel);
     addAndMakeVisible (search);
     search.setTextToShowWhenEmpty ("Search", theme::textSecondary);
     search.setTitle ("Search");
@@ -191,10 +185,15 @@ void Browser::changeListenerCallback (ChangeBroadcaster* from)
     pluginBox.repaint();
 }
 
-void Browser::showAgents()
+Browser::Tab Browser::tabFromNumber (int n)
 {
-    resized();
-    studioView.setViewPosition (0, juce::jmax (0, studio.agentsTop()));
+    switch (n)
+    {
+        case 1: return Tab::Files;
+        case 2: return Tab::Audio;
+        case 4: return Tab::Presets;
+        default: return Tab::Plugins;   // 3 and 5 were Studio and Keys, windows of their own now
+    }
 }
 
 void Browser::showTab (Tab t)
@@ -203,14 +202,9 @@ void Browser::showTab (Tab t)
     pluginsTab.setToggleState (t == Tab::Plugins, dontSendNotification);
     filesTab.setToggleState (t == Tab::Files, dontSendNotification);
     audioTab.setToggleState (t == Tab::Audio, dontSendNotification);
-    studioTab.setToggleState (t == Tab::Studio, dontSendNotification);
     presetsTab.setToggleState (t == Tab::Presets, dontSendNotification);
-    keysTab.setToggleState (t == Tab::Keys, dontSendNotification);
-    keysPanel.setVisible (t == Tab::Keys);
-    if (t == Tab::Keys) keysPanel.refresh();
     presetBox.setVisible (t == Tab::Presets);
     if (t == Tab::Presets) { presets->refresh (search.getText()); presetBox.updateContent(); }
-    studioView.setVisible (t == Tab::Studio);
     pluginBox.setVisible (t == Tab::Plugins);
     scan.setVisible (t == Tab::Plugins);
     sounds->setVisible (t == Tab::Files);
@@ -238,24 +232,17 @@ void Browser::paint (Graphics& g)
 void Browser::resized()
 {
     auto r = getLocalBounds().reduced (theme::px (8));
-    // Two rows of three.
+    // Two rows of two.
     auto placeRow = [&] (std::initializer_list<theme::HouseButton*> row)
     {
         auto tabs = r.removeFromTop (theme::px (24));
-        const int w = (tabs.getWidth() - 8) / 3;
+        const int w = (tabs.getWidth() - 4) / 2;
         for (auto* b : row) { b->setBounds (tabs.removeFromLeft (w)); tabs.removeFromLeft (4); }
         r.removeFromTop (4);
     };
-    placeRow ({ &pluginsTab, &presetsTab, &filesTab });
-    placeRow ({ &audioTab, &studioTab, &keysTab });
+    placeRow ({ &pluginsTab, &presetsTab });
+    placeRow ({ &filesTab, &audioTab });
     r.removeFromTop (theme::px (8));
-    if (tab == Tab::Keys) { keysPanel.setBounds (r); return; }
-    if (tab == Tab::Studio)
-    {
-        studioView.setBounds (r);
-        studio.setSize (r.getWidth() - studioView.getScrollBarThickness(), jmax (r.getHeight(), studio.preferredHeight()));
-        return;
-    }
     if (tab != Tab::Audio)
     {
         auto row = r.removeFromTop (theme::px (26));

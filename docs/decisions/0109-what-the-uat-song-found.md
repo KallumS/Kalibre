@@ -59,6 +59,7 @@ Each found, and fixed with a test that failed first:
   until they change (hearing half a million again isn't worth it).
 - **New files needed Look Again**: coming back to Kalibre looks through the
   folders again, at most once a minute, reading only what's new or changed.
+  (Taken out again at the musician's request: only as Kalibre opens, 0110.)
 - **A sound dropped on the Sampler wasn't in tune**: dropped or loaded, its
   Root Note is the note the scan heard, as Random Sample's is.
 - **Chosen clips dragged one at a time**: dragging one of several chosen moves

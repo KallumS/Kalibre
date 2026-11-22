@@ -607,7 +607,7 @@ TEST ("sounds: a sample put on the timeline split at transients is a clip for ea
     CHECK_EQ (c.project.track (t)->clips().size(), (size_t) 4);
 }
 
-TEST ("sounds: coming back to Kalibre looks through the folders again, at most once a minute: a file saved meanwhile is listed (found in the UAT)")
+TEST ("sounds: looked through once as Kalibre opens, not again on its own: a file saved meanwhile waits for Look Again (the musician's choice)")
 {
     const auto dir = makeSounds ("comeback");
     Library lib (dir);
@@ -616,12 +616,18 @@ TEST ("sounds: coming back to Kalibre looks through the folders again, at most o
     WavAudioFormat wav;
     const auto added = dir.getChildFile ("Keys/Saved Meanwhile.wav");
     writeAudio (added, wav, 1.0);
-    // Just looked: not again so soon.
-    CHECK (! lib.view.lookAgainIfStale());
-    // A minute on (the test's clock): looked through again, the new file found.
-    lib.view.lastLook -= 61000;
-    CHECK (lib.view.lookAgainIfStale());
+    // A while on, with the window in front again or not: nothing looks.
+    MessageManager::getInstance()->runDispatchLoopUntil (300);
+    CHECK (! lib.view.scanner().scanning());
+    CHECK (find (lib.view.scanner().index(), added) == nullptr);
+    // Look Again finds it.
+    lib.view.rescan();
     CHECK (lib.view.scanner().waitUntilDone (20000));
     CHECK (find (lib.view.scanner().index(), added) != nullptr);
     CHECK_EQ (lib.view.scanner().index().items.size(), before + 1);
+    // And opening Kalibre (the store read again) looks through them once.
+    writeAudio (dir.getChildFile ("Keys/Saved Later.wav"), wav, 1.0);
+    lib.view.useStore (lib.store);
+    CHECK (lib.view.scanner().waitUntilDone (20000));
+    CHECK (find (lib.view.scanner().index(), dir.getChildFile ("Keys/Saved Later.wav")) != nullptr);
 }

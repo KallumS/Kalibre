@@ -1,5 +1,5 @@
 /*
-    StudioPanel - the browser's Studio tab: how this Mac's other gear is
+    StudioPanel - the Studio window (File > Studio): how this Mac's other gear is
     connected (decisions 0034, 0035). MIDI clock and timecode out, a clock to
     follow, Ableton Link, a Mackie Control surface's ports, and OSC. Saved
     with the app, so every song uses the same studio.

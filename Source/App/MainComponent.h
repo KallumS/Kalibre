@@ -25,6 +25,7 @@
 #include "PluginManagerView.h"
 #include "ArticulationManagerView.h"
 #include "LibraryFolders.h"
+#include "SettingsWindows.h"
 #include "Surfaces.h"
 #include "TopBar.h"
 
@@ -59,7 +60,6 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
-    void cameToFront();   // the window active again: the Sounds tab looks for new files
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
@@ -86,8 +86,10 @@ public:
     void songDetails();
     void setTextSize (float);
     void showBrowser (Browser::Tab);
-    void showAgents();
-    void randomSong();   // the top bar's Random: a new song by chance (0101)   // Kalibre > AI Agents...: the Studio tab, at AI Agents (0099)
+    StudioWindow& showStudio();   // File > Studio...: sync, control surfaces, OSC, AI agents
+    void showAgents();            // the Studio window at AI Agents (0099)
+    KeysWindow& showKeys();       // Help > Keys...: every command and its key (0045)
+    void randomSong();   // the top bar's Random: a new song by chance (0101)
     void hideBrowser() { browserShown = false; browser.setVisible (false); resized(); }
     void showPluginManager();
     void showArticulationManager();
@@ -126,6 +128,8 @@ private:
     std::unique_ptr<PluginManagerWindow> pluginWindow;
     std::unique_ptr<ArticulationManagerWindow> articulationWindow;
     std::unique_ptr<LibraryFoldersWindow> libraryWindow;
+    std::unique_ptr<StudioWindow> studioWindow;
+    std::unique_ptr<KeysWindow> keysWindow;
     int dragStartHeight = 0;
     bool draggingDivider = false, draggingBrowserEdge = false, browserDragMoved = false, browserWasShown = false;
     bool lowerDragMoved = false, lowerWasShown = true;

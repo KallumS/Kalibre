@@ -426,13 +426,39 @@ void Engine::bury (Node::Ptr node)
     graveyard.push_back ({ node, Time::getMillisecondCounter() });
 }
 
+// A removed node is deleted here, on a timer of the engine's own, and only when
+// nothing else holds it: JUCE's graph keeps one until its next block on the audio
+// thread, the plan until it's replaced. Once ours was let go after a second and a
+// half whatever else held it, so a plug-in was deleted whenever JUCE's graph
+// happened to let go (Groove Agent SE crashed inside its own clean-up there, on
+// the Mac). And never while a window of it is open: a plug-in is told its window
+// is going before it goes (0056).
+bool Engine::readyToGo (const Node& node, juce::uint32 buried, juce::uint32 now)
+{
+    if (now - buried < 1500) return false;
+    if (node.getReferenceCount() > 1) return false;
+    if (auto* t = dynamic_cast<TimedPlugin*> (node.getProcessor()))
+        if (t->plugin().getActiveEditor() != nullptr) return false;
+    if (auto* p = node.getProcessor(); p != nullptr && p->getActiveEditor() != nullptr) return false;
+    return true;
+}
+
+void Engine::letGoOfOld (juce::uint32 now)
+{
+    // One at a time, each deleted before the next is looked at.
+    for (size_t i = 0; i < graveyard.size();)
+    {
+        if (! readyToGo (*graveyard[i].first, graveyard[i].second, now)) { ++i; continue; }
+        auto node = std::move (graveyard[i].first);
+        graveyard.erase (graveyard.begin() + (long) i);
+        node = nullptr;
+    }
+}
+
 void Engine::timerCallback()
 {
     if (++loadCountdown >= 10) { loadCountdown = 0; measureLoad(); }
-    const auto now = Time::getMillisecondCounter();
-    graveyard.erase (std::remove_if (graveyard.begin(), graveyard.end(),
-                                     [now] (const auto& g) { return now - g.second > 1500; }),
-                     graveyard.end());
+    letGoOfOld (Time::getMillisecondCounter());
     for (auto& [id, t] : tracks)
         if (auto* s = dynamic_cast<TrackSource*> (t.source ? t.source->getProcessor() : nullptr)) s->data.collect();
     tempo.collect();

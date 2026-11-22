@@ -176,7 +176,7 @@ bool postToKalibre (int port, const std::string& body, std::string& reply, std::
     StreamingSocket s;
     if (port <= 0 || ! s.connect ("127.0.0.1", port, 2000))
     {
-        error = "Kalibre isn't open, or doesn't let AI agents in yet: open Kalibre, and switch on AI Agents in the browser's Studio tab.";
+        error = "Kalibre isn't open, or doesn't let AI agents in yet: open Kalibre, and switch on AI Agents in File > Studio > AI Agents.";
         return false;
     }
     const std::string request = "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:" + std::to_string (port)

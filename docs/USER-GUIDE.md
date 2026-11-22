@@ -92,7 +92,7 @@ From top to bottom:
 | **Track headers** | On the left: each track's name, version, I/O, M (mute), S (solo) and arm buttons. [Section 4](#4-tracks). |
 | **The arrangement** | The clips, along the timeline. [Section 5](#5-clips-and-the-arrangement). |
 | **The lower zone** | Under the tracks, with tabs: **Devices** (D), **Editor** (E), **Mixer** (X), **Meters** (Y), and **Video** when the song has a video. Drag the dots on its top edge to make it taller or shorter; drag it past its shortest and it shuts, leaving a thin bar along the bottom: drag the bar up (or click it) to open it again. Asking for one of its tabs (D, E, X, Y) opens it too, as does View > Lower Zone. |
-| **The browser** | On the left: plug-ins, sounds (your samples and MIDI), audio settings, presets, keys and the studio. Drag its right edge to make it wider or narrower; drag it past its narrowest and it shuts, leaving a thin bar at the window's left edge: drag the bar (or click it) to open it again. ⌘B shows and hides it too. [Section 14](#15-the-browser). |
+| **The browser** | On the left: plug-ins, presets, sounds (your samples and MIDI) and audio settings. Drag its right edge to make it wider or narrower; drag it past its narrowest and it shuts, leaving a thin bar at the window's left edge: drag the bar (or click it) to open it again. ⌘B shows and hides it too. [Section 14](#15-the-browser). |
 | **The transport** | Along the very bottom, in the middle: **⏮ Go to Start**, **▶ Play**, **● Record**, **Loop**, **Punch**, **Click** and **Count-in**. [Section 3](#the-transport-along-the-bottom). |
 
 ### Shutting the browser and the lower zone
@@ -723,6 +723,15 @@ resizable ones take the size, others are shown smaller, never stretched or
 bigger than they are. **Swipe sideways with two fingers** to move along the
 rack. Every action on a plug-in is one undo step.
 
+**Questions and plug-ins.** When Kalibre asks something ("Save the changes
+to this project?"), the question appears near the top of the window, just
+under the top bar, and every plug-in's window steps aside until you answer,
+those in the rack and those in windows of their own. The Mac's **Open** and
+**Save** panels appear near the top of the screen, in front of plug-ins'
+windows.
+
+![A question near the top, under the top bar](guide/question-at-the-top.png)
+
 ![A plug-in shown smaller to fit a short zone](guide/fitted.png)
 
 ### A plug-in's Random
@@ -1097,7 +1106,7 @@ On the left of the window.
   the bar, and it opens as wide as it was.
 - ⌘B (or View > Browser) shows and hides it too.
 
-Six tabs:
+Four tabs, in two rows:
 
 | Tab | What's in it |
 | --- | --- |
@@ -1105,8 +1114,10 @@ Six tabs:
 | **Sounds** | Your samples and MIDI files, to hear and bring into the song ([below](#the-sounds-tab)). |
 | **Audio** | The audio interface, sample rate (as high as the interface goes: 44.1 to 192 kHz) and buffer size, inputs and outputs; **Use Every Core** (on unless you switch it off). |
 | **Presets** | Saved presets for the chosen track's plug-ins. |
-| **Keys** | Every command and its key ([Section 19](#20-every-key-command)). |
-| **Studio** | Sync and control surfaces ([Section 17](#18-sync-control-surfaces-and-scripts)). |
+
+The keys and the studio have windows of their own: **Help > Keys…**
+([Section 20](#20-every-key-command)) and **File > Studio**
+([Section 18](#18-sync-control-surfaces-and-scripts)).
 
 ![The browser's Plug-ins tab](guide/browser-plugins.png)
 ![The browser's Audio tab](guide/browser-audio.png)
@@ -1121,9 +1132,10 @@ favourites and bring into the song.
 **The folders.** The first time Kalibre opens it asks which folders to look
 in; **Kalibre > Library Folders…** (or **Folders…** in the tab) adds one
 (**Add Folder…**), takes one out (**Remove**: its files aren't touched), or
-looks through them all again (**Look Again**). Coming back to Kalibre (from
-the Finder, say) looks again by itself, at most once a minute, so a sample
-you've just saved is listed. Only files Kalibre can play
+looks through them all again (**Look Again**). Kalibre looks through them
+by itself once, as it opens: a sample saved while it's open is listed after
+**Look Again**, or the next time Kalibre opens (switching to another app and
+back doesn't look again). Only files Kalibre can play
 are listed: WAV, AIFF, FLAC, Ogg, MP3, AAC and ALAC (M4A, CAF), and MIDI.
 Each file is read once; after that only new and changed files are, so
 opening Kalibre doesn't wait. The line under the buttons says how far a scan
@@ -1356,9 +1368,11 @@ Both together: the second pass, then its tail.
 
 ## 18. Sync, Control Surfaces and Scripts
 
-**Kalibre > Sync and Control Surfaces…** opens the browser's **Studio** tab.
+**File > Studio > Sync and Control Surfaces…** opens the **Studio** window,
+a window of its own (it scrolls; ⌘W or Esc closes it). Its settings belong to
+this Mac, not to a song.
 
-![The Studio tab, and the loudness panel](guide/studio-loudness.png)
+![The Studio window](guide/studio.png)
 
 - **Sync**: MIDI clock and Song Position out, MIDI timecode out, follow
   another machine's clock, chase MTC, MIDI Machine Control in and out,
@@ -1379,7 +1393,7 @@ make tracks, add plug-ins and turn their knobs, write clips and notes, play
 and stop, export. It talks to Kalibre through MCP (the Model Context
 Protocol), which Claude Desktop, Claude Code and many other agents speak.
 
-1. **Kalibre > AI Agents…** opens the browser's Studio tab at **AI Agents
+1. **File > Studio > AI Agents…** opens the Studio window at **AI Agents
    (MCP)**. Tick **Let AI Agents Control Kalibre**. Under it, it says
    **Listening on this Mac, port 47100**.
 2. Tell the agent where Kalibre is, once:
@@ -1407,7 +1421,7 @@ Kalibre must be open for the agent to reach it. What you'll see:
 - If **Port** is taken by something else, the message line says so: type
   another and press Return (then copy the setup again).
 
-![The Studio tab's AI Agents, switched on](guide/ai-agents.png)
+![The Studio window's AI Agents, switched on](guide/ai-agents.png)
 
 Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 
@@ -1420,8 +1434,6 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | Item | Key | Does |
 | --- | --- | --- |
 | Audio and MIDI Settings… | ⌘, | The browser's Audio tab. |
-| Sync and Control Surfaces… | | The browser's Studio tab. |
-| AI Agents… | | The Studio tab at AI Agents (MCP): let an AI agent work in Kalibre. |
 | Plug-in Manager… | | [Section 14](#the-plug-in-manager). |
 | Library Folders… | | The folders the Sounds tab looks in ([Section 14](#the-sounds-tab)). |
 | Quit Kalibre | ⌘Q | Asks to save first. Kalibre always ends within five seconds, even if a plug-in won't let go. |
@@ -1440,6 +1452,8 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | Save As… | ⇧⌘S |
 | Save as Template… | |
 | Articulation Manager… | |
+| Studio ▸ Sync and Control Surfaces… | |
+| Studio ▸ AI Agents… | |
 | Collect All Files and Save | |
 | Relink Missing Files… | |
 | Archive the Project… | |
@@ -1559,7 +1573,7 @@ Scripts**.
 
 | Item | Does |
 | --- | --- |
-| Keys | The browser's Keys tab. |
+| Keys… | The Keys window: every command and its key. |
 | Show Crash Reports | The folder of crash reports. |
 | Kalibre on GitHub | |
 
@@ -1567,13 +1581,14 @@ Scripts**.
 
 ## 20. Every Key Command
 
-These are the keys Kalibre starts with. Change any of them in **Help > Keys**:
+These are the keys Kalibre starts with. Change any of them in **Help > Keys…**
+(a window of its own; ⌘W or Esc closes it):
 click a command, then press its new key. Esc leaves it as it was; Delete takes
 its key away; **Default Key** puts one back, **All Defaults** puts them all
 back. A key does one thing: giving it to a command takes it from any other.
 The menus always show the key a command has now.
 
-![The browser's Keys tab](guide/browser-keys.png)
+![The Keys window](guide/keys.png)
 
 *The pictures in this guide are drawn on Linux, so this list says Ctrl+ where
 the Mac says ⌘.*
@@ -1676,7 +1691,7 @@ These aren't in the Keys list: they belong to where you are.
 | The Sounds tab | ← / → | Shut or open a folder |
 | The Sounds tab | Return | Put the sound on the chosen track at the cursor |
 | Questions Kalibre asks | Return / Esc | The default button / Cancel |
-| Keys tab | Esc / Delete | Leave the key / take it away |
+| Keys window | Esc / Delete | Leave the key / take it away |
 
 ---
 

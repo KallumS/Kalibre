@@ -430,10 +430,21 @@ bool HouseButton::keyPressed (const KeyPress& key)
 
 namespace kal::ui
 {
-static juce::Component::SafePointer<juce::Component> hostComponent;
+static juce::Component::SafePointer<juce::Component> hostComponent, aboveQuestions;
 
 void setHost (juce::Component* c) { hostComponent = c; }
 juce::Component* host() { return hostComponent.getComponent(); }
+void setQuestionsBelow (juce::Component* c) { aboveQuestions = c; }
+
+juce::Rectangle<int> questionBounds (juce::Rectangle<int> host, juce::Rectangle<int> above, juce::Rectangle<int> question)
+{
+    // Near the top, across the middle (the musician's choice: a plug-in's window
+    // lower down covered the Save question): just under the top bar.
+    const int top = above.isEmpty() ? host.getY() + 24 : above.getBottom() + 12;
+    auto r = question.withCentre ({ host.getCentreX(), 0 }).withY (top);
+    if (r.getBottom() > host.getBottom()) r.setY (juce::jmax (host.getY(), host.getBottom() - r.getHeight()));
+    return r;
+}
 
 namespace
 {
@@ -461,6 +472,20 @@ struct PluginsAside : public juce::ModalComponentManager::Callback
         }
     }
 
+    // Plug-ins moved into windows of their own (0056) step aside too: they're in
+    // front of Kalibre's window, wherever on the screen the question is.
+    void hideOwnWindows()
+    {
+        auto& desktop = juce::Desktop::getInstance();
+        for (int i = 0; i < desktop.getNumComponents(); ++i)
+            if (auto* w = dynamic_cast<juce::DocumentWindow*> (desktop.getComponent (i)))
+                if (w->isVisible() && dynamic_cast<juce::AudioProcessorEditor*> (w->getContentComponent()) != nullptr)
+                {
+                    w->setVisible (false);
+                    hidden.emplace_back (w);
+                }
+    }
+
     void modalStateFinished (int result) override
     {
         for (auto& h : hidden) if (h) h->setVisible (true);
@@ -476,9 +501,12 @@ void present (juce::AlertWindow* w, juce::ModalComponentManager::Callback* cb, b
     if (auto* h = host())
     {
         aside->hideIn (*h);
+        aside->hideOwnWindows();
         h->addAndMakeVisible (w);
         w->setAlwaysOnTop (true);
-        w->setBounds (w->getBounds().withCentre (h->getLocalBounds().getCentre()));
+        auto* a = aboveQuestions.getComponent();
+        const auto above = a != nullptr && a->isVisible() && h->isParentOf (a) ? h->getLocalArea (a, a->getLocalBounds()) : juce::Rectangle<int>();
+        w->setBounds (questionBounds (h->getLocalBounds(), above, w->getBounds()));
     }
     w->enterModalState (true, aside.release(), deleteWhenDismissed);
 }

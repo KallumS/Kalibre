@@ -1,6 +1,6 @@
 /*
     NetworkMidi - the Mac's own network MIDI session, switched on from
-    Kalibre's Studio tab (decision 0043), so an iPad or another Mac can play
+    Kalibre's Studio window (decision 0043), so an iPad or another Mac can play
     into it and follow its clock without opening Audio MIDI Setup. Once on,
     the session is a MIDI port like any other ("Network Session 1").
 

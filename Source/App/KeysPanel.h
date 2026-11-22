@@ -1,5 +1,5 @@
 /*
-    KeysPanel - the browser's Keys tab (decision 0045): every command and its
+    KeysPanel - the Keys window, Help > Keys... (decision 0045): every command and its
     key. Click one, then press the key it should have; Esc leaves it as it
     was, Delete takes its key away.
 */

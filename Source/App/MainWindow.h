@@ -45,13 +45,6 @@ public:
     // Kalibre's own: its shortcuts work without a click first (found in the UAT: ⇧⌘E did nothing).
     bool keyPressed (const KeyPress& k) override { return content != nullptr && content->keyPressed (k); }
 
-    // Back to the front: sounds saved meanwhile are listed (found in the UAT).
-    void activeWindowStatusChanged() override
-    {
-        DocumentWindow::activeWindowStatusChanged();
-        if (isActiveWindow() && content != nullptr) content->cameToFront();
-    }
-
     MainComponent* content = nullptr;
     PopupMenu extraAppMenu;
 };

@@ -2,7 +2,7 @@
     Keys - every key the window answers, and which key does what (decision 0045).
 
     Each command has a name and a default key; any can be given another in
-    the browser's Keys tab (click it, press the new key). A key given to one
+    Help > Keys... (click it, press the new key). A key given to one
     command is taken from whichever had it. The choices are kept with the
     app, in Application Support/Kalibre/Keys.json, and the menus show them.
 */

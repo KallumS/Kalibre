@@ -209,10 +209,37 @@ int main (int argc, char** argv)
         c.zoneTab = ZoneTab::Devices;
         c.refresh();
         shoot ("9-takes");
-        window.showBrowser (Browser::Tab::Studio);
+        // A question near the top, under the top bar (0110).
+        {
+            auto* q = new AlertWindow ("Save the changes to this project?", "If you don't, they're lost.", MessageBoxIconType::NoIcon);
+            q->addButton ("Save", 1, KeyPress (KeyPress::returnKey));
+            q->addButton ("Don't Save", 2);
+            q->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+            ui::present (q, nullptr, true);
+            shoot ("44-question-at-the-top");
+            q->exitModalState (0);
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+        }
+        window.showBrowser (Browser::Tab::Presets);
         c.zoneTab = ZoneTab::Mixer;
         c.viewChanged();
-        shoot ("10-studio-and-loudness");
+        shoot ("10-presets-and-loudness");
+        // The studio and the keys: windows of their own (0110).
+        auto shootWindow = [&] (DocumentWindow& w, const String& name)
+        {
+            w.setVisible (true);
+            MessageManager::getInstance()->runDispatchLoopUntil (100);
+            auto* content = w.getContentComponent();
+            auto image = content->createComponentSnapshot (content->getLocalBounds(), true, scale);
+            PNGImageFormat png;
+            const auto f = out.getChildFile (name + ".png");
+            f.deleteFile();
+            FileOutputStream s (f);
+            png.writeImageToStream (image, s);
+            std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+            w.setVisible (false);
+        };
+        shootWindow (window.showStudio(), "10-studio");
         // The browser's other tabs, for the user guide (docs/USER-GUIDE.md).
         c.zoneTab = ZoneTab::Devices;
         c.viewChanged();
@@ -220,8 +247,7 @@ int main (int argc, char** argv)
         shoot ("31-browser-plugins");
         window.showBrowser (Browser::Tab::Audio);
         shoot ("32-browser-audio");
-        window.showBrowser (Browser::Tab::Keys);
-        shoot ("33-browser-keys");
+        shootWindow (window.showKeys(), "33-keys");
         // AI agents, switched on (decision 0099).
         {
             const auto was = c.studio;
@@ -232,7 +258,7 @@ int main (int argc, char** argv)
             window.showAgents();
             MessageManager::getInstance()->runDispatchLoopUntil (700);
             window.showAgents();
-            shoot ("39-ai-agents");
+            shootWindow (window.showStudio(), "39-ai-agents");
             c.setStudio (was);
             window.browserWidth = 320;
         }

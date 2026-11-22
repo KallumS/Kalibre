@@ -7,7 +7,7 @@ connect Claude: the User Guide, [AI agents (MCP)](USER-GUIDE.md#ai-agents-mcp).
 ## How it's reached
 
 - **Streamable HTTP**, on this Mac only: `POST http://127.0.0.1:47100/mcp`
-  (the port is the Studio tab's), a JSON-RPC message in, its reply as JSON.
+  (the port is the Studio window's: File > Studio > AI Agents…), a JSON-RPC message in, its reply as JSON.
   A notification gets `202 Accepted`; `GET` gets `405` (no event stream); a
   request whose `Origin` isn't this Mac's gets `403`.
 - **stdio**: `Kalibre --mcp` (the app's own executable,

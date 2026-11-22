@@ -74,6 +74,12 @@ public:
 
     ~DevicePanel() override { dropEditor(); }
 
+    // Put in the window (or taken out): its plug-in's window opens now if it waited.
+    void parentHierarchyChanged() override
+    {
+        if (getParentComponent() != nullptr && ! editor) update();
+    }
+
     Device* device() { return c.project.device (id); }
 
     void dropEditor()
@@ -115,6 +121,10 @@ public:
         auto* inst = c.engine.instance (id);
         // Moved out to its own window, or not loaded: nothing here.
         if (! d->active || ! inst || floating) { if (editor) { dropEditor(); rack.relayout(); } return; }
+        // Not opened until the panel is in the window: on the Mac a plug-in given a
+        // view with no window to measure set it to an impossible size, and AppKit
+        // stopped Kalibre (HeartCore, a new panel opening its plug-in in its constructor).
+        if (getPeer() == nullptr && (DeviceRack::pluginsNeedAWindow || getParentComponent() == nullptr)) return;
         if (! editor || editorFor != inst)
         {
             dropEditor();

@@ -74,7 +74,9 @@
 | `Engine/NetworkMidi*` | The Mac's network MIDI session (0043). |
 | `Source/App/` | The window (0002). `Controller` owns the project, undo, the selection and every command; the views ask it. |
 | `App/TopBar` (and `TransportBar`, along the bottom, 0095), `Arrange`, `LowerZone`, `PianoRoll`, `PatternEditors`, `NotationView`, `DeviceRack`, `Mixer`, `Browser`, `Menus` | What they say. |
-| `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the browser's Studio tab (0034, 0035, 0043). |
+| `App/Surfaces.*`, `StudioPanel.*` | Mackie Control, HUI and OSC; the Studio window's settings (0034, 0035, 0043). |
+| `App/SettingsWindows.*` | The Studio window (File > Studio) and the Keys window (Help > Keys…), settings windows of their own (0110). |
+| `App/FilePanels*` | The Mac's Open and Save panels placed near the top of the screen, in front of plug-ins' windows (0110). |
 | `App/SampleEditor`, `MetersView`, `VideoView`, `OfflineFxView` | The lower zone's sample editor, meters, video, and offline effects (0036, 0044, 0046, 0039). |
 | `App/AudioEditing.cpp`, `Presets.cpp`, `ProjectFiles.cpp`, `NoteFixing.cpp` | More of the Controller: audio commands, presets and A/B, file commands, Fix Note Timings and Volume (0085). |
 | `App/LibraryView.*`, `LibraryScanner.*`, `PreviewPlayer.*`, `LibraryFolders.*` | The browser's Sounds tab: the list, the scan of the chosen folders on its own thread, previews made off the audio thread (stretched to the song, MIDI through Kalibre Synth) and handed over through `Swap`, Kalibre > Library Folders… (0094). |
@@ -89,7 +91,7 @@
 | `App/PluginManagerView.*` | The Plug-in Manager and its window (0047); File As (0069). |
 | `App/ArticulationManagerView.*` | The Articulation Manager and its window (0072). |
 | `App/CrashReports.*` | The crash handler and its reports (0073). |
-| `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045). |
+| `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045), in the Keys window. |
 | `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md). |
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
 | `tools/RenderWindow.cpp` | Draws the window into PNGs on CI (0023). |
@@ -149,8 +151,9 @@ performance core, each as soon as what feeds it is done (0078).
 - A tool other than Select takes only the left click; right-clicks keep their menus, and Control-right-click is the toolbox's (0092).
 - A track's devices stay MIDI effects, instruments, audio effects (`edit::normaliseChain`).
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).
-- A plug-in's window is deleted before its instance: the engine keeps removed instances for a second and a half.
-- Anything drawn over the plug-ins' windows must be its own window or go through `ui::present`, which hides them meanwhile: on the Mac they're native views, drawn above everything Kalibre draws (0056).
+- A plug-in's window is deleted before its instance: the engine keeps a removed node at least a second and a half, and deletes it (`Engine::letGoOfOld`) only once it holds the last reference (JUCE's graph and the plan have let go) and no window of it is open (0110). Never let JUCE's graph be the one to delete a plug-in.
+- A plug-in's window in the rack is opened only once its panel is in a window on the screen (`DeviceRack::pluginsNeedAWindow`, on the Mac): a plug-in given a native view with no window set an impossible size and AppKit stopped Kalibre (0110).
+- Anything drawn over the plug-ins' windows must be its own window or go through `ui::present`, which hides them meanwhile (those in their own windows too) and puts the question near the top, under the top bar (0110): on the Mac they're native views, drawn above everything Kalibre draws (0056).
 - On the Mac nothing Kalibre draws clips a plug-in's window, and a `Viewport` doesn't either: a plug-in in the rack is shown through a `PluginClip` (0058).
 - A plug-in's window is opened and closed with `editors::open` and `editors::close`, never `delete`: JUCE 9 needs the plug-in told first, or it won't open another (0056).
 - Graph channels are set before connecting to them: a connection to a channel that doesn't exist yet is silently refused (that cost a render).

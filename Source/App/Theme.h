@@ -183,5 +183,9 @@ namespace kal::ui
 // registers itself as the host.
 void setHost (juce::Component*);
 juce::Component* host();
+// Questions are shown near the top, just under this (the top bar), across the
+// middle; plug-ins' windows step aside meanwhile, in the rack and their own.
 void present (juce::AlertWindow*, juce::ModalComponentManager::Callback*, bool deleteWhenDismissed);
+void setQuestionsBelow (juce::Component*);
+juce::Rectangle<int> questionBounds (juce::Rectangle<int> host, juce::Rectangle<int> above, juce::Rectangle<int> question);
 } // namespace kal::ui

@@ -116,3 +116,5 @@ its own speed.
 - Amended 22 November (0109): notes are named with middle C as C4, as
   everywhere in Kalibre. Coming back to Kalibre looks through the folders
   again, at most once a minute. A tempo is heard only in four hits or more.
+- Amended 22 November (0110): looked through once as Kalibre opens, not on
+  coming back to it.
