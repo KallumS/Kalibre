@@ -10,6 +10,10 @@
 #include <cstring>
 
 void installTestFormats();   // TestPlugins.cpp
+#if JUCE_WINDOWS
+void installTestCrashPrinter();   // TestCrashWin.cpp: how and where, if the tests end early (0129)
+void testsFinished();
+#endif
 
 int main (int argc, char** argv)
 {
@@ -26,6 +30,9 @@ int main (int argc, char** argv)
         *nothing = 1;   // a bad memory access
         return 0;
     }
+   #if JUCE_WINDOWS
+    installTestCrashPrinter();
+   #endif
     juce::ScopedJuceInitialiser_GUI gui;
     int ran = 0;
     for (const auto& t : check::all())
@@ -38,6 +45,9 @@ int main (int argc, char** argv)
         t.fn();
         ++ran;
     }
+   #if JUCE_WINDOWS
+    testsFinished();
+   #endif
     if (check::failures() > 0)
     {
         std::printf ("%d failure(s) in %d tests\n", check::failures(), ran);

@@ -19,7 +19,9 @@ if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     # Windows (decision 0129): sources are UTF-8, some files are big;
     # Windows' min and max macros kept out of std::min and std::max.
-    add_compile_options(/utf-8 /bigobj /Zc:__cplusplus)
+    add_compile_options(/utf-8 /bigobj /Zc:__cplusplus /Zi)
+    # Function names for crash reports and the tests' report (a .pdb beside each program), optimised as before.
+    add_link_options(/DEBUG /OPT:REF /OPT:ICF)
     add_compile_definitions(NOMINMAX _CRT_SECURE_NO_WARNINGS _USE_MATH_DEFINES)
 endif()
 
