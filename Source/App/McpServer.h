@@ -2,7 +2,7 @@
     McpServer - Kalibre answering AI agents through the Model Context
     Protocol (decision 0099).
 
-    Off until switched on (the browser's Studio tab: AI Agents). On, Kalibre
+    Off until switched on (File > Studio > AI Agents). On, Kalibre
     listens on 127.0.0.1 (this Mac only) for MCP's Streamable HTTP: a POST
     to /mcp with a JSON-RPC message, its reply as JSON. A request from a web
     page (an Origin that isn't this Mac's) is refused. Each request's tools

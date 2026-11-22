@@ -37,6 +37,7 @@ public:
         const auto error = engine->startAudio();
         controller = std::make_unique<Controller> (*engine);
         window = std::make_unique<MainWindow> (*controller);
+        window->content->startBattlePass();   // unseen until its secret (0111)
        #if JUCE_MAC
         window->extraAppMenu = window->content->appMenu();
         MenuBarModel::setMacMainMenu (window->content, &window->extraAppMenu);

@@ -5,7 +5,7 @@
     V-Pots for pan, Record, Solo, Mute and Select on each strip, the
     transport, banks of eight, the jog wheel, the display showing names and
     levels, the timecode display showing bars and beats, and meters. The
-    surface's ports are chosen in the browser's Studio tab.
+    surface's ports are chosen in File > Studio.
 
     OSC, for TouchOSC, Lemur, Open Stage Control or a script: Kalibre listens
     on a port and answers on another. The addresses are in docs/CONTROL.md.

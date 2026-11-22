@@ -2,7 +2,9 @@
 //
 // From the Starting Blocks plugin branch (plugin/source/ImGuiLua.cpp, decision
 // 0068), with what Midi Catalogue also uses added (IsAnyItemActive, two popup
-// flags).
+// flags), and what DAW Battle Pass uses (decision 0111): child windows, disabled
+// items, paths, clip rectangles, the foreground draw list, text input, the
+// clipboard and bold fonts.
 //
 // The window script is written against ReaImGui 0.9 (functions take the
 // context first, colours are 0xRRGGBBAA, several calls return two values).
@@ -57,13 +59,19 @@ static int CreateContext(lua_State *L)
     return 1;
 }
 
+// A font is known by its size, and whether it's bold (FontFlags_Bold): fontKey.
 static int CreateFont(lua_State *L)
 {
+    const char *family = luaL_optstring(L, 1, "sans-serif");
+    const int size = integer(L, 2, 13);
+    const bool bold = (integer(L, 3, 0) & 1) != 0;
     lua_newtable(L);
-    lua_pushstring(L, luaL_optstring(L, 1, "sans-serif"));
+    lua_pushstring(L, family);
     lua_setfield(L, -2, "family");
-    lua_pushinteger(L, integer(L, 2, 13));
+    lua_pushinteger(L, size);
     lua_setfield(L, -2, "size");
+    lua_pushboolean(L, bold);
+    lua_setfield(L, -2, "bold");
     return 1;
 }
 
@@ -73,7 +81,10 @@ static int fontSize(lua_State *L, int i)
     lua_getfield(L, i, "size");
     int s = (int)lua_tointeger(L, -1);
     lua_pop(L, 1);
-    return s;
+    lua_getfield(L, i, "bold");
+    const bool bold = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    return s > 0 ? fontKey(s, bold) : 0;
 }
 
 static int Attach(lua_State *L)
@@ -118,6 +129,35 @@ static int SetNextWindowSizeConstraints(lua_State *L)
 }
 
 static int SetNextWindowBgAlpha(lua_State *L) { ImGui::SetNextWindowBgAlpha(num(L, 2, 1)); return 0; }
+
+static int BeginChild(lua_State *L)
+{
+    lua_pushboolean(L, ImGui::BeginChild(str(L, 2), ImVec2(num(L, 3, 0), num(L, 4, 0)), integer(L, 5, 0), integer(L, 6, 0)));
+    return 1;
+}
+static int EndChild(lua_State *) { ImGui::EndChild(); return 0; }
+static int BeginDisabled(lua_State *L) { ImGui::BeginDisabled(boolean(L, 2, true)); return 0; }
+static int EndDisabled(lua_State *) { ImGui::EndDisabled(); return 0; }
+static int GetWindowPos(lua_State *L) { auto p = ImGui::GetWindowPos(); return push2(L, p.x, p.y); }
+static int GetWindowSize(lua_State *L) { auto p = ImGui::GetWindowSize(); return push2(L, p.x, p.y); }
+static int SetCursorScreenPos(lua_State *L) { ImGui::SetCursorScreenPos(ImVec2(num(L, 2, 0), num(L, 3, 0))); return 0; }
+static int IsItemFocused(lua_State *L) { lua_pushboolean(L, ImGui::IsItemFocused()); return 1; }
+static int SetClipboardText(lua_State *L) { ImGui::SetClipboardText(str(L, 2)); return 0; }
+
+// InputText(ctx, label, buf, flags) -> changed, buf
+static int InputText(lua_State *L)
+{
+    static char buf[4096];
+    size_t n = 0;
+    const char *in = luaL_optlstring(L, 3, "", &n);
+    n = std::min(n, sizeof(buf) - 1);
+    std::copy(in, in + n, buf);
+    buf[n] = 0;
+    const bool changed = ImGui::InputText(str(L, 2), buf, sizeof(buf), integer(L, 4, 0));
+    lua_pushboolean(L, changed);
+    lua_pushstring(L, buf);
+    return 2;
+}
 
 // The script's window is the whole plugin window: no title bar, nothing to
 // move, resize or close (the host owns all of that).
@@ -325,6 +365,58 @@ static int GetWindowDrawList(lua_State *L)
     return 1;
 }
 
+static int GetForegroundDrawList(lua_State *L)
+{
+    lua_pushlightuserdata(L, ImGui::GetForegroundDrawList());
+    return 1;
+}
+
+static ImVec2 at(lua_State *L, int i) { return ImVec2(num(L, i, 0), num(L, i + 1, 0)); }
+
+static int DrawList_AddRect(lua_State *L)
+{
+    drawlist(L)->AddRect(at(L, 2), at(L, 4), col32(luaL_checkinteger(L, 6)), num(L, 7, 0), integer(L, 8, 0), num(L, 9, 1));
+    return 0;
+}
+
+static int DrawList_AddRectFilledMultiColor(lua_State *L)
+{
+    drawlist(L)->AddRectFilledMultiColor(at(L, 2), at(L, 4), col32(luaL_checkinteger(L, 6)), col32(luaL_checkinteger(L, 7)),
+                                         col32(luaL_checkinteger(L, 8)), col32(luaL_checkinteger(L, 9)));
+    return 0;
+}
+
+static int DrawList_AddTriangleFilled(lua_State *L)
+{
+    drawlist(L)->AddTriangleFilled(at(L, 2), at(L, 4), at(L, 6), col32(luaL_checkinteger(L, 8)));
+    return 0;
+}
+
+static int DrawList_AddQuadFilled(lua_State *L)
+{
+    drawlist(L)->AddQuadFilled(at(L, 2), at(L, 4), at(L, 6), at(L, 8), col32(luaL_checkinteger(L, 10)));
+    return 0;
+}
+
+static int DrawList_PathClear(lua_State *L) { drawlist(L)->PathClear(); return 0; }
+static int DrawList_PathArcTo(lua_State *L)
+{
+    drawlist(L)->PathArcTo(at(L, 2), num(L, 4, 1), num(L, 5, 0), num(L, 6, 0), integer(L, 7, 0));
+    return 0;
+}
+static int DrawList_PathFillConvex(lua_State *L) { drawlist(L)->PathFillConvex(col32(luaL_checkinteger(L, 2))); return 0; }
+static int DrawList_PathStroke(lua_State *L)
+{
+    drawlist(L)->PathStroke(col32(luaL_checkinteger(L, 2)), integer(L, 3, 0), num(L, 4, 1));
+    return 0;
+}
+static int DrawList_PushClipRect(lua_State *L)
+{
+    drawlist(L)->PushClipRect(at(L, 2), at(L, 4), boolean(L, 6, false));
+    return 0;
+}
+static int DrawList_PopClipRect(lua_State *L) { drawlist(L)->PopClipRect(); return 0; }
+
 static int DrawList_AddRectFilled(lua_State *L)
 {
     drawlist(L)->AddRectFilled(ImVec2(num(L, 2, 0), num(L, 3, 0)), ImVec2(num(L, 4, 0), num(L, 5, 0)),
@@ -443,6 +535,11 @@ static void constants(lua_State *L)
         {"MouseButton_Left", 0}, {"MouseButton_Right", 1}, {"MouseButton_Middle", 2},
         {"SliderFlags_None", 0}, {"SliderFlags_AlwaysClamp", ImGuiSliderFlags_AlwaysClamp},
         {"DrawFlags_None", 0},
+        {"FontFlags_None", 0}, {"FontFlags_Bold", 1}, {"FontFlags_Italic", 2},
+        {"WindowFlags_HorizontalScrollbar", ImGuiWindowFlags_HorizontalScrollbar},
+        {"WindowFlags_NoScrollWithMouse", ImGuiWindowFlags_NoScrollWithMouse},
+        {"ChildFlags_None", 0}, {"ChildFlags_Border", ImGuiChildFlags_Borders},
+        {"InputTextFlags_None", 0},
     };
     for (auto &v : other) constant(L, v.first, v.second);
 }
@@ -486,6 +583,17 @@ void openImGui(lua_State *L)
         {"DrawList_AddCircle", DrawList_AddCircle}, {"DrawList_AddCircleFilled", DrawList_AddCircleFilled},
         {"DrawList_AddConcavePolyFilled", DrawList_AddConcavePolyFilled},
         {"DrawList_AddText", DrawList_AddText}, {"DrawList_AddTextEx", DrawList_AddTextEx},
+        {"BeginChild", BeginChild}, {"EndChild", EndChild},
+        {"BeginDisabled", BeginDisabled}, {"EndDisabled", EndDisabled},
+        {"GetWindowPos", GetWindowPos}, {"GetWindowSize", GetWindowSize},
+        {"SetCursorScreenPos", SetCursorScreenPos}, {"IsItemFocused", IsItemFocused},
+        {"SetClipboardText", SetClipboardText}, {"InputText", InputText},
+        {"GetForegroundDrawList", GetForegroundDrawList},
+        {"DrawList_AddRect", DrawList_AddRect}, {"DrawList_AddRectFilledMultiColor", DrawList_AddRectFilledMultiColor},
+        {"DrawList_AddTriangleFilled", DrawList_AddTriangleFilled}, {"DrawList_AddQuadFilled", DrawList_AddQuadFilled},
+        {"DrawList_PathClear", DrawList_PathClear}, {"DrawList_PathArcTo", DrawList_PathArcTo},
+        {"DrawList_PathFillConvex", DrawList_PathFillConvex}, {"DrawList_PathStroke", DrawList_PathStroke},
+        {"DrawList_PushClipRect", DrawList_PushClipRect}, {"DrawList_PopClipRect", DrawList_PopClipRect},
         {nullptr, nullptr}};
     luaL_newlib(L, fns);
     constants(L);

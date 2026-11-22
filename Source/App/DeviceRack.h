@@ -40,6 +40,15 @@ class PluginWindow;
 class DeviceRack : public juce::Component, public juce::DragAndDropTarget, private juce::ChangeListener, private juce::Timer
 {
 public:
+    // A plug-in's window opens only once its panel is in a window on the screen
+    // (on the Mac, where a plug-in measures the window it's put in); elsewhere
+    // once it's inside the rack. Tests turn it on to try the Mac's rule.
+   #if JUCE_MAC
+    static inline bool pluginsNeedAWindow = true;
+   #else
+    static inline bool pluginsNeedAWindow = false;
+   #endif
+
     // A plug-in dragged from the browser's Plug-ins tab is added where it's
     // dropped, on the track shown (a new one when none is), 0095.
     bool isInterestedInDragSource (const SourceDetails&) override;

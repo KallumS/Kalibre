@@ -38,3 +38,8 @@ clock's own tests run hours of it in a moment, as the battle pass's do.
 Plug-in windows on the Mac are the plug-ins' own views: moving the mouse in
 one may not reach Kalibre's listener. Changing a setting there still counts
 when it's automated, and playing back counts for 8 minutes.
+
+## Amended 22 November (0111)
+
+The whole battle pass is in Kalibre now, with its own clock across songs;
+clicking this timer seven times in a row opens it.

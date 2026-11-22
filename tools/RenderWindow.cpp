@@ -10,6 +10,7 @@
 #include "Comp.h"
 #include "Song.h"
 #include "MainComponent.h"
+#include "BattlePass.h"
 #include "JsfxDevice.h"
 #include "LuaTool/LuaTool.h"
 #include "NoteSplitter.h"
@@ -209,10 +210,37 @@ int main (int argc, char** argv)
         c.zoneTab = ZoneTab::Devices;
         c.refresh();
         shoot ("9-takes");
-        window.showBrowser (Browser::Tab::Studio);
+        // A question near the top, under the top bar (0110).
+        {
+            auto* q = new AlertWindow ("Save the changes to this project?", "If you don't, they're lost.", MessageBoxIconType::NoIcon);
+            q->addButton ("Save", 1, KeyPress (KeyPress::returnKey));
+            q->addButton ("Don't Save", 2);
+            q->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+            ui::present (q, nullptr, true);
+            shoot ("44-question-at-the-top");
+            q->exitModalState (0);
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+        }
+        window.showBrowser (Browser::Tab::Presets);
         c.zoneTab = ZoneTab::Mixer;
         c.viewChanged();
-        shoot ("10-studio-and-loudness");
+        shoot ("10-presets-and-loudness");
+        // The studio and the keys: windows of their own (0110).
+        auto shootWindow = [&] (DocumentWindow& w, const String& name)
+        {
+            w.setVisible (true);
+            MessageManager::getInstance()->runDispatchLoopUntil (100);
+            auto* content = w.getContentComponent();
+            auto image = content->createComponentSnapshot (content->getLocalBounds(), true, scale);
+            PNGImageFormat png;
+            const auto f = out.getChildFile (name + ".png");
+            f.deleteFile();
+            FileOutputStream s (f);
+            png.writeImageToStream (image, s);
+            std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+            w.setVisible (false);
+        };
+        shootWindow (window.showStudio(), "10-studio");
         // The browser's other tabs, for the user guide (docs/USER-GUIDE.md).
         c.zoneTab = ZoneTab::Devices;
         c.viewChanged();
@@ -220,8 +248,46 @@ int main (int argc, char** argv)
         shoot ("31-browser-plugins");
         window.showBrowser (Browser::Tab::Audio);
         shoot ("32-browser-audio");
-        window.showBrowser (Browser::Tab::Keys);
-        shoot ("33-browser-keys");
+        shootWindow (window.showKeys(), "33-keys");
+        // DAW Battle Pass (0111): its welcome, then each page, in its own window.
+        {
+            const auto data = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-battle-pass");
+            data.deleteRecursively();
+            BattlePass::resourceFolder() = data.getChildFile ("Kalibre");
+            BattlePass::reaperFolder() = data.getChildFile ("REAPER");
+            BattlePass pass (c);
+            pass.show();
+            auto* w = pass.window();
+            auto shootPass = [&] (const String& name, int wait = 900)
+            {
+                MessageManager::getInstance()->runDispatchLoopUntil (wait);
+                auto* content = w->getContentComponent();
+                auto image = content->createComponentSnapshot (content->getLocalBounds(), true, scale);
+                PNGImageFormat png;
+                const auto f = out.getChildFile (name + ".png");
+                f.deleteFile();
+                FileOutputStream st (f);
+                png.writeImageToStream (image, st);
+                std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+            };
+            pass.run (R"(
+                local function up(fn, name)
+                    for i = 1, 300 do local n, v = debug.getupvalue(fn, i); if not n then return end; if n == name then return v end end
+                end
+                local update = up(debug.getregistry().kal_deferred, "update")
+                ui = up(update, "ui")
+                return "ok")");
+            // The welcome, as it is once its lines have come in (a Debug build draws slowly).
+            pass.run ("ui.modals[1].t = 3; return 'ok'");
+            shootPass ("45-battle-pass-welcome", 4000);
+            for (auto* page : { "pass", "quests", "shop", "gear", "loot", "ideas", "trophies", "stats" })
+            {
+                pass.run (String ("ui.modals = {}; ui.tab = '") + page + "'; return 'ok'");
+                shootPass (String ("46-battle-pass-") + page);
+            }
+            pass.hide();
+            data.deleteRecursively();
+        }
         // AI agents, switched on (decision 0099).
         {
             const auto was = c.studio;
@@ -232,7 +298,7 @@ int main (int argc, char** argv)
             window.showAgents();
             MessageManager::getInstance()->runDispatchLoopUntil (700);
             window.showAgents();
-            shoot ("39-ai-agents");
+            shootWindow (window.showStudio(), "39-ai-agents");
             c.setStudio (was);
             window.browserWidth = 320;
         }

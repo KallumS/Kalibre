@@ -451,3 +451,81 @@ TEST ("window: a shortcut works with nothing focused, as after a dialog closes (
     CHECK (window.keyPressed (KeyPress ('m')));
     window.setVisible (false);
 }
+
+TEST ("window: the keys are under Help and the studio in the File menu, each a window of its own, not tabs of the browser (the musician's choice)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        w.showBrowser (Browser::Tab::Plugins);
+        // The browser has Plug-ins, Presets, Sounds and Audio; no Keys, no Studio.
+        std::function<void (Component&, StringArray&)> buttons = [&] (Component& comp, StringArray& found)
+        {
+            if (auto* b = dynamic_cast<Button*> (&comp)) found.add (b->getButtonText());
+            for (auto* ch : comp.getChildren()) buttons (*ch, found);
+        };
+        StringArray inBrowser;
+        for (auto* ch : w.getChildren()) if (dynamic_cast<Browser*> (ch) != nullptr) buttons (*ch, inBrowser);
+        CHECK (inBrowser.contains ("Plug-ins") && inBrowser.contains ("Presets") && inBrowser.contains ("Sounds") && inBrowser.contains ("Audio"));
+        CHECK (! inBrowser.contains ("Keys"));
+        CHECK (! inBrowser.contains ("Studio"));
+        // The menus: File > Studio > Sync and Control Surfaces..., AI Agents...; Help > Keys...
+        auto names = [] (const PopupMenu& m)
+        {
+            StringArray s;
+            for (PopupMenu::MenuItemIterator it (m); it.next();) s.add (it.getItem().text);
+            return s;
+        };
+        const auto bar = w.getMenuBarNames();
+        const auto file = w.getMenuForIndex (bar.indexOf ("File"), "File");
+        const PopupMenu* studio = nullptr;
+        for (PopupMenu::MenuItemIterator it (file); it.next();)
+            if (it.getItem().text == "Studio") studio = it.getItem().subMenu.get();
+        CHECK (studio != nullptr);
+        if (studio)
+        {
+            const auto items = names (*studio);
+            CHECK (items.contains (ui::u8 ("Sync and Control Surfaces\xe2\x80\xa6")));
+            CHECK (items.contains (ui::u8 ("AI Agents\xe2\x80\xa6")));
+        }
+        CHECK (names (w.getMenuForIndex (bar.indexOf ("Help"), "Help")).contains (ui::u8 ("Keys\xe2\x80\xa6")));
+        // Not in the Kalibre menu as well: one place each.
+        const auto app = names (w.appMenu());
+        CHECK (! app.contains (ui::u8 ("AI Agents\xe2\x80\xa6")));
+        CHECK (! app.contains (ui::u8 ("Sync and Control Surfaces\xe2\x80\xa6")));
+        // Each opens a window of its own.
+        auto& keys = w.showKeys();
+        CHECK (keys.isVisible());
+        CHECK (keys.getName() == "Keys");
+        auto& st = w.showStudio();
+        CHECK (st.isVisible());
+        CHECK (st.getName() == "Studio");
+        keys.setVisible (false);
+        st.setVisible (false);
+        // A workspace saved showing the old Keys tab (5) or Studio tab (3) opens on Plug-ins.
+        CHECK (Browser::tabFromNumber (5) == Browser::Tab::Plugins);
+        CHECK (Browser::tabFromNumber (3) == Browser::Tab::Plugins);
+        CHECK (Browser::tabFromNumber (1) == Browser::Tab::Files);
+        CHECK (Browser::tabFromNumber (4) == Browser::Tab::Presets);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("questions: shown near the top, under the top bar, across the middle (the musician's choice: a plug-in covered Save lower down)")
+{
+    const Rectangle<int> host (0, 0, 1440, 900), top (0, 0, 1440, 80), q (0, 0, 400, 200);
+    const auto r = ui::questionBounds (host, top, q);
+    CHECK_EQ (r.getY(), 92);
+    CHECK_EQ (r.getCentreX(), 720);
+    CHECK_EQ (r.getWidth(), 400);
+    // Too tall for the room under the bar: kept inside the window.
+    const auto tall = ui::questionBounds ({ 0, 0, 800, 300 }, top, q);
+    CHECK (tall.getBottom() <= 300);
+    CHECK (tall.getY() >= 0);
+}

@@ -26,6 +26,7 @@ this table. Embedded in the app by `cmake/EmbedLua.cmake`; run by
 | `tools/starting-blocks-notation/` | KallumS/Starting-Blocks-Notation, `plugin` branch | 2b7de14 | Starting Blocks Notation.lua, sb_draw.lua, sb_engine.lua, sb_glyphs.lua (and its OFL notice), sb_midi.lua, sb_notate.lua |
 | `tools/midi-catalogue/` | KallumS/Midi-Catalogue | 4eb91a8 | Midi Catalogue.lua, mc_catalogue.lua, mc_midi.lua, mc_orchestra.lua, mc_theory.lua |
 | `tools/good-idea/` | KallumS/Good-Idea | 91500c5 | Good Idea.lua, gi_idea.lua, gi_theory.lua, gi_midi.lua (its gi_place.lua replaced by Kalibre's `tools/gi_place.lua`, decision 0093) |
+| `tools/daw-battle-pass/` | KallumS/DAW-Battle-Pass | c0035b5 | bp_theory.lua, bp_fx.lua unchanged; DAW Battle Pass.lua, bp_game.lua, bp_loot.lua, bp_watch.lua in Kalibre's words, REAPER's start-up option taken out (decision 0112); its `reaper` calls answered by Kalibre's `App/BattlePass.cpp` (0111) |
 | `tools/orchestration-helper/` | KallumS/Orchestration-Helper | 5b851a6 | Orchestration Helper.lua, orchestration_data.lua, orchestration_composers.lua |
 
 The JSFX are run by ysfx (fetched by CMake, decision 0066), through a device

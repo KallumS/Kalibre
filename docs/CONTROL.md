@@ -1,7 +1,7 @@
 # Sync and control surfaces
 
-Set up under **Kalibre > Sync and Control Surfaces…**, which opens the
-browser's **Studio** tab. These settings belong to this Mac, not to a song.
+Set up under **File > Studio > Sync and Control Surfaces…**, which opens the
+**Studio** window. These settings belong to this Mac, not to a song.
 
 ## Sync (decision 0034)
 
@@ -58,7 +58,7 @@ tracks `/kalibre/track/N/name`, `/volume`, `/pan`, `/mute`, `/solo`.
 
 ## HUI (decision 0043)
 
-Choose the surface's ports under **HUI in** and **HUI out** in the Studio tab.
+Choose the surface's ports under **HUI in** and **HUI out** in the Studio window.
 Kalibre pings it every second so it stays online.
 
 | On the surface | Does |

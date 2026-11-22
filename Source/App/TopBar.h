@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "BattlePass.h"
 #include "Controller.h"
 #include "Theme.h"
 
@@ -82,6 +83,9 @@ public:
     static bool inTransport (const juce::String& name);   // Loop, Punch, Click, Count-in: in the TransportBar (0095)
     void showMenu();
     juce::String shownLine() const { return line; }    // what the message line says (tests)
+    // The timer clicked seven times in a row: the secret (DAW Battle Pass, 0111).
+    std::function<void()> onSecret;
+    juce::Component& timerReadout() { return timer; }   // tests
 
     enum class TimeFormat { BarsBeats, Minutes, Samples, Timecode };
     TimeFormat timeFormat = TimeFormat::BarsBeats;
@@ -119,6 +123,7 @@ private:
         void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w) override { if (onWheel) onWheel (w); }
     };
     Readout position, tempo, signature, grid, scale, chord, timer, cpu, load;
+    SecretClicks secret;
 
     // The message line.
     theme::HouseButton undoMessage { "Undo", "Undo what the message describes." };

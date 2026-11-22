@@ -58,6 +58,11 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
     timer.setTooltip (theme::wrapTip ("How long you've been making music in this song: it counts while you edit, play, record or move the mouse in Kalibre, "
                                       "and pauses after 3 minutes with nothing happening (8 minutes while the song plays), or the minutes you choose: right-click the bar. "
                                       "The mouse counts only while Kalibre is the app in front. Saved with the song."));
+    // Nothing says so: seven left clicks in a row open DAW Battle Pass (0111).
+    timer.onDown = [this] (const MouseEvent& e)
+    {
+        if (e.mods.isLeftButtonDown() && ! e.mods.isPopupMenu() && secret.click (Time::getMillisecondCounter()) && onSecret) onSecret();
+    };
     cpu.label = "Delay";
     load.label = "CPU";
     load.setTooltip (theme::wrapTip ("How busy the audio is: how much of the time it has for each block it uses, the highest in the last few seconds. "

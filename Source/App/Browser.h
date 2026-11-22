@@ -8,14 +8,14 @@
     to add it to the chosen track. Sounds (decision 0094): the samples and
     MIDI files in the folders chosen, to hear, keep as favourites, and drag
     onto a track (LibraryView). Audio: the interface, sample rate and buffer size.
+    The keys and the studio were tabs here too; they're settings windows of
+    their own now (Help > Keys..., File > Studio..., SettingsWindows.h).
 */
 
 #pragma once
 
 #include "Controller.h"
-#include "KeysPanel.h"
 #include "LibraryView.h"
-#include "StudioPanel.h"
 #include "Theme.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -31,9 +31,10 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    enum class Tab { Plugins, Files, Audio, Studio, Presets, Keys };
+    // The numbers are saved in workspaces: 3 and 5 (Studio and Keys, now windows) aren't used again.
+    enum class Tab { Plugins = 0, Files = 1, Audio = 2, Presets = 4 };
+    static Tab tabFromNumber (int);
     void showTab (Tab);
-    void showAgents();   // the Studio tab scrolled to AI Agents (0099)
     Tab shownTab() const { return tab; }
     LibraryView& library() { return *sounds; }
 
@@ -43,11 +44,6 @@ private:
     theme::HouseButton filesTab { "Sounds", "Samples and MIDI files from your folders, to hear and drag into the song." };
     theme::HouseButton audioTab { "Audio", "The audio interface, sample rate and buffer size." };
     theme::HouseButton presetsTab { "Presets", "Saved presets for the chosen track's plug-ins." };
-    theme::HouseButton keysTab { "Keys", "Every command and its key: change any of them." };
-    theme::HouseButton studioTab { "Studio", "Sync (MIDI clock, timecode, Link) and control surfaces (Mackie Control, OSC)." };
-    juce::Viewport studioView;
-    StudioPanel studio;
-    KeysPanel keysPanel;
     theme::HouseButton scan { ui::u8 ("Scan"), "Look for plug-ins installed since the last scan." };
     juce::TextEditor search;
 

@@ -218,7 +218,9 @@ add_library(KalibreApp STATIC
     Source/App/RandomSongs.cpp
     Source/App/McpServer.cpp
     Source/App/Surfaces.cpp
-    Source/App/StudioPanel.cpp)
+    Source/App/StudioPanel.cpp
+    Source/App/SettingsWindows.cpp
+    Source/App/BattlePass.cpp)
 # ScaleView (KallumS/ScaleView, GPL-3.0, decision 0093), the same way: its source
 # unchanged, its folder its include root (its ScaleModel.h is Kalibre's own, the
 # same file), its plug-in entry point renamed so it doesn't meet IVI's.
@@ -240,11 +242,11 @@ set_source_files_properties(${IVI_SOURCES} Source/Engine/InstantVirtualInstrumen
     COMPILE_DEFINITIONS "JucePlugin_Name=\"Instant Virtual Instrument\"")
 
 if(APPLE)
-    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm Source/App/PluginClipMac.mm)
+    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm Source/App/PluginClipMac.mm Source/App/FilePanelsMac.mm)
     target_link_libraries(KalibreApp PRIVATE "-framework CoreMIDI")
     target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab (decision 0046)
 else()
-    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp Source/App/PluginClipOther.cpp)
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp Source/App/PluginClipOther.cpp Source/App/FilePanelsOther.cpp)
 endif()
 
 target_include_directories(KalibreApp PUBLIC
@@ -312,7 +314,7 @@ target_link_libraries(Kalibre PRIVATE
 # (so a change can be seen from a Linux container, decision 0023).
 if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
-    target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp
+    target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp Tests/App/TestBattlePass.cpp
     Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp Tests/App/TestTools.cpp Tests/App/TestFamilyDevices.cpp
     Tests/App/TestNeutral.cpp Tests/App/TestLibrary.cpp Tests/App/TestAgents.cpp Tests/App/TestRandom.cpp Tests/App/TestDrums.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)

@@ -716,6 +716,18 @@ TEST ("match loudness: a plug-in that turns the sound down 10 dB is brought back
 #include "Editors.h"
 #include "PluginClip.h"
 
+namespace
+{
+// A component on the screen, as Kalibre's window is: on the Mac a plug-in's window
+// opens in the rack only then (DeviceRack::pluginsNeedAWindow, 0110).
+struct OnScreen
+{
+    explicit OnScreen (Component& c) : comp (c) { comp.addToDesktop (0); comp.setVisible (true); }
+    ~OnScreen() { comp.removeFromDesktop(); }
+    Component& comp;
+};
+} // namespace
+
 TEST ("plug-in windows: closed properly, so a plug-in opens its own window again; adding devices leaves the others' windows alone")
 {
     PluginManager plugins;
@@ -748,6 +760,7 @@ TEST ("plug-in windows: closed properly, so a plug-in opens its own window again
     // In the rack: a third device added; the first two keep the very windows they had.
     DeviceRack rack (c);
     rack.setSize (1400, 360);
+    OnScreen shown (rack);
     std::vector<Id> devices;
     c.apply ("Add", [&] (Project& p) { devices.push_back (edit::addDevice (p, t, synthRef(), DeviceRole::Instrument)); devices.push_back (edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument)); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
@@ -889,6 +902,7 @@ TEST ("plug-in panels: Kalibre's own keep their width and take the zone's height
     c.refresh();
     DeviceRack rack (c);
     rack.setSize (1400, 200);   // a short lower zone
+    OnScreen onScreen (rack);
     Id sampler = 0;
     c.apply ("Add", [&] (Project& p) { sampler = edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
@@ -936,6 +950,7 @@ TEST ("questions: plug-ins in the rack step aside too, though on the Mac they're
     c.refresh();
     Component host;
     host.setSize (1400, 600);
+    OnScreen shown (host);
     ui::setHost (&host);
     DeviceRack rack (c);
     host.addAndMakeVisible (rack);
@@ -962,6 +977,136 @@ TEST ("questions: plug-ins in the rack step aside too, though on the Mac they're
     CHECK (clips[0]->isVisible());
     host.removeChildComponent (&rack);
     ui::setHost (nullptr);
+}
+
+TEST ("questions: a plug-in in a window of its own steps aside too, and the question is near the top (the musician's report: Save was covered)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Synths");
+    c.focusTrack = t;
+    c.refresh();
+    Component host;
+    host.setSize (1400, 900);
+    Component top;
+    host.addAndMakeVisible (top);
+    top.setBounds (0, 0, 1400, 70);
+    ui::setHost (&host);
+    ui::setQuestionsBelow (&top);
+    DeviceRack rack (c);
+    host.addAndMakeVisible (rack);
+    rack.setBounds (0, 500, 1400, 400);
+    c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    const Id dev = c.project.track (t)->devices.front().id;
+    rack.float_ (dev);
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    DocumentWindow* own = nullptr;
+    for (int i = 0; i < Desktop::getInstance().getNumComponents(); ++i)
+        if (auto* w = dynamic_cast<DocumentWindow*> (Desktop::getInstance().getComponent (i)))
+            if (dynamic_cast<AudioProcessorEditor*> (w->getContentComponent()) != nullptr) own = w;
+    CHECK (own != nullptr);
+    if (! own) { ui::setHost (nullptr); ui::setQuestionsBelow (nullptr); return; }
+    CHECK (own->isVisible());
+
+    auto* w = new AlertWindow ("Save the changes to this project?", {}, MessageBoxIconType::NoIcon);
+    w->addButton ("Save", 1);
+    ui::present (w, ModalCallbackFunction::create ([] (int) {}), true);
+    CHECK (! own->isVisible());
+    CHECK_EQ (w->getY(), 82);   // just under the top bar
+    CHECK (std::abs (w->getBounds().getCentreX() - 700) <= 1);
+    w->exitModalState (1);
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (own->isVisible());
+    rack.dock (dev);
+    host.removeChildComponent (&rack);
+    ui::setHost (nullptr);
+    ui::setQuestionsBelow (nullptr);
+}
+
+TEST ("engine: a plug-in taken out is deleted only once nothing else holds it and no window of it is open (Groove Agent SE crashed, deleted whenever JUCE's graph let go)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Synths");
+    const Id a = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+    const Id b = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument);
+    startLive (engine, device, p);
+    engine.play();
+    playLive (engine, 0.05);
+    const auto before = engine.waitingToGo();
+    const auto later = [] { return Time::getMillisecondCounter() + 60000; };
+
+    // Taken out while JUCE's graph still holds it (no block played since): kept, however long.
+    edit::removeDevice (p, a);
+    engine.sync (p, 0, folder());
+    CHECK (engine.instance (a) == nullptr);
+    CHECK_EQ (engine.waitingToGo(), before + 1);
+    engine.letGoOfOld (later());
+    CHECK_EQ (engine.waitingToGo(), before + 1);
+    // A block played, and JUCE's graph's timer: now it goes.
+    playLive (engine, 0.05);
+    MessageManager::getInstance()->runDispatchLoopUntil (700);
+    engine.letGoOfOld (later());
+    CHECK_EQ (engine.waitingToGo(), before);
+
+    // Taken out with its window open: kept until the window is closed.
+    auto* inst = engine.instance (b);
+    CHECK (inst != nullptr);
+    if (! inst) return;
+    editors::Owned window (editors::open (*inst));
+    edit::removeDevice (p, b);
+    engine.sync (p, 0, folder());
+    playLive (engine, 0.05);
+    MessageManager::getInstance()->runDispatchLoopUntil (700);
+    engine.letGoOfOld (later());
+    CHECK_EQ (engine.waitingToGo(), before + 1);
+    window.reset();
+    engine.letGoOfOld (later());
+    CHECK_EQ (engine.waitingToGo(), before);
+    engine.stop();
+}
+
+TEST ("rack: on the Mac a plug-in's window waits until its panel is in a window on the screen (HeartCore stopped Kalibre, given a view with no window)")
+{
+    const bool was = DeviceRack::pluginsNeedAWindow;
+    DeviceRack::pluginsNeedAWindow = true;
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Synths");
+        c.focusTrack = t;
+        c.refresh();
+        Component host;
+        host.setSize (1400, 600);
+        DeviceRack rack (c);
+        host.addAndMakeVisible (rack);
+        rack.setBounds (0, 200, 1400, 400);
+        c.apply ("Add", [t] (Project& p) { edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        const Id dev = c.project.track (t)->devices.front().id;
+        auto* inst = engine.instance (dev);
+        CHECK (inst != nullptr);
+        if (inst)
+        {
+            // Not on the screen: no window asked of the plug-in yet.
+            CHECK (inst->getActiveEditor() == nullptr);
+            // On the screen: it opens.
+            host.addToDesktop (0);
+            host.setVisible (true);
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            CHECK (inst->getActiveEditor() != nullptr);
+            host.removeFromDesktop();
+        }
+        host.removeChildComponent (&rack);
+    }
+    DeviceRack::pluginsNeedAWindow = was;
 }
 
 #include "PianoRoll.h"

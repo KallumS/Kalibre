@@ -212,6 +212,8 @@ bool Controller::apply (const String& label, std::function<void (Project&)> chan
     song::propagateGroups (song::mixOf (before), project);
     if (project == before) return true;
     history.push (before, label.toStdString());
+    ++changeCount;
+    ++activityCount;
     dirty = true;
     // Choices that point at things no longer there are let go.
     if (! project.clip (selectedClip)) selectedClip = 0;
@@ -302,6 +304,7 @@ bool Controller::undo()
     const auto states = deviceStates();
     const Project was = project;
     if (! history.undo (project)) return false;
+    ++changeCount;
     carryPlayingStates (was);
     dirty = true;
     syncEngine();
@@ -318,6 +321,7 @@ bool Controller::redo()
     const auto states = deviceStates();
     const Project was = project;
     if (! history.redo (project)) return false;
+    ++changeCount;
     carryPlayingStates (was);
     dirty = true;
     syncEngine();

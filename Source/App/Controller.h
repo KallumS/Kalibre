@@ -113,7 +113,10 @@ public:
     // song, DAW Battle Pass's active-time clock. The window tells it when anything
     // happens; the Controller's timer ticks it; it goes into the song when saved.
     WorkClock workClock;
-    void noteActivity() { activity = true; }
+    void noteActivity() { activity = true; ++activityCount; }
+    // DAW Battle Pass (0111) reads these as REAPER's change count and its keyboard: each
+    // change to the song (an undo step, Undo, Redo), and anything noted as activity.
+    juce::uint32 changeCount = 0, activityCount = 0;
     void tickWorkClock (double nowSeconds);
     void beginWorkClock();      // a song opened or started: its own time so far
     const Project& stampedForSaving();

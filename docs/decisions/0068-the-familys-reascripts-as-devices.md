@@ -60,3 +60,10 @@ Some words in the scripts are REAPER's still, because the scripts are
 unchanged: Midi Catalogue's Audition tip speaks of the virtual keyboard,
 its Export tip of REAPER's resource folder, "the edit cursor" means the
 playhead. Changing them belongs in their own repos.
+
+## Amended 22 November (0111)
+
+`ImGuiLua.cpp` has what DAW Battle Pass also uses: child windows, disabled
+items, text input, the clipboard, the foreground draw list, paths, clip
+rectangles, more shapes, and bold fonts. A tool can add to its `reaper`
+(`LuaToolSpec::extendReaper`).

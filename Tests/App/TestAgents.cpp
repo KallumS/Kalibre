@@ -186,7 +186,7 @@ TEST ("agents: Kalibre listens on this Mac only when switched on; a web page is 
     runMcpBridge (again, said);
     const auto refused = json::parse (String (said.str()).trim().toStdString());
     CHECK_EQ (refused["id"].get<int>(), 8);
-    CHECK (String (refused["error"]["message"].get<std::string>()).contains ("Studio tab"));
+    CHECK (String (refused["error"]["message"].get<std::string>()).contains ("File > Studio > AI Agents"));
 }
 
 TEST ("agents: song_version makes version 2 and chooses between them; get_song says which plays (0103)")

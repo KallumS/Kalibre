@@ -370,7 +370,9 @@ void LibraryView::useStore (const File& folder)
     scan = std::make_unique<LibraryScanner> (store.getChildFile ("Library Index.json"));
     scan->onChange = [this] { refreshRows(); };
     refreshRows();
-    if (! s.folders.empty()) { lastLook = Time::getMillisecondCounterHiRes(); scan->scan (s.folders); }
+    // Looked through once, as Kalibre opens; again only with Look Again or new folders.
+    // Not each time Kalibre comes back to the front (the musician's choice, 0109 amended).
+    if (! s.folders.empty()) scan->scan (s.folders);
     startTimerHz (10);
 }
 
@@ -389,19 +391,8 @@ void LibraryView::settingsChanged()
 
 void LibraryView::rescan()
 {
-    lastLook = Time::getMillisecondCounterHiRes();
     scan->scan (s.folders);
     repaint();
-}
-
-// When Kalibre comes back to the front: files saved meanwhile (from the Finder) are listed
-// without Look Again. Only what changed is read; at most once a minute (found in the UAT).
-bool LibraryView::lookAgainIfStale()
-{
-    if (s.folders.empty() || scan->scanning() || scan->openingIndex()) return false;
-    if (Time::getMillisecondCounterHiRes() - lastLook < 60000.0) return false;
-    rescan();
-    return true;
 }
 
 void LibraryView::setFilter (const String& text)

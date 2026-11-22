@@ -56,18 +56,6 @@ PopupMenu MainComponent::appMenu()
         browser.showTab (Browser::Tab::Audio);
         resized();
     }, cmd (",")));
-    m.addItem (item (ui::u8 ("Sync and Control Surfaces\xe2\x80\xa6"), [this]
-    {
-        browserShown = true;
-        browser.setVisible (true);
-        browser.showTab (Browser::Tab::Studio);
-        resized();
-    }));
-    // AI agents through MCP (decision 0099): its switch is at the foot of the Studio tab.
-    m.addItem (item (ui::u8 ("AI Agents\xe2\x80\xa6"), [this]
-    {
-        showAgents();
-    }));
     // Scanning is in the Plug-in Manager; one place for it, one menu item (0069).
     m.addItem (item (ui::u8 ("Plug-in Manager\xe2\x80\xa6"), [this] { c.showPluginManager(); }));
     // The folders the browser's Sounds tab looks in (decision 0094).
@@ -136,6 +124,11 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 }), true);
             }));
             m.addItem (item (ui::u8 ("Articulation Manager\xe2\x80\xa6"), [this] { showArticulationManager(); }));
+            // The studio (once a tab of the browser): how the Mac's other gear and agents reach Kalibre (0034, 0035, 0099).
+            PopupMenu studio;
+            studio.addItem (item (ui::u8 ("Sync and Control Surfaces\xe2\x80\xa6"), [this] { showStudio(); }));
+            studio.addItem (item (ui::u8 ("AI Agents\xe2\x80\xa6"), [this] { showAgents(); }));
+            m.addSubMenu ("Studio", studio);
             m.addItem (item ("Collect All Files and Save", [this] { if (! c.file.existsAsFile()) saveFile ([this] { c.collectAndSave(); }); else c.collectAndSave(); }));
             m.addItem (item (ui::u8 ("Relink Missing Files\xe2\x80\xa6"), [this]
             {
@@ -536,7 +529,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         }
         case 7:   // Help
         {
-            m.addItem (item ("Keys", [this] { showBrowser (Browser::Tab::Keys); }));
+            m.addItem (item (ui::u8 ("Keys\xe2\x80\xa6"), [this] { showKeys(); }));
             m.addItem (item ("Show Crash Reports", []
             {
                 auto f = crash::folder();

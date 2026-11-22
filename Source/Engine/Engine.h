@@ -66,6 +66,10 @@ public:
     bool isParallel() const { return graph.isParallel(); }
     int audioThreads() const { return graph.workers() + 1; }
     ParallelGraph& audioGraph() { return graph; }   // tests
+    // Removed nodes are deleted a second and a half on, once nothing else holds them
+    // and no window of theirs is open (the engine's timer calls it; tests give `now`).
+    void letGoOfOld (juce::uint32 now);
+    size_t waitingToGo() const { return graveyard.size(); }   // tests
     int dropouts() const;
     void resetDropouts();
     // A different song (opened, new, from a template, by chance): every plug-in the
@@ -233,7 +237,8 @@ private:
     std::map<Id, std::unique_ptr<AraSession>> araSessions;
     std::set<Id> araTracks;
     Node::Ptr audioIn, audioOut, midiIn, metronomeNode;
-    std::vector<std::pair<Node::Ptr, juce::uint32>> graveyard;   // let go of a second later
+    std::vector<std::pair<Node::Ptr, juce::uint32>> graveyard;   // let go of later (letGoOfOld)
+    static bool readyToGo (const Node&, juce::uint32 buried, juce::uint32 now);
     juce::String shape;   // the wiring last built
 
     double rate = 48000;

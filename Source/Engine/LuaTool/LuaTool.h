@@ -26,6 +26,8 @@
 #include <string>
 #include <vector>
 
+struct lua_State;
+
 namespace kal
 {
 
@@ -36,7 +38,14 @@ struct LuaToolSpec
     const char* script;    // Engines/tools/<id>/<script>
     const char* about;
     bool gfx = false;      // drawn with gfx (GfxTool), not ReaImGui
+    // More of `reaper` for this tool, added to its table (on the stack) before the
+    // script runs: DAW Battle Pass's, answered from the song (App/BattlePass.cpp, 0111).
+    void (*extendReaper) (lua_State*) = nullptr;
 };
+
+// DAW Battle Pass (decision 0111): a window script like the others, but never a
+// device; the app runs it (App/BattlePass.h) and sets its extendReaper.
+LuaToolSpec& battlePassSpec();
 
 const std::vector<LuaToolSpec>& luaTools();
 PluginRef luaToolRef (const LuaToolSpec&);

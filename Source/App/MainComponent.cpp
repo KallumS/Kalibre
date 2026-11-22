@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include "FilePanels.h"
 
 namespace kal
 {
@@ -24,6 +25,8 @@ static ApplicationProperties& settingsStore()
 MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transport (ctrl), arrange (ctrl), lower (ctrl), browser (ctrl), surfaces (ctrl)
 {
     ui::setHost (this);
+    ui::setQuestionsBelow (&top);
+    ui::placeFilePanelsAtTop();   // Open and Save near the top, over plug-ins' windows
     // The top bar's timer (0091): the mouse moving or clicking in any of Kalibre's
     // windows is someone there; over another app, it isn't.
     Desktop::getInstance().addGlobalMouseListener (&activity);
@@ -70,6 +73,8 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
 
 MainComponent::~MainComponent()
 {
+    top.onSecret = nullptr;
+    battlePass.reset();   // its script saves as it goes, while the song is still here
     Desktop::getInstance().removeGlobalMouseListener (&activity);
     c.onRandomSong = nullptr;
     c.soundsIndex = nullptr;
@@ -98,6 +103,7 @@ MainComponent::~MainComponent()
         settingsStore().closeFiles();
     }
     ui::setHost (nullptr);
+    ui::setQuestionsBelow (nullptr);
 }
 
 void MainComponent::changeListenerCallback (ChangeBroadcaster*)
@@ -145,6 +151,20 @@ void MainComponent::showLibraryFolders()
     if (auto* view = dynamic_cast<LibraryFoldersView*> (libraryWindow->getContentComponent())) view->refresh();
     libraryWindow->setVisible (true);
     libraryWindow->toFront (true);
+}
+
+void MainComponent::startBattlePass (int afterMs)
+{
+    // A few seconds after Kalibre opens: making its fonts takes a moment, which opening shouldn't wait for.
+    Component::SafePointer<MainComponent> safe (this);
+    auto start = [safe]
+    {
+        if (safe == nullptr || safe->battlePass) return;
+        safe->battlePass = std::make_unique<BattlePass> (safe->c);
+        safe->top.onSecret = [p = safe.getComponent()] { if (p->battlePass) p->battlePass->show(); };
+    };
+    if (afterMs <= 0) start();
+    else Timer::callAfterDelay (afterMs, start);
 }
 
 void MainComponent::firstRun()
@@ -361,7 +381,6 @@ void MainComponent::mouseDrag (const MouseEvent& e)
 }
 
 //==============================================================================
-void MainComponent::cameToFront() { library().lookAgainIfStale(); }
 
 bool MainComponent::keyPressed (const KeyPress& k)
 {
@@ -378,7 +397,7 @@ bool MainComponent::keyPressed (const KeyPress& k)
         // The - key (or the keypad's): a rest.
         if ((ch == '-' || k.getKeyCode() == '-' || k.getKeyCode() == KeyPress::numberPadSubtract) && c.stepRest()) return true;
     }
-    // Every key is the user's to change (decision 0045), in the browser's Keys tab.
+    // Every key is the user's to change (decision 0045), in Help > Keys...
     return c.keys.handle (KeyPress (k.getKeyCode(), k.getModifiers().withoutMouseButtons(), 0));
 }
 
@@ -417,7 +436,7 @@ bool MainComponent::loadWorkspace (const File& f)
     if (! v.isObject()) return false;
     browserShown = (bool) v.getProperty ("browser", browserShown);
     browser.setVisible (browserShown);
-    browser.showTab ((Browser::Tab) (int) v.getProperty ("browserTab", 0));
+    browser.showTab (Browser::tabFromNumber ((int) v.getProperty ("browserTab", 0)));
     lowerHeight = (int) v.getProperty ("lowerHeight", lowerHeight);
     lowerShown = (bool) v.getProperty ("lowerShown", true);
     lower.setVisible (lowerShown);
@@ -616,10 +635,35 @@ void MainComponent::exportAudioTo (bool stems, double loudnessTarget, bool ringO
     });
 }
 
+// The studio and the keys: settings windows of their own (they were the browser's tabs).
+StudioWindow& MainComponent::showStudio()
+{
+    if (! studioWindow)
+    {
+        studioWindow = std::make_unique<StudioWindow> (c);
+        if (auto* top = getTopLevelComponent()) studioWindow->centreAroundComponent (top, studioWindow->getWidth(), studioWindow->getHeight());
+    }
+    studioWindow->setVisible (true);
+    studioWindow->toFront (true);
+    return *studioWindow;
+}
+
 void MainComponent::showAgents()
 {
-    showBrowser (Browser::Tab::Studio);
-    browser.showAgents();
+    showStudio().showAgents();
+}
+
+KeysWindow& MainComponent::showKeys()
+{
+    if (! keysWindow)
+    {
+        keysWindow = std::make_unique<KeysWindow> (c.keys);
+        if (auto* top = getTopLevelComponent()) keysWindow->centreAroundComponent (top, keysWindow->getWidth(), keysWindow->getHeight());
+    }
+    keysWindow->refresh();
+    keysWindow->setVisible (true);
+    keysWindow->toFront (true);
+    return *keysWindow;
 }
 
 // The Random button (decision 0101): the song as it is kept or let go of, then a new one by chance.

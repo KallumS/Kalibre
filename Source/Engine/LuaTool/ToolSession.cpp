@@ -306,6 +306,11 @@ ToolSession::ToolSession (ToolProcessor& p) : processor (p)
     // a fringe of extra triangles.
     auto& style = ImGui::GetStyle();
     style.AntiAliasedLines = style.AntiAliasedLinesUseTex = style.AntiAliasedFill = false;
+    // Copy (DAW Battle Pass's ideas): to the system's clipboard.
+    ImGui::GetPlatformIO().Platform_SetClipboardTextFn = [] (ImGuiContext*, const char* text)
+    {
+        SystemClipboard::copyTextToClipboard (String::fromUTF8 (text));
+    };
 
     L = luaL_newstate();
     luaL_openlibs (L);
@@ -329,6 +334,7 @@ ToolSession::ToolSession (ToolProcessor& p) : processor (p)
     reg (L, this, "new_array", r_new_array);
     for (auto name : { "SetToggleCommandState", "RefreshToolbar2", "set_action_options", "ShowConsoleMsg" })
         reg (L, this, name, r_nothing);
+    if (p.spec.extendReaper != nullptr) p.spec.extendReaper (L);
     lua_setglobal (L, "reaper");
 
     lua_newtable (L);
@@ -400,26 +406,33 @@ void ToolSession::buildFonts (float scale)
     const StringArray candidates { "/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Helvetica.ttc",
                                    "/Library/Fonts/Arial Unicode.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                                    "C:\\Windows\\Fonts\\segoeui.ttf" };
-    String face;
+    String face, boldFace;
     for (auto& c : candidates)
         if (File (c).existsAsFile()) { face = c; break; }
+    // Bold (DAW Battle Pass's headings): a bold face of its own; the regular one without.
+    for (auto& c : { "/System/Library/Fonts/Supplemental/Arial Bold.ttf", "/Library/Fonts/Arial Bold.ttf",
+                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "C:\\Windows\\Fonts\\segoeuib.ttf" })
+        if (File (c).existsAsFile()) { boldFace = c; break; }
+    if (boldFace.isEmpty()) boldFace = face;
 
-    auto sizes = state.fontSizes;
-    if (sizes.empty()) sizes.push_back (13);
-    for (int s : sizes)
+    auto keys = state.fontSizes;
+    if (keys.empty()) keys.push_back (13);
+    for (int key : keys)
     {
+        const int s = fontKeySize (key);
+        const auto& file = fontKeyBold (key) ? boldFace : face;
         ImFontConfig cfg;
         cfg.RasterizerDensity = scale;
         cfg.OversampleH = 2;
         cfg.OversampleV = 1;
         ImFont* font = nullptr;
-        if (face.isNotEmpty()) font = io.Fonts->AddFontFromFileTTF (face.toRawUTF8(), (float) s, &cfg, ranges);
+        if (file.isNotEmpty()) font = io.Fonts->AddFontFromFileTTF (file.toRawUTF8(), (float) s, &cfg, ranges);
         if (font == nullptr)
         {
             cfg.SizePixels = (float) s;
             font = io.Fonts->AddFontDefault (&cfg);
         }
-        state.fonts[s] = font;
+        state.fonts[key] = font;
     }
     io.Fonts->Build();
 
