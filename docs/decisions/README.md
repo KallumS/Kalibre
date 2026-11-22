@@ -114,3 +114,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0110. The keys and the studio in windows of their own; questions at the top; two plug-in crashes](0110-keys-and-studio-windows-questions-at-the-top-two-crashes.md)
 - [0111. DAW Battle Pass, the whole of it, a secret behind the timer](0111-daw-battle-pass-whole-and-secret.md)
 - [0112. DAW Battle Pass in Kalibre's words](0112-daw-battle-pass-in-kalibres-words.md)
+- [0113. DAW Battle Pass in Kalibre's look](0113-daw-battle-pass-in-kalibres-look.md)

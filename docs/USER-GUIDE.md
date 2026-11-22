@@ -1814,7 +1814,8 @@ celebrations, crates, gear, ideas and achievements.
 - **Your progress** is kept in Kalibre's folder
   (`~/Library/Application Support/Kalibre/Data/DAW Battle Pass/`). The first
   time, the progress your REAPER copy saved is brought over, if there is one.
-- It speaks Kalibre's language: songs, clips, sections, plug-ins. There's
+- It looks like the rest of Kalibre (rounded buttons and boxes) and speaks
+  Kalibre's language: songs, clips, sections, plug-ins. There's
   no "start with REAPER" setting: it always runs with Kalibre. Its quests ask
   for the same things as in REAPER (clips where REAPER said media items,
   sections where it said regions), and its rules are the same.
