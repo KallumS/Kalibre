@@ -35,10 +35,14 @@ public:
 
     // Message thread.
     void play (const library::Item&, bool sync, double songBpm);
+    // The sound playing made again (Sync switched while it plays, 0122): carrying on
+    // from the same place in it, at once, not from its start or the next beat.
+    void remake (const library::Item&, bool sync, double songBpm);
     void stop();
     bool isPlaying() const { return length.load() > 0 && position.load() < length.load(); }
     double progress() const;                  // 0-1 through what's playing, -1 when nothing is
     juce::String playingPath() const { return path; }
+    int soundLength() const { return length.load(); }   // frames of what's playing (tests)
 
     // The sound a preview plays, at `rate` (tests, and the background job).
     static std::unique_ptr<juce::AudioBuffer<float>> render (const library::Item&, bool sync, double songBpm, double rate);
@@ -59,6 +63,7 @@ private:
         juce::AudioBuffer<float> buffer;
         int delay = 0;
         int id = 0;
+        int startAt = -1;   // remade: where in it to carry on from
     };
     Engine& engine;
     Swap<Sound> swap;

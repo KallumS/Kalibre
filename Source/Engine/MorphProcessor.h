@@ -17,6 +17,7 @@
 #include "Model.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_formats/juce_audio_formats.h>
 
 namespace kal
@@ -100,9 +101,20 @@ public:
 
     std::function<void()> onCornersChanged;
 
+    // A corner's plug-in in a window of its own (asked for, 0114): opened when it's
+    // loaded from the device's window, and by clicking its letter; never inside the
+    // device's own window. Message thread.
+    void showCornerWindow (int corner);
+    void closeCornerWindow (int corner);
+    bool cornerWindowOpen (int corner) const { return windows[(size_t) corner] != nullptr; }
+    juce::DocumentWindow* cornerWindow (int corner) { return windows[(size_t) corner].get(); }   // tests
+    std::function<void()> onWindowsChanged;
+
 private:
     PluginManager& plugins;
     std::array<Corner, 4> corners;
+    std::array<std::unique_ptr<juce::DocumentWindow>, 4> windows;
+    std::shared_ptr<bool> alive = std::make_shared<bool> (true);
     juce::CriticalSection cornerLock;   // taken by the audio thread only with tryEnter
 
     struct Voice { int corner = -1; int note = -1; double pos = 0, step = 1; float gain = 0; bool releasing = false; float fade = 1; };

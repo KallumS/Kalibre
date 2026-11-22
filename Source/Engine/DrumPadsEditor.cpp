@@ -87,7 +87,10 @@ public:
     std::array<int, drumpads::padCount> lit {};
 };
 
-class DrumPadsEditor : public AudioProcessorEditor, private Timer
+// A drop target itself, handing a drop to the pad under the point: on the Mac the
+// window sits in a native view of its own, which Kalibre's drags reach only
+// through its panel in the rack (0116).
+class DrumPadsEditor : public AudioProcessorEditor, public DragAndDropTarget, private Timer
 {
 public:
     explicit DrumPadsEditor (DrumPadsProcessor& p) : AudioProcessorEditor (p), proc (p), overview (*this)
@@ -492,6 +495,30 @@ public:
     }
 
     void mouseWheelMove (const MouseEvent&, const MouseWheelDetails& w) override { scroll (w.deltaY); }
+
+    Tile* tileAt (Point<int> p) const
+    {
+        for (auto* t : tiles) if (t->getBounds().contains (p)) return t;
+        return nullptr;
+    }
+    void lightDrop (Tile* over)
+    {
+        for (auto* t : tiles)
+            if (t->dropping != (t == over)) { t->dropping = t == over; t->repaint(); }
+    }
+    bool isInterestedInDragSource (const SourceDetails& d) override
+    {
+        const auto t = d.description.toString();
+        return t.startsWith ("file:") || t.startsWith ("plugin:");
+    }
+    void itemDragEnter (const SourceDetails& d) override { lightDrop (tileAt (d.localPosition)); }
+    void itemDragMove (const SourceDetails& d) override { lightDrop (tileAt (d.localPosition)); }
+    void itemDragExit (const SourceDetails&) override { lightDrop (nullptr); }
+    void itemDropped (const SourceDetails& d) override
+    {
+        lightDrop (nullptr);
+        if (auto* t = tileAt (d.localPosition)) t->itemDropped (d);
+    }
 
     DrumPadsProcessor& proc;
     Overview overview;

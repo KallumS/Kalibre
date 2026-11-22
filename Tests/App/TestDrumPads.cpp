@@ -353,3 +353,82 @@ TEST ("drum pads: Random Samples gives each of the sixteen pads shown a drum of 
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+#include "DeviceRack.h"
+
+TEST ("drum pads: a sound dragged from the browser onto its window in the rack plays the pad it's let go over, handed on by the panel (the Mac's native views, 0116, 0128)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Pads");
+        c.focusTrack = t;
+        c.refresh();
+        // The window itself takes the drop, for the pad under the point: on the Mac it's all the panel can hand on to.
+        {
+            DrumPadsProcessor d (plugins);
+            std::unique_ptr<AudioProcessorEditor> ed (d.createEditor());
+            ed->setSize (1120, 300);
+            auto* target = dynamic_cast<DragAndDropTarget*> (ed.get());
+            CHECK (target != nullptr);
+            auto tiles = tilesOf (*ed);
+            if (target && tiles.size() == 16)
+            {
+                const auto snare = flat ("Window Snare", 0.1, 0.3f);
+                const auto at = dynamic_cast<Component*> (tiles[2])->getBounds().getCentre();   // pad 38
+                DragAndDropTarget::SourceDetails drop (var ("file:" + snare.getFullPathName()), nullptr, at);
+                CHECK (target->isInterestedInDragSource (drop));
+                target->itemDropped (drop);
+                CHECK_EQ (String (d.kit().pads[38].sample), snare.getFullPathName());
+                // Between the pads: nothing.
+                DragAndDropTarget::SourceDetails nowhere (var ("file:" + snare.getFullPathName()), nullptr, { 2, 2 });
+                target->itemDropped (nowhere);
+                CHECK_EQ (drumpads::sounding (d.kit()).size(), (size_t) 1);
+            }
+            d.editorBeingDeleted (ed.get());
+        }
+        // In the rack: its panel hands the drop on.
+        DeviceRack rack (c);
+        rack.setSize (1400, 360);
+        rack.addToDesktop (0);
+        rack.setVisible (true);
+        Id dev = 0;
+        c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, drumPadsRef(), DeviceRole::Instrument); });
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        auto* d = dynamic_cast<DrumPadsProcessor*> (engine.instance (dev));
+        CHECK (d != nullptr);
+        DragAndDropTarget* panel = nullptr;
+        AudioProcessorEditor* ed = nullptr;
+        std::function<void (Component&)> walk = [&] (Component& comp)
+        {
+            if (auto* e = dynamic_cast<AudioProcessorEditor*> (&comp)) { ed = e; return; }
+            if (panel == nullptr && &comp != &rack)
+                if (auto* t2 = dynamic_cast<DragAndDropTarget*> (&comp)) panel = t2;
+            for (auto* ch : comp.getChildren()) walk (*ch);
+        };
+        walk (rack);
+        CHECK (panel != nullptr && ed != nullptr && d != nullptr);
+        if (panel && ed && d)
+        {
+            auto tiles = tilesOf (*ed);
+            CHECK_EQ (tiles.size(), (size_t) 16);
+            if (tiles.size() == 16)
+            {
+                // The kick's pad, as the panel sees it.
+                auto* kick = dynamic_cast<Component*> (tiles[0]);
+                const auto at = dynamic_cast<Component*> (panel)->getLocalPoint (kick, kick->getLocalBounds().getCentre());
+                const auto wav = flat ("Rack Kick", 0.1, 0.3f);
+                DragAndDropTarget::SourceDetails drop (var ("file:" + wav.getFullPathName()), nullptr, at);
+                CHECK (panel->isInterestedInDragSource (drop));
+                panel->itemDropped (drop);
+                CHECK_EQ (String (d->kit().pads[36].sample), wav.getFullPathName());
+            }
+        }
+        rack.removeFromDesktop();
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

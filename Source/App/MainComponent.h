@@ -90,7 +90,7 @@ public:
     StudioWindow& showStudio();   // File > Studio...: sync, control surfaces, OSC, AI agents
     void showAgents();            // the Studio window at AI Agents (0099)
     KeysWindow& showKeys();       // Help > Keys...: every command and its key (0045)
-    void randomSong();   // the top bar's Random: a new song by chance (0101)
+    void randomSong (bool addTo = false);   // the top bar's Random: a new song by chance (0101); Shift: tracks added (0119)
     void hideBrowser() { browserShown = false; browser.setVisible (false); resized(); }
     void showPluginManager();
     void showArticulationManager();

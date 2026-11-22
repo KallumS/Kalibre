@@ -383,3 +383,37 @@ TEST ("audio tools: a held note has no tempo, however long: a pad, a sub bass (t
         CHECK_EQ (g.bpm, 0.0);
     }
 }
+
+TEST ("edit: Humanise varies each note's velocity and timing by up to 10% (of itself, and of the grid), lengths kept; the same seed the same (0124)")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    const Id m = edit::addMidiClip (p, t, 0, PPQ * 16);
+    for (int i = 0; i < 64; ++i) edit::addNote (p, m, { 0, PPQ + (Tick) i * PPQ / 4, PPQ / 8, 60, 100 });
+    const auto before = p.clip (m)->midi.notes;
+    Project q = p;
+    edit::humanise (p, m, PPQ / 4, 7);
+    edit::humanise (q, m, PPQ / 4, 7);
+    const auto& after = p.clip (m)->midi.notes;
+    CHECK_EQ (after.size(), before.size());
+    int velocityMoved = 0, timeMoved = 0;
+    for (size_t i = 0; i < after.size(); ++i)
+    {
+        CHECK (after[i].velocity >= 90 && after[i].velocity <= 110);
+        CHECK_EQ (after[i].length, PPQ / 8);
+        velocityMoved += after[i].velocity != 100;
+    }
+    // Each note within 10% of a sixteenth (24 ticks) of where it was.
+    std::vector<Tick> was, now;
+    for (auto& n : before) was.push_back (n.start);
+    for (auto& n : after) now.push_back (n.start);
+    std::sort (now.begin(), now.end());
+    for (size_t i = 0; i < now.size(); ++i)
+    {
+        CHECK (std::abs (now[i] - was[i]) <= PPQ / 40 + 1);
+        timeMoved += now[i] != was[i];
+    }
+    CHECK (velocityMoved > 32);
+    CHECK (timeMoved > 32);
+    CHECK (p.clip (m)->midi.notes == q.clip (m)->midi.notes);   // the same seed, the same
+}

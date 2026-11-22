@@ -110,6 +110,11 @@ void reverseClip (Project&, Id clip);
 // Invert, upside down (0095): a MIDI clip's notes mirrored, its highest made
 // its lowest; an audio clip's polarity flipped (its `inverted`).
 void invertClip (Project&, Id clip);
+// Humanise (0124): each note of a MIDI clip a little different, by chance: its
+// velocity up to `amount` of itself either way (10%), its start up to `amount` of
+// `grid` either way (a 1/16 grid: a fortieth of a beat), its length kept. Never
+// before the clip's content starts. The same seed, the same notes.
+void humanise (Project&, Id clip, Tick grid, unsigned seed, double amount = 0.1);
 
 //==============================================================================
 // Notes (in a MIDI clip; ticks are the clip's own, from its content start)

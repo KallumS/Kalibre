@@ -379,10 +379,35 @@ static int DrawList_AddRect(lua_State *L)
     return 0;
 }
 
+// Corner colours top left, top right, bottom right, bottom left. Kalibre's own: a 10th
+// argument rounds the corners (ImGui can't), each point coloured by where it is.
 static int DrawList_AddRectFilledMultiColor(lua_State *L)
 {
-    drawlist(L)->AddRectFilledMultiColor(at(L, 2), at(L, 4), col32(luaL_checkinteger(L, 6)), col32(luaL_checkinteger(L, 7)),
-                                         col32(luaL_checkinteger(L, 8)), col32(luaL_checkinteger(L, 9)));
+    const ImVec2 a = at(L, 2), b = at(L, 4);
+    const ImU32 c[4] = { col32(luaL_checkinteger(L, 6)), col32(luaL_checkinteger(L, 7)),
+                         col32(luaL_checkinteger(L, 8)), col32(luaL_checkinteger(L, 9)) };
+    const float rounding = num(L, 10, 0);
+    ImDrawList *dl = drawlist(L);
+    if (rounding <= 0 || b.x - a.x <= 0 || b.y - a.y <= 0) {
+        dl->AddRectFilledMultiColor(a, b, c[0], c[1], c[2], c[3]);
+        return 0;
+    }
+    const int first = dl->VtxBuffer.Size;
+    dl->AddRectFilled(a, b, IM_COL32_WHITE, rounding);
+    auto mix = [](ImU32 x, ImU32 y, float t) {
+        ImU32 out = 0;
+        for (int s = 0; s < 32; s += 8) {
+            const float u = (float)((x >> s) & 255), v = (float)((y >> s) & 255);
+            out |= (ImU32)(u + (v - u) * t + 0.5f) << s;
+        }
+        return out;
+    };
+    for (int i = first; i < dl->VtxBuffer.Size; ++i) {
+        ImDrawVert &v = dl->VtxBuffer[i];
+        const float tx = std::clamp((v.pos.x - a.x) / (b.x - a.x), 0.0f, 1.0f);
+        const float ty = std::clamp((v.pos.y - a.y) / (b.y - a.y), 0.0f, 1.0f);
+        v.col = mix(mix(c[0], c[1], tx), mix(c[3], c[2], tx), ty);
+    }
     return 0;
 }
 

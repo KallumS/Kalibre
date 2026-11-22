@@ -187,7 +187,7 @@ From left to right:
 | **CPU** | How busy the audio is: the highest in the last 2 seconds. Right-click > **Change the CPU Reading** for every 1 or 5 seconds. The mixer shows each track's share. |
 | **Delay** | How much the plug-ins delay the sound in all. Kalibre lines every track up by this much (plug-in delay compensation). |
 | **1 2** | Song versions: the whole song twice. The lit one plays. [Below](#song-versions). |
-| **Random** | At the very right: a whole new song by chance, ready to play. [Below](#the-random-button). |
+| **Random** | At the very right: a whole new song by chance, ready to play; **Shift-click** adds random tracks to this song instead. [Below](#the-random-button). |
 
 **Right-click the top bar** (or the transport) to hide any of these: **Show
 in the Bar** lists them with ticks; **Show Everything** brings them all back.
@@ -215,6 +215,9 @@ song: try a different arrangement, mix or sound, and switch back and forth.
 ![Song version 2 made and playing; the message line says what happened](guide/song-versions.png)
 
 ### The Random button
+
+**Shift-click Random** to keep this song and add random tracks to it, in its
+key and at its tempo, as one undo step.
 
 **Random** (also **File > New Random Song**) makes a new song by chance, to
 start from. If the song you have has changes, it asks to save it first.
@@ -384,6 +387,7 @@ For every clip:
 | **Loop Its Content** | The clip's notes or audio repeat as you lengthen it. |
 | **Reverse** | Plays it backwards. MIDI: the notes and controllers in reverse order, within what the clip plays. Audio: the sound backwards. Again to undo it. |
 | **Invert (Upside Down)** | MIDI: the notes flipped, its highest note made its lowest and the rest mirrored between. Audio, **Invert (Polarity, Upside Down)**: the waveform flipped, which sounds the same alone but cancels against a copy. Ticked while on. |
+| **Humanise** | MIDI: each note a little different, by chance: its velocity up to 10% softer or harder, its start up to 10% of the editors' grid earlier or later (at 1/16, a fortieth of a beat); lengths kept. One undo step; again for another roll. |
 | **Mute**, **Lock** | |
 | **Consolidate the Chosen Clips** | Several clips on a track into one. Audio becomes a new file, normalised, the clip's gain making up for it. |
 
@@ -695,7 +699,8 @@ ones either side of where you let go (MIDI effects still come first, then
 instruments, then audio effects). With no track chosen, a new track is made
 for it.
 
-**Random**, under **+ Add**, adds devices by chance to the chosen track, as
+**Random**, under **+ Add**, replaces the chosen track's devices with ones
+chosen by chance (**Shift-click** adds them to the devices it has instead), as
 the top bar's Random chooses them: an instrument if the track plays notes and
 has none (one that plays drums for a track named Drums, Beat or Perc, when
 you have one), one or two effects, and now and then a MIDI effect. They come
@@ -800,8 +805,10 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 | **Kalibre Sampler** | Instrument | Plays a sample three ways (**Mode**): **Keys**, across the keyboard; **Slices**, cut at its hits, a key each from the root note up; **Granular**, as many short grains, so **Speed** changes how fast it plays without changing its pitch (0 holds it still). [Below](#kalibre-sampler). |
 | **Trombolese** | Instrument | A physical model of a trombone crossed with an oboe: one note at a time, sliding between held notes; Bore and Reed morph, the mod wheel on the bore. In tune from note 34 to 84. |
 | **Hardware Insert** | Effect | Outboard gear in the chain: out to the interface and back, its round trip measured. |
-| **X/Y Morph** | Instrument or effect | Four corners, each a plug-in or a sample, mixed by where the dot is on a pad. Sample corners play the track's notes. X and Y can be automated and modulated. |
+| **X/Y Morph** | Instrument or effect | Four corners, each a plug-in or a sample, mixed by where the dot is on a pad. A corner's plug-in opens in a window of its own when it's loaded; click its letter (**A** to **D**) to open it again, right-click to change it. Sample corners play the track's notes. X and Y can be automated and modulated. |
 | **Container** | Effect | Up to eight plug-ins in a row, each on a band, the mid or the sides. |
+| **Multiband** | Effect | The spectrum in 2, 3 or 4 bands, the crossovers dragged on a picture of the sound (never past one another), up to four plug-ins on each band, each band with On, Solo and Volume. [Below](#the-multiband). |
+| **Stereo Split** | Effect | The sound split by where it sits: **Left, Middle, Right** (each frequency by its place, the two edges dragged on a vectorscope) or **Middle and Sides**; up to four plug-ins on each part, each with On, Solo and Volume. [Below](#stereo-split). |
 | **Note Splitter** | MIDI effect | A chord's notes, top to bottom, each to another track. |
 | **Instant Virtual Instrument** | Instrument | Builds an instrument from a sample, in its own window. |
 | **ScaleView** | MIDI effect | Shows the scale and names the chord played through it; the sound is unchanged. Put it before the instrument. |
@@ -822,7 +829,13 @@ a loop, a one-shot, a note, a texture. Click again for another; ⌘Z goes back
 to the one before. When the sound is one note (a pad, a bass note, a voice),
 its **Root Note** is set to that note, however it was loaded, so it plays in
 tune from the keys; Random Sample's message says which. Each new sample, however it's loaded, is one undo
-step. Its knobs, group by group:
+step.
+
+**Keys**, **Slices** and **Granular**, along its top, choose how it plays; each
+shows only its own knobs (Loop in Keys and Granular, Slice Sensitivity in
+Slices, the grains in Granular). **Click the waveform** to hear the sample from
+there, as it is; click again and the last one stops as the new one starts.
+A yellow line follows it. Its knobs, group by group:
 
 | Group | Knobs |
 | --- | --- |
@@ -830,7 +843,7 @@ step. Its knobs, group by group:
 | **Sample** | **Start**, **End** (the part played), **Loop** and **Loop Start** (Keys and Granular). |
 | **Filter** | **Cutoff**, **Resonance**, **Velocity** (how much playing harder makes it louder). |
 | **Envelope** | **Attack**, **Decay**, **Sustain**, **Release**, **Volume**. |
-| **Play** | **Mode**: Keys, Slices or Granular. **Speed**: how fast the sample is played, 0 to 4 times. In Keys and Slices it's like tape, faster is higher (Tune can bring it back down); in Granular the pitch stays where the key puts it. **Slice Sensitivity**: higher finds quieter hits, so more slices. |
+| **Play** | The mode is the buttons along the top (an automatable parameter, Mode, too). **Speed**: how fast the sample is played, 0 to 4 times. In Keys and Slices it's like tape, faster is higher (Tune can bring it back down); in Granular the pitch stays where the key puts it. **Slice Sensitivity**: higher finds quieter hits, so more slices. |
 | **Grains** | Granular only. **Grain Size** (10 ms to half a second), **Density** (grains a second), **Spray** (how far each grain wanders from the reading point), **Position** (where in the sample it starts reading). |
 
 In **Slices**, the waveform shows a line where each slice starts, named with
@@ -940,13 +953,53 @@ the song.
 Each plug-in in it has:
 
 - **On**, and **S** (solo: with any soloed, only those play);
-- **Stereo / Mid / Side**: what it hears and changes;
+- **Stereo / Mid / Side / Mono**: what it hears and changes (Mono: both
+  sides as one, and one sent back);
 - **a band** (low and high edges; double-click for none): it changes only
   those frequencies;
 - its own **Volume** and **Pan**.
 
-Its **⋯** menu: Show Its Window, Replace…, Move Up, Move Down, Remove.
+Click a plug-in's name to see its window beside the list: the Container
+takes that plug-in's size, so it's always shown whole (a plug-in just added
+is the one shown). Its **⋯** menu: Show Its Window, Replace…, Move Up, Move
+Down, Remove.
 **Match Loudness** brings what goes out to the loudness of what came in.
+
+### The Multiband
+
+![The Multiband: four bands, plug-ins on two](guide/multiband.png)
+
+**2 Bands**, **3 Bands** or **4 Bands** along its top. The picture shows the
+sound coming in; **drag a handle** between two bands to move where one ends
+and the next begins (they never pass one another). Each band has **On**,
+**S** (solo), its **volume** (double-click for 0 dB) and up to four
+plug-ins: click **Add Plug-in…**, click a plug-in to open its window,
+right-click it for Show Its Window, Replace…, Remove. With nothing in it, the
+sound is untouched. [More in DEVICES.md](DEVICES.md#multiband).
+
+### Stereo Split
+
+![Stereo Split: Left, Middle, Right, with plug-ins on two parts](guide/stereo-split.png)
+
+Splits the sound by where it sits between the speakers, with up to four
+plug-ins on each part. Click along its top:
+
+- **Left, Middle, Right**: every frequency goes to the part it sits in. Drag
+  the two **edges** on the picture (their round handles) to widen or narrow
+  the middle; they never pass one another. In this split the sound is 43 ms
+  later (2048 samples at 48 kHz), always, and Kalibre lines everything else
+  up with it.
+- **Middle and Sides**: what both speakers share, and what differs between
+  them. Middle keeps the same plug-ins in both splits.
+
+![Stereo Split: Middle and Sides](guide/stereo-split-sides.png)
+
+The picture is a **vectorscope**: the middle straight up, left and right on
+the diagonals, louder further out. Grey dots are the sound itself; coloured
+dots are its frequencies, low (rose) to high (violet), each where it sits.
+Each part has **On**, **S** (solo), its **volume** and its plug-ins, as in
+the Multiband. With nothing in it, the sound is untouched.
+[More in DEVICES.md](DEVICES.md#stereo-split).
 
 ### The Note Splitter
 
@@ -1159,10 +1212,10 @@ Four tabs, in two rows:
 
 | Tab | What's in it |
 | --- | --- |
-| **Plug-ins** | Every plug-in found, by kind. Search; drag one onto a track or into the rack. **Scan** looks for new ones. |
+| **Plug-ins** | Every plug-in found, under **MIDI Effects**, **Instruments** and **Audio Effects**. Search; drag one onto a track or into the rack; double-click to add it to the chosen track. Right-click: **Add to a New Track** (one undo step), **Add to the Chosen Track**, **Show in Finder**. **Scan** looks for new ones. |
 | **Sounds** | Your samples and MIDI files, to hear and bring into the song ([below](#the-sounds-tab)). |
 | **Audio** | The audio interface, sample rate (as high as the interface goes: 44.1 to 192 kHz) and buffer size, inputs and outputs; **Use Every Core** (on unless you switch it off). |
-| **Presets** | Saved presets for the chosen track's plug-ins. |
+| **Presets** | Saved presets for the chosen track's plug-ins: double-click to load one. Right-click: **Load**, **Load on a New Track** (its plug-in on a new track with it loaded, one undo step), **Show in Finder**, **Delete…**. |
 
 The keys and the studio have windows of their own: **Help > Keys…**
 ([Section 20](#20-every-key-command)) and **File > Studio**
@@ -1201,8 +1254,8 @@ thousands of sounds the list is opened in the background as Kalibre starts
 | **All Items** | Every sound in one list, without folders. |
 | **★ Only** | Only favourites: sounds and folders with a star, and everything inside a favourite folder. |
 | **Drums ▾** | Only drum sounds (**All Drums**), or one kind: **Kicks**, **Snares**, **Claps**, **Hats**, **Toms**, **Cymbals**, **Rims**, **Shakers**, **Percussion**. **All Sounds** shows everything again. [How a drum is told](#how-a-drum-is-told). |
-| **A to Z ▾** | The order: **A to Z**, or **Shuffle** (within each folder, or the whole list in All Items). It stays shuffled the same way until you choose **Shuffle Again**. |
-| **Sync** | Previews play at the song's tempo. MIDI always; a sample when its tempo is known: written in its name ("Drums 96bpm", "BPM120"), in the file (an ACID WAV), or heard in a loop (below). While the song plays, a preview starts on the next beat. Off: everything as it was made. |
+| **A to Z ▾** | The order: **A to Z**, **Z to A**, **Longest to Shortest**, **Shortest to Longest**, **Slowest to Fastest**, **Fastest to Slowest** (sounds whose tempo isn't known last), or **Shuffle** (within each folder, or the whole list in All Items). It stays shuffled the same way until you choose **Shuffle Again**. |
+| **Sync** | Previews play at the song's tempo. MIDI always; a sample when its tempo is known: written in its name ("Drums 96bpm", "BPM120"), in the file (an ACID WAV), or heard in a loop (below). While the song plays, a preview starts on the next beat. Off: everything as it was made. Switched while a sound plays, it changes at once, carrying on from where it was. |
 | **Auto-Play** | On: choosing a sound plays it. Off: choosing (a click, ↑ or ↓) is silent; click the chosen sound's picture at the top to hear it, and again to stop it. Right-click > **Play** works too. Remembered. |
 | **Folders…** | The Library Folders window. |
 | **Search** | At the top of the browser: only sounds whose names hold what you type. |
@@ -1863,7 +1916,8 @@ celebrations, crates, gear, ideas and achievements.
 - **Your progress** is kept in Kalibre's folder
   (`~/Library/Application Support/Kalibre/Data/DAW Battle Pass/`). The first
   time, the progress your REAPER copy saved is brought over, if there is one.
-- It speaks Kalibre's language: songs, clips, sections, plug-ins. There's
+- It looks like the rest of Kalibre (rounded buttons and boxes) and speaks
+  Kalibre's language: songs, clips, sections, plug-ins. There's
   no "start with REAPER" setting: it always runs with Kalibre. Its quests ask
   for the same things as in REAPER (clips where REAPER said media items,
   sections where it said regions), and its rules are the same.

@@ -72,6 +72,34 @@ bool Controller::loadPreset (Id deviceId, const File& f)
     return true;
 }
 
+Id Controller::presetOnNewTrack (Id fromDevice, const File& f)
+{
+    const auto* d = project.device (fromDevice);
+    if (! d) return 0;
+    const auto v = JSON::parse (f.loadFileAsString());
+    const auto state = v.getProperty ("state", {}).toString();
+    MemoryBlock m;
+    if (! m.fromBase64Encoding (state)) { say ("That preset can't be read.", true); return 0; }
+    const auto ref = d->plugin;
+    const auto role = d->role;
+    const auto name = f.getFileNameWithoutExtension();
+    Id track = 0;
+    const Id after = focusTrack;
+    apply ("Preset " + name + " on a New Track", [&] (Project& p)
+    {
+        track = edit::addTrack (p, TrackKind::Track, (String (ref.name) + " " + name).toStdString(), p.track (after) ? after : 0);
+        const Id made = edit::addDevice (p, track, ref, role);
+        if (auto* nd = p.device (made)) nd->state = m.toBase64Encoding().toStdString();
+    });
+    if (track == 0) return 0;
+    focusTrack = track;
+    selectedTracks = { track };
+    zoneTab = ZoneTab::Devices;
+    sendChangeMessage();
+    say ("Loaded " + name.quoted() + " on a new track.", false, true);
+    return track;
+}
+
 void Controller::loadProgram (Id deviceId, int index)
 {
     auto* inst = engine.instance (deviceId);

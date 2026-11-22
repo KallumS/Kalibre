@@ -106,6 +106,9 @@ private:
     void articulationMenu (const Note&);
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    std::unique_ptr<juce::VBlankAttachment> vblank;
+    float lastPlayheadX = -1;
+    float playheadX() const { return (float) keyboardWidth() + timeline.xAt (c.playheadExact()); }
     void timerCallback() override;
 
     // The tools (decision 0092; PianoRollTools.cpp): with a tool other than

@@ -74,6 +74,14 @@ ContainerProcessor::ContainerProcessor (PluginManager& pm)
         addHostedParameter (std::move (gain));
         addHostedParameter (std::move (pan));
     }
+    // Mono (0118) last, after every parameter there was before it.
+    for (int i = 0; i < slotCount; ++i)
+    {
+        const String n (i + 1);
+        auto mono = std::make_unique<AudioParameterBool> (ParameterID { "s" + n + "_mono", 1 }, n + " Mono", false);
+        slots[(size_t) i].mono = mono.get();
+        addHostedParameter (std::move (mono));
+    }
 }
 
 ContainerProcessor::~ContainerProcessor()
@@ -162,7 +170,7 @@ void ContainerProcessor::clearSlot (int i)
     for (int k = i; k + 1 < slotCount; ++k) moveSlot (k + 1, k);
     for (auto* p : { (RangedAudioParameter*) slots.back().on, (RangedAudioParameter*) slots.back().solo, (RangedAudioParameter*) slots.back().width,
                      (RangedAudioParameter*) slots.back().low, (RangedAudioParameter*) slots.back().high, (RangedAudioParameter*) slots.back().gainDb,
-                     (RangedAudioParameter*) slots.back().pan })
+                     (RangedAudioParameter*) slots.back().pan, (RangedAudioParameter*) slots.back().mono })
         p->setValueNotifyingHost (p->getDefaultValue());
     updateLatency();
     if (onSlotsChanged) onSlotsChanged();
@@ -178,7 +186,7 @@ void ContainerProcessor::moveSlot (int from, int to)
     std::swap (a.plugin, b.plugin);
     // The settings go with the plug-in; the parameters stay where they are.
     for (auto [pa, pb] : { std::pair<RangedAudioParameter*, RangedAudioParameter*> { a.on, b.on }, { a.solo, b.solo }, { a.width, b.width },
-                           { a.low, b.low }, { a.high, b.high }, { a.gainDb, b.gainDb }, { a.pan, b.pan } })
+                           { a.low, b.low }, { a.high, b.high }, { a.gainDb, b.gainDb }, { a.pan, b.pan }, { a.mono, b.mono } })
     {
         const float va = pa->getValue(), vb = pb->getValue();
         pa->setValueNotifyingHost (vb);
@@ -247,6 +255,7 @@ void ContainerProcessor::processSlot (Slot& s, AudioBuffer<float>& x, int n, boo
     if (lowEdge) atLow.setCutoffFrequency (jmin (s.low->get(), (float) rate * 0.45f));
     if (highEdge) { atHigh.setCutoffFrequency (jmin (s.high->get(), (float) rate * 0.45f)); alignLow.setCutoffFrequency (atHigh.getCutoffFrequency()); }
     const auto width = (Width) s.width->getIndex();
+    const bool mono = s.mono->get();
 
     // What the plug-in hears, and what passes by.
     auto* pl = toPlugin.getWritePointer (0);
@@ -274,6 +283,8 @@ void ContainerProcessor::processSlot (Slot& s, AudioBuffer<float>& x, int n, boo
         }
         al = band[0]; ar = band[1]; rl = rest[0]; rr = rest[1];
         const float mid = 0.5f * (al + ar), side = 0.5f * (al - ar);
+        // Mono: both sides as one to the plug-in, nothing passing by but what's outside the band.
+        if (mono) { pl[i] = mid; pr[i] = mid; dl[i] = rl; dr[i] = rr; continue; }
         switch (width)
         {
             case Width::Stereo: pl[i] = al;   pr[i] = ar;   dl[i] = rl;        dr[i] = rr;        break;
@@ -294,7 +305,8 @@ void ContainerProcessor::processSlot (Slot& s, AudioBuffer<float>& x, int n, boo
     for (int i = 0; i < n; ++i)
     {
         float yl = pl[i], yr = pr[i];
-        if (width == Width::Mid)  { const float m = 0.5f * (yl + yr); yl = m; yr = m; }
+        if (mono) { const float m = 0.5f * (yl + yr); yl = m; yr = m; }
+        else if (width == Width::Mid)  { const float m = 0.5f * (yl + yr); yl = m; yr = m; }
         if (width == Width::Side) { const float sd = 0.5f * (yl + yr); yl = sd; yr = -sd; }
         // Where the plug-in's sound meets what passed it by: added at 64 bits (0081).
         l[i] = (float) ((double) hold (0, dl[i]) + (double) gl * (double) yl);
@@ -417,10 +429,21 @@ public:
         {
             PopupMenu m;
             const auto* w = proc.slot (i).width;
-            const char* names[] { "Stereo", "Mid", "Side" };
             const char* tips[] { "Stereo: all of it", "Mid: only the middle (what both sides share)", "Side: only the sides (where they differ)" };
+            const bool isMono = proc.slot (i).mono->get();
             for (int k = 0; k < 3; ++k)
-                m.addItem (tips[k], true, w->getIndex() == k, [this, k, names] { auto* p = proc.slot (i).width; p->setValueNotifyingHost (p->convertTo0to1 ((float) k)); update(); (void) names; });
+                m.addItem (tips[k], true, ! isMono && w->getIndex() == k, [this, k]
+                {
+                    auto& s = proc.slot (i);
+                    s.mono->setValueNotifyingHost (0.0f);
+                    s.width->setValueNotifyingHost (s.width->convertTo0to1 ((float) k));
+                    update();
+                });
+            m.addItem ("Mono: both sides as one, and one sent back", true, isMono, [this]
+            {
+                proc.slot (i).mono->setValueNotifyingHost (1.0f);
+                update();
+            });
             m.showMenuAsync (PopupMenu::Options().withTargetComponent (&width));
         };
         addAndMakeVisible (width);
@@ -457,7 +480,9 @@ public:
             String error;
             auto& proc = sp->proc;
             const int at = sp->i;
-            proc.loadPlugin (at, r, error);
+            auto show = sp->showWindow;
+            // Added: it's the one shown, and the container takes its size (0118).
+            if (proc.loadPlugin (at, r, error) && show) show (at);
         });
     }
 
@@ -478,7 +503,7 @@ public:
     {
         auto& s = proc.slot (i);
         if (! s.used()) return;
-        width.setButtonText (s.width->getCurrentChoiceName());
+        width.setButtonText (s.mono->get() ? String ("Mono") : s.width->getCurrentChoiceName());
         band = s.hasLowEdge() || s.hasHighEdge() ? hz (s.low->get()) + ui::u8 (" \xe2\x80\x93 ") + hz (s.high->get()) : String ("All");
         low.setTooltip ("The band's low edge: " + hz (s.low->get()) + (s.hasLowEdge() ? String() : String (" (none)")) + ". Double-click for none.");
         high.setTooltip ("The band's high edge: " + hz (s.high->get()) + (s.hasHighEdge() ? String() : String (" (none)")) + ". Double-click for none.");
@@ -534,7 +559,7 @@ public:
                               proc.slot (i).used() ? "Click to see its window here." : "Put an audio effect in the container." };
     theme::HouseButton on { "On", "Switch it on or off: off, the sound passes it by." , true };
     theme::HouseButton solo { "S", "Solo: with any soloed, only those play.", true };
-    theme::HouseButton width { "Stereo", "What it hears and changes: all of it, only the middle, or only the sides." };
+    theme::HouseButton width { "Stereo", "What it hears and changes: all of it, only the middle, only the sides, or both sides as one (Mono)." };
     theme::HouseButton menu { ui::u8 ("\xe2\x8b\xaf"), "Show its window, replace, move or remove it." };
     Slider low, high, gain, pan;
     Rectangle<int> bandArea;
@@ -543,7 +568,7 @@ public:
     OwnedArray<SliderParameterAttachment> sliderAttachments;
 };
 
-class ContainerEditor : public AudioProcessorEditor, private Timer
+class ContainerEditor : public AudioProcessorEditor, private Timer, private ComponentListener
 {
 public:
     explicit ContainerEditor (ContainerProcessor& p) : AudioProcessorEditor (p), proc (p)
@@ -561,8 +586,32 @@ public:
     ~ContainerEditor() override
     {
         proc.onSlotsChanged = nullptr;
+        if (inner) inner->removeComponentListener (this);
         editors::close (inner.getComponent());
     }
+
+    // As big as the list beside the plug-in shown, at that plug-in's size (0118): asked
+    // again whenever another is shown, one is added, or the plug-in resizes itself, so the
+    // rack fits the whole of it, never a plug-in cut off or squeezed into the old size.
+    void fitToInner()
+    {
+        if (fitting) return;
+        const ScopedValueSetter<bool> busy (fitting, true);
+        const int listW = theme::px (620) + 16;
+        const int listH = 16 + theme::px (24) + 4 + theme::px (16) + rows.size() * theme::px (30);
+        int w = listW, h = jmax (300, listH);
+        if (inner) { w += 8 + inner->getWidth(); h = jmax (h, inner->getHeight() + 16); }
+        else w = jmax (w, 1000);
+        if (w != getWidth() || h != getHeight()) setSize (w, h);
+        else resized();
+    }
+    bool fitting = false;
+
+    void componentMovedOrResized (Component& c, bool, bool wasResized) override
+    {
+        if (wasResized && &c == inner.getComponent() && ! placing) fitToInner();
+    }
+    bool placing = false;
 
     void rebuild()
     {
@@ -577,6 +626,7 @@ public:
 
     void show (int i)
     {
+        if (inner) inner->removeComponentListener (this);
         editors::close (inner.getComponent());
         inner = nullptr;
         shown = i;
@@ -585,10 +635,10 @@ public:
                 if (plug->hasEditor())
                 {
                     inner = editors::open (*plug);
-                    if (inner) addAndMakeVisible (*inner);
+                    if (inner) { addAndMakeVisible (*inner); inner->addComponentListener (this); }
                 }
         for (auto* r : rows) r->name.setToggleState (r->i == shown && inner != nullptr, dontSendNotification);
-        resized();
+        fitToInner();
         repaint();
     }
 
@@ -637,8 +687,9 @@ public:
         for (auto* row : rows) row->setBounds (list.removeFromTop (theme::px (30)));
         if (inner)
         {
+            const ScopedValueSetter<bool> busy (placing, true);
             r.removeFromLeft (8);
-            if (inner->isResizable()) inner->setBounds (r);
+            if (inner->isResizable()) inner->setBounds (r.withSize (inner->getWidth(), inner->getHeight()).constrainedWithin (r).withPosition (r.getTopLeft()));
             else inner->setTopLeftPosition (r.getTopLeft());
         }
     }

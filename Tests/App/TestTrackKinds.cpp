@@ -2333,7 +2333,15 @@ TEST ("track names: double-click opens the name to type, and it stays open while
         arrange.setSize (1200, 500);
         arrange.resized();
         TrackHeader* header = nullptr;
-        for (auto* ch : arrange.getChildren()) if (auto* h = dynamic_cast<TrackHeader*> (ch); h && h->id == t) header = h;
+        std::function<void (Component&)> find = [&] (Component& comp)
+        {
+            for (auto* ch : comp.getChildren())
+            {
+                if (auto* h = dynamic_cast<TrackHeader*> (ch); h && h->id == t) header = h;
+                else find (*ch);
+            }
+        };
+        find (arrange);
         CHECK (header != nullptr);
         if (! header) return;
         Label* name = nullptr;
@@ -2386,4 +2394,333 @@ TEST ("piano roll: a clip's notes wear its own track's colour, whichever track i
         CHECK (blue < red / 10);
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+#include "MorphProcessor.h"
+
+TEST ("x/y morph: a corner's plug-in opens in a window of its own, from its letter or when loaded, never inside the device; it goes with its plug-in (0114)")
+{
+    PluginManager plugins;
+    MorphProcessor morph (plugins);
+    morph.setPlayConfigDetails (2, 2, 48000, 512);
+    morph.prepareToPlay (48000, 512);
+    String error;
+    // Loaded with a song: no window by itself.
+    CHECK (morph.loadPlugin (0, synthRef(), error));
+    CHECK (! morph.cornerWindowOpen (0));
+
+    // The device's window: the pad and four letters, no plug-in's window inside it.
+    editors::Owned editor (editors::open (morph));
+    CHECK (editor != nullptr);
+    if (! editor) return;
+    editor->setSize (360, 300);
+    std::function<void (Component&, std::vector<Component*>&)> all = [&] (Component& comp, std::vector<Component*>& out)
+    {
+        out.push_back (&comp);
+        for (auto* ch : comp.getChildren()) all (*ch, out);
+    };
+    std::vector<Component*> inside;
+    all (*editor, inside);
+    for (auto* comp : inside) CHECK (comp == editor.get() || dynamic_cast<AudioProcessorEditor*> (comp) == nullptr);
+    Button* a = nullptr;
+    for (auto* comp : inside) if (auto* b = dynamic_cast<Button*> (comp); b && b->getButtonText() == "A") a = b;
+    CHECK (a != nullptr);
+    if (! a) return;
+    CHECK (! a->getToggleState());
+
+    // Clicking A opens its window: the plug-in's own, in a window of its own.
+    a->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (morph.cornerWindowOpen (0));
+    auto* w = morph.cornerWindow (0);
+    CHECK (w != nullptr);
+    if (! w) return;
+    CHECK (w->isVisible());
+    CHECK (w->getName().contains ("A: Kalibre Synth"));
+    CHECK (dynamic_cast<AudioProcessorEditor*> (w->getContentComponent()) != nullptr);
+    CHECK (morph.corner (0).plugin->getActiveEditor() == w->getContentComponent());
+    CHECK (a->getToggleState());
+    // Its close button: gone, the plug-in told first.
+    w->closeButtonPressed();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (! morph.cornerWindowOpen (0));
+    CHECK (morph.corner (0).plugin->getActiveEditor() == nullptr);
+    CHECK (! a->getToggleState());
+
+    // Another plug-in in that corner, or Clear: the window goes before the plug-in does.
+    morph.showCornerWindow (0);
+    CHECK (morph.loadPlugin (0, samplerRef(), error));
+    CHECK (! morph.cornerWindowOpen (0));
+    morph.showCornerWindow (0);
+    CHECK (morph.cornerWindowOpen (0));
+    morph.clearCorner (0);
+    CHECK (! morph.cornerWindowOpen (0));
+    // Shut with the device's window and the corner still open: the device going takes it.
+    morph.loadPlugin (1, synthRef(), error);
+    morph.showCornerWindow (1);
+    editor.reset();
+    CHECK (morph.cornerWindowOpen (1));
+}
+
+TEST ("x/y morph: taken out of the song, its corners' windows close at once (0114)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Morph");
+    c.refresh();
+    Id dev = 0;
+    c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, morphRef(), DeviceRole::Instrument); });
+    auto* morph = dynamic_cast<MorphProcessor*> (engine.instance (dev));
+    CHECK (morph != nullptr);
+    if (! morph) return;
+    String error;
+    CHECK (morph->loadPlugin (0, synthRef(), error));
+    morph->showCornerWindow (0);
+    CHECK (morph->cornerWindowOpen (0));
+    Component::SafePointer<DocumentWindow> window (morph->cornerWindow (0));
+    c.apply ("Remove", [&] (Project& p) { edit::removeDevice (p, dev); });
+    CHECK (engine.instance (dev) == nullptr);
+    // Closed at once: nothing shown, and its plug-in's window gone (the window itself waits, 0115).
+    CHECK (window == nullptr || (! window->isVisible() && window->getContentComponent() == nullptr));
+}
+
+TEST ("windows: a plug-in's own window closed is emptied and hidden at once, and deleted only seconds later (the macOS crash in a scroll's glide, 0115)")
+{
+    const int was = editors::Retired::delayMs;
+    editors::Retired::delayMs = 400;
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Synths");
+        c.focusTrack = t;
+        c.refresh();
+        DeviceRack rack (c);
+        rack.setSize (1400, 360);
+        Id dev = 0;
+        c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        const int before = Desktop::getInstance().getNumComponents();
+        rack.float_ (dev);
+        CHECK_EQ (Desktop::getInstance().getNumComponents(), before + 1);
+        auto* inst = engine.instance (dev);
+        CHECK (inst != nullptr && inst->getActiveEditor() != nullptr);
+        Component::SafePointer<Component> window (Desktop::getInstance().getComponent (Desktop::getInstance().getNumComponents() - 1));
+        CHECK (dynamic_cast<DocumentWindow*> (window.getComponent()) != nullptr);
+        rack.dock (dev);
+        // The plug-in's window has gone; the window that held it waits, hidden and empty.
+        CHECK (window != nullptr);
+        if (auto* w = dynamic_cast<DocumentWindow*> (window.getComponent()))
+        {
+            CHECK (! w->isVisible());
+            CHECK (w->getContentComponent() == nullptr);
+        }
+        MessageManager::getInstance()->runDispatchLoopUntil (900);
+        CHECK (window == nullptr);
+    }
+    editors::Retired::delayMs = was;
+}
+
+TEST ("sampler: a sound dragged from the browser onto Kalibre Sampler in the rack loads it, handed on by its panel (the Mac's native views, 0116)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Sampler");
+    c.focusTrack = t;
+    c.refresh();
+    DeviceRack rack (c);
+    rack.setSize (1400, 360);
+    OnScreen shown (rack);
+    Id dev = 0;
+    c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument); });
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    auto* sampler = dynamic_cast<KalibreSampler*> (engine.instance (dev));
+    CHECK (sampler != nullptr);
+    if (! sampler) return;
+    // The device's panel: the drop target Kalibre's drag finds when the window itself is out of its reach.
+    DragAndDropTarget* panel = nullptr;
+    std::function<void (Component&)> walk = [&] (Component& comp)
+    {
+        if (panel == nullptr && &comp != &rack && dynamic_cast<AudioProcessorEditor*> (&comp) == nullptr)
+            if (auto* d = dynamic_cast<DragAndDropTarget*> (&comp)) panel = d;
+        for (auto* ch : comp.getChildren()) walk (*ch);
+    };
+    walk (rack);
+    CHECK (panel != nullptr);
+    if (! panel) return;
+    const auto wav = clickFile (0.25);
+    DragAndDropTarget::SourceDetails d (var ("file:" + wav.getFullPathName()), nullptr, { 400, 200 });
+    CHECK (panel->isInterestedInDragSource (d));
+    panel->itemDropped (d);
+    CHECK_EQ (sampler->file(), wav);
+    CHECK_EQ (sampler->sample().getNumSamples() > 0, true);
+}
+
+namespace
+{
+// The sampler run for `seconds` with no notes: what its preview plays.
+AudioBuffer<float> runSampler (KalibreSampler& s, double seconds, std::function<void (int block)> each = {})
+{
+    const int n = 480, blocks = (int) (seconds * 48000 / n);
+    AudioBuffer<float> out (2, blocks * n), b (2, n);
+    MidiBuffer midi;
+    for (int k = 0; k < blocks; ++k)
+    {
+        if (each) each (k);
+        b.clear();
+        midi.clear();
+        s.processBlock (b, midi);
+        for (int ch = 0; ch < 2; ++ch) out.copyFrom (ch, k * n, b, ch, 0, n);
+    }
+    return out;
+}
+} // namespace
+
+TEST ("sampler: a click on the waveform plays the sample from there; a second click cuts the first off, never on top of it (0117)")
+{
+    KalibreSampler s;
+    s.setPlayConfigDetails (0, 2, 48000, 480);
+    s.prepareToPlay (48000, 480);
+    String error;
+    CHECK (s.load (clickFile (1.0), error));   // a click one second in, in two seconds
+    // Clicked at a quarter (half a second in): the click is heard half a second later.
+    s.audition (0.25f);
+    auto out = runSampler (s, 1.0);
+    const auto [at, level] = peak (out, 0);
+    CHECK (std::abs (at - 24000) <= 2);
+    CHECK (level > 0.3f);
+    CHECK (s.auditionPosition() > 0.7f);   // still playing, three quarters of the way
+    // From the start, then clicked again at three quarters before the click comes:
+    // the first is cut off (its click, a second in, never heard); the second starts past it.
+    s.reset();
+    s.audition (0.0f);
+    out = runSampler (s, 1.5, [&] (int block) { if (block == 50) s.audition (0.75f); });   // half a second in
+    CHECK (peak (out, 0).second < 0.01f);
+    // Back from a quarter again: one click, at the same place.
+    s.reset();
+    s.audition (0.25f);
+    out = runSampler (s, 1.0);
+    CHECK (std::abs (peak (out, 0).first - 24000) <= 2);
+}
+
+TEST ("sampler: Keys, Slices and Granular are buttons along its top; each shows its own knobs and hides the rest (0117)")
+{
+    KalibreSampler s;
+    editors::Owned editor (editors::open (s));
+    editor->setSize (1000, 300);
+    auto visibleKnobs = [&]
+    {
+        StringArray names;
+        std::function<void (Component&)> walk = [&] (Component& c)
+        {
+            if (auto* k = dynamic_cast<Slider*> (&c); k && k->isVisible()) names.add (k->getTitle());
+            for (auto* ch : c.getChildren()) walk (*ch);
+        };
+        walk (*editor);
+        return names;
+    };
+    auto button = [&] (const String& name) -> Button*
+    {
+        Button* found = nullptr;
+        std::function<void (Component&)> walk = [&] (Component& c)
+        {
+            if (auto* b = dynamic_cast<Button*> (&c); b && b->getButtonText() == name) found = b;
+            for (auto* ch : c.getChildren()) walk (*ch);
+        };
+        walk (*editor);
+        return found;
+    };
+    for (auto* name : { "Keys", "Slices", "Granular" }) CHECK (button (name) != nullptr);
+    if (! button ("Keys") || ! button ("Slices") || ! button ("Granular")) return;
+    CHECK (button ("Keys")->getToggleState());
+    auto keys = visibleKnobs();
+    CHECK (keys.contains ("Loop") && keys.contains ("Root Note") && keys.contains ("Speed"));
+    CHECK (! keys.contains ("Mode"));
+    CHECK (! keys.contains ("Slice Sensitivity") && ! keys.contains ("Grain Size"));
+
+    button ("Slices")->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (s.mode() == KalibreSampler::PlayMode::Slices);
+    CHECK (button ("Slices")->getToggleState() && ! button ("Keys")->getToggleState());
+    auto slices = visibleKnobs();
+    CHECK (slices.contains ("Slice Sensitivity"));
+    CHECK (! slices.contains ("Loop") && ! slices.contains ("Grain Size"));
+
+    button ("Granular")->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (s.mode() == KalibreSampler::PlayMode::Granular);
+    auto grains = visibleKnobs();
+    for (auto* k : { "Grain Size", "Density", "Spray", "Position", "Loop" }) CHECK (grains.contains (k));
+    CHECK (! grains.contains ("Slice Sensitivity"));
+}
+
+TEST ("arrangement: scrolled down, the tracks' headers never cover the Sections and Chords lanes under the ruler (0120)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    for (int i = 0; i < 12; ++i) edit::addTrack (c.project, TrackKind::Track, "Track " + std::to_string (i + 1));
+    c.showSectionLane = c.showChordLane = true;
+    c.refresh();
+    Arrange arrange (c);
+    arrange.setSize (1200, 500);
+    arrange.resized();
+    // Scrolled down by a track and a half.
+    arrange.mouseWheelMove (MouseEvent (Desktop::getInstance().getMainMouseSource(), { 600.0f, 300.0f }, {}, 1.0f, 0, 0, 0, 0,
+                                        &arrange, &arrange, Time::getCurrentTime(), { 600.0f, 300.0f }, Time::getCurrentTime(), 1, false),
+                            MouseWheelDetails { 0.0f, -0.3f, false, false, false });
+    const int lanesBottom = arrange.rulerHeight();
+    CHECK (lanesBottom > 60);
+    int shown = 0;
+    std::function<void (Component&)> walk = [&] (Component& comp)
+    {
+        for (auto* ch : comp.getChildren())
+        {
+            if (auto* h = dynamic_cast<TrackHeader*> (ch); h && h->isVisible())
+            {
+                ++shown;
+                // Where it's drawn in the arrangement, cut to what shows of it.
+                const auto onScreen = arrange.getLocalArea (h, h->getLocalBounds())
+                                          .getIntersection (arrange.getLocalArea (h->getParentComponent(), h->getParentComponent()->getLocalBounds()));
+                CHECK (onScreen.isEmpty() || onScreen.getY() >= lanesBottom);
+            }
+            else walk (*ch);
+        }
+    };
+    walk (arrange);
+    CHECK (shown > 0);
+}
+
+TEST ("playhead: between the audio's blocks it moves on with the clock, evenly, not in a block's steps; it never runs far ahead of the audio (0121)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Project p;
+    edit::addTrack (p, TrackKind::Track, "Keys");
+    startLive (engine, device, p);
+    engine.locate (0);
+    engine.play();
+    playLive (engine, 0.05);   // a few blocks
+    const double heard = engine.heardPosition();
+    const double t0 = Time::getMillisecondCounterHiRes();
+    const double a = engine.smoothPosition();
+    Thread::sleep (30);
+    const double b = engine.smoothPosition();
+    const double gone = (Time::getMillisecondCounterHiRes() - t0) / 1000.0;   // however long the sleep really was
+    // No block since: the block-by-block position hasn't moved, the smooth one has, by the time gone.
+    CHECK (std::abs (engine.heardPosition() - heard) < 1.0e-12);
+    CHECK (b > a);
+    if (gone < 0.2) CHECK (std::abs ((b - a) - gone) < 0.005);
+    // The audio stops coming: the playhead stops a quarter of a second on, at most.
+    Thread::sleep (400);
+    CHECK (engine.smoothPosition() - a <= 0.26);
+    engine.stop();
+    CHECK (std::abs (engine.smoothPosition() - engine.position()) < 1.0e-12);
 }

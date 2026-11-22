@@ -210,6 +210,9 @@ public:
     void stopAndGoToStart();    // the transport's Stop (0107)
     void toggleLoop();
     Tick playhead() const;
+    // Where the playhead is to draw it, between ticks and between audio blocks, so it moves
+    // evenly (0121); the cursor while stopped.
+    double playheadExact() const;
     void tapTempo();
 
     //==========================================================================
@@ -367,6 +370,10 @@ public:
     // Devices.
     // `position`: where in the track's devices (its role's place still kept); -1, after its kind.
     void addPlugin (Id track, const juce::PluginDescription&, std::optional<DeviceRole> as = {}, int position = -1);
+    // A new track, named for the plug-in, with it on: one undo step (the browser, 0125).
+    Id addPluginOnNewTrack (const juce::PluginDescription&);
+    // Where a plug-in's file is on this Mac (its bundle), or none (0125).
+    static juce::File pluginFile (const juce::PluginDescription&);
     void addBuiltIn (Id track, const PluginRef&, DeviceRole);
     // The Note Splitter (decision 0083): how many outputs, the track each goes to,
     // and a new track for each output without one. Each one undo step.
@@ -382,6 +389,8 @@ public:
     juce::Array<juce::File> presetsFor (const PluginRef&) const;
     bool savePreset (Id device, const juce::String& name);
     bool loadPreset (Id device, const juce::File&);
+    // The preset's plug-in on a new track, with the preset loaded: one undo step (0125).
+    Id presetOnNewTrack (Id fromDevice, const juce::File&);
     void loadProgram (Id device, int index);
     void switchAB (Id device);           // the other of the two settings being compared
     void copyToOther (Id device);        // the one heard now becomes the other too
@@ -457,13 +466,17 @@ public:
     // scanned, Kalibre's own devices and the musician's sounds. Replaces the song
     // (the window asks to save first). `lastRandomParts`: a line a track.
     randomsong::Catalogue randomCatalogue (const library::Index& sounds);
-    bool randomSong (const library::Index& sounds, unsigned seed);
+    // `addTo` (Shift-click, 0119): its tracks added to this song instead, in its key and at
+    // its tempo, one undo step; the song kept.
+    bool randomSong (const library::Index& sounds, unsigned seed, bool addTo = false);
     std::vector<std::string> lastRandomParts;
     // The device rack's Random (0102): devices by chance onto a track, one undo step;
     // an instrument when it has none and plays notes. False when there was nothing to add.
-    bool randomDevices (Id track, unsigned seed);
+    // `replace` (a click, 0119): the track's devices taken out first, in the same undo step;
+    // Shift-click adds to them, as before.
+    bool randomDevices (Id track, unsigned seed, bool replace = false);
     std::function<const library::Index*()> soundsIndex;   // the Sounds tab's scan, for the Samplers' sounds
-    std::function<void()> onRandomSong;   // the top bar's button asks the window
+    std::function<void (bool addTo)> onRandomSong;   // the top bar's button asks the window
 
     // The engine's state of mind, for the window.
     std::function<void()> onTransportChanged;

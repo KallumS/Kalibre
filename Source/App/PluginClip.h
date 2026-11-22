@@ -38,6 +38,8 @@ public:
     // Where the content's top left is, in this component's coordinates, and
     // how much it's scaled (1: its own size; 0.5: half as wide and as tall).
     void setContentPlacement (juce::Point<int>, float scale);
+    // A point in this component, in the content's own units (a drop over the plug-in's window).
+    juce::Point<float> toContent (juce::Point<float> p) const { return (p - position.toFloat()) / (scale > 0 ? scale : 1.0f); }
 
     void resized() override;
 

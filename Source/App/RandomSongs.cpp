@@ -95,7 +95,7 @@ randomsong::Catalogue Controller::randomCatalogue (const library::Index& sounds)
     return cat;
 }
 
-bool Controller::randomDevices (Id trackId, unsigned seed)
+bool Controller::randomDevices (Id trackId, unsigned seed, bool replace)
 {
     const auto* t = project.track (trackId);
     if (! t) { say ("Choose a track for the random devices."); return false; }
@@ -110,7 +110,7 @@ bool Controller::randomDevices (Id trackId, unsigned seed)
     // An instrument for a track that plays notes and has none; a track of audio clips, a return,
     // a folder or the master get effects only.
     bool hasInstrument = false, hasAudio = false, hasMidi = false;
-    for (auto& d : t->devices) hasInstrument |= d.role == DeviceRole::Instrument;
+    if (! replace) for (auto& d : t->devices) hasInstrument |= d.role == DeviceRole::Instrument;
     if (t->holdsClips()) for (auto& cl : t->clips()) (cl.isMidi() ? hasMidi : hasAudio) = true;
     const bool notes = t->kind == TrackKind::Track && (hasMidi || ! hasAudio);
     const bool instrument = notes && ! hasInstrument;
@@ -147,6 +147,14 @@ bool Controller::randomDevices (Id trackId, unsigned seed)
     std::set<Id> added;
     apply ("Random Devices", [&] (Project& p)
     {
+        // A click starts the track again: what was on it goes, in this same undo step.
+        if (replace)
+            if (auto* tr = p.track (trackId))
+            {
+                std::vector<Id> ids;
+                for (auto& d : tr->devices) ids.push_back (d.id);
+                for (auto id : ids) edit::removeDevice (p, id);
+            }
         for (size_t i = 0; i < picks.size(); ++i)
         {
             const auto& pk = picks[i];
@@ -169,10 +177,17 @@ bool Controller::randomDevices (Id trackId, unsigned seed)
     return true;
 }
 
-bool Controller::randomSong (const library::Index& sounds, unsigned seed)
+bool Controller::randomSong (const library::Index& sounds, unsigned seed, bool addTo)
 {
     randomsong::Options o;
     o.seed = seed;
+    if (addTo)
+    {
+        o.intoSong = true;
+        o.bpm = project.tempo.bpmAt (0);
+        o.scale = project.scale;
+        o.firstId = project.nextId;
+    }
     auto made = randomsong::make (randomCatalogue (sounds), o);
     auto& p = made.project;
     if (p.tracks.empty()) { say ("A random song couldn't be made: the music engines didn't answer.", true); return false; }
@@ -200,7 +215,31 @@ bool Controller::randomSong (const library::Index& sounds, unsigned seed)
         }
     // The house colours, a track each.
     auto& colours = theme::trackColours();
-    for (size_t i = 0; i < p.tracks.size(); ++i) p.tracks[i].colour = colours[(int) (i + 1) % colours.size()].getARGB();
+    const size_t had = addTo ? project.tracks.size() : 0;
+    for (size_t i = 0; i < p.tracks.size(); ++i) p.tracks[i].colour = colours[(int) (had + i + 1) % colours.size()].getARGB();
+
+    // Shift-click: its tracks join this song, after the ones there are, one undo step.
+    if (addTo)
+    {
+        std::set<Id> added;
+        for (auto& t : p.tracks) for (auto& d : t.devices) added.insert (d.id);
+        const Id first = p.tracks.front().id;
+        const bool ok = apply ("Random Tracks", [&] (Project& song)
+        {
+            for (auto& t : p.tracks) song.tracks.push_back (t);
+            song.nextId = std::max (song.nextId, p.nextId);
+        });
+        if (! ok) return false;
+        const int gone = dropUnloaded (project, engine, added);
+        if (gone > 0) syncEngine();
+        focusTrack = first;
+        selectedTracks = { focusTrack };
+        sendChangeMessage();
+        say ("Random tracks added: " + String (made.summary) + "." + (gone > 0 ? " (" + String (gone) + (gone == 1 ? " plug-in couldn't be loaded and was left out.)" : " plug-ins couldn't be loaded and were left out.)") : String()),
+             false, true);
+        lastRandomParts = made.parts;
+        return true;
+    }
 
     // A new song, as File > New is: the one before was saved or let go of first.
     engine.stop();

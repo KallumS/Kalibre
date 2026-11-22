@@ -51,6 +51,9 @@
 | `Engine/PluginManager.*` | Scanning (each plug-in in a helper: Kalibre run with `--kalibre-scan`), turning plug-ins off and on, and making them (0047). The helper's `controls` mode reads every control for the Random Settings Report (0104). |
 | `Engine/MorphProcessor.*` | The X/Y morph (0018), and the latency and gain devices the tests use. |
 | `Engine/ContainerProcessor.*` | The Container: plug-ins in a row, each on a band, the mid or the sides (0055). |
+| `Engine/MultibandProcessor.*` | The Multiband: 2 to 4 Linkwitz-Riley bands, plug-ins on each, crossovers dragged on a live spectrum (0126). |
+| `Engine/StereoSplitProcessor.*` | Stereo Split: Left, Middle, Right by each frequency's place (a short-time Fourier transform), or Middle and Sides; a vectorscope (0127). |
+| `Engine/SplitProcessor.*` | What the Multiband and Stereo Split share: the parts, their plug-ins and windows, On, Solo, Volume, delay met, state, a part's column (0126, 0127). |
 | `Core/DrumSounds.*` | Whether a sound is a drum, and which: name, folders, length, the hit's shape (0106). |
 | `Engine/DrumMachine.*`, `DrumMachineEditor.cpp`; `Core/DrumKit.*` | Kalibre Drums: pads of samples or hosted plug-ins, its own steps from the playhead; the kit as JSON, Random Samples, the pattern as notes (0105). |
 | `Engine/DrumPadsDevice.*`, `DrumPadsEditor.cpp`; `Core/DrumPads.*` | Drum Pads: 128 pads, a note each, of samples or hosted plug-ins; volume, pan, mute, solo, choke groups with a 2 ms fade; the kit handed to the audio thread through `Swap`, the pads summed at 64 bits (0128). |
@@ -157,6 +160,7 @@ performance core, each as soon as what feeds it is done (0078).
 - A plug-in's window in the rack is opened only once its panel is in a window on the screen (`DeviceRack::pluginsNeedAWindow`, on the Mac): a plug-in given a native view with no window set an impossible size and AppKit stopped Kalibre (0110).
 - Anything drawn over the plug-ins' windows must be its own window or go through `ui::present`, which hides them meanwhile (those in their own windows too) and puts the question near the top, under the top bar (0110): on the Mac they're native views, drawn above everything Kalibre draws (0056).
 - On the Mac nothing Kalibre draws clips a plug-in's window, and a `Viewport` doesn't either: a plug-in in the rack is shown through a `PluginClip` (0058).
+- A window that closes is emptied and hidden, and handed to `editors::retire`, never deleted at once: macOS sends a scroll's glide to a freed window (0115).
 - A plug-in's window is opened and closed with `editors::open` and `editors::close`, never `delete`: JUCE 9 needs the plug-in told first, or it won't open another (0056).
 - Graph channels are set before connecting to them: a connection to a channel that doesn't exist yet is silently refused (that cost a render).
 - Every colour comes from `Theme.h`; every word is 7:1.

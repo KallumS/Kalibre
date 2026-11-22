@@ -48,16 +48,42 @@ bool byName (const std::string& a, const std::string& b)
     return la != lb ? la < lb : a < b;
 }
 
-void order (std::vector<std::string>& paths, const Settings& s)
+// How long a sound is, in seconds: a sample's own, a MIDI file's beats at its tempo (or 120).
+double lengthOf (const Item& it)
+{
+    if (it.kind == Kind::Midi) return it.beats * 60.0 / (it.bpm > 0 ? it.bpm : 120.0);
+    return it.seconds;
+}
+
+void order (std::vector<std::string>& paths, const Settings& s, const Index& index)
 {
     if (s.shuffled)
+    {
         std::sort (paths.begin(), paths.end(), [&s] (const std::string& a, const std::string& b)
         {
             const auto ka = shuffleKey (a, s.seed), kb = shuffleKey (b, s.seed);
             return ka != kb ? ka < kb : a < b;
         });
-    else
-        std::sort (paths.begin(), paths.end(), byName);
+        return;
+    }
+    using Sort = Settings::Sort;
+    if (s.sort == Sort::AToZ) { std::sort (paths.begin(), paths.end(), byName); return; }
+    if (s.sort == Sort::ZToA) { std::sort (paths.begin(), paths.end(), [] (const std::string& a, const std::string& b) { return byName (b, a); }); return; }
+    // By length or tempo, the same ones by name; a sound whose tempo isn't known last.
+    auto item = [&index] (const std::string& p) -> const Item* { auto it = index.items.find (p); return it != index.items.end() ? &it->second : nullptr; };
+    std::stable_sort (paths.begin(), paths.end(), [&] (const std::string& a, const std::string& b)
+    {
+        const auto* ia = item (a);
+        const auto* ib = item (b);
+        double va = 0, vb = 0;
+        bool ka = ia != nullptr, kb = ib != nullptr;
+        const bool byTempo = s.sort == Sort::SlowestFirst || s.sort == Sort::FastestFirst;
+        if (ia) { va = byTempo ? ia->bpm : lengthOf (*ia); ka = ! byTempo || ia->bpm > 0; }
+        if (ib) { vb = byTempo ? ib->bpm : lengthOf (*ib); kb = ! byTempo || ib->bpm > 0; }
+        if (ka != kb) return ka;   // known before unknown
+        if (ka && va != vb) return (s.sort == Sort::LongestFirst || s.sort == Sort::FastestFirst) ? va > vb : va < vb;
+        return byName (a, b);
+    });
 }
 
 std::string trimSlash (std::string s)
@@ -217,7 +243,7 @@ std::vector<Row> rows (const Index& index, const Settings& s, const std::string&
     {
         std::vector<std::string> all;
         for (auto& [r, paths] : byRoot) all.insert (all.end(), paths.begin(), paths.end());
-        order (all, s);
+        order (all, s, index);
         for (auto& p : all) out.push_back ({ Row::Type::Item, p, 0, false, 0 });
         return out;
     }
@@ -252,9 +278,10 @@ std::vector<Row> rows (const Index& index, const Settings& s, const std::string&
             if (! open) return;
             std::vector<std::string> sub (foldersIn[folder].begin(), foldersIn[folder].end());
             std::sort (sub.begin(), sub.end(), byName);
+            if (! s.shuffled && s.sort == Settings::Sort::ZToA) std::reverse (sub.begin(), sub.end());
             for (auto& f : sub) add (f, depth + 1);
             auto items = itemsIn[folder];
-            order (items, s);
+            order (items, s, index);
             for (auto& p : items) out.push_back ({ Row::Type::Item, p, depth + 1, false, 0 });
         };
         add (root, 0);
@@ -295,6 +322,7 @@ std::string toJson (const Settings& s)
     j["flat"] = s.flat;
     j["favouritesOnly"] = s.favouritesOnly;
     j["shuffled"] = s.shuffled;
+    j["sort"] = (int) s.sort;
     j["seed"] = s.seed;
     j["sync"] = s.sync;
     j["autoPlay"] = s.autoPlay;
@@ -315,6 +343,7 @@ bool fromJson (const std::string& text, Settings& s)
     d.flat = j.value ("flat", false);
     d.favouritesOnly = j.value ("favouritesOnly", false);
     d.shuffled = j.value ("shuffled", false);
+    d.sort = (Settings::Sort) std::clamp (j.value ("sort", 0), 0, 5);
     d.seed = j.value ("seed", (std::uint32_t) 1);
     d.sync = j.value ("sync", true);
     d.autoPlay = j.value ("autoPlay", true);

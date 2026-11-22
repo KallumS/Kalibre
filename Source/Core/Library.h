@@ -99,6 +99,9 @@ struct Settings
     bool favouritesOnly = false;
     bool shuffled = false;
     std::uint32_t seed = 1;              // the shuffle: a new one each time it's asked for
+    // The order when not shuffled (0123): by name either way, by length, by tempo.
+    enum class Sort { AToZ, ZToA, LongestFirst, ShortestFirst, SlowestFirst, FastestFirst };
+    Sort sort = Sort::AToZ;
     bool sync = true;                    // previews follow the song's tempo
     bool autoPlay = true;                // choosing a sound plays it (off: click its picture to hear it)
     std::set<std::string> open;          // folders shown open

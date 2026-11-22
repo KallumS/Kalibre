@@ -93,6 +93,7 @@ public:
             group.name = g.name;
             for (auto* prm : g.params)
             {
+                knobParams.push_back (prm);
                 auto* s = knobs.add (new Slider (Slider::RotaryHorizontalVerticalDrag, Slider::TextBoxBelow));
                 s->setTextBoxStyle (Slider::TextBoxBelow, false, 64, 14);
                 s->setTitle (prm->getName (64));
@@ -109,12 +110,29 @@ public:
         }
     }
 
+    // Which knobs are shown (Kalibre Sampler's: only its mode's, 0117); all when not set.
+    std::function<bool (const RangedAudioParameter&)> shows;
+    bool shown (int knob) const { return ! shows || shows (*knobParams[(size_t) knob]); }
+    void refresh()
+    {
+        for (int i = 0; i < knobs.size(); ++i) { knobs[i]->setVisible (shown (i)); labels[i]->setVisible (shown (i)); }
+        resized();
+        repaint();
+    }
+    int visibleIn (const std::vector<int>& indices) const
+    {
+        int n = 0;
+        for (int i : indices) n += shown (i) ? 1 : 0;
+        return n;
+    }
+
     void paint (Graphics& g) override
     {
         g.fillAll (theme::sunken);
         g.setFont (theme::font (theme::smallPoints, true));
         for (auto& gr : groups)
         {
+            if (gr.box.isEmpty()) continue;
             g.setColour (theme::lane);
             g.fillRoundedRectangle (gr.box.toFloat(), 5.0f);
             g.setColour (theme::text);
@@ -128,22 +146,28 @@ public:
     {
         // Each group a box across; its knobs in two rows.
         auto r = getLocalBounds().reduced (6);
-        int total = 0;
-        for (auto& gr : groups) total += ((int) gr.indices.size() + 1) / 2;
-        const int unit = total > 0 ? (r.getWidth() - 6 * ((int) groups.size() - 1)) / total : 0;
+        int total = 0, shownGroups = 0;
+        for (auto& gr : groups)
+            if (const int n = visibleIn (gr.indices); n > 0) { total += (n + 1) / 2; ++shownGroups; }
+        const int unit = total > 0 ? (r.getWidth() - 6 * jmax (0, shownGroups - 1)) / total : 0;
         for (auto& gr : groups)
         {
-            const int cols = ((int) gr.indices.size() + 1) / 2;
+            const int n = visibleIn (gr.indices);
+            if (n == 0) { gr.box = {}; continue; }
+            const int cols = (n + 1) / 2;
             gr.box = r.removeFromLeft (unit * cols);
             r.removeFromLeft (6);
             auto inner = gr.box.withTrimmedTop (18).reduced (4);
             const int rowH = inner.getHeight() / 2;
-            for (size_t i = 0; i < gr.indices.size(); ++i)
+            int k = 0;
+            for (int idx : gr.indices)
             {
-                const int col = (int) i % cols, row = (int) i / cols;
+                if (! shown (idx)) continue;
+                const int col = k % cols, row = k / cols;
+                ++k;
                 Rectangle<int> cell (inner.getX() + col * unit, inner.getY() + row * rowH, unit, rowH);
-                labels[gr.indices[i]]->setBounds (cell.removeFromTop (14));
-                knobs[gr.indices[i]]->setBounds (cell.reduced (2));
+                labels[idx]->setBounds (cell.removeFromTop (14));
+                knobs[idx]->setBounds (cell.reduced (2));
             }
         }
     }
@@ -151,6 +175,7 @@ public:
 private:
     struct G { String name; std::vector<int> indices; Rectangle<int> box; };
     std::vector<G> groups;
+    std::vector<RangedAudioParameter*> knobParams;
     OwnedArray<Slider> knobs;
     OwnedArray<Label> labels;
     OwnedArray<SliderParameterAttachment> attachments;
@@ -181,6 +206,18 @@ public:
     explicit SamplerEditor (KalibreSampler& p) : AudioProcessorEditor (p), proc (p), knobs (p)
     {
         addAndMakeVisible (knobs);
+        // Keys, Slices, Granular along the top (0117): each shows its own knobs, and only those.
+        const char* tips[] = { "Keys: the sample played across the keyboard from its Root Note, faster and higher up the keys.",
+                               "Slices: the sample cut at its hits, a key each from the Root Note up: play a drum loop's hits from the keys.",
+                               "Granular: the sample played as many short grains, so its speed and its pitch are apart." };
+        for (int m = 0; m < 3; ++m)
+        {
+            auto* b = modes.add (new theme::HouseButton (modeNames[m], tips[m]));
+            b->onClick = [this, m] { chooseMode (m); };
+            addAndMakeVisible (b);
+        }
+        knobs.shows = [this] (const RangedAudioParameter& prm) { return showsKnob (prm.getParameterID()); };
+        showMode();
         addAndMakeVisible (loadButton);
         addAndMakeVisible (randomButton);
         randomButton.onClick = [this]
@@ -202,7 +239,7 @@ public:
         setResizable (true, false);
         setResizeLimits (360, 200, 3000, 1600);
         setSize (1000, 300);
-        startTimerHz (10);
+        startTimerHz (30);   // the preview's line moves smoothly
     }
     ~SamplerEditor() override { proc.onLoaded = nullptr; }
 
@@ -213,7 +250,50 @@ public:
         for (int i : { (int) KalibreSampler::Start, (int) KalibreSampler::End, (int) KalibreSampler::Loop, (int) KalibreSampler::LoopStart,
                        (int) KalibreSampler::Mode, (int) KalibreSampler::Sensitivity, (int) KalibreSampler::Position })
             now << proc.value (i) << ",";
-        if (now != shown) { shown = now; slices = proc.mode() == KalibreSampler::PlayMode::Slices ? proc.slicePoints() : std::vector<int>(); repaint(); }
+        if (now != shown) { shown = now; slices = proc.mode() == KalibreSampler::PlayMode::Slices ? proc.slicePoints() : std::vector<int>(); showMode(); repaint(); }
+        // The preview's line, while it plays.
+        const float at = proc.auditionPosition();
+        if (at != previewShown) { previewShown = at; repaint (waveArea()); }
+    }
+
+    static constexpr const char* modeNames[3] { "Keys", "Slices", "Granular" };
+
+    // A knob shown in this mode: Mode itself never (the buttons are it); Loop in Keys and
+    // Granular; Slice Sensitivity in Slices; the grains in Granular; the rest always.
+    bool showsKnob (const String& id) const
+    {
+        const auto m = proc.mode();
+        if (id == "mode") return false;
+        if (id == "loop" || id == "loopstart") return m != KalibreSampler::PlayMode::Slices;
+        if (id == "sensitivity") return m == KalibreSampler::PlayMode::Slices;
+        if (id == "grainsize" || id == "density" || id == "spray" || id == "position") return m == KalibreSampler::PlayMode::Granular;
+        return true;
+    }
+
+    void chooseMode (int m)
+    {
+        if (auto* prm = dynamic_cast<RangedAudioParameter*> (proc.getParameters()[(int) KalibreSampler::Mode]))
+        {
+            prm->beginChangeGesture();
+            prm->setValueNotifyingHost (prm->convertTo0to1 ((float) m));
+            prm->endChangeGesture();
+        }
+        showMode();
+    }
+
+    void showMode()
+    {
+        const int now = (int) proc.mode();
+        for (int m = 0; m < 3; ++m) modes[m]->setToggleState (m == now, dontSendNotification);
+        if (now != modeShown) { modeShown = now; knobs.refresh(); }
+    }
+
+    // A click on the waveform plays the sample from there; another click cuts it off (0117).
+    void mouseDown (const MouseEvent& e) override
+    {
+        const auto w = waveArea();
+        if (! w.contains (e.getPosition()) || proc.sample().getNumSamples() == 0 || e.mods.isPopupMenu()) return;
+        proc.audition ((float) (e.x - w.getX()) / (float) jmax (1, w.getWidth()));
     }
 
     void loadFile (const File& f)
@@ -278,30 +358,36 @@ public:
         }
         mark (proc.value (KalibreSampler::Start), theme::playhead);
         mark (proc.value (KalibreSampler::End), theme::playhead);
-        if (proc.value (KalibreSampler::Loop) > 0.5f) mark (proc.value (KalibreSampler::LoopStart), theme::edge);
+        if (proc.value (KalibreSampler::Loop) > 0.5f && how != KalibreSampler::PlayMode::Slices) mark (proc.value (KalibreSampler::LoopStart), theme::edge);
+        // Where the preview is (clicked on the waveform), in the accent: it's playing.
+        if (const float at = proc.auditionPosition(); at >= 0) mark (at, theme::accent);
         g.setColour (theme::text);
         const String modeName = how == KalibreSampler::PlayMode::Slices ? "Slices: " + String ((int) slices.size()) + ", a key each from the root"
                               : how == KalibreSampler::PlayMode::Granular ? String ("Granular: the grains start at Position")
                               : String ("Keys: across the keyboard from the root");
-        g.drawText (proc.file().getFileName() + "   " + modeName, w.reduced (6, 4), Justification::topLeft, true);
+        g.drawText (proc.file().getFileName() + "   " + modeName + "   (click to hear it from there)", w.reduced (6, 4), Justification::topLeft, true);
     }
 
+    // The top row: the modes on the left, Load Sample and Random Sample on the right;
+    // the waveform under it, as wide as the panel.
+    Rectangle<int> topRow() const { return getLocalBounds().removeFromTop (waveHeight()).reduced (6).removeFromTop (theme::px (24)); }
     Rectangle<int> waveArea() const
     {
-        return getLocalBounds().removeFromTop (waveHeight()).reduced (6).withTrimmedRight (jmax (loadButton.getWidth(), randomButton.getWidth()) + 8);
+        return getLocalBounds().removeFromTop (waveHeight()).reduced (6).withTrimmedTop (theme::px (24) + 6);
     }
 
     // The waveform gives way first in a short panel, so the knobs stay big enough to turn
-    // (the UAT's were dots): two fifths, but no less than 70 (its two buttons) and leaving the knobs 170.
-    int waveHeight() const { return jlimit (70, jmax (70, getHeight() * 2 / 5), getHeight() - 170); }
+    // (the UAT's were dots): two fifths, but no less than 90 (the buttons' row and a strip
+    // of waveform) and leaving the knobs 170.
+    int waveHeight() const { return jlimit (90, jmax (90, getHeight() * 2 / 5), getHeight() - 170); }
 
     void resized() override
     {
-        auto top = getLocalBounds().removeFromTop (waveHeight()).reduced (6);
-        auto side = top.removeFromRight (jmax (loadButton.idealWidth (theme::smallControl), randomButton.idealWidth (theme::smallControl)));
-        loadButton.setBounds (side.removeFromTop (theme::px (24)));
-        side.removeFromTop (theme::px (4));
-        randomButton.setBounds (side.removeFromTop (theme::px (24)));
+        auto row = topRow();
+        for (auto* b : modes) { b->setBounds (row.removeFromLeft (b->idealWidth (theme::smallControl))); row.removeFromLeft (6); }
+        randomButton.setBounds (row.removeFromRight (randomButton.idealWidth (theme::smallControl)));
+        row.removeFromRight (6);
+        loadButton.setBounds (row.removeFromRight (loadButton.idealWidth (theme::smallControl)));
         knobs.setBounds (getLocalBounds().withTrimmedTop (waveHeight()));
     }
 
@@ -315,6 +401,9 @@ private:
     String shown;
     std::vector<int> slices;
     KnobPanel knobs;
+    OwnedArray<theme::HouseButton> modes;
+    int modeShown = -1;
+    float previewShown = -1;
     theme::HouseButton loadButton { ui::u8 ("Load Sample\xe2\x80\xa6"), "Choose the sample to play." };
     theme::HouseButton randomButton { "Random Sample", "Any sound from your Sounds folders: a loop, a one-shot, a note, a texture. "
                                                        "A melodic one plays in tune: its Root Note is set to the note it is. Click again for another." };
@@ -913,7 +1002,53 @@ void KalibreSampler::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
         else if (msg.isAllNotesOff() || msg.isAllSoundOff()) for (auto& v : voices) { v.env.reset(); v.note = -1; }
     }
     if (at < audio.getNumSamples()) renderTo (at, audio.getNumSamples());
+    renderPreview (audio, gain);
     midi.clear();
+}
+
+void KalibreSampler::audition (float fraction)
+{
+    auditionFrom = jlimit (0.0f, 1.0f, fraction);
+    ++auditionAsked;
+}
+
+// The sample as it is, from where the waveform was clicked: no envelope, no filter,
+// its own pitch; Volume only. A new click starts it again and fades the last out.
+void KalibreSampler::renderPreview (AudioBuffer<float>& audio, float gain)
+{
+    const int len = data.getNumSamples();
+    const double step = fileRate / rate;
+    if (const int asked = auditionAsked.load(); asked != auditionSeen)
+    {
+        auditionSeen = asked;
+        if (preview.pos >= 0) { cutOff = preview; cutOff.fadeStep = (float) (1.0 / (0.005 * rate)); }
+        preview.pos = auditionFrom.load() * (double) jmax (0, len - 1);
+        preview.fade = 0.0f;
+        preview.fadeStep = -(float) (1.0 / (0.002 * rate));   // a 2 ms fade in, so it never clicks
+    }
+    auto play = [&] (Preview& p)
+    {
+        if (p.pos < 0) return;
+        for (int i = 0; i < audio.getNumSamples(); ++i)
+        {
+            if (p.pos >= len - 1) { p.pos = -1; return; }
+            // fadeStep < 0: fading in; > 0: fading out, gone at 0.
+            if (p.fadeStep < 0) p.fade = jmin (1.0f, p.fade - p.fadeStep);
+            else if (p.fadeStep > 0) { p.fade -= p.fadeStep; if (p.fade <= 0) { p.pos = -1; return; } }
+            const int i0 = (int) p.pos;
+            const float frac = (float) (p.pos - i0), g = gain * p.fade;
+            for (int ch = 0; ch < jmin (2, audio.getNumChannels()); ++ch)
+            {
+                const int src = jmin (ch, data.getNumChannels() - 1);
+                const float s = data.getSample (src, i0) + (data.getSample (src, i0 + 1) - data.getSample (src, i0)) * frac;
+                audio.addSample (ch, i, s * g);
+            }
+            p.pos += step;
+        }
+    };
+    play (cutOff);
+    play (preview);
+    auditionShown = preview.pos >= 0 && len > 0 ? (float) (preview.pos / len) : -1.0f;
 }
 
 void KalibreSampler::reset()
@@ -927,6 +1062,9 @@ void KalibreSampler::reset()
     }
     seedGrains();
     bend = 0;
+    preview = {};
+    cutOff = {};
+    auditionShown = -1;
 }
 
 AudioProcessorEditor* KalibreSampler::createEditor() { return new SamplerEditor (*this); }

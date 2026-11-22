@@ -36,7 +36,9 @@ and solo for each pad.
 - **Onto a pad**: drag a sound from the Sounds tab or the Finder (several
   from the Finder: this pad and those above it), or a plug-in from the
   browser; or the pad's menu (right-click) or the chosen pad's controls:
-  Choose a Sample…, Plug-in ▾, Clear. Click a pad to hear it and choose it:
+  Choose a Sample…, Plug-in ▾, Clear. The window is a drop target itself,
+  handing a drop to the pad under the point, so a sound dragged onto it in
+  the rack reaches its pad on the Mac too, through the panel (0116). Click a pad to hear it and choose it:
   its controls show beside the pads (name, note, sound, Volume and Pan
   knobs, M, S, Choke Group ▾, the plug-in's note), its plug-in's window
   beside those.
@@ -73,7 +75,8 @@ and solo for each pad.
   rows and the drum grid opening its clips; the window's sixteen with the
   lowest at the bottom left, a sound dropped on a pad, four from the Finder
   filling up to pad 127, the view kept with the song; M on a pad one undo
-  step; Random Samples by kind. Neutral (`TestNeutral.cpp`): a pad at 0 dB
+  step; Random Samples by kind; a sound dropped on the window, and on its
+  panel in the rack, playing the pad under the point. Neutral (`TestNeutral.cpp`): a pad at 0 dB
   in the centre at full velocity cancels against its sample, two pads are
   their sum rounded once. In Core: names, views, mute and solo, the state,
   Random Samples.

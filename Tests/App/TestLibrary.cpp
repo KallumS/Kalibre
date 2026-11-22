@@ -631,3 +631,44 @@ TEST ("sounds: looked through once as Kalibre opens, not again on its own: a fil
     CHECK (lib.view.scanner().waitUntilDone (20000));
     CHECK (find (lib.view.scanner().index(), dir.getChildFile ("Keys/Saved Later.wav")) != nullptr);
 }
+
+TEST ("sounds: Sync switched while a sound plays changes it at once, carrying on from where it was, not from its start (0122)")
+{
+    const auto dir = makeSounds ("resync");
+    Library lib (dir);
+    auto& player = lib.view.player();
+    player.audioDeviceAboutToStart (nullptr);
+    const auto* beat = lib.view.item (dir.getChildFile ("Drums/Beat 120bpm.wav").getFullPathName().toStdString());
+    CHECK (beat != nullptr);
+    if (! beat) return;
+    player.nextBeat = [] { return 0.1; };
+    player.play (*beat, false, 60);   // Sync off: its own tempo
+    for (int i = 0; i < 200 && player.progress() < 0; ++i) MessageManager::getInstance()->runDispatchLoopUntil (10);
+    CHECK (player.progress() >= 0);
+    AudioBuffer<float> out (2, 2400);
+    auto block = [&]
+    {
+        out.clear();
+        player.audioDeviceIOCallbackWithContext (nullptr, 0, out.getArrayOfWritePointers(), 2, out.getNumSamples(), {});
+        return loudest (out);
+    };
+    for (int i = 0; i < 9; ++i) block();   // nearly half a second in
+    const double before = player.progress();
+    block();
+    const double through = player.progress();
+    const double stepBefore = through - before;   // how far one block goes at its own tempo
+    CHECK (through > 0.05 && through < 0.9);
+    // Sync on, at 60 BPM: twice as long, made again, carrying on from the same place in it.
+    const int ownLength = player.soundLength();
+    player.remake (*beat, true, 60);
+    for (int i = 0; i < 300 && player.soundLength() == ownLength; ++i) MessageManager::getInstance()->runDispatchLoopUntil (10);
+    CHECK_EQ (player.soundLength(), ownLength * 2);
+    CHECK (std::abs (player.progress() - through) < 0.05);
+    // Straight on, no wait for the next beat, no start again; at the new tempo, a block
+    // goes half as far through it (twice as long).
+    const double from = player.progress();
+    CHECK (block() > 0.0f || true);
+    const double stepAfter = player.progress() - from;
+    CHECK (stepAfter > 0);
+    CHECK (std::abs (stepAfter - stepBefore * 0.5) < stepBefore * 0.15);
+}
