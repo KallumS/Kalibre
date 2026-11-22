@@ -459,6 +459,8 @@ void TrackHeader::mouseDoubleClick (const MouseEvent&) { name.showEditor(); }
 //==============================================================================
 Arrange::Arrange (Controller& ctrl) : c (ctrl)
 {
+    headerColumn.setInterceptsMouseClicks (false, true);
+    addAndMakeVisible (headerColumn);
     addAndMakeVisible (vbar);
     addAndMakeVisible (hbar);
     vbar.setAutoHide (false);
@@ -468,7 +470,9 @@ Arrange::Arrange (Controller& ctrl) : c (ctrl)
     setWantsKeyboardFocus (false);
     setTitle ("Tracks");
     c.addChangeListener (this);
-    startTimerHz (30);
+    // The playhead follows the screen's own refresh, not a timer of its own: a timer beats
+    // against the screen and the audio's blocks, and the playhead stuttered (0121).
+    vblank = std::make_unique<VBlankAttachment> (this, [this] { timerCallback(); });
     changeListenerCallback (nullptr);
 }
 
@@ -524,14 +528,15 @@ void Arrange::layoutRows()
     for (int i = headers.size(); --i >= 0;)
         if (! shown.count (headers[i]->id)) headers.remove (i);
     const int top = rulerHeight();
+    headerColumn.setBounds (0, top, headerWidth(), jmax (0, getHeight() - top));
     for (auto& r : rows)
     {
         if (! r.isClips()) continue;
         TrackHeader* h = nullptr;
         for (auto* x : headers) if (x->id == r.track) h = x;
-        if (! h) { h = headers.add (new TrackHeader (*this, c, r.track)); addAndMakeVisible (h); }
-        h->setBounds (0, top + r.y - scrollY, headerWidth(), r.h);
-        h->setVisible (top + r.y - scrollY + r.h > top && top + r.y - scrollY < getHeight());
+        if (! h) { h = headers.add (new TrackHeader (*this, c, r.track)); headerColumn.addAndMakeVisible (h); }
+        h->setBounds (0, r.y - scrollY, headerWidth(), r.h);
+        h->setVisible (r.y - scrollY + r.h > 0 && r.y - scrollY < headerColumn.getHeight());
         if (auto* t = c.project.track (r.track)) h->update (*t);
     }
     const auto lanes = laneArea();
@@ -582,12 +587,13 @@ void Arrange::timerCallback()
             return;
         }
     }
-    const float x = xOf (c.playhead());
-    if (std::abs (x - lastPlayheadX) > 0.5f)
+    // Every refresh of the screen, at its place between ticks and blocks (0121).
+    const float x = playheadX();
+    if (std::abs (x - lastPlayheadX) > 0.05f)
     {
         const int top = 0;
-        repaint ((int) lastPlayheadX - 2, top, 5, getHeight());
-        repaint ((int) x - 2, top, 5, getHeight());
+        repaint ((int) std::floor (lastPlayheadX) - 2, top, 6, getHeight());
+        repaint ((int) std::floor (x) - 2, top, 6, getHeight());
         lastPlayheadX = x;
     }
 }
@@ -1172,7 +1178,7 @@ void Arrange::paintOverChildren (Graphics& g)
     }
     if (c.engine.isPlaying())
     {
-        const float x = xOf (c.playhead());
+        const float x = lastPlayheadX = playheadX();
         if (x >= (float) lanes.getX())
         {
             g.setColour (theme::playhead);
@@ -1848,6 +1854,18 @@ void Arrange::clipMenu (Id id)
         {
             c.apply ("Invert", [chosen] (Project& p) { for (auto cid : chosen) edit::invertClip (p, cid); });
         });
+        // Humanise (0124): each note's velocity and timing a little different, by chance.
+        if (! audio)
+            m.addItem ("Humanise", true, false, [this, chosen]
+            {
+                const auto seed = (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u;
+                const Tick grid = c.grid;
+                c.apply ("Humanise", [chosen, seed, grid] (Project& p)
+                {
+                    unsigned k = 0;
+                    for (auto cid : chosen) edit::humanise (p, cid, grid, seed + k++);
+                });
+            });
         if (audio)
             m.addItem ("Split at Transients", clip->loopLength == 0 && ! clip->audio.reversed, false, [this, chosen]
             {

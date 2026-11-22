@@ -22,8 +22,8 @@ Each section ends with what has been tried and what hasn't.
 | [Trombolese](#trombolese) | [Container](#container) | [MIDI Production Center](#midi-production-center) | [Starting Blocks Notation](#starting-blocks-notation) |
 | [Reese Basser](#reese-basser) | [Hardware Insert](#hardware-insert) | [Note Splitter](#note-splitter) | [Midi Catalogue](#midi-catalogue) |
 | [Instrument Creator](#instrument-creator) | [X/Y Morph (effect)](#xy-morph) | [ScaleView](#scaleview) | [Orchestration Helper](#orchestration-helper) |
-| [Instant Virtual Instrument](#instant-virtual-instrument) | | | |
-| [X/Y Morph (instrument)](#xy-morph) | | | |
+| [Instant Virtual Instrument](#instant-virtual-instrument) | [Multiband](#multiband) | | |
+| [X/Y Morph (instrument)](#xy-morph) | [Stereo Split](#stereo-split) | | |
 
 **Every device** has the rack's own buttons (⏻ off, B bypass, Set A/B,
 Presets, ⧉ its own window, … its menu: [User Guide, Section 8](USER-GUIDE.md#8-plug-ins-and-devices)),
@@ -86,8 +86,10 @@ stop each other.
 
 ### Kalibre Sampler
 
-One sample, played three ways (**Mode**, 0095). **Drop an audio file onto
-its panel** to load it, click **Load Sample…**, or **Random Sample** for any
+One sample, played three ways: **Keys**, **Slices** and **Granular**, the
+buttons along its top, each showing only its own knobs (0095, 0117). Click
+the waveform to hear the sample from there; a new click stops the last.
+**Drop an audio file onto its panel** to load it, click **Load Sample…**, or **Random Sample** for any
 sound from the Sounds folders. However it's loaded, its Root Note is set to
 the note the scan heard in it (0108, 0109). Up to 32 notes at once.
 
@@ -332,8 +334,11 @@ synthetic.
 Four corners, **A**, **B**, **C** and **D**, each a plug-in or a sample, mixed
 by where the dot sits on the pad. Add it as an instrument (sample or
 instrument corners) or as an effect. Click **A…** to **D…** under the pad to
-choose each corner. Sample corners play the track's notes, pitched from
-middle C. Plug-in corners all run, lined up with the slowest. **X** and **Y**
+choose each corner. A plug-in's window opens in a window of its own when it's
+loaded, and again whenever its letter is clicked (the letter is lit while it's
+open); right-click a letter to change or clear the corner. It's never shown
+inside the X/Y Morph's own panel (0114). Sample corners play the track's
+notes, pitched from middle C. Plug-in corners all run, lined up with the slowest. **X** and **Y**
 are parameters: automate them or give them a modulator for movement.
 
 ---
@@ -426,6 +431,57 @@ Mac, nor dropping from the Finder there.*
 Up to eight plug-ins in a row, each on a **band** of frequencies, the **mid**
 or the **sides**, with **On**, **S** (solo), **Volume** and **Pan**, and
 **Match Loudness**. See the [User Guide](USER-GUIDE.md#the-container).
+
+### Multiband
+
+The spectrum in **2, 3 or 4 bands** (the buttons along its top), with up to
+**four plug-ins on each band**, one after another (0126).
+
+- **The picture** shows the sound coming in, and the bands. **Drag a
+  crossover** (the handles between bands) to grow one band and shrink the
+  next; they never pass one another (a third of an octave apart at least).
+- **Each band**: its name and range, **On** (its plug-ins, or passed by),
+  **S** (solo), its **volume** (double-click for 0 dB), and its plug-ins:
+  **Add Plug-in…**; click a plug-in to open its window (a window of its own);
+  right-click for Show Its Window, Replace…, Remove.
+- Split as multiband processors split (Linkwitz-Riley, 24 dB an octave): the
+  bands add back up to every frequency as loud as it was. With nothing in it,
+  the sound isn't split at all and passes untouched. A band's plug-ins' delay
+  holds the other bands back to meet it.
+
+![The Multiband: four bands, plug-ins on two](guide/multiband.png)
+
+### Stereo Split
+
+The sound split by **where it sits between the speakers**, with up to **four
+plug-ins on each part**, one after another (0127). Two splits, the buttons
+along its top:
+
+- **Left, Middle, Right**: each frequency goes to the part it sits in, by how
+  loud it is on each side: left of the **left edge**, between the edges, or
+  right of the **right edge**. **Drag an edge** (its handle on the picture) to
+  move it; they never pass one another, and each is soft, so a sound moving
+  across it fades from one part to the next. In this split the device delays
+  the sound by 2048 samples (about 43 ms at 48 kHz), always, and Kalibre
+  lines everything else up with it.
+- **Middle and Sides**: what both sides share, and what differs between them.
+  No delay. Middle's plug-ins are the same ones in both splits.
+
+- **The picture** is a vectorscope: the middle straight up, left and right on
+  the diagonals, louder further out. The grey dots are the sound itself;
+  sound out of phase spreads out to the sides. The coloured dots are its
+  frequencies, from low (rose) to high (violet), each where it sits. The
+  parts are shaded behind.
+- **Each part**: its name and range, **On** (its plug-ins, or passed by),
+  **S** (solo), its **volume** (double-click for 0 dB), and its plug-ins:
+  **Add Plug-in…**; click a plug-in to open its window (a window of its own);
+  right-click for Show Its Window, Replace…, Remove.
+- With nothing in it the sound passes untouched. A part's plug-ins' delay
+  holds the other parts back to meet it.
+
+![Stereo Split: Left, Middle, Right, with plug-ins on two parts](guide/stereo-split.png)
+
+![Stereo Split: Middle and Sides](guide/stereo-split-sides.png)
 
 ### Hardware Insert
 

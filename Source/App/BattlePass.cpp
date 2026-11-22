@@ -446,9 +446,11 @@ public:
         if (auto* k = e->getConstrainer()) setConstrainer (k);
         e->addKeyListener (this);
     }
-    ~Window() override
+    ~Window() override { empty(); }
+    void empty()
     {
         if (editor) editor->removeKeyListener (this);
+        setConstrainer (nullptr);   // the script window's: it goes with it (0115)
         clearContentComponent();
         editor.reset();   // the script's window is told first (0056)
     }
@@ -536,7 +538,12 @@ void BattlePass::show()
     shownIn->toFront (true);
 }
 
-void BattlePass::hide() { shownIn.reset(); }
+// Its window waits a little before it's deleted (0115); the game goes on unseen.
+void BattlePass::hide()
+{
+    if (auto* w = dynamic_cast<Window*> (shownIn.get())) { w->setVisible (false); w->empty(); }
+    editors::retire (std::move (shownIn));
+}
 bool BattlePass::isShown() const { return shownIn != nullptr && shownIn->isVisible(); }
 
 // Shut, it goes on four times a second: the clock, the scan, its saving.

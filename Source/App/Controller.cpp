@@ -929,6 +929,11 @@ Tick Controller::playhead() const
     return engine.isPlaying() ? project.tempo.tickAt (const_cast<Engine&> (engine).heardPosition()) : cursor;
 }
 
+double Controller::playheadExact() const
+{
+    return engine.isPlaying() ? project.tempo.ticksAt (engine.smoothPosition()) : (double) cursor;
+}
+
 void Controller::tapTempo()
 {
     const double now = Time::getMillisecondCounterHiRes() / 1000.0;
@@ -2052,6 +2057,39 @@ void Controller::addPlugin (Id track, const PluginDescription& d, std::optional<
         say (d.name + " couldn't be loaded.", true);
     zoneTab = ZoneTab::Devices;
     sendChangeMessage();
+}
+
+Id Controller::addPluginOnNewTrack (const PluginDescription& d)
+{
+    const auto ref = PluginManager::refFor (d);
+    const auto role = engine.plugins().roleOf (d);
+    Id track = 0, made = 0;
+    const Id after = focusTrack;
+    apply ("New Track with " + d.name, [&] (Project& p)
+    {
+        track = edit::addTrack (p, TrackKind::Track, d.name.toStdString(), p.track (after) ? after : 0);
+        made = edit::addDevice (p, track, ref, role);
+    });
+    if (track == 0) return 0;
+    focusTrack = track;
+    selectedTracks = { track };
+    if (made && ! engine.instance (made)) say (d.name + " couldn't be loaded.", true);
+    zoneTab = ZoneTab::Devices;
+    sendChangeMessage();
+    return track;
+}
+
+File Controller::pluginFile (const PluginDescription& d)
+{
+    const File direct (d.fileOrIdentifier);
+    if (File::isAbsolutePath (d.fileOrIdentifier) && direct.exists()) return direct;
+    // An Audio Unit is known by its codes: its bundle is looked for by name where AUs live.
+    for (auto dir : { File::getSpecialLocation (File::userHomeDirectory).getChildFile ("Library/Audio/Plug-Ins/Components"),
+                      File ("/Library/Audio/Plug-Ins/Components") })
+        for (auto& f : dir.findChildFiles (File::findDirectories, false, "*.component"))
+            if (f.getFileNameWithoutExtension().equalsIgnoreCase (d.name) || f.getFileNameWithoutExtension().equalsIgnoreCase (d.descriptiveName))
+                return f;
+    return {};
 }
 
 // A Lua tool's block, into the song (decision 0068): one part on the

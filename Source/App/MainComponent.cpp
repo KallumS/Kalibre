@@ -33,7 +33,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
     addAndMakeVisible (top);
     addAndMakeVisible (transport);
     transport.onMenu = [this] { top.showMenu(); };
-    c.onRandomSong = [this] { randomSong(); };
+    c.onRandomSong = [this] (bool addTo) { randomSong (addTo); };
     c.soundsIndex = [this] { return &library().scanner().index(); };
     addAndMakeVisible (arrange);
     addAndMakeVisible (lower);
@@ -667,11 +667,14 @@ KeysWindow& MainComponent::showKeys()
 }
 
 // The Random button (decision 0101): the song as it is kept or let go of, then a new one by chance.
-void MainComponent::randomSong()
+void MainComponent::randomSong (bool addTo)
 {
-    checkSaved ([this]
+    const auto seed = (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u;
+    // Added to this song (Shift-click, 0119): nothing is lost, so nothing to ask.
+    if (addTo) { c.randomSong (library().scanner().index(), seed, true); showLowerZone(); return; }
+    checkSaved ([this, seed]
     {
-        c.randomSong (library().scanner().index(), (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u);
+        c.randomSong (library().scanner().index(), seed);
         showLowerZone();
     });
 }

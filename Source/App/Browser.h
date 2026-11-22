@@ -37,6 +37,7 @@ public:
     void showTab (Tab);
     Tab shownTab() const { return tab; }
     LibraryView& library() { return *sounds; }
+    juce::ListBox& pluginList() { return pluginBox; }   // tests
 
 private:
     Controller& c;

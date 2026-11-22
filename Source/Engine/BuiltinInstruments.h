@@ -188,6 +188,12 @@ public:
     const juce::AudioBuffer<float>& sample() const { return data; }
     std::function<void()> onLoaded;
 
+    // The waveform clicked (0117): the sample heard from there, as it is, to its end.
+    // A new click cuts the last off (a 5 ms fade), never on top of it. Any thread.
+    void audition (float fraction);
+    // Where it is, 0 to 1 of the sample; -1 when nothing is playing (the window's line).
+    float auditionPosition() const { return auditionShown.load(); }
+
     // Set by the app, as for Kalibre Drums: a change as one undo step (without
     // it, done at once); the musician's scanned sounds; the message line.
     static std::function<void (KalibreSampler&, const juce::String& label, std::function<void()> change)> edit;
@@ -211,6 +217,13 @@ private:
         float ic1 = 0, ic2 = 0, ic1r = 0, ic2r = 0;
     };
     std::array<Voice, 32> voices;
+    // The waveform's preview (0117): the one playing, and the one cut off fading out.
+    struct Preview { double pos = -1; float fade = 1, fadeStep = 0; };
+    Preview preview, cutOff;
+    std::atomic<float> auditionFrom { 0 }, auditionShown { -1 };
+    std::atomic<int> auditionAsked { 0 };
+    int auditionSeen = 0;
+    void renderPreview (juce::AudioBuffer<float>&, float gain);
     juce::AudioBuffer<float> data;
     std::vector<audiotools::HitCandidate> candidates;   // every hit at the highest sensitivity, made on load
     // The slice `index` at the sensitivity chosen: [from, to). False when there's no such slice. No allocation.

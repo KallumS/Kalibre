@@ -84,7 +84,8 @@ TopBar::TopBar (Controller& ctrl) : c (ctrl)
         update();
     };
     tap.onClick = [this] { c.tapTempo(); };
-    random.onClick = [this] { if (c.onRandomSong) c.onRandomSong(); };
+    // A click: a new song by chance; Shift-click: random tracks added to this one (0119).
+    random.onClick = [this] { if (c.onRandomSong) c.onRandomSong (ModifierKeys::currentModifiers.isShiftDown()); };
     undoMessage.onClick = [this] { c.undo(); };
 
     position.onDown = [this] (const MouseEvent&)

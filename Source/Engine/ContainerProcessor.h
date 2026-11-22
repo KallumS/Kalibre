@@ -5,7 +5,8 @@
 
       - On and Solo (with anything soloed, only what's soloed plays);
       - Stereo, Mid or Side: the plug-in hears and changes only the middle or
-        only the sides, the rest passes by;
+        only the sides, the rest passes by; or Mono (0118): it hears both sides
+        as one, and what it sends back is one;
       - a band (Low to High): the plug-in hears and changes only that part of
         the spectrum, the rest passes by. The band is split off with
         Linkwitz-Riley filters, as multiband processors do: below, in and
@@ -62,6 +63,9 @@ public:
         juce::AudioParameterFloat* high = nullptr;       // Hz; 20 000 is no high edge
         juce::AudioParameterFloat* gainDb = nullptr;
         juce::AudioParameterFloat* pan = nullptr;
+        // Mono (0118): its own parameter, made after every other, so songs saved before keep
+        // their Stereo, Mid and Side (choices are saved as fractions) and their automation.
+        juce::AudioParameterBool* mono = nullptr;
 
         // The audio thread's.
         juce::AudioBuffer<float> held;                   // what passes by, held back by the plug-in's delay

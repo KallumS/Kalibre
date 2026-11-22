@@ -7,6 +7,8 @@
 #include "BuiltinInstruments.h"
 #include "Editors.h"
 #include "ContainerProcessor.h"
+#include "MultibandProcessor.h"
+#include "StereoSplitProcessor.h"
 #include "DrumMachine.h"
 #include "HardwareInsert.h"
 #include "Morph.h"
@@ -349,6 +351,8 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "test-multiout") return std::make_unique<MultiOutTest>();
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
     if (ref.identifier == "container") return std::make_unique<ContainerProcessor> (pm);
+    if (ref.identifier == "multiband") return std::make_unique<MultibandProcessor> (pm);   // decision 0126
+    if (ref.identifier == "stereo-split") return std::make_unique<StereoSplitProcessor> (pm);   // decision 0127
     if (ref.identifier == "drums") return std::make_unique<DrumMachine> (pm);   // decision 0105
     if (auto inst = makeInstrument (ref)) return inst;
     if (ref.identifier == "hardware-insert") return std::make_unique<HardwareInsert>();
@@ -385,7 +389,11 @@ MorphProcessor::MorphProcessor (PluginManager& pm)
     addHostedParameter (std::move (py));
 }
 
-MorphProcessor::~MorphProcessor() = default;
+MorphProcessor::~MorphProcessor()
+{
+    *alive = false;
+    for (auto& w : windows) w.reset();   // the corners' windows go before their plug-ins
+}
 
 void MorphProcessor::fillInPluginDescription (PluginDescription& d) const
 {
@@ -405,12 +413,73 @@ static void dropEditor (MorphProcessor::Corner& c)
         editors::close (c.plugin->getActiveEditor());
 }
 
+//==============================================================================
+// A corner's plug-in in a window of its own: "X/Y Morph  A: Serum".
+namespace
+{
+class CornerWindow : public DocumentWindow
+{
+public:
+    CornerWindow (const String& title, AudioProcessorEditor* editor, std::function<void()> closed)
+        : DocumentWindow (title, theme::ground, DocumentWindow::closeButton), onClosed (std::move (closed))
+    {
+        setUsingNativeTitleBar (true);
+        setContentNonOwned (editor, true);
+        content.reset (editor);
+        setResizable (editor->isResizable(), false);
+        if (auto* k = editor->getConstrainer()) setConstrainer (k);
+    }
+    ~CornerWindow() override { empty(); }
+    void empty() { setConstrainer (nullptr); clearContentComponent(); content.reset(); }   // the plug-in is told first (0056)
+    void closeButtonPressed() override { MessageManager::callAsync ([f = onClosed] { if (f) f(); }); }
+    std::function<void()> onClosed;
+
+private:
+    editors::Owned content;
+};
+} // namespace
+
+void MorphProcessor::showCornerWindow (int c)
+{
+    if (c < 0 || c >= 4) return;
+    auto* plug = corners[(size_t) c].plugin.get();
+    if (plug == nullptr) return;
+    if (! windows[(size_t) c])
+    {
+        auto* editor = editors::open (*plug);
+        std::weak_ptr<bool> token = alive;
+        auto w = std::make_unique<CornerWindow> ("X/Y Morph  " + String (morph::cornerName (c)) + ": " + corners[(size_t) c].name(), editor,
+                                                 [this, token, c] { if (! token.expired()) closeCornerWindow (c); });
+        // Each corner a step further along, beside Kalibre's window.
+        if (auto* top = TopLevelWindow::getActiveTopLevelWindow())
+        {
+            const auto at = top->getScreenBounds().getCentre() + Point<int> (40 * c - w->getWidth() / 2, 30 * c - w->getHeight() / 2);
+            w->setTopLeftPosition (at);
+        }
+        else w->centreWithSize (w->getWidth(), w->getHeight());
+        windows[(size_t) c] = std::move (w);
+    }
+    windows[(size_t) c]->setVisible (true);
+    windows[(size_t) c]->toFront (true);
+    if (onWindowsChanged) onWindowsChanged();
+}
+
+void MorphProcessor::closeCornerWindow (int c)
+{
+    if (c < 0 || c >= 4 || ! windows[(size_t) c]) return;
+    // Its plug-in's window goes now; the window itself a little later (0115).
+    if (auto* w = dynamic_cast<CornerWindow*> (windows[(size_t) c].get())) { w->onClosed = nullptr; w->setVisible (false); w->empty(); }
+    editors::retire (std::move (windows[(size_t) c]));
+    if (onWindowsChanged) onWindowsChanged();
+}
+
 bool MorphProcessor::loadPlugin (int c, const PluginRef& ref, String& error)
 {
     auto instance = plugins.create (ref, rate, block, error);
     if (! instance) return false;
     instance->setPlayConfigDetails (2, 2, rate, block);
     instance->prepareToPlay (rate, block);
+    closeCornerWindow (c);
     {
         const ScopedLock sl (cornerLock);
         auto& corner = corners[(size_t) c];
@@ -434,6 +503,7 @@ bool MorphProcessor::loadSample (int c, const File& f, String& error)
     const auto frames = (int) jmin<int64> (reader->lengthInSamples, (int64) (reader->sampleRate * 60));
     AudioBuffer<float> buf (2, frames);
     reader->read (&buf, 0, frames, 0, true, true);
+    closeCornerWindow (c);
     {
         const ScopedLock sl (cornerLock);
         auto& corner = corners[(size_t) c];
@@ -451,6 +521,7 @@ bool MorphProcessor::loadSample (int c, const File& f, String& error)
 
 void MorphProcessor::clearCorner (int c)
 {
+    closeCornerWindow (c);
     {
         const ScopedLock sl (cornerLock);
         dropEditor (corners[(size_t) c]);
@@ -764,24 +835,26 @@ public:
         addAndMakeVisible (pad);
         for (int c = 0; c < 4; ++c)
         {
-            auto* b = buttons.add (new theme::HouseButton (String (morph::cornerName (c)) + ui::u8 ("\xe2\x80\xa6"),
-                                                           "Choose what corner " + String (morph::cornerName (c)) + " plays: a plug-in or a sample."));
-            b->onClick = [this, c] { cornerMenu (c); };
+            auto* b = buttons.add (new theme::HouseButton (String (morph::cornerName (c))));
+            // A corner with a plug-in: its window. Empty or a sample, or a right-click: what it plays.
+            b->onClick = [this, c]
+            {
+                if (! ModifierKeys::currentModifiers.isPopupMenu() && proc.corner (c).plugin != nullptr) proc.showCornerWindow (c);
+                else cornerMenu (c);
+            };
             addAndMakeVisible (b);
         }
-        proc.onCornersChanged = [sp = SafePointer<MorphEditor> (this)]
-        {
-            if (sp) sp->showCorner (sp->shown);
-        };
+        proc.onCornersChanged = [sp = SafePointer<MorphEditor> (this)] { if (sp) sp->refresh(); };
+        proc.onWindowsChanged = [sp = SafePointer<MorphEditor> (this)] { if (sp) sp->refresh(); };
         setResizable (true, false);
-        setSize (640, 300);
-        showCorner (0);
+        setSize (360, 300);
+        refresh();
     }
 
     ~MorphEditor() override
     {
         proc.onCornersChanged = nullptr;
-        editors::close (cornerEditor.getComponent());
+        proc.onWindowsChanged = nullptr;
     }
 
     void cornerMenu (int c)
@@ -793,7 +866,8 @@ public:
                 MorphProcessor::choosePlugin ([sp = SafePointer<MorphEditor> (this), c] (const PluginRef& r)
                 {
                     String error;
-                    if (sp) sp->proc.loadPlugin (c, r, error);
+                    // Loaded: its window opens, on its own.
+                    if (sp && sp->proc.loadPlugin (c, r, error)) sp->proc.showCornerWindow (c);
                 });
         });
         m.addItem (ui::u8 ("Load Sample\xe2\x80\xa6"), [this, c]
@@ -806,25 +880,26 @@ public:
                 if (sp && fc.getResult().existsAsFile()) sp->proc.loadSample (c, fc.getResult(), error);
             });
         });
-        m.addItem ("Show Its Window", proc.corner (c).plugin != nullptr, false, [this, c] { showCorner (c); });
+        m.addItem ("Show Its Window", proc.corner (c).plugin != nullptr, false, [this, c] { proc.showCornerWindow (c); });
         m.addSeparator();
         m.addItem ("Clear", proc.corner (c).kind != MorphProcessor::Corner::Kind::Empty, false, [this, c] { proc.clearCorner (c); });
         m.showMenuAsync (PopupMenu::Options().withTargetComponent (buttons[c]));
     }
 
-    void showCorner (int c)
+    // Each letter lit while its corner's window is open; "A..." when a click asks what it plays.
+    void refresh()
     {
-        shown = c;
-        editors::close (cornerEditor.getComponent());
-        cornerEditor = nullptr;
-        if (auto* plug = proc.corner (c).plugin.get())
-            if (plug->hasEditor())
-            {
-                cornerEditor = editors::open (*plug);
-                if (cornerEditor) addAndMakeVisible (*cornerEditor);
-            }
-        for (int i = 0; i < 4; ++i) buttons[i]->setToggleState (i == c && cornerEditor != nullptr, dontSendNotification);
-        resized();
+        for (int c = 0; c < 4; ++c)
+        {
+            const auto& corner = proc.corner (c);
+            const String name (morph::cornerName (c));
+            auto* b = buttons[c];
+            const bool plug = corner.plugin != nullptr;
+            b->setButtonText (plug ? name : name + ui::u8 ("\xe2\x80\xa6"));
+            b->setToggleState (proc.cornerWindowOpen (c), dontSendNotification);
+            b->setTip (plug ? "Corner " + name + ": " + corner.name() + ". Click to open its window; right-click to change what it plays."
+                            : "Choose what corner " + name + " plays: a plug-in or a sample.");
+        }
         repaint();
     }
 
@@ -833,26 +908,17 @@ public:
     void resized() override
     {
         auto r = getLocalBounds().reduced (8);
-        auto left = r.removeFromLeft (jmin (r.getHeight() + 40, r.getWidth() / 2));
-        auto row = left.removeFromBottom (theme::px (theme::controlHeight));
+        auto row = r.removeFromBottom (theme::px (theme::controlHeight));
         const int w = (row.getWidth() - 3 * 6) / 4;
         for (int i = 0; i < 4; ++i) { buttons[i]->setBounds (row.removeFromLeft (w)); row.removeFromLeft (6); }
-        left.removeFromBottom (8);
-        pad.setBounds (left);
-        if (cornerEditor)
-        {
-            r.removeFromLeft (8);
-            if (cornerEditor->isResizable()) cornerEditor->setBounds (r);
-            else cornerEditor->setTopLeftPosition (r.getTopLeft());
-        }
+        r.removeFromBottom (8);
+        pad.setBounds (r);
     }
 
     MorphProcessor& proc;
     Pad pad;
     OwnedArray<theme::HouseButton> buttons;
-    Component::SafePointer<AudioProcessorEditor> cornerEditor;
     std::unique_ptr<FileChooser> chooser;
-    int shown = 0;
 };
 } // namespace
 

@@ -1,7 +1,9 @@
--- Kalibre's version (decision 0112 in Kalibre): the battle pass's own file,
--- with what the musician sees said in Kalibre's words (song, clip, section,
--- cursor, plug-in, Kalibre) and REAPER's own features taken out. The rules
--- are unchanged. tools/update_engines.py says when the original changes.
+-- Kalibre's version (decisions 0112, 0113 in Kalibre): the battle pass's own
+-- file, with what the musician sees said in Kalibre's words (song, clip,
+-- section, cursor, plug-in, Kalibre), REAPER's own features taken out, and
+-- Kalibre's look: rounded controls and boxes (6 points, as Kalibre's), no bar
+-- under a chosen button. The rules are unchanged. tools/update_engines.py
+-- says when the original changes.
 --[[
  * ReaScript Name: DAW Battle Pass
  * Description:    A battle pass for making music. Every fifteen minutes of
@@ -266,12 +268,19 @@ local function popTheme() ImGui.PopStyleColor(ctx, #THEME) end
 -- The text size and Apple's Mac control: 28 points tall at 100% (a 13-point
 -- line and 7.5 above and below), 12 points between controls. Pushed before
 -- Begin and popped after End, like the theme.
-local SIZE_VARS = 3
+-- Kalibre's corners: 6 points, as every control and panel in Kalibre (Theme.h's
+-- cornerRadius); a checkbox's, a third of its size at most.
+local CORNER = 6
+local SIZE_VARS = 7
 local function pushSize()
   ImGui.PushFont(ctx, FONT.ui.f)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, px(8), 7.5 * S)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, px(12), px(12))
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemInnerSpacing, px(8), px(6))
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, px(CORNER))
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_GrabRounding, px(CORNER))
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_PopupRounding, px(CORNER))
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_ChildRounding, px(CORNER))
 end
 local function popSize()
   ImGui.PopStyleVar(ctx, SIZE_VARS)
@@ -301,8 +310,8 @@ local function keyFocused()
 end
 
 -- An unchosen button wears the theme's grey, a chosen one the accent. Either
--- way its text is INK. A chosen one also carries a bar under its label, so
--- being chosen is not shown by colour alone.
+-- way its text is INK. (In REAPER a chosen one also carries a bar under its
+-- label; Kalibre's buttons have none, at the musician's request, 0056.)
 local function pick(label, selected, width, disabled)
   local pushed = 1
   if selected then
@@ -316,11 +325,6 @@ local function pick(label, selected, width, disabled)
   local hit = ImGui.Button(ctx, label, fit(label, width), 0)
   if disabled then ImGui.EndDisabled(ctx) end
   ImGui.PopStyleColor(ctx, pushed)
-  if selected then
-    local x1 = ImGui.GetItemRectMin(ctx)
-    local x2, y2 = ImGui.GetItemRectMax(ctx)
-    ImGui.DrawList_AddRectFilled(ImGui.GetWindowDrawList(ctx), x1 + px(8), y2 - px(5), x2 - px(8), y2 - px(3), INK)
-  end
   if hit then
     local mx, my = ImGui.GetMousePos(ctx)
     ui.lastClick = { mx, my }
@@ -484,8 +488,10 @@ function D.quad(dl, a, b, c, d, col)
   ImGui.DrawList_AddQuadFilled(dl, X(a[1]), Y(a[2]), X(b[1]), Y(b[2]), X(c[1]), Y(c[2]), X(d[1]), Y(d[2]), col)
 end
 -- Top-left, top-right, bottom-right, bottom-left corner colours.
+-- Rounded as Kalibre's boxes are (Kalibre's ImGui takes a rounding here).
 function D.shade4(dl, x1, y1, x2, y2, c1, c2, c3, c4)
-  ImGui.DrawList_AddRectFilledMultiColor(dl, X(x1), Y(y1), X(x2), Y(y2), c1, c2, c3, c4)
+  local r = math.min(CORNER, (y2 - y1) * 0.3, (x2 - x1) * 0.3)
+  ImGui.DrawList_AddRectFilledMultiColor(dl, X(x1), Y(y1), X(x2), Y(y2), c1, c2, c3, c4, r * S)
 end
 function D.clip(dl, x1, y1, x2, y2) ImGui.DrawList_PushClipRect(dl, X(x1), Y(y1), X(x2), Y(y2), true) end
 function D.unclip(dl) ImGui.DrawList_PopClipRect(dl) end

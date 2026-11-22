@@ -7,6 +7,8 @@
 #include "HardwareInsert.h"
 #include "MorphProcessor.h"
 #include "ContainerProcessor.h"
+#include "MultibandProcessor.h"
+#include "StereoSplitProcessor.h"
 #include "Editors.h"
 #include "JsfxDevice.h"
 #include "LuaTool/LuaTool.h"
@@ -34,8 +36,21 @@ public:
         setVisible (true);
         toFront (true);
     }
-    ~PluginWindow() override { clearContentComponent(); content.reset(); }   // the plug-in is told its window is going
+    ~PluginWindow() override { empty(); }
+    // The plug-in is told its window is going; the window lets go of its size rules first
+    // (they're the plug-in window's, and a retired window was asked for them: 0115).
+    void empty() { setConstrainer (nullptr); clearContentComponent(); content.reset(); }
     void closeButtonPressed() override { MessageManager::callAsync ([f = onClosed] { if (f) f(); }); }
+
+    // Closed: its plug-in's window goes now; the window itself a little later (0115).
+    static void retire (std::unique_ptr<PluginWindow> w)
+    {
+        if (! w) return;
+        w->onClosed = nullptr;
+        w->setVisible (false);
+        w->empty();
+        editors::retire (std::move (w));
+    }
 
 private:
     editors::Owned content;
@@ -43,7 +58,7 @@ private:
 };
 
 //==============================================================================
-class DevicePanel : public Component, private ComponentListener
+class DevicePanel : public Component, public DragAndDropTarget, private ComponentListener
 {
 public:
     DevicePanel (Controller& ctrl, Id dev, DeviceRack& r) : c (ctrl), id (dev), rack (r)
@@ -73,6 +88,25 @@ public:
     }
 
     ~DevicePanel() override { dropEditor(); }
+
+    // Something dragged over the device's window (a sound from the browser onto Kalibre
+    // Sampler, or a Drums pad): handed to the window, at its own point (0116). On the Mac
+    // the window is in a native view of its own (0058) that Kalibre's drags never reach.
+    DragAndDropTarget* editorTarget() const { return editor ? dynamic_cast<DragAndDropTarget*> (editor.get()) : nullptr; }
+    SourceDetails forEditor (const SourceDetails& d) const
+    {
+        const auto at = clip.toContent (clip.getLocalPoint (this, d.localPosition).toFloat()).roundToInt();
+        return SourceDetails (d.description, d.sourceComponent.get(), at);
+    }
+    bool isInterestedInDragSource (const SourceDetails& d) override
+    {
+        auto* t = editorTarget();
+        return t != nullptr && t->isInterestedInDragSource (forEditor (d));
+    }
+    void itemDragEnter (const SourceDetails& d) override { if (auto* t = editorTarget()) t->itemDragEnter (forEditor (d)); }
+    void itemDragMove (const SourceDetails& d) override { if (auto* t = editorTarget()) t->itemDragMove (forEditor (d)); }
+    void itemDragExit (const SourceDetails& d) override { if (auto* t = editorTarget()) t->itemDragExit (forEditor (d)); }
+    void itemDropped (const SourceDetails& d) override { if (auto* t = editorTarget()) t->itemDropped (forEditor (d)); }
 
     // Put in the window (or taken out): its plug-in's window opens now if it waited.
     void parentHierarchyChanged() override
@@ -658,7 +692,11 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     add.onClick = [this] { addMenu (c, c.focusTrack, &add); };
     // Devices by chance (0102).
     strip.addAndMakeVisible (random);
-    random.onClick = [this] { c.randomDevices (c.focusTrack, (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u); };
+    // A click: the track's devices replaced by chance; Shift-click: added to them (0119).
+    random.onClick = [this]
+    {
+        c.randomDevices (c.focusTrack, (unsigned) Random::getSystemRandom().nextInt (1 << 30) + 1u, ! ModifierKeys::currentModifiers.isShiftDown());
+    };
     MorphProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
         PopupMenu m;
@@ -666,6 +704,11 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
             m.addItem (d.name + " (" + d.pluginFormatName + ")", [chosen, d] { chosen (PluginManager::refFor (d)); });
         if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
         m.showMenuAsync (PopupMenu::Options());
+    };
+    // The Multiband's bands and Stereo Split's parts take audio effects too (0126, 0127): the same menu.
+    SplitProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
+    {
+        if (ContainerProcessor::choosePlugin) ContainerProcessor::choosePlugin (std::move (chosen));
     };
     // The Container takes audio effects (decision 0055).
     ContainerProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
@@ -710,7 +753,7 @@ void DeviceRack::float_ (Id device)
 
 void DeviceRack::dock (Id device)
 {
-    windows.erase (device);
+    if (auto it = windows.find (device); it != windows.end()) { PluginWindow::retire (std::move (it->second)); windows.erase (it); }
     windowFor.erase (device);
     for (auto* p : panels) if (p->id == device) { p->update(); p->repaint(); }
     layoutStrip();
@@ -724,6 +767,7 @@ void DeviceRack::closeStaleWindows()
         const auto* d = c.project.device (it->first);
         if (d && d->active && c.engine.instance (it->first) == windowFor[it->first]) { ++it; continue; }
         windowFor.erase (it->first);
+        PluginWindow::retire (std::move (it->second));
         it = windows.erase (it);
     }
 }
@@ -735,6 +779,7 @@ DeviceRack::~DeviceRack()
     windows.clear();   // their editors go before the plug-ins
     MorphProcessor::choosePlugin = nullptr;
     ContainerProcessor::choosePlugin = nullptr;
+    SplitProcessor::choosePlugin = nullptr;
     NoteSplitterProcessor::makeEditor = nullptr;
     c.removeChangeListener (this);
     panels.clear();
@@ -768,6 +813,8 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();
     kalibre.addItem ("Container (Plug-ins on a Band, the Mid or the Sides)", [&c, track] { c.addBuiltIn (track, containerRef(), DeviceRole::AudioFx); });
+    kalibre.addItem ("Multiband (2 to 4 Bands, Plug-ins on Each)", [&c, track] { c.addBuiltIn (track, multibandRef(), DeviceRole::AudioFx); });
+    kalibre.addItem ("Stereo Split (Left, Middle, Right or Middle and Sides, Plug-ins on Each)", [&c, track] { c.addBuiltIn (track, stereoSplitRef(), DeviceRole::AudioFx); });
     kalibre.addItem ("Note Splitter (a Chord's Notes to Several Tracks)  (MIDI Effect)", [&c, track] { c.addBuiltIn (track, noteSplitterRef(), DeviceRole::MidiFx); });
     // The family's JSFX, built in (decision 0066), with Kalibre's own devices (0069).
     kalibre.addSeparator();

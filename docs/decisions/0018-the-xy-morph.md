@@ -11,3 +11,7 @@ An instrument or effect with four corners, each a plug-in or a sample, mixed by 
 ## Consequences
 
 A corner's plug-in window is shown beside the pad.
+
+## Amended 22 November (0114)
+
+A corner's plug-in opens in a window of its own, never inside the panel.

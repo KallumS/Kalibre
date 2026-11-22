@@ -96,7 +96,7 @@ private:
     BarButton tap { "Tap", "Tap a few times on the beat to set the tempo." };
     BarButton random { "Random", "A whole new song by chance, ready to play: 4 to 8 tracks with instruments, effects and music "
                                  "(drums and a tune from Good Idea, chords and a bass from Midi Suggester), and loops from your sounds. "
-                                 "Asks to save the song you have first." };
+                                 "Asks to save the song you have first. Shift-click: random tracks added to this song instead, in its key and tempo." };
 
 public:
     // Song versions (0103): 1 and 2, left of Random. 2, not made yet, is in the quieter grey;
