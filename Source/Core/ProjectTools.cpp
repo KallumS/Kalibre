@@ -56,10 +56,11 @@ std::string escape (const std::string& s)
 std::string pathUrl (const std::string& path)
 {
     std::string out = "file://";
-    if (path.empty() || path[0] != '/') out += "/";
+    if (path.empty() || (path[0] != '/' && path[0] != '\\')) out += "/";   // C:\\... is file:///C:/...
     for (unsigned char ch : path)
     {
-        if (std::isalnum (ch) || ch == '/' || ch == '-' || ch == '_' || ch == '.' || ch == '~') out += (char) ch;
+        if (ch == '\\') { out += '/'; continue; }
+        if (std::isalnum (ch) || ch == '/' || ch == ':' || ch == '-' || ch == '_' || ch == '.' || ch == '~') out += (char) ch;
         else { char buf[4]; std::snprintf (buf, sizeof buf, "%%%02X", ch); out += buf; }
     }
     return out;

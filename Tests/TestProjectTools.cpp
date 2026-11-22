@@ -83,4 +83,8 @@ TEST ("project tools: Final Cut XML places each audio clip in frames")
     CHECK (xml.find ("<end>100</end>") != std::string::npos);
     CHECK (xml.find ("<in>25</in>") != std::string::npos);         // 1 s into the file
     CHECK (xml.find ("file:///old/place/Vocal.wav") != std::string::npos);
+    // A Windows path as a file URL (0129).
+    projecttools::replaceFiles (p, { { "/old/place/Vocal.wav", "C:\\Media\\My Vocal.wav" } });
+    const auto win = projecttools::fcpXml (p, [] (const std::string&) { return 10.0; }, 25);
+    CHECK (win.find ("file:///C:/Media/My%20Vocal.wav") != std::string::npos);
 }
