@@ -56,6 +56,9 @@ file(GLOB SHINE_SOURCES ${shine_SOURCE_DIR}/src/lib/*.c)
 add_library(KalibreShine STATIC ${SHINE_SOURCES})
 target_include_directories(KalibreShine PUBLIC ${shine_SOURCE_DIR}/src/lib)
 set_target_properties(KalibreShine PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+    target_compile_definitions(KalibreShine PRIVATE "__attribute__(x)=")   # GCC's, which MSVC hasn't (0129)
+endif()
 
 # ysfx (Apache-2.0): the JSFX engine (REAPER's EEL2) with its graphics, for the
 # family's JSFX built in as devices (decision 0066). Its engine only: not its
