@@ -73,6 +73,8 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
 
 MainComponent::~MainComponent()
 {
+    top.onSecret = nullptr;
+    battlePass.reset();   // its script saves as it goes, while the song is still here
     Desktop::getInstance().removeGlobalMouseListener (&activity);
     c.onRandomSong = nullptr;
     c.soundsIndex = nullptr;
@@ -149,6 +151,20 @@ void MainComponent::showLibraryFolders()
     if (auto* view = dynamic_cast<LibraryFoldersView*> (libraryWindow->getContentComponent())) view->refresh();
     libraryWindow->setVisible (true);
     libraryWindow->toFront (true);
+}
+
+void MainComponent::startBattlePass (int afterMs)
+{
+    // A few seconds after Kalibre opens: making its fonts takes a moment, which opening shouldn't wait for.
+    Component::SafePointer<MainComponent> safe (this);
+    auto start = [safe]
+    {
+        if (safe == nullptr || safe->battlePass) return;
+        safe->battlePass = std::make_unique<BattlePass> (safe->c);
+        safe->top.onSecret = [p = safe.getComponent()] { if (p->battlePass) p->battlePass->show(); };
+    };
+    if (afterMs <= 0) start();
+    else Timer::callAfterDelay (afterMs, start);
 }
 
 void MainComponent::firstRun()

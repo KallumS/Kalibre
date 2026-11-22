@@ -1790,6 +1790,41 @@ The piano roll, drums, steps, Euclidean and notation have their own tables in
 
 ---
 
+## 23. A Secret
+
+**Click the Making Music timer in the top bar seven times in a row** (left
+clicks, each within a second and a half of the last). **DAW Battle Pass**
+opens, in a window of its own: the whole of it, as it was in REAPER, with its
+eight pages (Pass, Quests, Shop, Gear, Loot, Ideas, Trophies, Stats), its
+celebrations, crates, gear, ideas and achievements.
+
+![DAW Battle Pass's welcome](guide/battle-pass-welcome.png)
+![The Pass page](guide/battle-pass-pass.png)
+
+- **It's always running**, from a few seconds after Kalibre opens until it
+  quits, whether its window is open or not: every 15 minutes of music-making
+  unlocks a tier, every hour a big one, and its rewards wait for you. Close
+  its window with its close button or ⌘W; **Esc** skips a celebration.
+- **What counts** is what Kalibre sees: edits, playing and recording, the
+  cursor, the mouse and keys while Kalibre is the app in front. New tracks,
+  clips, notes, plug-ins, recorded takes, markers and sections earn XP.
+- **An idea you win** goes into the song at the cursor, on the chosen track
+  (a new one if none is), as one undo step; an arrangement becomes sections;
+  a tempo becomes the song's.
+- **Your progress** is kept in Kalibre's folder
+  (`~/Library/Application Support/Kalibre/Data/DAW Battle Pass/`). The first
+  time, the progress your REAPER copy saved is brought over, if there is one.
+- Its words are the REAPER version's, unchanged: where it says REAPER, read
+  Kalibre. **Start the Battle Pass When REAPER Starts** does nothing here: it
+  always starts with Kalibre.
+
+![Quests](guide/battle-pass-quests.png)
+![The Shop](guide/battle-pass-shop.png)
+![Loot](guide/battle-pass-loot.png)
+![Stats](guide/battle-pass-stats.png)
+
+---
+
 *This guide describes Kalibre as it is. What's built and what isn't is in
 [FEATURES.md](FEATURES.md); why it works as it does is in
 [decisions](decisions/README.md).*

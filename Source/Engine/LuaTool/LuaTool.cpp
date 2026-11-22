@@ -16,6 +16,13 @@ using namespace juce;
 
 std::function<bool (AudioPluginInstance&, const ToolBlock&)> insertToolBlock;
 
+LuaToolSpec& battlePassSpec()
+{
+    static LuaToolSpec spec { "daw-battle-pass", "DAW Battle Pass", "DAW Battle Pass.lua",
+                              "A battle pass that rewards you for making music" };
+    return spec;
+}
+
 const std::vector<LuaToolSpec>& luaTools()
 {
     static const std::vector<LuaToolSpec> list {
