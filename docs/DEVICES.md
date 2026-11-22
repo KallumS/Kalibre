@@ -23,7 +23,7 @@ Each section ends with what has been tried and what hasn't.
 | [Reese Basser](#reese-basser) | [Hardware Insert](#hardware-insert) | [Note Splitter](#note-splitter) | [Midi Catalogue](#midi-catalogue) |
 | [Instrument Creator](#instrument-creator) | [X/Y Morph (effect)](#xy-morph) | [ScaleView](#scaleview) | [Orchestration Helper](#orchestration-helper) |
 | [Instant Virtual Instrument](#instant-virtual-instrument) | [Multiband](#multiband) | | |
-| [X/Y Morph (instrument)](#xy-morph) | | | |
+| [X/Y Morph (instrument)](#xy-morph) | [Stereo Split](#stereo-split) | | |
 
 **Every device** has the rack's own buttons (⏻ off, B bypass, Set A/B,
 Presets, ⧉ its own window, … its menu: [User Guide, Section 8](USER-GUIDE.md#8-plug-ins-and-devices)),
@@ -450,6 +450,38 @@ The spectrum in **2, 3 or 4 bands** (the buttons along its top), with up to
   holds the other bands back to meet it.
 
 ![The Multiband: four bands, plug-ins on two](guide/multiband.png)
+
+### Stereo Split
+
+The sound split by **where it sits between the speakers**, with up to **four
+plug-ins on each part**, one after another (0127). Two splits, the buttons
+along its top:
+
+- **Left, Middle, Right**: each frequency goes to the part it sits in, by how
+  loud it is on each side: left of the **left edge**, between the edges, or
+  right of the **right edge**. **Drag an edge** (its handle on the picture) to
+  move it; they never pass one another, and each is soft, so a sound moving
+  across it fades from one part to the next. In this split the device delays
+  the sound by 2048 samples (about 43 ms at 48 kHz), always, and Kalibre
+  lines everything else up with it.
+- **Middle and Sides**: what both sides share, and what differs between them.
+  No delay. Middle's plug-ins are the same ones in both splits.
+
+- **The picture** is a vectorscope: the middle straight up, left and right on
+  the diagonals, louder further out. The grey dots are the sound itself;
+  sound out of phase spreads out to the sides. The coloured dots are its
+  frequencies, from low (rose) to high (violet), each where it sits. The
+  parts are shaded behind.
+- **Each part**: its name and range, **On** (its plug-ins, or passed by),
+  **S** (solo), its **volume** (double-click for 0 dB), and its plug-ins:
+  **Add Plug-in…**; click a plug-in to open its window (a window of its own);
+  right-click for Show Its Window, Replace…, Remove.
+- With nothing in it the sound passes untouched. A part's plug-ins' delay
+  holds the other parts back to meet it.
+
+![Stereo Split: Left, Middle, Right, with plug-ins on two parts](guide/stereo-split.png)
+
+![Stereo Split: Middle and Sides](guide/stereo-split-sides.png)
 
 ### Hardware Insert
 

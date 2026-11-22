@@ -12,6 +12,7 @@
 #include "MainComponent.h"
 #include "BattlePass.h"
 #include "MultibandProcessor.h"
+#include "StereoSplitProcessor.h"
 #include "JsfxDevice.h"
 #include "LuaTool/LuaTool.h"
 #include "NoteSplitter.h"
@@ -535,6 +536,55 @@ int main (int argc, char** argv)
             }
             window.lowerHeight = 380;
             shoot ("47-multiband");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, t);
+            c.refresh();
+        }
+        // Stereo Split (decision 0127): Left, Middle, Right, plug-ins on two parts; a mix spread across the speakers.
+        {
+            const Id t = edit::addTrack (c.project, TrackKind::Track, "Mix Bus");
+            const Id dev = edit::addDevice (c.project, t, stereoSplitRef(), DeviceRole::AudioFx);
+            c.focusTrack = t;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            if (auto* ss = dynamic_cast<StereoSplitProcessor*> (engine.instance (dev)))
+            {
+                auto put = [&] (int p, int i, const char* id, const char* name)
+                {
+                    PluginRef r { "Kalibre", id, name };
+                    String error;
+                    ss->loadPlugin (p, i, r, error);
+                };
+                put (StereoSplitProcessor::left, 0, "test-gain:0", "ValhallaRoom");
+                put (StereoSplitProcessor::middle, 0, "test-gain:0", "Pro-C 2");
+                put (StereoSplitProcessor::middle, 1, "test-gain:0", "Pro-Q 3");
+                // Something to see: a bass in the middle, a pad leaning left, hats on the right, a little noise.
+                AudioBuffer<float> b (2, 512);
+                MidiBuffer none;
+                Random rnd (5);
+                for (int k = 0; k < 12; ++k)
+                {
+                    for (int i = 0; i < 512; ++i)
+                    {
+                        const float n = (float) (k * 512 + i);
+                        const float bass = 0.35f * std::sin (n * 0.0105f), pad = 0.12f * std::sin (n * 0.061f) + 0.08f * std::sin (n * 0.092f);
+                        const float hats = 0.05f * (rnd.nextFloat() - 0.5f) + 0.06f * std::sin (n * 0.71f), air = 0.01f * (rnd.nextFloat() - 0.5f);
+                        b.setSample (0, i, bass + pad + 0.15f * hats + air);
+                        b.setSample (1, i, bass + 0.35f * pad + hats - air);
+                    }
+                    ss->processBlock (b, none);
+                }
+            }
+            window.lowerHeight = 380;
+            shoot ("48-stereo-split");
+            if (auto* ss = dynamic_cast<StereoSplitProcessor*> (engine.instance (dev)))
+            {
+                ss->setMode (StereoSplitProcessor::Mode::middleSides);
+                PluginRef r { "Kalibre", "test-gain:0", "MicroShift" };
+                String error;
+                ss->loadPlugin (StereoSplitProcessor::sides, 0, r, error);
+            }
+            shoot ("49-stereo-split-sides");
             window.lowerHeight = 320;
             edit::removeTrack (c.project, t);
             c.refresh();

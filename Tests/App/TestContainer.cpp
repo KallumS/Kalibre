@@ -425,3 +425,151 @@ TEST ("multiband: a band's plug-in delay holds the others back to meet it; its p
     CHECK (back.m.band (0).slots[0].plugin != nullptr);
     CHECK_EQ (back.m.getLatencySamples(), 100);
 }
+
+// Stereo Split (decision 0127).
+#include "StereoSplitProcessor.h"
+
+namespace
+{
+struct StereoRig
+{
+    PluginManager plugins;
+    StereoSplitProcessor s { plugins };
+    StereoRig() { s.setPlayConfigDetails (2, 2, rate, block); s.prepareToPlay (rate, block); }
+};
+
+AudioBuffer<float> runStereo (AudioProcessor& m, std::function<std::pair<float, float> (int)> signal, double seconds)
+{
+    const int total = (int) (seconds * rate);
+    AudioBuffer<float> out (2, total), b (2, block);
+    MidiBuffer midi;
+    for (int at = 0; at < total; at += block)
+    {
+        const int n = jmin (block, total - at);
+        AudioBuffer<float> view (b.getArrayOfWritePointers(), 2, n);
+        for (int i = 0; i < n; ++i) { const auto [l, r] = signal (at + i); view.setSample (0, i, l); view.setSample (1, i, r); }
+        m.processBlock (view, midi);
+        for (int ch = 0; ch < 2; ++ch) out.copyFrom (ch, at, view, ch, 0, n);
+    }
+    return out;
+}
+
+// The most any sample of `out` differs from the signal `delay` samples before it.
+double worstAgainst (const AudioBuffer<float>& out, std::function<std::pair<float, float> (int)> signal, int delay)
+{
+    double worst = 0;
+    for (int i = delay; i < out.getNumSamples(); ++i)
+    {
+        const auto [l, r] = signal (i - delay);
+        worst = jmax (worst, (double) std::abs (out.getSample (0, i) - l), (double) std::abs (out.getSample (1, i) - r));
+    }
+    return worst;
+}
+} // namespace
+
+TEST ("stereo split: with nothing in it the sound is untouched, exactly (in Left, Middle, Right one window later); split with nothing done, the parts add back up to it (0127, 0081)")
+{
+    auto noise = [] (int i) { Random r (i); return std::pair<float, float> { r.nextFloat() - 0.5f, 0.3f * (r.nextFloat() - 0.5f) }; };
+    {
+        StereoRig r;
+        CHECK_EQ (r.s.getLatencySamples(), StereoSplitProcessor::fftSize);
+        CHECK_EQ (worstAgainst (runStereo (r.s, noise, 0.5), noise, StereoSplitProcessor::fftSize), 0.0);   // cancels completely
+    }
+    {
+        StereoRig r;
+        r.s.setMode (StereoSplitProcessor::Mode::middleSides);
+        CHECK_EQ (r.s.getLatencySamples(), 0);
+        CHECK_EQ (worstAgainst (runStereo (r.s, noise, 0.5), noise, 0), 0.0);
+    }
+    // A part switched off by nothing (a plug-in at 0 dB on it) splits the sound: the parts add back up to it.
+    {
+        StereoRig r;
+        String e;
+        CHECK (r.s.loadPlugin (StereoSplitProcessor::middle, 0, builtIn ("test-gain:0"), e));
+        CHECK_EQ (r.s.getLatencySamples(), StereoSplitProcessor::fftSize);
+        CHECK (worstAgainst (runStereo (r.s, noise, 0.5), noise, StereoSplitProcessor::fftSize) < 1.0e-5);
+    }
+    {
+        StereoRig r;
+        r.s.setMode (StereoSplitProcessor::Mode::middleSides);
+        String e;
+        CHECK (r.s.loadPlugin (StereoSplitProcessor::sides, 0, builtIn ("test-gain:0"), e));
+        CHECK (worstAgainst (runStereo (r.s, noise, 0.5), noise, 0) < 1.0e-6);
+    }
+}
+
+TEST ("stereo split: a plug-in on Left changes only what sits to the left; on Sides only what differs between them (0127)")
+{
+    // 300 Hz on the left alone, 2 kHz in the middle, 5 kHz on the right alone.
+    auto three = [] (int i)
+    {
+        const float a = 0.3f * sine (i, 300), b = 0.3f * sine (i, 2000), c = 0.3f * sine (i, 5000);
+        return std::pair<float, float> { a + b, b + c };
+    };
+    {
+        StereoRig r;
+        String e;
+        CHECK (r.s.loadPlugin (StereoSplitProcessor::left, 0, builtIn ("test-gain:-100"), e));   // Left silenced
+        const auto out = runStereo (r.s, three, 1.0);
+        CHECK (amount (out, 0, 300) < 0.3f * 0.05f);                // the left gone
+        CHECK (std::abs (amount (out, 0, 2000) - 0.3f) < 0.01f);    // the middle as it was, both sides
+        CHECK (std::abs (amount (out, 1, 2000) - 0.3f) < 0.01f);
+        CHECK (std::abs (amount (out, 1, 5000) - 0.3f) < 0.01f);    // the right as it was
+    }
+    {
+        StereoRig r;
+        String e;
+        CHECK (r.s.loadPlugin (StereoSplitProcessor::middle, 0, builtIn ("test-gain:-100"), e));   // Middle silenced
+        const auto out = runStereo (r.s, three, 1.0);
+        CHECK (amount (out, 0, 2000) < 0.3f * 0.05f);
+        CHECK (amount (out, 1, 2000) < 0.3f * 0.05f);
+        CHECK (std::abs (amount (out, 0, 300) - 0.3f) < 0.01f);
+        CHECK (std::abs (amount (out, 1, 5000) - 0.3f) < 0.01f);
+    }
+    {
+        StereoRig r;
+        r.s.setMode (StereoSplitProcessor::Mode::middleSides);
+        String e;
+        CHECK (r.s.loadPlugin (StereoSplitProcessor::sides, 0, builtIn ("test-gain:-100"), e));   // Sides silenced: mono
+        const auto out = runStereo (r.s, three, 1.0);
+        CHECK (std::abs (amount (out, 0, 300) - 0.15f) < 0.005f);   // the left's sound half on each side
+        CHECK (std::abs (amount (out, 1, 300) - 0.15f) < 0.005f);
+        CHECK (std::abs (amount (out, 0, 2000) - 0.3f) < 0.005f);   // the middle as it was
+    }
+}
+
+TEST ("stereo split: its edges are dragged but never past one another; a part's plug-in delay is met; mode, edges and plug-ins come back from its state (0127)")
+{
+    StereoRig r;
+    r.s.setEdge (0, 0.9f);   // dragged past the right edge: stops short of it
+    CHECK (r.s.edge (0) <= r.s.edge (1) - StereoSplitProcessor::softness + 0.001f);
+    r.s.setEdge (1, -1.0f);
+    CHECK (r.s.edge (1) >= r.s.edge (0) + StereoSplitProcessor::softness - 0.001f);
+    r.s.setEdge (0, -0.5f);
+    r.s.setEdge (1, 0.2f);
+    CHECK (std::abs (r.s.edge (0) + 0.5f) < 0.01f);
+    CHECK (std::abs (r.s.edge (1) - 0.2f) < 0.01f);
+
+    // A click in the middle comes out whole, the window and the Left part's 100 samples later.
+    String e;
+    CHECK (r.s.loadPlugin (StereoSplitProcessor::left, 0, builtIn ("test-latency:100"), e));
+    const int delay = StereoSplitProcessor::fftSize + 100;
+    CHECK_EQ (r.s.getLatencySamples(), delay);
+    auto click = [] (int i) { return std::pair<float, float> { i == 3000 ? 1.0f : 0.0f, i == 3000 ? 1.0f : 0.0f }; };
+    CHECK (worstAgainst (runStereo (r.s, click, 0.2), click, delay) < 1.0e-4);
+
+    // Saved and opened again.
+    r.s.setMode (StereoSplitProcessor::Mode::middleSides);
+    CHECK (r.s.loadPlugin (StereoSplitProcessor::sides, 0, builtIn ("test-latency:50"), e));
+    CHECK_EQ (r.s.getLatencySamples(), 50);
+    MemoryBlock state;
+    r.s.getStateInformation (state);
+    StereoRig back;
+    back.s.setStateInformation (state.getData(), (int) state.getSize());
+    CHECK (back.s.mode() == StereoSplitProcessor::Mode::middleSides);
+    CHECK (std::abs (back.s.edge (0) + 0.5f) < 0.01f);
+    CHECK (back.s.part (StereoSplitProcessor::left).slots[0].plugin != nullptr);
+    CHECK (back.s.part (StereoSplitProcessor::sides).slots[0].plugin != nullptr);
+    CHECK_EQ (back.s.getLatencySamples(), 50);
+    CHECK_EQ (back.s.partsInUse().count, 2);
+}

@@ -52,6 +52,8 @@
 | `Engine/MorphProcessor.*` | The X/Y morph (0018), and the latency and gain devices the tests use. |
 | `Engine/ContainerProcessor.*` | The Container: plug-ins in a row, each on a band, the mid or the sides (0055). |
 | `Engine/MultibandProcessor.*` | The Multiband: 2 to 4 Linkwitz-Riley bands, plug-ins on each, crossovers dragged on a live spectrum (0126). |
+| `Engine/StereoSplitProcessor.*` | Stereo Split: Left, Middle, Right by each frequency's place (a short-time Fourier transform), or Middle and Sides; a vectorscope (0127). |
+| `Engine/SplitProcessor.*` | What the Multiband and Stereo Split share: the parts, their plug-ins and windows, On, Solo, Volume, delay met, state, a part's column (0126, 0127). |
 | `Core/DrumSounds.*` | Whether a sound is a drum, and which: name, folders, length, the hit's shape (0106). |
 | `Engine/DrumMachine.*`, `DrumMachineEditor.cpp`; `Core/DrumKit.*` | Kalibre Drums: pads of samples or hosted plug-ins, its own steps from the playhead; the kit as JSON, Random Samples, the pattern as notes (0105). |
 | `Engine/AraHost.*` | ARA documents for plug-ins like Melodyne (0028). |

@@ -807,6 +807,7 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 | **X/Y Morph** | Instrument or effect | Four corners, each a plug-in or a sample, mixed by where the dot is on a pad. A corner's plug-in opens in a window of its own when it's loaded; click its letter (**A** to **D**) to open it again, right-click to change it. Sample corners play the track's notes. X and Y can be automated and modulated. |
 | **Container** | Effect | Up to eight plug-ins in a row, each on a band, the mid or the sides. |
 | **Multiband** | Effect | The spectrum in 2, 3 or 4 bands, the crossovers dragged on a picture of the sound (never past one another), up to four plug-ins on each band, each band with On, Solo and Volume. [DEVICES.md](DEVICES.md#multiband). |
+| **Stereo Split** | Effect | The sound split by where it sits: **Left, Middle, Right** (each frequency by its place, the two edges dragged on a vectorscope) or **Middle and Sides**; up to four plug-ins on each part, each with On, Solo and Volume. [DEVICES.md](DEVICES.md#stereo-split). |
 | **Note Splitter** | MIDI effect | A chord's notes, top to bottom, each to another track. |
 | **Instant Virtual Instrument** | Instrument | Builds an instrument from a sample, in its own window. |
 | **ScaleView** | MIDI effect | Shows the scale and names the chord played through it; the sound is unchanged. Put it before the instrument. |

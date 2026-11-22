@@ -4,6 +4,7 @@
 #include "BuiltinInstruments.h"
 #include "ContainerProcessor.h"
 #include "MultibandProcessor.h"
+#include "StereoSplitProcessor.h"
 #include "Edit.h"
 #include "HardwareInsert.h"
 #include "JsfxDevice.h"
@@ -116,6 +117,7 @@ std::vector<Addable> addable (Controller& c)
     own ("X/Y Morph", morphRef(), DeviceRole::Instrument);
     own ("Container", containerRef(), DeviceRole::AudioFx);
     own ("Multiband", multibandRef(), DeviceRole::AudioFx);
+    own ("Stereo Split", stereoSplitRef(), DeviceRole::AudioFx);
     own ("Note Splitter", noteSplitterRef(), DeviceRole::MidiFx);
     for (auto& s : jsfxDevices()) own (s.name, jsfxRef (s), s.role);
     own ("Instant Virtual Instrument", instantVirtualInstrumentRef(), DeviceRole::Instrument);
