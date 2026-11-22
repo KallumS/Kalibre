@@ -340,3 +340,31 @@ TEST ("arrange: Shift-drag anywhere on a clip resizes it from its nearer edge, o
     CHECK_EQ (s.c.project.clip (id)->start, PPQ * 6);
     CHECK_EQ (s.c.project.clip (id)->length, PPQ * 9);
 }
+
+TEST ("arrange: dragging one of several chosen clips moves them all as far, one undo step; Option copies them all (found in the UAT)")
+{
+    Song s;
+    ArrangeView a (s.c);
+    s.c.apply ("Clips", [&] (Project& p)
+    {
+        edit::addMidiClip (p, s.one, 0, PPQ * 4);
+        edit::addMidiClip (p, s.one, PPQ * 8, PPQ * 4);
+        edit::addMidiClip (p, s.two, PPQ * 4, PPQ * 4);
+    });
+    const auto& ones = s.c.project.track (s.one)->clips();
+    const Id first = ones[0].id, second = ones[1].id, third = s.c.project.track (s.two)->clips().front().id;
+    const ModifierKeys command (ModifierKeys::leftButtonModifier | ModifierKeys::commandModifier);
+    click (a.view, a.at (PPQ * 2, 0));
+    click (a.view, a.at (PPQ * 10, 0), command);
+    click (a.view, a.at (PPQ * 6, 1), command);
+    CHECK_EQ (s.c.selectedClips.size(), (size_t) 3);
+    const auto before = s.c.history.size();
+    drag (a.view, a.at (PPQ * 2, 0), a.at (PPQ * 4, 0));   // two beats later
+    CHECK_EQ (s.c.project.clip (first)->start, PPQ * 2);
+    CHECK_EQ (s.c.project.clip (second)->start, PPQ * 10);
+    CHECK_EQ (s.c.project.clip (third)->start, PPQ * 6);
+    CHECK_EQ (s.c.history.size(), before + 1);
+    s.c.undo();
+    CHECK_EQ (s.c.project.clip (first)->start, (Tick) 0);
+    CHECK_EQ (s.c.project.clip (third)->start, PPQ * 4);
+}

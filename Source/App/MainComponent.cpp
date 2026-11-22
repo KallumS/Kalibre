@@ -361,6 +361,8 @@ void MainComponent::mouseDrag (const MouseEvent& e)
 }
 
 //==============================================================================
+void MainComponent::cameToFront() { library().lookAgainIfStale(); }
+
 bool MainComponent::keyPressed (const KeyPress& k)
 {
     c.noteActivity();   // a key is someone there (0091)
@@ -604,7 +606,7 @@ void MainComponent::exportAudioTo (bool stems, double loudnessTarget, bool ringO
         // The loop range when it's on, otherwise the whole song.
         const auto& p = c.project;
         o.start = p.loop.on ? p.tempo.secondsAt (p.loop.start) : 0.0;
-        o.end = p.loop.on ? p.tempo.secondsAt (p.loop.end) : p.tempo.secondsAt (p.endTick());
+        o.end = p.loop.on ? p.tempo.secondsAt (p.loop.end) : p.tempo.secondsAt (p.songEnd());
         o.format = f.getFileExtension().trimCharactersAtStart (".").toLowerCase();
         if (o.format != "aiff" && o.format != "flac" && o.format != "mp3") o.format = "wav";
         if (o.format == "flac") o.bitDepth = 24;

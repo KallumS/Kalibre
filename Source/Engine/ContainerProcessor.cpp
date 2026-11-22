@@ -32,7 +32,7 @@ PluginRef containerRef()
 
 namespace
 {
-String hz (float f) { return f >= 1000.0f ? String (f / 1000.0f, f >= 10000.0f ? 0 : 1) + " kHz" : String (roundToInt (f)) + " Hz"; }
+String hz (float f) { return f >= 1000.0f ? ui::number (f / 1000.0f, f >= 10000.0f ? 0 : 1) + " kHz" : String (roundToInt (f)) + " Hz"; }
 
 NormalisableRange<float> hzRange()
 {

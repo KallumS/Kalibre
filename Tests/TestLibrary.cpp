@@ -238,8 +238,10 @@ TEST ("library: the scan's loudness, note and tempo are kept; an older scan's it
     CHECK (! library::needsScan (&back.items[it.path], 10, 20));
     back.items[it.path].analysis = 1;
     CHECK (library::needsScan (&back.items[it.path], 10, 20));
-    CHECK_EQ (library::noteName (57, -12), std::string ("A2 -12"));
-    CHECK_EQ (library::noteName (60, 0.2), std::string ("C3"));
+    // Middle C is C4, as the piano roll, the Sampler and the drum pads name it (the UAT found C3 here).
+    CHECK_EQ (library::noteName (57, -12), std::string ("A3 -12"));
+    CHECK_EQ (library::noteName (60, 0.2), std::string ("C4"));
+    CHECK_EQ (library::noteName (21, 0), std::string ("A0"));
     CHECK_EQ (library::noteName (-1, 0), std::string());
     CHECK_EQ (library::loudnessText (it), std::string ("-14.2 LUFS"));
     it.lufs = library::silentDb;

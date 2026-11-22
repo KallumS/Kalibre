@@ -25,7 +25,7 @@ connect Claude: the User Guide, [AI agents (MCP)](USER-GUIDE.md#ai-agents-mcp).
   4/4 starts at beat 4. A note's `start_beat` is from its clip's start.
 - **Tracks** by id or by name (any case; "master" is the master); **clips and
   devices** by id. `get_song` lists them all; call it first.
-- **Pitches** are MIDI numbers: 60 is middle C (C3 in Kalibre's piano roll).
+- **Pitches** are MIDI numbers: 60 is middle C (C4, as Kalibre names it everywhere).
 - Every change is **one undo step** ("Agent: …") and said in the message line.
   A failure comes back as the tool's error (`isError`), saying what to do.
 

@@ -118,7 +118,9 @@ public:
             g.setColour (theme::lane);
             g.fillRoundedRectangle (gr.box.toFloat(), 5.0f);
             g.setColour (theme::text);
-            g.drawText (gr.name, gr.box.removeFromTop (18).reduced (8, 0), Justification::centredLeft, false);
+            // A copy: cutting the heading off the box itself moved it down every time it was drawn.
+            auto box = gr.box;
+            g.drawText (gr.name, box.removeFromTop (18).reduced (8, 0), Justification::centredLeft, false);
         }
     }
 
@@ -218,7 +220,7 @@ public:
     {
         String error;
         bool loaded = false;
-        proc.perform ("Load Sample", [&] { loaded = proc.load (f, error); });
+        proc.perform ("Load Sample", [&] { loaded = proc.loadInTune (f, error); });
         if (! loaded)
         {
             // Asked inside the main window, never in one of its own (decision 0002).
@@ -330,7 +332,7 @@ void BuiltinInstrument::addFloat (const String& group, const String& id, const S
         if (id == "root") return MidiMessage::getMidiNoteName (roundToInt (v), true, true, 4);
         const float a = std::abs (v);
         const int places = a >= 100.0f ? 0 : a >= 10.0f ? 1 : 2;
-        return String (v, places) + suffix;
+        return ui::number (v, places) + suffix;
     };
     auto p = std::make_unique<AudioParameterFloat> (ParameterID { id, 1 }, name, range, def,
                                                     AudioParameterFloatAttributes().withLabel (suffix).withStringFromValueFunction (text));
@@ -391,6 +393,64 @@ KalibreSynth::KalibreSynth()
     addFloat ("Amp Envelope", "ar", "Release", time (8.0f), 0.3f, " s");
     addFloat ("Output", "glide", "Glide", time (2.0f), 0.001f, " s");
     addFloat ("Output", "volume", "Volume", { -48.0f, 6.0f }, -9.0f, " dB");
+}
+
+//==============================================================================
+// The factory presets: what each sets, in the knobs' own units; the rest at their defaults.
+namespace
+{
+struct SynthPreset { const char* name; std::vector<std::pair<int, float>> values; };
+const std::vector<SynthPreset>& synthPresets()
+{
+    using S = KalibreSynth;
+    enum { Saw, Square, Triangle, Sine };
+    static const std::vector<SynthPreset> presets {
+        { "Init", {} },
+        { "Warm Bass", { { S::Wave1, Saw }, { S::Wave2, Square }, { S::Detune, -12 }, { S::Fine, 3 }, { S::Mix, 0.4f }, { S::Cutoff, 600 },
+                         { S::Resonance, 0.25f }, { S::EnvAmount, 0.35f }, { S::KeyTrack, 0.3f }, { S::FD, 0.25f }, { S::FS, 0.2f }, { S::FR, 0.2f },
+                         { S::AA, 0.003f }, { S::AD, 0.3f }, { S::AS, 0.9f }, { S::AR, 0.12f }, { S::Volume, -8 } } },
+        { "Sub Bass", { { S::Wave1, Sine }, { S::Wave2, Triangle }, { S::Detune, -12 }, { S::Fine, 0 }, { S::Mix, 0.3f }, { S::Cutoff, 300 },
+                        { S::Resonance, 0.05f }, { S::EnvAmount, 0.1f }, { S::KeyTrack, 0.2f }, { S::AA, 0.005f }, { S::AD, 0.2f }, { S::AS, 1.0f },
+                        { S::AR, 0.15f }, { S::Volume, -12 } } },
+        { "Acid Bass", { { S::Wave1, Saw }, { S::Wave2, Saw }, { S::Fine, 0 }, { S::Mix, 0.0f }, { S::Cutoff, 300 }, { S::Resonance, 0.8f },
+                         { S::EnvAmount, 0.8f }, { S::KeyTrack, 0.4f }, { S::FA, 0.002f }, { S::FD, 0.18f }, { S::FS, 0.05f }, { S::FR, 0.1f },
+                         { S::AA, 0.002f }, { S::AD, 0.2f }, { S::AS, 0.7f }, { S::AR, 0.08f }, { S::Glide, 0.06f }, { S::Volume, -12 } } },
+        { "Soft Pad", { { S::Wave1, Saw }, { S::Wave2, Saw }, { S::Fine, 12 }, { S::Mix, 0.5f }, { S::Noise, 0.03f }, { S::Cutoff, 1400 },
+                        { S::Resonance, 0.15f }, { S::EnvAmount, 0.2f }, { S::FA, 0.8f }, { S::FD, 1.5f }, { S::FS, 0.5f }, { S::FR, 1.5f },
+                        { S::AA, 0.9f }, { S::AD, 1.0f }, { S::AS, 0.8f }, { S::AR, 1.8f }, { S::Volume, -14 } } },
+        { "Bright Lead", { { S::Wave1, Saw }, { S::Wave2, Square }, { S::Detune, 12 }, { S::Fine, 5 }, { S::Mix, 0.35f }, { S::Cutoff, 4500 },
+                           { S::Resonance, 0.3f }, { S::EnvAmount, 0.3f }, { S::KeyTrack, 0.6f }, { S::FD, 0.3f }, { S::FS, 0.5f }, { S::FR, 0.3f },
+                           { S::AA, 0.005f }, { S::AD, 0.2f }, { S::AS, 0.85f }, { S::AR, 0.2f }, { S::Glide, 0.04f }, { S::Volume, -12 } } },
+        { "Pluck", { { S::Wave1, Square }, { S::Wave2, Saw }, { S::Detune, 12 }, { S::Fine, 4 }, { S::Mix, 0.3f }, { S::Cutoff, 900 },
+                     { S::Resonance, 0.3f }, { S::EnvAmount, 0.7f }, { S::KeyTrack, 0.6f }, { S::FA, 0.001f }, { S::FD, 0.25f }, { S::FS, 0.0f },
+                     { S::FR, 0.25f }, { S::AA, 0.001f }, { S::AD, 0.45f }, { S::AS, 0.0f }, { S::AR, 0.3f }, { S::Volume, -9 } } },
+        { "Brass", { { S::Wave1, Saw }, { S::Wave2, Saw }, { S::Fine, 8 }, { S::Mix, 0.5f }, { S::Cutoff, 1100 }, { S::Resonance, 0.1f },
+                     { S::EnvAmount, 0.55f }, { S::FA, 0.06f }, { S::FD, 0.5f }, { S::FS, 0.5f }, { S::FR, 0.3f }, { S::AA, 0.04f },
+                     { S::AD, 0.3f }, { S::AS, 0.85f }, { S::AR, 0.2f }, { S::Volume, -12 } } },
+        { "Keys", { { S::Wave1, Triangle }, { S::Wave2, Square }, { S::Detune, 12 }, { S::Fine, 0 }, { S::Mix, 0.25f }, { S::Cutoff, 2500 },
+                    { S::Resonance, 0.1f }, { S::EnvAmount, 0.3f }, { S::KeyTrack, 0.7f }, { S::FA, 0.002f }, { S::FD, 0.6f }, { S::FS, 0.2f },
+                    { S::FR, 0.4f }, { S::AA, 0.002f }, { S::AD, 1.2f }, { S::AS, 0.3f }, { S::AR, 0.5f }, { S::Volume, -10 } } },
+        { "Strings", { { S::Wave1, Saw }, { S::Wave2, Saw }, { S::Fine, 10 }, { S::Mix, 0.5f }, { S::Cutoff, 3000 }, { S::Resonance, 0.05f },
+                       { S::EnvAmount, 0.1f }, { S::FA, 0.3f }, { S::FD, 1.0f }, { S::FS, 0.7f }, { S::FR, 0.8f }, { S::AA, 0.35f },
+                       { S::AD, 0.5f }, { S::AS, 0.9f }, { S::AR, 0.7f }, { S::Volume, -14 } } },
+        { "Noise Sweep", { { S::Wave1, Sine }, { S::Wave2, Sine }, { S::Mix, 0.0f }, { S::Noise, 0.8f }, { S::Cutoff, 500 }, { S::Resonance, 0.6f },
+                           { S::EnvAmount, 0.9f }, { S::FA, 2.0f }, { S::FD, 3.0f }, { S::FS, 0.2f }, { S::FR, 2.0f }, { S::AA, 0.5f },
+                           { S::AD, 1.0f }, { S::AS, 0.8f }, { S::AR, 2.0f }, { S::Volume, -14 } } },
+    };
+    return presets;
+}
+} // namespace
+
+int KalibreSynth::getNumPrograms() { return (int) synthPresets().size(); }
+const String KalibreSynth::getProgramName (int i) { return i >= 0 && i < getNumPrograms() ? String (synthPresets()[(size_t) i].name) : String(); }
+
+void KalibreSynth::setCurrentProgram (int i)
+{
+    if (i < 0 || i >= getNumPrograms()) return;
+    program = i;
+    for (auto* p : params) p->setValueNotifyingHost (p->getDefaultValue());
+    for (auto& [index, v] : synthPresets()[(size_t) i].values)
+        params[(size_t) index]->setValueNotifyingHost (params[(size_t) index]->convertTo0to1 (v));
 }
 
 void KalibreSynth::fillInPluginDescription (PluginDescription& d) const
@@ -646,6 +706,23 @@ void KalibreSampler::perform (const String& label, std::function<void()> change)
     else change();
 }
 
+int KalibreSampler::heardNote (const File& f) const
+{
+    const auto* index = sounds ? sounds() : nullptr;
+    if (! index) return -1;
+    const auto it = index->items.find (f.getFullPathName().toStdString());
+    return it != index->items.end() && it->second.note >= 0 && it->second.note <= 127 ? it->second.note : -1;
+}
+
+bool KalibreSampler::loadInTune (const File& f, String& error)
+{
+    if (! load (f, error)) return false;
+    // Played in tune: the key that plays it as recorded is the note the scan heard in it.
+    if (const int note = heardNote (f); note >= 0)
+        params[Root]->setValueNotifyingHost (params[Root]->convertTo0to1 ((float) note));
+    return true;
+}
+
 bool KalibreSampler::loadRandom (String& said)
 {
     const auto* index = sounds ? sounds() : nullptr;
@@ -662,17 +739,10 @@ bool KalibreSampler::loadRandom (String& said)
         if (path.empty()) break;
         const File f (String::fromUTF8 (path.c_str()));
         if (! f.existsAsFile()) continue;
-        const auto it = index->items.find (path);
-        const int note = it != index->items.end() ? it->second.note : -1;
+        const int note = heardNote (f);
         bool loaded = false;
         String error;
-        perform ("Random Sample", [this, f, note, &loaded, &error]
-        {
-            loaded = load (f, error);
-            // Played in tune: the key that plays it as recorded is the note it is.
-            if (loaded && note >= 0 && note <= 127)
-                params[Root]->setValueNotifyingHost (params[Root]->convertTo0to1 ((float) note));
-        });
+        perform ("Random Sample", [this, f, &loaded, &error] { loaded = loadInTune (f, error); });
         if (! loaded) continue;
         said = "Random Sample: " + f.getFileName()
              + (note >= 0 ? " (" + String (library::noteName (note, 0)) + ", its Root Note)" : String())
@@ -922,6 +992,8 @@ void TromboleseInstrument::prepareToPlay (double r, int)
     heldCount = 0;
     note = -1;
     breath = 0;
+    loudness = 0;
+    ceilingGain = 1;
 }
 
 void TromboleseInstrument::reset()
@@ -931,6 +1003,8 @@ void TromboleseInstrument::reset()
     note = -1;
     breath = 0;
     bend = wheel = 0;
+    loudness = 0;
+    ceilingGain = 1;
 }
 
 void TromboleseInstrument::start (int n, float vel, bool legato)
@@ -964,7 +1038,8 @@ void TromboleseInstrument::render (AudioBuffer<float>& audio, int startSample, i
         const double glide = jmin (1.0, dt / jmax (0.005, (double) value (Glide)));
         lip += (lipTarget - lip) * glide;
         slide += (slideTarget - slide) * glide;
-        level += (levelTarget - level) * glide;
+        // The level slides in decibels: the notes' levels differ a hundredfold and more.
+        level = std::exp (std::log (jmax (1.0e-9, level)) + (std::log (jmax (1.0e-9, levelTarget)) - std::log (jmax (1.0e-9, level))) * glide);
         trombolese::Controls c;
         c.pressure = value (Breath) * breath * (0.8 + 0.2 * velocity);
         c.lipFrequency = jmax (20.0, lip);
@@ -979,9 +1054,18 @@ void TromboleseInstrument::render (AudioBuffer<float>& audio, int startSample, i
             voice->voice.reset();   // silent: the next note starts from rest
         }
         else voice->voice.block (block.data(), count, c);
+        // The ceiling: the peaks followed (caught on the very sample, let go over 150 ms) and
+        // turned down to it at once, back up slowly. Under it, nothing changes.
+        constexpr double ceiling = 0.4;
+        const double fall = std::exp (-1.0 / (0.150 * rate));
+        const double recover = 1.0 - std::exp (-1.0 / (0.100 * rate));
         for (int i = 0; i < count; ++i)
         {
-            const float x = (float) (block[(size_t) i] * level * gain);
+            const double y = block[(size_t) i] * level;
+            loudness = jmax (std::abs (y), loudness * fall);
+            const double wanted = loudness > ceiling ? ceiling / loudness : 1.0;
+            ceilingGain = wanted < ceilingGain ? wanted : ceilingGain + (wanted - ceilingGain) * recover;
+            const float x = (float) (y * ceilingGain * gain);
             for (int ch = 0; ch < audio.getNumChannels(); ++ch) audio.addSample (ch, startSample + done + i, x);
         }
         done += count;

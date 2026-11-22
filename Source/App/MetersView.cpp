@@ -98,7 +98,7 @@ void MetersView::drawSpectrum (Graphics& g, Rectangle<float> r)
         g.setColour (theme::lane);
         g.drawVerticalLine ((int) x, area.getY(), area.getBottom());
         g.setColour (theme::textSecondary);
-        g.drawText (hz >= 1000 ? String (hz / 1000.0, 0) + "k" : String ((int) hz), (int) x - 14, (int) area.getBottom(), 28, 12, Justification::centred, false);
+        g.drawText (hz >= 1000 ? ui::number (hz / 1000.0, 0) + "k" : String ((int) hz), (int) x - 14, (int) area.getBottom(), 28, 12, Justification::centred, false);
     }
     if (spectrum.empty()) return;
     auto yOf = [&] (float db) { return area.getBottom() - jlimit (0.0f, 1.0f, (db + 90.0f) / 90.0f) * area.getHeight(); };
@@ -188,7 +188,7 @@ void MetersView::drawTuner (Graphics& g, Rectangle<float> r)
     g.drawText (name, area.removeFromTop (area.getHeight() * 0.5f), Justification::centred, false);
     g.setFont (theme::font (theme::smallPoints));
     g.setColour (theme::textSecondary);
-    g.drawText (String (tunerHz, 1) + " Hz  " + ui::u8 ("\xc2\xb7") + "  " + (tunerCents >= 0 ? "+" : "") + String (tunerCents, 0) + " cents",
+    g.drawText (String (tunerHz, 1) + " Hz  " + ui::u8 ("\xc2\xb7") + "  " + (tunerCents >= 0 ? "+" : "") + ui::number (tunerCents, 0) + " cents",
                 area.removeFromBottom (16), Justification::centred, false);
     // The needle: -50 to +50 cents; in tune is lit.
     auto scale = area.reduced (area.getWidth() * 0.08f, area.getHeight() * 0.25f);

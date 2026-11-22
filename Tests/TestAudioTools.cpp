@@ -358,3 +358,28 @@ TEST ("hit shape: when a sound starts, how fast it rises, how far it dies away, 
     std::vector<float> none (4800, 0.0f);
     CHECK (hitShape (none.data(), (int) none.size(), rate).onsetMs < 0);
 }
+
+TEST ("audio tools: a held note has no tempo, however long: a pad, a sub bass (the UAT's read 'about 120' and 'about 112')")
+{
+    const double rate = 48000;
+    auto held = [rate] (double f, double seconds, int harmonics, double attack, double release)
+    {
+        std::vector<float> x ((size_t) (rate * seconds));
+        for (size_t i = 0; i < x.size(); ++i)
+        {
+            const double t = (double) i / rate;
+            const double env = std::min (1.0, t / attack) * std::min (1.0, (seconds - t) / release);
+            double s = 0;
+            for (int k = 1; k <= harmonics; ++k) s += std::sin (2 * 3.14159265358979 * f * k * t) / k;
+            x[i] = (float) (0.35 * env * s);
+        }
+        return x;
+    };
+    for (auto& [what, x] : std::vector<std::pair<const char*, std::vector<float>>> {
+             { "pad", held (220.0, 3.0, 5, 0.3, 0.8) }, { "sub", held (65.41, 2.0, 2, 0.01, 0.3) }, { "long", held (110.0, 8.0, 6, 0.05, 1.0) } })
+    {
+        const auto g = audiotools::tempoOf (x.data(), (int) x.size(), rate);
+        if (g.bpm > 0) std::printf ("    %s heard at %.1f BPM\n", what, g.bpm);
+        CHECK_EQ (g.bpm, 0.0);
+    }
+}

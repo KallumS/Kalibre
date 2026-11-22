@@ -55,6 +55,9 @@ public:
     float rowHeight = 12.0f;
     float scrollPitch = 84;   // the pitch at the top edge
 
+    // Where the notes are drawn, under the ruler and over the lanes.
+    juce::Rectangle<int> notesShown() const { return noteArea(); }
+
     // Shows a lane under the notes, as its menu does (the renders).
     void showLane (int kind) { laneKind = kind; repaint(); }
 
@@ -82,7 +85,7 @@ private:
 
     int keyboardWidth() const { return theme::px (56); }
     int rulerHeight() const { return theme::px (20); }
-    int velocityHeight() const { return theme::px (64); }
+    int velocityHeight() const;
     CcLanes lanes;
     int ccHeight() const;                      // the CC lanes', at the bottom
     int lanesTop() const { return getHeight() - ccHeight(); }

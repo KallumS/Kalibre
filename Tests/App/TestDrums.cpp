@@ -368,7 +368,15 @@ TEST ("drums: Random Samples gives each pad a sound of its kind from the Sounds 
 
         // A sound from the Sounds tab dropped on the snare's row.
         std::vector<DragAndDropTarget*> rows;
-        for (auto* ch : ed->getChildren()) if (auto* r = dynamic_cast<DragAndDropTarget*> (ch)) rows.push_back (r);
+        std::function<void (Component&)> findRows = [&] (Component& in)
+        {
+            for (auto* ch : in.getChildren())
+            {
+                if (auto* r = dynamic_cast<DragAndDropTarget*> (ch)) rows.push_back (r);
+                else findRows (*ch);
+            }
+        };
+        findRows (*ed);   // in their scrolling list
         CHECK_EQ (rows.size(), (size_t) 8);
         if (rows.size() < 2) return;
         const auto clap = flatSound ("Dropped", 0.2, 0.3f);
@@ -411,10 +419,19 @@ TEST ("drums: the pattern dragged from its window and let go over the drums' tra
         CHECK_EQ (clips.size(), (size_t) 1);
         if (! clips.empty()) { CHECK (clips.front().start > 0); CHECK_EQ (clips.front().name, std::string ("Beat")); }
         CHECK (! d->kit().playsPattern);
+        // Let go a little after a bar line: on the bar, not the sixteenth after (found in the UAT).
+        const Tick bar3 = c.project.tempo.barStart (2);
+        const int x = roundToInt (arrange.xOfTick (bar3 + PPQ / 3));
+        DragAndDropTarget::SourceDetails nearBar (var (what), nullptr, Point<int> (x, 590));
+        arrange.itemDropped (nearBar);
+        bool onTheBar = false;
+        for (auto& cl : c.project.track (t)->clips()) onTheBar |= cl.start == bar3;
+        CHECK (onTheBar);
+        const auto clipsNow = c.project.track (t)->clips().size();
         // Anything else that isn't a device: nothing.
         DragAndDropTarget::SourceDetails junk (var ("drums:1234"), nullptr, Point<int> (700, 590));
         arrange.itemDropped (junk);
-        CHECK_EQ (c.project.track (t)->clips().size(), (size_t) 1);
+        CHECK_EQ (c.project.track (t)->clips().size(), clipsNow);
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
@@ -505,6 +522,10 @@ TEST ("sampler: Random Sample loads any sound from the Sounds folders, a new one
         CHECK (s->file() == loop);
         if (! undo()) return;
         CHECK (s->sample().getNumSamples() == 0);
+        // A pad dropped on it: in tune too, its Root Note the note the scan heard (found in the UAT).
+        target->itemDropped (DragAndDropTarget::SourceDetails (var ("file:" + pad.getFullPathName()), nullptr, {}));
+        CHECK (s->file() == pad);
+        CHECK_EQ (roundToInt (s->value (KalibreSampler::Root)), 57);
         c.soundsIndex = nullptr;
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
@@ -548,4 +569,125 @@ TEST ("engine: a message a plug-in sent arrives safely after its controller, or 
         MessageManager::getInstance()->runDispatchLoopUntil (50);
         CHECK_EQ (calls, 0);
     }
+}
+
+TEST ("built-in instruments: their knob panels draw the same every time: the group headings stay at the top (found in the UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        for (auto ref : { synthRef(), samplerRef(), tromboleseRef() })
+        {
+            auto inst = makeInstrument (ref);
+            std::unique_ptr<AudioProcessorEditor> ed (inst->createEditorIfNeeded());
+            ed->setSize (1000, 300);
+            const auto first = ed->createComponentSnapshot (ed->getLocalBounds());
+            const auto second = ed->createComponentSnapshot (ed->getLocalBounds());
+            const auto third = ed->createComponentSnapshot (ed->getLocalBounds());
+            int differing = 0;
+            for (int y = 0; y < third.getHeight(); ++y)
+                for (int x = 0; x < third.getWidth(); ++x)
+                    differing += first.getPixelAt (x, y) != third.getPixelAt (x, y);
+            if (differing > 0) std::printf ("    %s: %d pixels moved between drawings\n", ref.name.c_str(), differing);
+            CHECK_EQ (differing, 0);
+            ignoreUnused (second);
+            inst->editorBeingDeleted (ed.get());   // as a host does
+        }
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("drums: every pad can be reached in a short panel: the rows scroll (found in the UAT: the 8th was cut off)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        DrumMachine d (plugins);
+        std::unique_ptr<AudioProcessorEditor> ed (d.createEditor());
+        ed->setSize (1100, 200);   // shorter than eight rows
+        Viewport* view = nullptr;
+        std::function<void (Component&)> find = [&] (Component& in) { for (auto* ch : in.getChildren()) { if (auto* v = dynamic_cast<Viewport*> (ch)) view = v; else find (*ch); } };
+        find (*ed);
+        CHECK (view != nullptr);
+        if (! view) return;
+        auto* list = view->getViewedComponent();
+        CHECK (list != nullptr && list->getNumChildComponents() == 8);
+        CHECK (list->getHeight() > view->getHeight());     // more than shows: it scrolls
+        CHECK (view->getVerticalScrollBar().isVisible());
+        CHECK (ed->getLocalBounds().contains (view->getBounds()));
+        d.editorBeingDeleted (ed.get());
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("synth: Kalibre Synth comes with factory presets, each a sound of its own that plays and doesn't clip (found in the UAT: none)")
+{
+    auto inst = makeInstrument (synthRef());
+    CHECK (inst->getNumPrograms() >= 8);
+    std::set<String> names;
+    std::vector<std::vector<float>> settings;
+    for (int i = 0; i < inst->getNumPrograms(); ++i)
+    {
+        inst->setCurrentProgram (i);
+        CHECK_EQ (inst->getCurrentProgram(), i);
+        const auto name = inst->getProgramName (i);
+        CHECK (name.isNotEmpty());
+        names.insert (name);
+        std::vector<float> values;
+        for (auto* p : inst->getParameters()) values.push_back (p->getValue());
+        settings.push_back (values);
+        // A chord played through it: heard, and under full scale.
+        inst->prepareToPlay (48000, 512);
+        AudioBuffer<float> b (2, 512);
+        float loudest = 0;
+        for (int block = 0; block < 60; ++block)
+        {
+            MidiBuffer m;
+            if (block == 0) for (int n : { 48, 55, 60, 64 }) m.addEvent (MidiMessage::noteOn (1, n, (uint8) 100), 0);
+            if (block == 40) for (int n : { 48, 55, 60, 64 }) m.addEvent (MidiMessage::noteOff (1, n), 0);
+            b.clear();
+            inst->processBlock (b, m);
+            loudest = jmax (loudest, b.getMagnitude (0, 0, 512));
+        }
+        if (loudest <= 0.01f || loudest >= 1.0f) std::printf ("    %s peaks at %.3f\n", name.toRawUTF8(), loudest);
+        CHECK (loudest > 0.01f);
+        CHECK (loudest < 1.0f);
+    }
+    CHECK_EQ (names.size(), (size_t) inst->getNumPrograms());
+    for (size_t i = 1; i < settings.size(); ++i) CHECK (settings[i] != settings[0]);   // each its own sound
+    CHECK_EQ (inst->getProgramName (0), String ("Init"));
+}
+
+TEST ("editor: a drum track's clip opens in the drum grid, a bass's in the piano roll, whichever was open last (found in the UAT)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id drums = edit::addTrack (c.project, TrackKind::Track, "Drums");
+    edit::addDevice (c.project, drums, drumsRef(), DeviceRole::Instrument);
+    const Id bass = edit::addTrack (c.project, TrackKind::Track, "Bass");
+    edit::addDevice (c.project, bass, synthRef(), DeviceRole::Instrument);
+    const Id beat = edit::addMidiClip (c.project, drums, 0, PPQ * 4);
+    const Id line = edit::addMidiClip (c.project, bass, 0, PPQ * 4);
+    c.refresh();
+    c.editor = EditorKind::Drums;
+    c.selectClip (line);
+    CHECK (c.editor == EditorKind::PianoRoll);
+    c.selectClip (beat);
+    CHECK (c.editor == EditorKind::Drums);
+    // A clip written in the drum grid opens there, on any track.
+    const Id other = edit::addTrack (c.project, TrackKind::Track, "Perc");
+    const Id perc = edit::addMidiClip (c.project, other, 0, PPQ * 4);
+    Note n; n.start = 0; n.length = PPQ / 4; n.pitch = 36; n.from = NoteFrom::Drums;
+    edit::addNote (c.project, perc, n);
+    c.refresh();
+    c.editor = EditorKind::PianoRoll;
+    c.selectClip (perc);
+    CHECK (c.editor == EditorKind::Drums);
+    // The others chosen by hand are kept.
+    c.editor = EditorKind::Notation;
+    c.selectClip (line);
+    CHECK (c.editor == EditorKind::Notation);
 }

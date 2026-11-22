@@ -157,7 +157,7 @@ std::string noteName (int note, double cents)
 {
     if (note < 0 || note > 127) return {};
     static const char* names[] { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-    std::string s = std::string (names[note % 12]) + std::to_string (note / 12 - 2);   // middle C (60) is C3
+    std::string s = std::string (names[note % 12]) + std::to_string (note / 12 - 1);   // middle C (60) is C4, as everywhere in Kalibre
     const int c = (int) std::lround (cents);
     if (c != 0) s += (c > 0 ? " +" : " ") + std::to_string (c);
     return s;

@@ -623,8 +623,18 @@ void Controller::selectClip (Id id, bool openEditor)
     selectedClips = { id };
     selectedNotes.clear();
     const Track* owner = nullptr;
-    if (project.clip (id, &owner) && owner) focusOn (owner->id);
+    const auto* clip = project.clip (id, &owner);
+    if (clip && owner) focusOn (owner->id);
     if (openEditor && id != 0) zoneTab = ZoneTab::Editor;
+    // A drum track's clip opens in the drum grid, any other in the piano roll, when the
+    // editor left open was the other of the two (the UAT's bass opened in the drum grid).
+    if (openEditor && clip && owner && clip->isMidi() && (editor == EditorKind::Drums || editor == EditorKind::PianoRoll))
+    {
+        bool drums = false;
+        for (auto& d : owner->devices) drums |= d.plugin.format == "Kalibre" && d.plugin.identifier == "drums";
+        for (auto& n : clip->midi.notes) drums |= n.from == NoteFrom::Drums;
+        editor = drums ? EditorKind::Drums : EditorKind::PianoRoll;
+    }
     sendChangeMessage();
 }
 
@@ -1369,7 +1379,7 @@ bool Controller::exportAudio (const File& f, const Engine::RenderOptions& given,
     if (ok && options.loudnessTarget < 0 && ! stems)
         say ("Exported " + f.getFileName() + " at " + String (engine.lastExportLoudness, 1) + " LUFS"
              + (engine.lastExportLoudness > options.loudnessTarget + 0.2 || engine.lastExportLoudness < options.loudnessTarget - 0.2
-                    ? " (held back so its peaks stay under " + String (options.truePeakCeiling, 0) + " dBTP)." : "."));
+                    ? " (held back so its peaks stay under " + ui::number (options.truePeakCeiling, 0) + " dBTP)." : "."));
     else if (ok) say (stems ? "Exported every track to " + f.getParentDirectory().getFileName() + "." : "Exported " + f.getFileName() + ".");
     else say ("The export didn't finish. " + error, true);
     return ok;

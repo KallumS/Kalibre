@@ -1,6 +1,7 @@
 #include "Check.h"
 #include "Demo.h"
 #include "MainComponent.h"
+#include "MainWindow.h"
 
 using namespace kal;
 using namespace juce;
@@ -433,4 +434,20 @@ TEST ("lower zone: the clip launcher is gone; a workspace saved showing it opens
         f.deleteFile();
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("window: a shortcut works with nothing focused, as after a dialog closes (found in the UAT: ⇧⌘E did nothing until a click)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    edit::addTrack (c.project, TrackKind::Track, "Track 1");
+    c.refresh();
+    MainWindow window (c, false);
+    Component::unfocusAllComponents();
+    CHECK (Component::getCurrentlyFocusedComponent() == nullptr);
+    // M mutes the chosen track: handled though nothing has the focus.
+    CHECK (window.keyPressed (KeyPress ('m')));
+    window.setVisible (false);
 }

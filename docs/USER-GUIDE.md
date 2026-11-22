@@ -1173,7 +1173,7 @@ sample, a second line says what the scan heard in it:
   sound too short to measure that way (under about half a second) shows its
   **Peak** in dB instead.
 - **Its note**: the pitch it plays, as the piano roll names it (middle C is
-  C3), with how many cents off, "A2 -12". **No One Note** for drums, chords
+  C4), with how many cents off, "A3 -12". **No One Note** for drums, chords
   and noise.
 - **Its tempo**: when its name and file don't say, it's heard from how its
   hits repeat. A loop cut to whole bars at that tempo is known exactly (**Tempo

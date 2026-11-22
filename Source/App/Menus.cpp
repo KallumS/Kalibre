@@ -358,7 +358,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 for (size_t i = 0; i < map.articulations.size(); ++i)
                 {
                     const auto& a = map.articulations[i];
-                    one.addItem (item (String (a.name) + "  (key " + String (a.keyswitch) + ", " + String (a.delayMs, 0) + ui::u8 (" ms)\xe2\x80\xa6"), [this, mid = map.id, i]
+                    one.addItem (item (String (a.name) + "  (key " + String (a.keyswitch) + ", " + ui::number (a.delayMs, 0) + ui::u8 (" ms)\xe2\x80\xa6"), [this, mid = map.id, i]
                     {
                         auto* m3 = c.project.articulationMap (mid);
                         if (! m3) return;
@@ -366,7 +366,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                         auto* w = new AlertWindow (String (art.name), "Keyswitch note, and delay in milliseconds (negative plays it early):", MessageBoxIconType::NoIcon);
                         w->addTextEditor ("name", String (art.name), "Name");
                         w->addTextEditor ("key", String (art.keyswitch), "Keyswitch");
-                        w->addTextEditor ("delay", String (art.delayMs, 0), "Delay (ms)");
+                        w->addTextEditor ("delay", ui::number (art.delayMs, 0), "Delay (ms)");
                         w->addButton ("Set", 1, KeyPress (KeyPress::returnKey));
                         w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
                         ui::present (w, ModalCallbackFunction::create ([this, w, mid, i] (int ok)

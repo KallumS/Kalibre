@@ -80,6 +80,11 @@ public:
     void reset() override;   // every voice silent: an export starts clean (0097)
     double getTailLengthSeconds() const override { return 4.0; }
     juce::AudioProcessorEditor* createEditor() override;
+    // Factory presets (the UAT found none): Init and a sound for each job, in the Presets menu.
+    int getNumPrograms() override;
+    int getCurrentProgram() override { return program; }
+    void setCurrentProgram (int) override;
+    const juce::String getProgramName (int) override;
 
     enum P { Wave1, Wave2, Detune, Fine, Mix, Noise, Cutoff, Resonance, EnvAmount, KeyTrack,
              FA, FD, FS, FR, AA, AD, AS, AR, Glide, Volume, Count };
@@ -101,6 +106,7 @@ private:
     float bend = 0, wheel = 0;
     double vibrato = 0;
     int lastNote = -1;
+    int program = 0;
 
     void noteOn (int note, float velocity);
     void noteOff (int note);
@@ -136,6 +142,10 @@ private:
     int note = -1;
     float velocity = 0.8f, bend = 0, wheel = 0;
     double breath = 0, lip = 0, slide = 0, lipTarget = 0, slideTarget = 0, level = 1, levelTarget = 1;
+    // The ceiling (found in the UAT): the notes' levels in the table are far from what
+    // they sound at, up to thirty times, and a slide sounds the old note's regime at the
+    // new note's level. Its peaks are followed and turned down above a ceiling.
+    double loudness = 0, ceilingGain = 1;
     std::vector<double> block;
     void start (int note, float velocity, bool legato);
     void render (juce::AudioBuffer<float>&, int start, int n);
@@ -170,6 +180,10 @@ public:
     // set to the note the scan heard, when it heard one. False, with why, when
     // none could be loaded. One undo step through `edit`.
     bool loadRandom (juce::String& said);
+    // Loaded, its Root Note set to the note the scan heard in it when it heard one (a file
+    // dropped on it or chosen with Load Sample too: found in the UAT).
+    bool loadInTune (const juce::File&, juce::String& error);
+    int heardNote (const juce::File&) const;
     juce::File file() const { return sampleFile; }
     const juce::AudioBuffer<float>& sample() const { return data; }
     std::function<void()> onLoaded;

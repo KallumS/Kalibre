@@ -23,6 +23,12 @@ namespace kal::ui
 // Text beyond ASCII (the ellipsis, dashes, key symbols) goes through here, so
 // juce::String reads it as UTF-8.
 inline juce::String u8 (const char* utf8) { return juce::String::fromUTF8 (utf8); }
+// A number with so many decimals; none is rounded to a whole number. (juce::String's
+// own takes 0 to mean every decimal there is: the UAT read "502.246 Hz" and "27.9536%".)
+inline juce::String number (double v, int places)
+{
+    return places <= 0 ? juce::String (juce::roundToInt (v)) : juce::String (v, places);
+}
 } // namespace kal::ui
 
 namespace kal::theme

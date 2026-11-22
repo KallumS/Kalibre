@@ -1,4 +1,5 @@
 #include "JsfxDevice.h"
+#include "Theme.h"
 
 #include "EmbeddedLua.h"
 #include "components/graphics_view.h"
@@ -114,7 +115,7 @@ public:
         const double v = toYsfx (norm);
         String s;
         if (! names.isEmpty()) s = names[jlimit (0, names.size() - 1, (int) std::lround (v))];
-        else s = String (v, curve.inc >= 1 ? 0 : curve.inc >= 0.1 ? 1 : 2);
+        else s = ui::number (v, curve.inc >= 1 ? 0 : curve.inc >= 0.1 ? 1 : 2);
         return maxLen > 0 ? s.substring (0, maxLen) : s;
     }
     float getValueForText (const String& text) const override

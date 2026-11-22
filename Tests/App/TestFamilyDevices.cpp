@@ -549,3 +549,72 @@ TEST ("family devices: Transient Shuffler takes samples dragged in from the Soun
     c.undo();
     CHECK_EQ (c.project.tracks.size(), tracksBefore);
 }
+
+TEST ("family devices: Trombolese plays the UAT's melody (A4 to G5, at 100 BPM) without blowing up: no louder at its end than through it (found in the UAT)")
+{
+    Project p;
+    p.tempo.setTempoAt (0, 100.0);
+    const Id t = edit::addTrack (p, TrackKind::Track, "Lead");
+    edit::addDevice (p, t, tromboleseRef(), DeviceRole::Instrument);
+    const Id clip = edit::addMidiClip (p, t, 0, PPQ * 16);
+    const struct { int pitch; double start, length; } melody[] {
+        { 69, 0, 1 }, { 72, 1, 1 }, { 76, 2, 2 }, { 77, 4, 1 }, { 76, 5, .5 }, { 74, 5.5, .5 }, { 72, 6, 2 },
+        { 72, 8, 1 }, { 74, 9, 1 }, { 76, 10, 1 }, { 79, 11, 1 }, { 74, 12, 3 }, { 71, 15, 1 },
+    };
+    for (auto& n : melody)
+        edit::addNote (p, clip, { 0, (Tick) std::llround (n.start * PPQ), (Tick) std::llround (n.length * PPQ), n.pitch, 96 });
+    const auto song = renderSong (p, 10.0, "trombolese-uat");
+    CHECK (song.getNumSamples() > 0);
+    if (song.getNumSamples() == 0) return;
+    const int second = 48000;
+    auto peakOf = [&] (int from, int to)
+    {
+        float m = 0;
+        for (int ch = 0; ch < 2; ++ch) m = jmax (m, song.getMagnitude (ch, from, jmin (to, song.getNumSamples()) - from));
+        return m;
+    };
+    const float through = peakOf (0, 7 * second), end = peakOf (7 * second, 10 * second);
+    std::printf ("    trombolese: peak %.3f through the first 7 s, %.3f after\n", through, end);
+    CHECK (through > 0.01f);
+    CHECK (end < 1.0f);
+    CHECK (end < through * 4.0f);
+}
+
+TEST ("family devices: Trombolese's notes are about as loud as each other, held alone or slid between (found in the UAT: B4 six times louder)")
+{
+    auto peakOf = [] (std::vector<std::pair<int, double>> notes, double seconds)
+    {
+        Project p;
+        p.tempo.setTempoAt (0, 100.0);
+        const Id t = edit::addTrack (p, TrackKind::Track, "Lead");
+        edit::addDevice (p, t, tromboleseRef(), DeviceRole::Instrument);
+        const Id clip = edit::addMidiClip (p, t, 0, PPQ * 16);
+        double at = 0;
+        for (auto& [pitch, beats] : notes)
+        {
+            edit::addNote (p, clip, { 0, (Tick) std::llround (at * PPQ), (Tick) std::llround (beats * PPQ), pitch, 96 });
+            at += beats;
+        }
+        const auto s = renderSong (p, seconds, "trombolese-level");
+        float m = 0;
+        for (int ch = 0; ch < 2; ++ch) m = jmax (m, s.getMagnitude (ch, 0, s.getNumSamples()));
+        return m;
+    };
+    float quietest = 1e9f, loudest = 0;
+    for (int pitch = 52; pitch <= 79; ++pitch)
+    {
+        const float m = peakOf ({ { pitch, 3 } }, 2.5);
+        quietest = jmin (quietest, m);
+        loudest = jmax (loudest, m);
+        if (m > 0.3f) std::printf ("    trombolese: note %d peaks at %.3f\n", pitch, m);
+    }
+    CHECK (quietest > 0.01f);
+    CHECK (loudest < 0.3f);   // at its Volume of -6 dB
+    // Touching notes slide from one to the next: never louder than the notes themselves.
+    for (auto [from, to] : { std::pair { 74, 71 }, { 79, 74 }, { 72, 65 }, { 60, 76 }, { 76, 60 } })
+    {
+        const float m = peakOf ({ { from, 3 }, { to, 2 } }, 3.5);
+        if (m > 0.3f) std::printf ("    trombolese: %d to %d peaks at %.3f\n", from, to, m);
+        CHECK (m < 0.3f);
+    }
+}

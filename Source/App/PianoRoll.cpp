@@ -36,10 +36,18 @@ int PianoRoll::articulationHeight() const
     return t && c.project.articulationMap (t->articulationMap) ? theme::px (22) : 0;
 }
 
+// The notes keep the most room (the UAT found nine keys in a short zone): the velocity
+// lane a fifth of the height (32 to 64), the CC lanes at most a third of what's left,
+// and never so much that fewer than 160 points of notes remain.
+int PianoRoll::velocityHeight() const
+{
+    return jlimit (theme::px (32), theme::px (64), (getHeight() - rulerHeight() - articulationHeight()) / 5);
+}
+
 int PianoRoll::ccHeight() const
 {
-    // At most half of what the notes would have.
-    return lanes.heightFor (jmax (0, (getHeight() - rulerHeight() - velocityHeight() - articulationHeight()) / 2));
+    const int left = getHeight() - rulerHeight() - velocityHeight() - articulationHeight();
+    return lanes.heightFor (jmax (0, jmin (left / 3, left - theme::px (160))));
 }
 
 Rectangle<int> PianoRoll::noteArea() const
@@ -112,10 +120,12 @@ void PianoRoll::timerCallback()
 void PianoRoll::paint (Graphics& g)
 {
     g.fillAll (theme::roll);
-    const auto* clip = c.project.clip (c.selectedClip);
+    const Track* owner = nullptr;
+    const auto* clip = c.project.clip (c.selectedClip, &owner);
     const auto area = noteArea();
     const auto& scale = c.project.scale;
-    const auto* track = const_cast<Controller&> (c).focus();
+    // The clip's own track, not the one chosen since (the UAT's bass notes wore Chords' colour).
+    const auto* track = owner != nullptr ? owner : const_cast<Controller&> (c).focus();
 
     // Rows: the scale's notes shaded, its root more; otherwise the keyboard's colours.
     for (int p = 0; p < 128; ++p)

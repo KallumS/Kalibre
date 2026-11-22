@@ -120,6 +120,14 @@ Tick Project::lastClipEnd() const
     return end;
 }
 
+Tick Project::songEnd() const
+{
+    const Tick end = lastClipEnd();
+    if (end <= 0) return tempo.barStart (1);
+    const int bar = tempo.barAt (end - 1);
+    return tempo.barStart (bar + 1);
+}
+
 Tick Project::endTick() const
 {
     Tick end = 0;

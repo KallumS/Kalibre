@@ -37,7 +37,7 @@ SampleEditor::SampleEditor (Controller& ctrl) : c (ctrl)
     {
         PopupMenu m;
         for (double db : { -12.0, -6.0, -3.0, -1.0, 1.0, 3.0, 6.0, 12.0 })
-            m.addItem ((db > 0 ? "+" : "") + String (db, 0) + " dB", [this, db]
+            m.addItem ((db > 0 ? "+" : "") + ui::number (db, 0) + " dB", [this, db]
             {
                 const float g = Decibels::decibelsToGain ((float) db);
                 run ("Gain", [g] (AudioBuffer<float>& b, int s, int e) { audiotools::gain (b.getArrayOfWritePointers(), b.getNumChannels(), s, e, g); });

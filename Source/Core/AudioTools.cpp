@@ -381,6 +381,20 @@ TempoGuess tempoOf (const float* x, int n, double rate)
         level[(size_t) f] = std::sqrt (e / (4.0 * hop));   // loudness, not its log: a kick counts for more than a hi-hat
     }
     for (int f = 1; f < frames; ++f) flux[(size_t) f] = std::max (0.0, level[(size_t) f] - level[(size_t) f - 1]);
+    // Hits to hear a beat in: rises of at least a fifth of its loudest level, 60 ms apart.
+    // A held note (a pad, a sub bass) has only its attack: no tempo (the UAT read one in each).
+    {
+        const double loudest = *std::max_element (level.begin(), level.end());
+        // A rise is summed over 20 ms, as a hit's is, not taken a 5 ms hop at a time.
+        int hits = 0, last = -1000;
+        for (int f = 4; f < frames; ++f)
+            if (level[(size_t) f] - level[(size_t) f - 4] > 0.2 * loudest && f - last > (int) (0.06 * rate / hop))
+            {
+                ++hits;
+                last = f;
+            }
+        if (hits < 4) return out;
+    }
     const double mean = std::accumulate (flux.begin(), flux.end(), 0.0) / std::max (1, frames);
     for (auto& v : flux) v -= mean;
     const double zero = std::inner_product (flux.begin(), flux.end(), flux.begin(), 0.0);

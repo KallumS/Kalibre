@@ -248,7 +248,7 @@ public:
             m.addItem ("Show Its Plug-in", [this] { show (i); });
             PopupMenu pn;
             for (int n = 24; n <= 96; n += 12)
-                pn.addItem (MidiMessage::getMidiNoteName (n, true, true, 3), true, pad.pluginNote == n,
+                pn.addItem (MidiMessage::getMidiNoteName (n, true, true, 4), true, pad.pluginNote == n,
                             [this, n] { change ("Plug-in Note", [n] (drumkit::Pad& p, drumkit::Kit&) { p.pluginNote = n; }); });
             m.addSubMenu ("Note Sent to the Plug-in", pn);
         }
@@ -350,6 +350,9 @@ public:
         swing.onDragEnd = [this] { const auto after = proc.kit(); proc.setKit (swingBefore); proc.perform ("Swing", [this, after] { proc.setKit (after); }); };
         addAndMakeVisible (swing);
         proc.onKitChanged = [sp = SafePointer<DrumMachineEditor> (this)] { if (sp) sp->kitChanged(); };
+        rowView.setViewedComponent (&rowHolder, false);
+        rowView.setScrollBarsShown (true, false);
+        addAndMakeVisible (rowView);
         setResizable (true, false);
         rebuild();
         setSize (1100, preferredHeight());
@@ -368,7 +371,7 @@ public:
     {
         rows.clear();
         for (int i = 0; i < (int) proc.kit().pads.size(); ++i)
-            addAndMakeVisible (rows.add (new PadRow (proc, i, [this] (int k) { showPlugin (k); })));
+            rowHolder.addAndMakeVisible (rows.add (new PadRow (proc, i, [this] (int k) { showPlugin (k); })));
         update();
         resized();
     }
@@ -501,7 +504,13 @@ public:
         r.removeFromTop (8);
         const int stepsWidth = proc.kit().pattern.steps * theme::px (22);
         auto list = r.removeFromLeft (jmin (r.getWidth(), theme::px (nameWidth + sourceWidth + 3 * smallWidth) + 16 + stepsWidth));
-        for (auto* row : rows) row->setBounds (list.removeFromTop (theme::px (rowHeight)));
+        // The pads in a list that scrolls when the panel is shorter than they are (the UAT found the 8th hidden).
+        rowView.setBounds (list);
+        const int needed = rows.size() * theme::px (rowHeight);
+        const int scrollbar = needed > list.getHeight() ? rowView.getScrollBarThickness() : 0;
+        rowHolder.setSize (list.getWidth() - scrollbar, needed);
+        auto inside = rowHolder.getLocalBounds();
+        for (auto* row : rows) row->setBounds (inside.removeFromTop (theme::px (rowHeight)));
         if (inner)
         {
             r.removeFromLeft (8);
@@ -523,6 +532,8 @@ public:
     Slider swing;
     drumkit::Kit swingBefore;
     OwnedArray<PadRow> rows;
+    Component rowHolder;
+    Viewport rowView;
     Component::SafePointer<AudioProcessorEditor> inner;
     AudioPluginInstance* shownPlugin = nullptr;
     int shown = -1, lastStep = -2;

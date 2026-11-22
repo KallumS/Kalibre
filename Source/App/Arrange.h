@@ -104,6 +104,7 @@ public:
     void itemDropped (const SourceDetails&) override;
 
     Timeline timeline;
+    float xOfTick (Tick t) const { return xOf (t); }   // where a moment is, across the arrangement
     int headerWidth() const { return theme::px (220); }
     int rulerHeight() const;
     int sectionLaneHeight() const;
@@ -146,6 +147,10 @@ private:
     Id dragTrack = 0;
     bool copying = false;
     Tick previewStart = 0, previewEnd = 0;
+    // Several chosen clips dragged by one: each moved as far, by as many tracks (the UAT
+    // dragged three and moved one). Where each lands, the dragged one's way.
+    struct Moving { Id clip; Tick start; Id track; };
+    std::vector<Moving> movingTogether() const;
     Id previewTrack = 0;
     int dragPoint = -1;
     Project dragBefore;
