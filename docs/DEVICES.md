@@ -86,8 +86,10 @@ stop each other.
 
 ### Kalibre Sampler
 
-One sample, played three ways (**Mode**, 0095). **Drop an audio file onto
-its panel** to load it, click **Load Sample…**, or **Random Sample** for any
+One sample, played three ways: **Keys**, **Slices** and **Granular**, the
+buttons along its top, each showing only its own knobs (0095, 0117). Click
+the waveform to hear the sample from there; a new click stops the last.
+**Drop an audio file onto its panel** to load it, click **Load Sample…**, or **Random Sample** for any
 sound from the Sounds folders. However it's loaded, its Root Note is set to
 the note the scan heard in it (0108, 0109). Up to 32 notes at once.
 

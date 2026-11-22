@@ -821,7 +821,13 @@ a loop, a one-shot, a note, a texture. Click again for another; ⌘Z goes back
 to the one before. When the sound is one note (a pad, a bass note, a voice),
 its **Root Note** is set to that note, however it was loaded, so it plays in
 tune from the keys; Random Sample's message says which. Each new sample, however it's loaded, is one undo
-step. Its knobs, group by group:
+step.
+
+**Keys**, **Slices** and **Granular**, along its top, choose how it plays; each
+shows only its own knobs (Loop in Keys and Granular, Slice Sensitivity in
+Slices, the grains in Granular). **Click the waveform** to hear the sample from
+there, as it is; click again and the last one stops as the new one starts.
+A yellow line follows it. Its knobs, group by group:
 
 | Group | Knobs |
 | --- | --- |
@@ -829,7 +835,7 @@ step. Its knobs, group by group:
 | **Sample** | **Start**, **End** (the part played), **Loop** and **Loop Start** (Keys and Granular). |
 | **Filter** | **Cutoff**, **Resonance**, **Velocity** (how much playing harder makes it louder). |
 | **Envelope** | **Attack**, **Decay**, **Sustain**, **Release**, **Volume**. |
-| **Play** | **Mode**: Keys, Slices or Granular. **Speed**: how fast the sample is played, 0 to 4 times. In Keys and Slices it's like tape, faster is higher (Tune can bring it back down); in Granular the pitch stays where the key puts it. **Slice Sensitivity**: higher finds quieter hits, so more slices. |
+| **Play** | The mode is the buttons along the top (an automatable parameter, Mode, too). **Speed**: how fast the sample is played, 0 to 4 times. In Keys and Slices it's like tape, faster is higher (Tune can bring it back down); in Granular the pitch stays where the key puts it. **Slice Sensitivity**: higher finds quieter hits, so more slices. |
 | **Grains** | Granular only. **Grain Size** (10 ms to half a second), **Density** (grains a second), **Spray** (how far each grain wanders from the reading point), **Position** (where in the sample it starts reading). |
 
 In **Slices**, the waveform shows a line where each slice starts, named with

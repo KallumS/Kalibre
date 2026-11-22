@@ -2549,3 +2549,101 @@ TEST ("sampler: a sound dragged from the browser onto Kalibre Sampler in the rac
     CHECK_EQ (sampler->file(), wav);
     CHECK_EQ (sampler->sample().getNumSamples() > 0, true);
 }
+
+namespace
+{
+// The sampler run for `seconds` with no notes: what its preview plays.
+AudioBuffer<float> runSampler (KalibreSampler& s, double seconds, std::function<void (int block)> each = {})
+{
+    const int n = 480, blocks = (int) (seconds * 48000 / n);
+    AudioBuffer<float> out (2, blocks * n), b (2, n);
+    MidiBuffer midi;
+    for (int k = 0; k < blocks; ++k)
+    {
+        if (each) each (k);
+        b.clear();
+        midi.clear();
+        s.processBlock (b, midi);
+        for (int ch = 0; ch < 2; ++ch) out.copyFrom (ch, k * n, b, ch, 0, n);
+    }
+    return out;
+}
+} // namespace
+
+TEST ("sampler: a click on the waveform plays the sample from there; a second click cuts the first off, never on top of it (0117)")
+{
+    KalibreSampler s;
+    s.setPlayConfigDetails (0, 2, 48000, 480);
+    s.prepareToPlay (48000, 480);
+    String error;
+    CHECK (s.load (clickFile (1.0), error));   // a click one second in, in two seconds
+    // Clicked at a quarter (half a second in): the click is heard half a second later.
+    s.audition (0.25f);
+    auto out = runSampler (s, 1.0);
+    const auto [at, level] = peak (out, 0);
+    CHECK (std::abs (at - 24000) <= 2);
+    CHECK (level > 0.3f);
+    CHECK (s.auditionPosition() > 0.7f);   // still playing, three quarters of the way
+    // From the start, then clicked again at three quarters before the click comes:
+    // the first is cut off (its click, a second in, never heard); the second starts past it.
+    s.reset();
+    s.audition (0.0f);
+    out = runSampler (s, 1.5, [&] (int block) { if (block == 50) s.audition (0.75f); });   // half a second in
+    CHECK (peak (out, 0).second < 0.01f);
+    // Back from a quarter again: one click, at the same place.
+    s.reset();
+    s.audition (0.25f);
+    out = runSampler (s, 1.0);
+    CHECK (std::abs (peak (out, 0).first - 24000) <= 2);
+}
+
+TEST ("sampler: Keys, Slices and Granular are buttons along its top; each shows its own knobs and hides the rest (0117)")
+{
+    KalibreSampler s;
+    editors::Owned editor (editors::open (s));
+    editor->setSize (1000, 300);
+    auto visibleKnobs = [&]
+    {
+        StringArray names;
+        std::function<void (Component&)> walk = [&] (Component& c)
+        {
+            if (auto* k = dynamic_cast<Slider*> (&c); k && k->isVisible()) names.add (k->getTitle());
+            for (auto* ch : c.getChildren()) walk (*ch);
+        };
+        walk (*editor);
+        return names;
+    };
+    auto button = [&] (const String& name) -> Button*
+    {
+        Button* found = nullptr;
+        std::function<void (Component&)> walk = [&] (Component& c)
+        {
+            if (auto* b = dynamic_cast<Button*> (&c); b && b->getButtonText() == name) found = b;
+            for (auto* ch : c.getChildren()) walk (*ch);
+        };
+        walk (*editor);
+        return found;
+    };
+    for (auto* name : { "Keys", "Slices", "Granular" }) CHECK (button (name) != nullptr);
+    if (! button ("Keys") || ! button ("Slices") || ! button ("Granular")) return;
+    CHECK (button ("Keys")->getToggleState());
+    auto keys = visibleKnobs();
+    CHECK (keys.contains ("Loop") && keys.contains ("Root Note") && keys.contains ("Speed"));
+    CHECK (! keys.contains ("Mode"));
+    CHECK (! keys.contains ("Slice Sensitivity") && ! keys.contains ("Grain Size"));
+
+    button ("Slices")->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (s.mode() == KalibreSampler::PlayMode::Slices);
+    CHECK (button ("Slices")->getToggleState() && ! button ("Keys")->getToggleState());
+    auto slices = visibleKnobs();
+    CHECK (slices.contains ("Slice Sensitivity"));
+    CHECK (! slices.contains ("Loop") && ! slices.contains ("Grain Size"));
+
+    button ("Granular")->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK (s.mode() == KalibreSampler::PlayMode::Granular);
+    auto grains = visibleKnobs();
+    for (auto* k : { "Grain Size", "Density", "Spray", "Position", "Loop" }) CHECK (grains.contains (k));
+    CHECK (! grains.contains ("Slice Sensitivity"));
+}
