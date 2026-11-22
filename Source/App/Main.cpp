@@ -108,7 +108,9 @@ private:
 
 // Kalibre runs itself as the plug-in scanner's helper (decision 0047): that copy
 // never starts the app, so it opens no window and asks for no audio device.
-int main (int argc, char* argv[])
+// Kalibre's start: the app, or the scanner's helper, or the MCP bridge. Called by
+// main, and on Windows by WinMain (MainWin.cpp), with the arguments in UTF-8.
+int kalibreMain (int argc, char* argv[])
 {
     if (argc > 1 && std::strcmp (argv[1], kal::PluginManager::workerFlag) == 0)
         return kal::PluginManager::runWorker (argc, argv);
@@ -116,5 +118,13 @@ int main (int argc, char* argv[])
     if (argc > 1 && std::strcmp (argv[1], kal::McpServer::bridgeFlag) == 0)
         return kal::runMcpBridge (std::cin, std::cout);
     juce::JUCEApplicationBase::createInstance = [] () -> juce::JUCEApplicationBase* { return new kal::Application(); };
+   #if JUCE_WINDOWS
+    return juce::JUCEApplicationBase::main();   // Windows' takes its arguments from the system
+   #else
     return juce::JUCEApplicationBase::main (argc, (const char**) argv);
+   #endif
 }
+
+#if ! JUCE_WINDOWS
+int main (int argc, char* argv[]) { return kalibreMain (argc, argv); }
+#endif

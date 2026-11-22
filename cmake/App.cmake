@@ -314,6 +314,9 @@ juce_add_gui_app(Kalibre
     PLIST_TO_MERGE "<plist><dict><key>LSMinimumSystemVersion</key><string>12.0</string><key>NSHighResolutionCapable</key><true/></dict></plist>")
 
 target_sources(Kalibre PRIVATE Source/App/Main.cpp)
+if(WIN32)
+    target_sources(Kalibre PRIVATE Source/App/MainWin.cpp)   # a windowed program starts at WinMain (0129)
+endif()
 target_compile_definitions(Kalibre PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:Kalibre,JUCE_PRODUCT_NAME>"
     JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:Kalibre,JUCE_VERSION>")
