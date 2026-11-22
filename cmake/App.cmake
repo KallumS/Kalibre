@@ -157,6 +157,7 @@ add_library(KalibreApp STATIC
     Source/Engine/TrackProcessors.cpp
     Source/Engine/MorphProcessor.cpp
     Source/Engine/ContainerProcessor.cpp
+    Source/Engine/MultibandProcessor.cpp
     Source/Engine/DrumMachine.cpp
     Source/Engine/DrumMachineEditor.cpp
     Source/Engine/JsfxDevice.cpp

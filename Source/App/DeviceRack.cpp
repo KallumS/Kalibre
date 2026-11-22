@@ -7,6 +7,7 @@
 #include "HardwareInsert.h"
 #include "MorphProcessor.h"
 #include "ContainerProcessor.h"
+#include "MultibandProcessor.h"
 #include "Editors.h"
 #include "JsfxDevice.h"
 #include "LuaTool/LuaTool.h"
@@ -703,6 +704,11 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
         if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
         m.showMenuAsync (PopupMenu::Options());
     };
+    // The Multiband's bands take audio effects too (decision 0126): the same menu.
+    MultibandProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
+    {
+        if (ContainerProcessor::choosePlugin) ContainerProcessor::choosePlugin (std::move (chosen));
+    };
     // The Container takes audio effects (decision 0055).
     ContainerProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
@@ -772,6 +778,7 @@ DeviceRack::~DeviceRack()
     windows.clear();   // their editors go before the plug-ins
     MorphProcessor::choosePlugin = nullptr;
     ContainerProcessor::choosePlugin = nullptr;
+    MultibandProcessor::choosePlugin = nullptr;
     NoteSplitterProcessor::makeEditor = nullptr;
     c.removeChangeListener (this);
     panels.clear();
@@ -805,6 +812,7 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
     kalibre.addSeparator();
     kalibre.addItem ("Container (Plug-ins on a Band, the Mid or the Sides)", [&c, track] { c.addBuiltIn (track, containerRef(), DeviceRole::AudioFx); });
+    kalibre.addItem ("Multiband (2 to 4 Bands, Plug-ins on Each)", [&c, track] { c.addBuiltIn (track, multibandRef(), DeviceRole::AudioFx); });
     kalibre.addItem ("Note Splitter (a Chord's Notes to Several Tracks)  (MIDI Effect)", [&c, track] { c.addBuiltIn (track, noteSplitterRef(), DeviceRole::MidiFx); });
     // The family's JSFX, built in (decision 0066), with Kalibre's own devices (0069).
     kalibre.addSeparator();

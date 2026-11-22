@@ -316,3 +316,112 @@ TEST ("container: it takes the size of the plug-in shown, when one is added and 
     samplerWindow->setSize (samplerWindow->getWidth() + 200, samplerWindow->getHeight() + 150);
     CHECK (fits (samplerWindow));
 }
+
+// The Multiband device (decision 0126).
+#include "MultibandProcessor.h"
+
+namespace
+{
+struct BandRig
+{
+    PluginManager plugins;
+    MultibandProcessor m { plugins };
+    BandRig() { m.setPlayConfigDetails (2, 2, rate, block); m.prepareToPlay (rate, block); }
+};
+
+AudioBuffer<float> runBands (MultibandProcessor& m, std::function<std::pair<float, float> (int)> signal, double seconds)
+{
+    const int total = (int) (seconds * rate);
+    AudioBuffer<float> out (2, total), b (2, block);
+    MidiBuffer midi;
+    for (int at = 0; at < total; at += block)
+    {
+        const int n = jmin (block, total - at);
+        AudioBuffer<float> view (b.getArrayOfWritePointers(), 2, n);
+        for (int i = 0; i < n; ++i) { const auto [l, r] = signal (at + i); view.setSample (0, i, l); view.setSample (1, i, r); }
+        m.processBlock (view, midi);
+        for (int ch = 0; ch < 2; ++ch) out.copyFrom (ch, at, view, ch, 0, n);
+    }
+    return out;
+}
+} // namespace
+
+TEST ("multiband: with nothing in it the sound is untouched, exactly; split with nothing in its bands, every frequency is as loud as it was (0126, 0081)")
+{
+    auto noise = [] (int i) { Random r (i); return std::pair<float, float> { r.nextFloat() - 0.5f, r.nextFloat() - 0.5f }; };
+    {
+        BandRig r;
+        const auto out = runBands (r.m, noise, 0.5);
+        double worst = 0;
+        for (int i = 0; i < out.getNumSamples(); ++i)
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                const auto [l, rr] = noise (i);
+                worst = jmax (worst, (double) std::abs (out.getSample (ch, i) - (ch == 0 ? l : rr)));
+            }
+        CHECK_EQ (worst, 0.0);   // cancels completely
+    }
+    // A band switched off (passing its sound by) splits the sound: across four bands every
+    // frequency comes out as loud as it went in, near the crossovers too.
+    for (double f : { 60.0, 150.0, 400.0, 1500.0, 3000.0, 6000.0, 12000.0 })
+    {
+        BandRig r;
+        r.m.setBands (4);
+        r.m.band (2).on->setValueNotifyingHost (0.0f);
+        const auto out = runBands (r.m, [f] (int i) { return std::pair<float, float> { 0.5f * sine (i, f), 0.5f * sine (i, f) }; }, 1.0);
+        CHECK (std::abs (Decibels::gainToDecibels (amount (out, 0, f) / 0.5f)) < 0.1f);
+    }
+}
+
+TEST ("multiband: a plug-in on a band changes only that band; crossovers are dragged but never past one another (0126)")
+{
+    BandRig r;
+    r.m.setBands (2);
+    r.m.setCrossover (0, 1000.0f);
+    String e;
+    CHECK (r.m.loadPlugin (0, 0, builtIn ("test-gain:-100"), e));   // the low band silenced
+    auto both = [] (int i) { return std::pair<float, float> { 0.4f * sine (i, 100) + 0.4f * sine (i, 6000), 0.4f * sine (i, 100) + 0.4f * sine (i, 6000) }; };
+    const auto out = runBands (r.m, both, 1.0);
+    CHECK (amount (out, 0, 100) < 0.4f * 0.05f);              // the low gone (more than 26 dB down)
+    CHECK (std::abs (amount (out, 0, 6000) - 0.4f) < 0.02f);  // the high as it was
+
+    r.m.setBands (4);
+    r.m.setCrossover (0, 150.0f);
+    r.m.setCrossover (1, 1500.0f);
+    r.m.setCrossover (2, 6000.0f);
+    r.m.setCrossover (0, 5000.0f);   // dragged past the next: stops short of it
+    CHECK (r.m.crossoverHz (0) <= r.m.crossoverHz (1) / MultibandProcessor::minRatio + 0.5f);
+    r.m.setCrossover (2, 100.0f);    // dragged below the one before: stops above it
+    CHECK (r.m.crossoverHz (2) >= r.m.crossoverHz (1) * MultibandProcessor::minRatio - 0.5f);
+    for (int k = 0; k + 1 < 3; ++k) CHECK (r.m.crossoverHz (k) < r.m.crossoverHz (k + 1));
+}
+
+TEST ("multiband: a band's plug-in delay holds the others back to meet it; its plug-ins come back from its state (0126)")
+{
+    BandRig r;
+    r.m.setBands (3);
+    String e;
+    CHECK (r.m.loadPlugin (0, 0, builtIn ("test-latency:100"), e));
+    CHECK_EQ (r.m.getLatencySamples(), 100);
+    // A click comes out as it does with a plug-in of no delay in that band, 100 samples later
+    // all of it: the other bands held back to meet the delayed one.
+    auto click = [] (int i) { return std::pair<float, float> { i == 1000 ? 1.0f : 0.0f, i == 1000 ? 1.0f : 0.0f }; };
+    const auto late = runBands (r.m, click, 0.1);
+    BandRig plain;
+    plain.m.setBands (3);
+    CHECK (plain.m.loadPlugin (0, 0, builtIn ("test-gain:0"), e));
+    const auto ontime = runBands (plain.m, click, 0.1);
+    double worst = 0;
+    for (int i = 0; i + 100 < late.getNumSamples(); ++i) worst = jmax (worst, (double) std::abs (late.getSample (0, i + 100) - ontime.getSample (0, i)));
+    CHECK (worst < 1.0e-5);
+    // Saved and opened again: the same bands, crossovers and plug-in.
+    r.m.setCrossover (1, 3000.0f);
+    MemoryBlock state;
+    r.m.getStateInformation (state);
+    BandRig back;
+    back.m.setStateInformation (state.getData(), (int) state.getSize());
+    CHECK_EQ (back.m.bands(), 3);
+    CHECK (std::abs (back.m.crossoverHz (1) - r.m.crossoverHz (1)) < 1.0f);
+    CHECK (back.m.band (0).slots[0].plugin != nullptr);
+    CHECK_EQ (back.m.getLatencySamples(), 100);
+}

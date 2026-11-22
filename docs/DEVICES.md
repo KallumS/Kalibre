@@ -22,7 +22,7 @@ Each section ends with what has been tried and what hasn't.
 | [Trombolese](#trombolese) | [Container](#container) | [MIDI Production Center](#midi-production-center) | [Starting Blocks Notation](#starting-blocks-notation) |
 | [Reese Basser](#reese-basser) | [Hardware Insert](#hardware-insert) | [Note Splitter](#note-splitter) | [Midi Catalogue](#midi-catalogue) |
 | [Instrument Creator](#instrument-creator) | [X/Y Morph (effect)](#xy-morph) | [ScaleView](#scaleview) | [Orchestration Helper](#orchestration-helper) |
-| [Instant Virtual Instrument](#instant-virtual-instrument) | | | |
+| [Instant Virtual Instrument](#instant-virtual-instrument) | [Multiband](#multiband) | | |
 | [X/Y Morph (instrument)](#xy-morph) | | | |
 
 **Every device** has the rack's own buttons (⏻ off, B bypass, Set A/B,
@@ -431,6 +431,25 @@ Mac, nor dropping from the Finder there.*
 Up to eight plug-ins in a row, each on a **band** of frequencies, the **mid**
 or the **sides**, with **On**, **S** (solo), **Volume** and **Pan**, and
 **Match Loudness**. See the [User Guide](USER-GUIDE.md#the-container).
+
+### Multiband
+
+The spectrum in **2, 3 or 4 bands** (the buttons along its top), with up to
+**four plug-ins on each band**, one after another (0126).
+
+- **The picture** shows the sound coming in, and the bands. **Drag a
+  crossover** (the handles between bands) to grow one band and shrink the
+  next; they never pass one another (a third of an octave apart at least).
+- **Each band**: its name and range, **On** (its plug-ins, or passed by),
+  **S** (solo), its **volume** (double-click for 0 dB), and its plug-ins:
+  **Add Plug-in…**; click a plug-in to open its window (a window of its own);
+  right-click for Show Its Window, Replace…, Remove.
+- Split as multiband processors split (Linkwitz-Riley, 24 dB an octave): the
+  bands add back up to every frequency as loud as it was. With nothing in it,
+  the sound isn't split at all and passes untouched. A band's plug-ins' delay
+  holds the other bands back to meet it.
+
+![The Multiband: four bands, plug-ins on two](guide/multiband.png)
 
 ### Hardware Insert
 

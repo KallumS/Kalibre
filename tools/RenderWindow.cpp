@@ -11,6 +11,7 @@
 #include "Song.h"
 #include "MainComponent.h"
 #include "BattlePass.h"
+#include "MultibandProcessor.h"
 #include "JsfxDevice.h"
 #include "LuaTool/LuaTool.h"
 #include "NoteSplitter.h"
@@ -494,6 +495,46 @@ int main (int argc, char** argv)
             }
             window.lowerHeight = 360;
             shoot ("17-container");
+            window.lowerHeight = 320;
+            edit::removeTrack (c.project, t);
+            c.refresh();
+        }
+        // The Multiband (decision 0126): four bands, plug-ins on two, a drum loop's spectrum.
+        {
+            const Id t = edit::addTrack (c.project, TrackKind::Track, "Mix Bus");
+            const Id dev = edit::addDevice (c.project, t, multibandRef(), DeviceRole::AudioFx);
+            c.focusTrack = t;
+            c.zoneTab = ZoneTab::Devices;
+            c.refresh();
+            if (auto* mb = dynamic_cast<MultibandProcessor*> (engine.instance (dev)))
+            {
+                mb->setBands (4);
+                auto put = [&] (int b, int i, const char* id, const char* name)
+                {
+                    PluginRef r { "Kalibre", id, name };
+                    String error;
+                    mb->loadPlugin (b, i, r, error);
+                };
+                put (0, 0, "test-gain:0", "Pro-C 2");
+                put (2, 0, "test-gain:-2", "Saturn 2");
+                put (2, 1, "test-gain:0", "Pro-Q 3");
+                // Something to see: noise and two tones through it.
+                AudioBuffer<float> b (2, 512);
+                MidiBuffer none;
+                Random rnd (3);
+                for (int k = 0; k < 8; ++k)
+                {
+                    for (int i = 0; i < 512; ++i)
+                    {
+                        const float x = 0.08f * (rnd.nextFloat() - 0.5f) + 0.3f * std::sin ((float) (k * 512 + i) * 0.0131f) + 0.1f * std::sin ((float) (k * 512 + i) * 0.39f);
+                        b.setSample (0, i, x);
+                        b.setSample (1, i, x);
+                    }
+                    mb->processBlock (b, none);
+                }
+            }
+            window.lowerHeight = 380;
+            shoot ("47-multiband");
             window.lowerHeight = 320;
             edit::removeTrack (c.project, t);
             c.refresh();
