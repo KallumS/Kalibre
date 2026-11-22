@@ -596,3 +596,42 @@ TEST ("browser: plug-ins under MIDI Effects, Instruments and Audio Effects; righ
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+#include "BuiltinInstruments.h"
+
+TEST ("browser: a preset's Load on a New Track puts its plug-in on a new track with the preset loaded, one undo step (0125)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    c.refresh();
+    Id dev = 0;
+    c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    // A preset: the synth's state with its cutoff turned down.
+    KalibreSynth synth;
+    if (auto* prm = dynamic_cast<RangedAudioParameter*> (synth.getParameters()[0])) prm->setValueNotifyingHost (0.1f);
+    MemoryBlock state;
+    synth.getStateInformation (state);
+    DynamicObject::Ptr o = new DynamicObject();
+    o->setProperty ("state", state.toBase64Encoding());
+    const auto f = File::getSpecialLocation (File::tempDirectory).getChildFile ("Kalibre Test Dark.kpreset");
+    f.replaceWithText (JSON::toString (var (o.get())));
+    const auto tracks = c.project.tracks.size();
+    const auto steps = c.history.size();
+    const Id nt = c.presetOnNewTrack (dev, f);
+    CHECK (nt != 0);
+    CHECK_EQ (c.project.tracks.size(), tracks + 1);
+    CHECK_EQ (c.history.size(), steps + 1);
+    if (auto* track = c.project.track (nt))
+    {
+        CHECK_EQ (track->devices.size(), size_t (1));
+        if (! track->devices.empty())
+        {
+            CHECK (track->devices[0].plugin == synthRef());
+            CHECK_EQ (track->devices[0].state, state.toBase64Encoding().toStdString());
+        }
+    }
+    f.deleteFile();
+}

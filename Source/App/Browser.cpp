@@ -157,6 +157,33 @@ struct Browser::PresetList : public ListBoxModel
         if (row >= 0 && row < (int) entries.size()) c.loadPreset (entries[(size_t) row].device, entries[(size_t) row].file);
     }
 
+    // Right-click, as the Sounds tab (0125): load it, on a new track, show it, delete it.
+    void listBoxItemClicked (int row, const MouseEvent& e) override
+    {
+        if (! e.mods.isPopupMenu() || row < 0 || row >= (int) entries.size()) return;
+        const auto en = entries[(size_t) row];
+        PopupMenu m;
+        m.addItem ("Load", [this, en] { c.loadPreset (en.device, en.file); });
+        m.addItem ("Load on a New Track", [this, en] { c.presetOnNewTrack (en.device, en.file); });
+        m.addSeparator();
+        m.addItem ("Show in Finder", [en] { en.file.revealToUser(); });
+        m.addItem (ui::u8 ("Delete\xe2\x80\xa6"), [this, en]
+        {
+            auto* w = new AlertWindow ("Delete the preset " + en.file.getFileNameWithoutExtension().quoted() + "?",
+                                       "It goes to the Trash.", MessageBoxIconType::NoIcon);
+            w->addButton ("Delete", 1, KeyPress (KeyPress::returnKey));
+            w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
+            ui::present (w, ModalCallbackFunction::create ([this, en] (int r)
+            {
+                if (r != 1) return;
+                en.file.moveToTrash();
+                c.say ("Deleted the preset " + en.file.getFileNameWithoutExtension().quoted() + ".");
+                c.viewChanged();
+            }), true);
+        });
+        m.showMenuAsync (PopupMenu::Options());
+    }
+
     Controller& c;
 };
 

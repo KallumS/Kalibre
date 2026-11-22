@@ -389,6 +389,8 @@ public:
     juce::Array<juce::File> presetsFor (const PluginRef&) const;
     bool savePreset (Id device, const juce::String& name);
     bool loadPreset (Id device, const juce::File&);
+    // The preset's plug-in on a new track, with the preset loaded: one undo step (0125).
+    Id presetOnNewTrack (Id fromDevice, const juce::File&);
     void loadProgram (Id device, int index);
     void switchAB (Id device);           // the other of the two settings being compared
     void copyToOther (Id device);        // the one heard now becomes the other too
