@@ -606,3 +606,22 @@ TEST ("sounds: a sample put on the timeline split at transients is a clip for ea
     CHECK_EQ (c.splitAtTransients (one), 4);
     CHECK_EQ (c.project.track (t)->clips().size(), (size_t) 4);
 }
+
+TEST ("sounds: coming back to Kalibre looks through the folders again, at most once a minute: a file saved meanwhile is listed (found in the UAT)")
+{
+    const auto dir = makeSounds ("comeback");
+    Library lib (dir);
+    const auto before = lib.view.scanner().index().items.size();
+    CHECK (before > 0);
+    WavAudioFormat wav;
+    const auto added = dir.getChildFile ("Keys/Saved Meanwhile.wav");
+    writeAudio (added, wav, 1.0);
+    // Just looked: not again so soon.
+    CHECK (! lib.view.lookAgainIfStale());
+    // A minute on (the test's clock): looked through again, the new file found.
+    lib.view.lastLook -= 61000;
+    CHECK (lib.view.lookAgainIfStale());
+    CHECK (lib.view.scanner().waitUntilDone (20000));
+    CHECK (find (lib.view.scanner().index(), added) != nullptr);
+    CHECK_EQ (lib.view.scanner().index().items.size(), before + 1);
+}

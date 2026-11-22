@@ -22,6 +22,9 @@
 
 namespace kal
 {
+// A parameter's value as it reads, its unit once (0099).
+juce::String readableValue (juce::AudioProcessorParameter&);
+
 
 // Every tool, for this controller.
 void addAgentTools (mcp::Server&, Controller&);

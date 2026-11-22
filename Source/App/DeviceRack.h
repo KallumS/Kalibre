@@ -69,6 +69,8 @@ public:
     // How wide the rack's view is, and the part of it a panel can be seen in
     // (in the panel's own coordinates).
     int fitWidth() const { return viewport.getMaximumVisibleWidth(); }
+    // The + Add and Random column after the last plug-in, with its gap.
+    int sideWidth() { return juce::jmax (add.idealWidth(), random.idealWidth()) + theme::px (8) * 2; }
     juce::Rectangle<int> shownArea (const juce::Component& panel) const
     {
         return viewport.getViewArea().translated (-panel.getX(), -panel.getY());

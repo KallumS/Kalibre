@@ -876,8 +876,10 @@ TEST ("plug-ins: a VST3 effect is an audio effect, though its description has no
     CHECK (track->devices[1].role == DeviceRole::AudioFx);
 }
 
-TEST ("plug-in panels: a plug-in taller than the zone is shown smaller to fit, the same both ways; never bigger, never stretched")
+TEST ("plug-in panels: Kalibre's own keep their width and take the zone's height, never shrunk out of reading, + Add still beside them (0058 amended in the UAT)")
 {
+    // Others' plug-ins keep their shape, shown smaller to fit (0058); Kalibre's own lay
+    // themselves out at any shape, so a short zone doesn't shrink their words to nothing.
     PluginManager plugins;
     Engine engine (plugins);
     Controller c (engine);
@@ -886,18 +888,18 @@ TEST ("plug-in panels: a plug-in taller than the zone is shown smaller to fit, t
     c.focusTrack = t;
     c.refresh();
     DeviceRack rack (c);
-    rack.setSize (1400, 160);   // a short lower zone
-    Id synth = 0;
-    c.apply ("Add", [&] (Project& p) { synth = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+    rack.setSize (1400, 200);   // a short lower zone
+    Id sampler = 0;
+    c.apply ("Add", [&] (Project& p) { sampler = edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
 
-    auto* editor = rack.editorOf (synth);
+    auto* editor = rack.editorOf (sampler);
     CHECK (editor != nullptr);
     if (! editor) return;
     auto shownIn = [&]
     {
         rack.resized();
-        const auto area = rack.pluginArea (synth).toFloat();
+        const auto area = rack.pluginArea (sampler).toFloat();
        #if ! JUCE_MAC
         // Off the Mac it's an ordinary child: where JUCE draws it is where the rack says.
         const auto drawn = rack.getLocalArea (editor, editor->getLocalBounds().toFloat());
@@ -906,19 +908,21 @@ TEST ("plug-in panels: a plug-in taller than the zone is shown smaller to fit, t
        #endif
         return area;
     };
-    const auto own = editor->getLocalBounds().toFloat();
     auto shown = shownIn();
-    CHECK (shown.getHeight() <= 160.0f - 30.0f);                         // under the header, inside the zone
-    CHECK (shown.getHeight() < own.getHeight());                         // smaller than it is
-    CHECK (std::abs (shown.getWidth() / shown.getHeight() - own.getWidth() / own.getHeight()) < 0.02f);   // its shape kept
+    CHECK (shown.getHeight() <= 200.0f - 30.0f);                          // under the header, inside the zone
     CHECK (rack.getLocalBounds().toFloat().contains (shown));
+    CHECK (editor->getWidth() > 950);                                     // its own width, not shrunk to its shape
+    CHECK (shown.getHeight() / (float) editor->getHeight() > 0.6f);       // drawn at least 60%: its words still read
+    // + Add and Random beside it, in view.
+    CHECK (rack.pluginArea (sampler).getRight() + 60 < rack.getWidth());
 
-    // A tall zone: its own size, not made bigger.
+    // A tall zone: as tall as it is, not made bigger; as wide as the zone.
     rack.setSize (1400, 1400);
     MessageManager::getInstance()->runDispatchLoopUntil (20);
     shown = shownIn();
-    CHECK (std::abs (shown.getWidth() - (float) editor->getWidth()) < 1.5f);
     CHECK (std::abs (shown.getHeight() - (float) editor->getHeight()) < 1.5f);
+    CHECK (editor->getHeight() <= 400);
+    CHECK (shown.getWidth() > 950.0f);
 }
 
 TEST ("questions: plug-ins in the rack step aside too, though on the Mac they're held in native views of their own")
@@ -2147,4 +2151,94 @@ TEST ("delay compensation: played live round a loop, a mute lane after a 300-sam
         engine.stop();
         engine.audioDeviceStopped();
     }
+}
+
+TEST ("piano roll: in a short lower zone the notes keep the most room: at least 160 points, the lanes smaller (found in the UAT: nine keys)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Bass");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    c.refresh();
+    c.selectClip (clip);
+    PianoRoll roll (c);
+    for (int h : { 260, 300, 400, 700 })
+    {
+        roll.setSize (1100, h);
+        const int notes = roll.notesShown().getHeight();
+        CHECK (notes >= jmin (theme::px (160), h - theme::px (20) - theme::px (32)));
+        CHECK (notes >= h / 2);   // the notes have at least half
+    }
+}
+
+TEST ("track names: double-click opens the name to type, and it stays open while the arrangement refreshes (found in the UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Track 1");
+        c.refresh();
+        Arrange arrange (c);
+        arrange.setSize (1200, 500);
+        arrange.resized();
+        TrackHeader* header = nullptr;
+        for (auto* ch : arrange.getChildren()) if (auto* h = dynamic_cast<TrackHeader*> (ch); h && h->id == t) header = h;
+        CHECK (header != nullptr);
+        if (! header) return;
+        Label* name = nullptr;
+        for (auto* ch : header->getChildren()) if (auto* l = dynamic_cast<Label*> (ch)) name = l;
+        CHECK (name != nullptr);
+        if (! name) return;
+        name->showEditor();                                     // as the double-click does
+        CHECK (name->isBeingEdited());
+        // The first click chose the track; the arrangement refreshes after.
+        c.chooseTrack (t, {}, c.arrangeOrder());
+        arrange.resized();
+        if (auto* tr = c.project.track (t)) header->update (*tr);
+        CHECK (name->isBeingEdited());
+        name->hideEditor (true);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("piano roll: a clip's notes wear its own track's colour, whichever track is chosen (found in the UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id bass = edit::addTrack (c.project, TrackKind::Track, "Bass");
+        const Id chords = edit::addTrack (c.project, TrackKind::Track, "Chords");
+        c.project.track (bass)->colour = 0xffe02020;     // red
+        c.project.track (chords)->colour = 0xff2040e0;   // blue
+        const Id clip = edit::addMidiClip (c.project, bass, 0, PPQ * 4);
+        for (int i = 0; i < 4; ++i) { Note n; n.start = PPQ * i; n.length = PPQ; n.pitch = 60 + i; edit::addNote (c.project, clip, n); }
+        c.refresh();
+        c.selectClip (clip);
+        c.focusTrack = chords;   // a track added or chosen since: the clip still open
+        PianoRoll roll (c);
+        roll.setSize (1100, 400);
+        roll.showClip();
+        const auto image = roll.createComponentSnapshot (roll.getLocalBounds());
+        int red = 0, blue = 0;
+        for (int y = 0; y < image.getHeight(); ++y)
+            for (int x = 0; x < image.getWidth(); ++x)
+            {
+                const auto p = image.getPixelAt (x, y);
+                red += p.getRed() > 150 && p.getBlue() < 100 && p.getGreen() < 100;
+                blue += p.getBlue() > 150 && p.getRed() < 100;
+            }
+        CHECK (red > 200);
+        CHECK (blue < red / 10);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

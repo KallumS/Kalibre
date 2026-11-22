@@ -112,3 +112,7 @@ its own speed.
   player starting on the next beat; the keys; one undo step a new track;
   removing a folder). AAC and ALAC are decoded by the Mac's Core Audio, so
   they're only tried on the Mac.
+
+- Amended 22 November (0109): notes are named with middle C as C4, as
+  everywhere in Kalibre. Coming back to Kalibre looks through the folders
+  again, at most once a minute. A tempo is heard only in four hits or more.

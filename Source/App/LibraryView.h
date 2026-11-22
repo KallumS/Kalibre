@@ -48,6 +48,9 @@ public:
     void saveSettings();
     void settingsChanged();                      // the folders changed: save, list again, scan
     void rescan();
+    // Kalibre came back to the front: looked through again if it's been a minute. True when it did.
+    bool lookAgainIfStale();
+    double lastLook = 0;   // when the folders were last looked through (ms)
     LibraryScanner& scanner() { return *scan; }
     PreviewPlayer& player() { return *preview; }
 

@@ -354,8 +354,8 @@ inside folders. A folded folder shows where its tracks have clips.
 | Do | To |
 | --- | --- |
 | Click | Choose it (Shift, Option and Command as in [Choosing things](#choosing-things)). |
-| Drag its middle | Move it, onto the grid; to another track too. |
-| **⌥ Option**-drag | Copy it. |
+| Drag its middle | Move it, onto the grid; to another track too. With several chosen, they all move as far, one undo step. |
+| **⌥ Option**-drag | Copy it (all the chosen ones). |
 | **⌘ Command** while dragging | Move it freely, off the grid. |
 | Drag its left or right edge | Trim it. |
 | **⇧ Shift**-drag anywhere on it | Resize it from the nearer edge: grab its right half to move its end, its left half to move its start, without aiming for the edge. A Shift-click alone still chooses. |
@@ -713,7 +713,7 @@ deleted since its scan) is left out, and the message line says so.
 | **B** | Bypass: the sound passes untouched, the plug-in still loaded. |
 | **Random** | Its controls set by chance, for a new sound. [Below](#a-plug-ins-random). |
 | **Set A / Set B** | Two settings to compare: click to switch. Copy one to the other in Presets. |
-| **Presets** | **Save Preset…**, your saved presets, and **The Plug-in's Own** programs. |
+| **Presets** | **Save Preset…**, your saved presets, and **The Plug-in's Own** programs (Kalibre's own: **Factory Presets**, eleven for Kalibre Synth). |
 | **Match** | Match Loudness: keeps what comes out as loud as what goes in (short-term loudness, LUFS-S). The amount is shown beside it. |
 | **⧉** | Move its window out of the rack into a window of its own, and back. |
 | **…** | **Move Left**, **Move Right**, **Sidechain From** (another track), **Its Other Outputs as Tracks**, **Automate the Last Touched Control**, **Modulate the Last Touched Control**, **Remove**. |
@@ -807,7 +807,12 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 ### Kalibre Sampler
 
 Drop a sample on it (from the Sounds tab or the Finder) or click **Load
-Sample…**. Its knobs, group by group:
+Sample…**. Or click **Random Sample** for any sound from your Sounds folders:
+a loop, a one-shot, a note, a texture. Click again for another; ⌘Z goes back
+to the one before. When the sound is one note (a pad, a bass note, a voice),
+its **Root Note** is set to that note, however it was loaded, so it plays in
+tune from the keys; Random Sample's message says which. Each new sample, however it's loaded, is one undo
+step. Its knobs, group by group:
 
 | Group | Knobs |
 | --- | --- |
@@ -861,7 +866,7 @@ your pads, every click. **Clear** takes every hit out.
 **Play Pattern** (lit) plays the steps while the song plays, from the song's
 start and round the loop. **Drag to Timeline**: drag it onto a track in the
 arrangement and the beat is a clip there, which the drum grid opens to change
-or vary it. On the drums' own track, Play Pattern switches off, so the beat
+or vary it. Let go near a bar line (within a beat) and it starts on the bar. On the drums' own track, Play Pattern switches off, so the beat
 isn't heard twice. Clips' notes play the pads, so beats can live in clips,
 section by section.
 
@@ -1116,7 +1121,9 @@ favourites and bring into the song.
 **The folders.** The first time Kalibre opens it asks which folders to look
 in; **Kalibre > Library Folders…** (or **Folders…** in the tab) adds one
 (**Add Folder…**), takes one out (**Remove**: its files aren't touched), or
-looks through them all again (**Look Again**). Only files Kalibre can play
+looks through them all again (**Look Again**). Coming back to Kalibre (from
+the Finder, say) looks again by itself, at most once a minute, so a sample
+you've just saved is listed. Only files Kalibre can play
 are listed: WAV, AIFF, FLAC, Ogg, MP3, AAC and ALAC (M4A, CAF), and MIDI.
 Each file is read once; after that only new and changed files are, so
 opening Kalibre doesn't wait. The line under the buttons says how far a scan
@@ -1168,7 +1175,7 @@ sample, a second line says what the scan heard in it:
   sound too short to measure that way (under about half a second) shows its
   **Peak** in dB instead.
 - **Its note**: the pitch it plays, as the piano roll names it (middle C is
-  C3), with how many cents off, "A2 -12". **No One Note** for drums, chords
+  C4), with how many cents off, "A3 -12". **No One Note** for drums, chords
   and noise.
 - **Its tempo**: when its name and file don't say, it's heard from how its
   hits repeat. A loop cut to whole bars at that tempo is known exactly (**Tempo
@@ -1324,7 +1331,7 @@ Exports cover the loop range when the loop is on, otherwise the whole song.
 
 | Menu item | Makes |
 | --- | --- |
-| **Export the Mix…** (⇧⌘E) | WAV, AIFF, FLAC or MP3 (320 kb/s), by the name you give it. 16, 24 or 32-bit, with dither where it's fewer bits. |
+| **Export the Mix…** (⇧⌘E) | WAV, AIFF, FLAC or MP3 (320 kb/s), by the name you give it. 16, 24 or 32-bit, with dither where it's fewer bits. The whole song is from the start to the bar line after the last clip (the loop, when it's on). |
 | **Export the Mix at a Loudness** | **For Streaming (-14 LUFS)**, **For Apple Music (-16 LUFS)**, **For Broadcast (-23 LUFS)**. |
 | **Export Every Track…** | A file per track (stems). |
 | **Export MIDI…** | A MIDI file. |

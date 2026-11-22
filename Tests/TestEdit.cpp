@@ -442,3 +442,16 @@ TEST ("transport: the end of the song is where its last clip ends, on any track;
     p.track (b)->clips().clear();
     CHECK_EQ (p.lastClipEnd(), PPQ * 4);
 }
+
+TEST ("export: the whole song ends at the bar its last clip ends in, not the view's 16 bars (the UAT's 4 bars exported as 16)")
+{
+    Project p;
+    p.tempo.setTempoAt (0, 100.0);
+    CHECK_EQ (p.songEnd(), p.tempo.barStart (1));                 // nothing: one bar
+    const Id a = edit::addTrack (p, TrackKind::Track, "A");
+    edit::addMidiClip (p, a, 0, PPQ * 16);                        // 4 bars of 4/4
+    CHECK_EQ (p.songEnd(), p.tempo.barStart (4));                 // to the end of bar 4
+    CHECK (p.endTick() > p.songEnd());                            // the view keeps its 16
+    edit::addMidiClip (p, a, PPQ * 16, PPQ * 3);                  // into bar 5
+    CHECK_EQ (p.songEnd(), p.tempo.barStart (5));                 // to its bar line
+}

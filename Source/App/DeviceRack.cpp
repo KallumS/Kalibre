@@ -171,10 +171,17 @@ public:
         if (box == fittedBox) return fitted;
         auto size = natural;
         laying = true;
+        // Kalibre's own lay themselves out at any shape: as wide as they are (no wider than
+        // the rack beside its + Add), as tall as they are or as the panel is, so a short
+        // zone doesn't shrink their words to nothing (found in the UAT; 0058 amended).
+        // Others keep their shape.
+        const auto* d = device();
+        const bool ours = d != nullptr && d->plugin.format == "Kalibre";
         if (editor->isResizable() && ! ownSize)
         {
             const float s = jmin ((float) box.getWidth() / (float) natural.getWidth(), (float) box.getHeight() / (float) natural.getHeight());
             Rectangle<int> want (0, 0, jmax (1, roundToInt ((float) natural.getWidth() * s)), jmax (1, roundToInt ((float) natural.getHeight() * s)));
+            if (ours) want = { 0, 0, jmin (natural.getWidth(), box.getWidth() - rack.sideWidth()), jmin (box.getHeight(), natural.getHeight()) };
             if (auto* k = editor->getConstrainer())
                 k->checkBounds (want, editor->getBounds(), Rectangle<int> (0, 0, 100000, 100000), false, false, true, true);
             editor->setBounds (want);
@@ -303,7 +310,7 @@ public:
                 const auto name = inst->getProgramName (i);
                 programs.addItem (name.isEmpty() ? "Program " + String (i + 1) : name, true, inst->getCurrentProgram() == i, [this, i] { c.loadProgram (id, i); });
             }
-            m.addSubMenu ("The Plug-in's Own", programs);
+            m.addSubMenu (d->plugin.format == "Kalibre" ? "Factory Presets" : "The Plug-in's Own", programs);
         }
         m.addSeparator();
         m.addItem (d->onB ? "Copy B to A" : "Copy A to B", inst != nullptr, false, [this] { c.copyToOther (id); });
@@ -852,7 +859,7 @@ void DeviceRack::layoutStrip()
     add.setBounds (x, theme::px (4), add.idealWidth(), theme::px (28));
     random.setBounds (x, add.getBottom() + theme::px (6), jmax (add.idealWidth(), random.idealWidth()), theme::px (28));
     random.setVisible (c.focusTrack != c.project.master.id);   // not offered on the master (0102)
-    x += jmax (add.idealWidth(), random.idealWidth()) + theme::px (8);
+    x += sideWidth();
     strip.setSize (jmax (x, viewport.getWidth()), h);
     placeEditors();
 }

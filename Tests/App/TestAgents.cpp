@@ -1,6 +1,8 @@
 // AI agents through MCP (decision 0099): the tools, the server on this Mac, the bridge.
 #include "Check.h"
 #include "AgentTools.h"
+#include "BuiltinInstruments.h"
+#include "Theme.h"
 #include "Edit.h"
 #include "McpServer.h"
 
@@ -212,4 +214,26 @@ TEST ("agents: randomise_plugin sets a device's controls by chance, leaving volu
     s.result ("randomise_plugin", { { "device", dev } });
     CHECK_EQ (s.c.history.size(), steps + 1);
     CHECK (s.call ("randomise_plugin", { { "device", 999999 } })["isError"].get<bool>());
+}
+
+TEST ("agents: a parameter's value reads as it does on the knob: its unit once, no stray decimals (found in the UAT)")
+{
+    CHECK_EQ (kal::ui::number (502.246, 0), String ("502"));
+    CHECK_EQ (kal::ui::number (27.9536, 0), String ("28"));
+    CHECK_EQ (kal::ui::number (0.256, 2), String ("0.26"));
+    auto synth = makeInstrument (synthRef());
+    for (auto* p : synth->getParameters())
+        if (p->getName (32) == "Cutoff")
+        {
+            auto* ranged = dynamic_cast<RangedAudioParameter*> (p);
+            const auto text = p->getText (ranged->convertTo0to1 (502.246f), 32);
+            CHECK_EQ (text, String ("502 Hz"));
+        }
+    auto trom = makeInstrument (tromboleseRef());
+    for (auto* p : trom->getParameters())
+    {
+        const auto text = readableValue (*p);
+        CHECK (! text.contains ("Pa  Pa") && ! text.contains ("s  s") && ! text.contains ("dB  dB"));
+        if (p->getName (32) == "Breath") CHECK_EQ (text, String ("4200 Pa"));
+    }
 }

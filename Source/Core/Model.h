@@ -648,6 +648,9 @@ struct Project
     Tick endTick() const;
     // Where the last clip on any track ends, as the playing versions have them; 0 with none (0107).
     Tick lastClipEnd() const;
+    // What an export of the whole song covers: to the bar line after the last clip ends
+    // (one bar with none). Not endTick, which keeps the view at least 16 bars long.
+    Tick songEnd() const;
 
     bool operator== (const Project&) const = default;
 };

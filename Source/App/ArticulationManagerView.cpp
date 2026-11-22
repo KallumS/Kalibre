@@ -120,7 +120,7 @@ void ArticulationManagerView::articulationsChosen()
     const bool any = r != nullptr && first >= 0 && first < (int) r->map.articulations.size();
     delayField.setEnabled (any);
     delayLabel.setEnabled (any);
-    delayField.setText (any ? String (r->map.articulations[(size_t) first].delayMs, 0) : String(), dontSendNotification);
+    delayField.setText (any ? ui::number (r->map.articulations[(size_t) first].delayMs, 0) : String(), dontSendNotification);
 }
 
 void ArticulationManagerView::applyDelay()
@@ -187,7 +187,7 @@ void ArticulationManagerView::Arts::paintListBoxItem (int row, Graphics& g, int 
     g.setColour (theme::textSecondary);
     g.setFont (theme::font (theme::smallPoints));
     String sends = articulations::describe (a);
-    if (a.delayMs != 0) sends << ui::u8 (" \xc2\xb7 ") << String (a.delayMs, 0) << " ms";
+    if (a.delayMs != 0) sends << ui::u8 (" \xc2\xb7 ") << ui::number (a.delayMs, 0) << " ms";
     g.drawText (sends, w * 4 / 10, 0, w * 6 / 10 - 8, h, Justification::centredLeft, true);
 }
 

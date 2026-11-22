@@ -200,7 +200,7 @@ public:
         {
             g.setColour (theme::textSecondary);
             g.setFont (theme::font (theme::smallPoints));
-            g.drawText ("CPU " + String (cpu * 100.0, cpu < 0.1 ? 1 : 0) + "%", getLocalBounds().removeFromBottom (theme::px (16)).reduced (4, 0),
+            g.drawText ("CPU " + ui::number (cpu * 100.0, cpu < 0.1 ? 1 : 0) + "%", getLocalBounds().removeFromBottom (theme::px (16)).reduced (4, 0),
                         Justification::centredLeft, false);
         }
         if (held > 1.0f)
@@ -342,7 +342,7 @@ void LoudnessPanel::paint (Graphics& g)
     g.setFont (theme::font (theme::bodyPoints, true));
     g.drawText ("Loudness", r.removeFromTop (theme::px (20)), Justification::centredLeft, false);
     r.removeFromTop (theme::px (4));
-    auto value = [] (double v, int places = 1) { return v <= -99.0 ? ui::u8 ("\xe2\x80\x94") : String (v, places); };
+    auto value = [] (double v, int places = 1) { return v <= -99.0 ? ui::u8 ("\xe2\x80\x94") : ui::number (v, places); };
     struct Line { const char* name; String text; const char* unit; };
     const Line lines[] {
         { "Momentary", value (m), "LUFS" }, { "Short-term", value (s), "LUFS" }, { "Integrated", value (i), "LUFS" },

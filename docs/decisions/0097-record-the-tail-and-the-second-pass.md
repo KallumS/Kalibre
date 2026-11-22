@@ -59,3 +59,7 @@ end of a loop wrap into its start.
   Each voice's chance now starts from a fixed seed in `prepareToPlay` and
   `reset`; tested (two plays from a reset, and a new sampler, the same
   sample for sample).
+
+- Amended 22 November (0109): the whole song ends at the bar line after its
+  last clip (`Project::songEnd`), not the view's 16 bars: four bars exported
+  as 38 seconds.

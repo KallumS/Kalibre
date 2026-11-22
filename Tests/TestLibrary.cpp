@@ -3,6 +3,7 @@
 #include "Library.h"
 
 #include <algorithm>
+#include <set>
 
 using namespace kal;
 using namespace kal::library;
@@ -237,8 +238,10 @@ TEST ("library: the scan's loudness, note and tempo are kept; an older scan's it
     CHECK (! library::needsScan (&back.items[it.path], 10, 20));
     back.items[it.path].analysis = 1;
     CHECK (library::needsScan (&back.items[it.path], 10, 20));
-    CHECK_EQ (library::noteName (57, -12), std::string ("A2 -12"));
-    CHECK_EQ (library::noteName (60, 0.2), std::string ("C3"));
+    // Middle C is C4, as the piano roll, the Sampler and the drum pads name it (the UAT found C3 here).
+    CHECK_EQ (library::noteName (57, -12), std::string ("A3 -12"));
+    CHECK_EQ (library::noteName (60, 0.2), std::string ("C4"));
+    CHECK_EQ (library::noteName (21, 0), std::string ("A0"));
     CHECK_EQ (library::noteName (-1, 0), std::string());
     CHECK_EQ (library::loudnessText (it), std::string ("-14.2 LUFS"));
     it.lufs = library::silentDb;
@@ -280,4 +283,40 @@ TEST ("library: the index saved a sound a line comes back the same; one saved by
     library::Index fromOld;
     CHECK (library::readIndex (old, fromOld));
     CHECK (fromOld.items == ix.items);
+}
+
+TEST ("library: Random Sample chooses any sound the scan read, of any kind, never MIDI, the broken, the empty, the too long or the one it has; a new one each seed (0108)")
+{
+    Index ix = sampleIndex();
+    Item silent = audio ("/M/Empty.wav");
+    silent.seconds = 0;
+    ix.items[silent.path] = silent;
+    Item tooLong = audio ("/M/Field Recording.wav");
+    tooLong.seconds = 900;
+    ix.items[tooLong.path] = tooLong;
+    Item loop = audio ("/M/Loops/Break 120bpm.wav");
+    loop.seconds = 8;
+    ix.items[loop.path] = loop;
+    std::set<std::string> seen;
+    for (unsigned seed = 1; seed <= 400; ++seed)
+    {
+        const auto p = randomSound (ix, seed);
+        CHECK (! p.empty());
+        CHECK (p != "/M/Keys/Chords.mid");
+        CHECK (p != "/M/Drums/Broken.wav");
+        CHECK (p != "/M/Empty.wav");
+        CHECK (p != "/M/Field Recording.wav");
+        seen.insert (p);
+        CHECK (randomSound (ix, seed) == p);   // the same seed, the same choice
+    }
+    // Every one that fits comes up: drums, a pad, a loop, wherever it is.
+    CHECK_EQ (seen.size(), (size_t) 6);
+    CHECK (seen.count ("/M/Loops/Break 120bpm.wav") == 1);
+    CHECK (seen.count ("/M/Keys/Pad 90bpm.flac") == 1);
+    // Never the one it has, unless there's no other.
+    for (unsigned seed = 1; seed <= 50; ++seed) CHECK (randomSound (ix, seed, "/M/Drums/Snare.wav") != "/M/Drums/Snare.wav");
+    Index one;
+    one.items["/A.wav"] = audio ("/A.wav");
+    CHECK (randomSound (one, 1, "/A.wav").empty());
+    CHECK (randomSound (Index {}, 1).empty());
 }

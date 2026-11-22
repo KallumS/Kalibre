@@ -82,3 +82,8 @@ Not yet tried on the Mac. Trombolese's level varies from note to note in the
 model; each note's measured level evens that out. Midular's importer, asked
 with nothing chosen, would ask for a `.mid` file; in Kalibre it says to
 choose a clip instead.
+
+- Amended 22 November (0109): Trombolese's level slides between notes in
+  decibels, and its peaks are held under a ceiling (0.4 before Volume): its
+  note table's levels differ up to four hundredfold, and a slide from D5 to
+  B4 went 30 dB over full scale. The voice is as it was.

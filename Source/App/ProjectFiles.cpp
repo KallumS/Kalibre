@@ -231,7 +231,7 @@ bool Controller::exportBatch (const File& folder, const Batch& b)
     const String song = file.existsAsFile() ? file.getFileNameWithoutExtension() : String ("Mix");
     Engine::RenderOptions o;
     o.start = project.loop.on ? project.tempo.secondsAt (project.loop.start) : 0.0;
-    o.end = project.loop.on ? project.tempo.secondsAt (project.loop.end) : project.tempo.secondsAt (project.endTick());
+    o.end = project.loop.on ? project.tempo.secondsAt (project.loop.end) : project.tempo.secondsAt (project.songEnd());
     o.loudnessTarget = b.loudness;
     o.tail = 0;
     o.ringOut = b.ringOut;
@@ -449,7 +449,7 @@ bool Controller::setArticulationDelay (const std::string& name, const std::set<i
     }
     if (found)
         say (String (which.size() == 1 ? "The articulation" : "The articulations") + " of " + String (name).quoted() + " now play "
-             + (ms == 0 ? String ("on time") : String (std::abs (ms), 0) + (ms < 0 ? " ms early" : " ms late")) + ".", false, inSong);
+             + (ms == 0 ? String ("on time") : ui::number (std::abs (ms), 0) + (ms < 0 ? " ms early" : " ms late")) + ".", false, inSong);
     else sendChangeMessage();
     return found;
 }

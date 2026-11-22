@@ -18,6 +18,16 @@ using namespace juce;
 using json = mcp::json;
 using mcp::Reply;
 
+// A parameter's value as it reads, its unit once: Kalibre's own put it in their text already
+// (the UAT read "4200 Pa  Pa").
+juce::String readableValue (juce::AudioProcessorParameter& p)
+{
+    auto text = p.getText (p.getValue(), 32).trim();
+    const auto unit = p.getLabel().trim();
+    if (unit.isNotEmpty() && ! text.endsWith (unit)) text << " " << unit;
+    return text;
+}
+
 namespace
 {
 double beatsOf (Tick t) { return (double) t / PPQ; }
@@ -355,7 +365,7 @@ void addAgentTools (mcp::Server& server, Controller& c)
             const auto name = p->getName (64);
             if (search.isNotEmpty() && ! name.containsIgnoreCase (search)) continue;
             out.push_back ({ { "index", i }, { "name", name.toStdString() }, { "value", p->getValue() },
-                             { "text", (p->getText (p->getValue(), 32) + " " + p->getLabel()).trim().toStdString() } });
+                             { "text", readableValue (*p).toStdString() } });
             if (out.size() >= 400) break;
         }
         return Reply::ok (out.dump (1));
@@ -379,8 +389,8 @@ void addAgentTools (mcp::Server& server, Controller& c)
         }
         if (! p) return Reply::fail ("No such parameter. get_plugin_parameters lists them.");
         p->setValueNotifyingHost ((float) jlimit (0.0, 1.0, numberOr (a, "value", p->getValue())));
-        c.say ("An AI agent set " + p->getName (64) + " to " + (p->getText (p->getValue(), 32) + " " + p->getLabel()).trim() + ".");
-        return Reply::ok (p->getName (64).toStdString() + " is now " + (p->getText (p->getValue(), 32) + " " + p->getLabel()).trim().toStdString() + ".");
+        c.say ("An AI agent set " + p->getName (64) + " to " + readableValue (*p) + ".");
+        return Reply::ok (p->getName (64).toStdString() + " is now " + readableValue (*p).toStdString() + ".");
     });
 
     //--------------------------------------------------------------------------
@@ -654,7 +664,7 @@ void addAgentTools (mcp::Server& server, Controller& c)
         Engine::RenderOptions o;
         const auto& p = c.project;
         o.start = p.loop.on ? p.tempo.secondsAt (p.loop.start) : 0.0;
-        o.end = p.loop.on ? p.tempo.secondsAt (p.loop.end) : p.tempo.secondsAt (p.endTick());
+        o.end = p.loop.on ? p.tempo.secondsAt (p.loop.end) : p.tempo.secondsAt (p.songEnd());
         o.format = f.getFileExtension().trimCharactersAtStart (".").toLowerCase();
         if (o.format != "aiff" && o.format != "flac" && o.format != "mp3") o.format = "wav";
         o.tail = 0;

@@ -66,3 +66,8 @@ that measures the mouse in screen coordinates may misplace its own pop-up
 menus while shown smaller.
 
 Widened by 0069: what a plug-in sends, learned by opening it in the scan, files MIDI effects (Riffer) right.
+
+- Amended 22 November (0109): Kalibre's own devices aren't fitted keeping
+  their shape: they keep their width (no wider than leaves + Add in view) and
+  take the zone's height, down to their smallest, so a short zone doesn't
+  shrink their words out of reading. Others' plug-ins are fitted as above.

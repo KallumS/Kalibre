@@ -20,6 +20,7 @@ struct Register { Register (const char* name, std::function<void()> fn) { all().
 inline void fail (const char* file, int line, const std::string& what)
 {
     std::printf ("FAIL %s (%s:%d): %s\n", current(), file, line, what.c_str());
+    std::fflush (stdout);   // seen even when a crash follows
     ++failures();
 }
 

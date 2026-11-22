@@ -7,6 +7,7 @@
 #include <istream>
 #include <iterator>
 #include <ostream>
+#include <random>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -137,11 +138,26 @@ bool needsScan (const Item* cached, std::int64_t size, std::int64_t modified)
            || (cached->kind == Kind::Audio && cached->readable && cached->analysis < analysisVersion);
 }
 
+std::string randomSound (const Index& index, unsigned seed, const std::string& avoid)
+{
+    // Reservoir sampling: the n-th fitting sound replaces the choice with a chance of 1 in n.
+    std::mt19937 rng (seed);
+    std::string chosen;
+    std::uint64_t n = 0;
+    for (auto& [path, it] : index.items)
+    {
+        if (it.kind != Kind::Audio || ! it.readable || it.seconds <= 0 || it.seconds > 600 || path == avoid) continue;
+        ++n;
+        if (std::uniform_int_distribution<std::uint64_t> (0, n - 1) (rng) == 0) chosen = path;
+    }
+    return chosen;
+}
+
 std::string noteName (int note, double cents)
 {
     if (note < 0 || note > 127) return {};
     static const char* names[] { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-    std::string s = std::string (names[note % 12]) + std::to_string (note / 12 - 2);   // middle C (60) is C3
+    std::string s = std::string (names[note % 12]) + std::to_string (note / 12 - 1);   // middle C (60) is C4, as everywhere in Kalibre
     const int c = (int) std::lround (cents);
     if (c != 0) s += (c > 0 ? " +" : " ") + std::to_string (c);
     return s;

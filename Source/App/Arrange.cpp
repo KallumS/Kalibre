@@ -56,7 +56,9 @@ void TrackHeader::refreshButtons()
 
 void TrackHeader::update (const Track& t)
 {
-    name.setText (t.name, dontSendNotification);
+    // Not while it's being typed: setting a label's text closes its editor, and the
+    // arrangement refreshes just after the double-click that opened it (found in the UAT).
+    if (! name.isBeingEdited()) name.setText (t.name, dontSendNotification);
     name.setFont (theme::font());
     mute.setToggleState (t.mute, dontSendNotification);
     solo.setToggleState (t.solo, dontSendNotification);
@@ -113,7 +115,7 @@ void TrackHeader::paint (Graphics& g)
     {
         g.setColour (theme::textSecondary);
         g.setFont (theme::font (theme::smallPoints));
-        g.drawText ((t->delayMs > 0 ? "+" : "") + String (t->delayMs, 0) + " ms", getLocalBounds().reduced (6, 2), Justification::bottomRight, false);
+        g.drawText ((t->delayMs > 0 ? "+" : "") + ui::number (t->delayMs, 0) + " ms", getLocalBounds().reduced (6, 2), Justification::bottomRight, false);
     }
     g.setColour (theme::rule);
     g.fillRect (0, getHeight() - 1, getWidth(), 1);
@@ -226,7 +228,7 @@ void TrackHeader::showMenu()
     m.addItem (ui::u8 ("Track Delay\xe2\x80\xa6"), [this]
     {
         auto* w = new AlertWindow ("Track Delay", "Milliseconds. Negative plays the track early, for sounds that are slow to start.", MessageBoxIconType::NoIcon);
-        w->addTextEditor ("ms", String (c.project.track (id)->delayMs, 0));
+        w->addTextEditor ("ms", ui::number (c.project.track (id)->delayMs, 0));
         w->addButton ("Set", 1, KeyPress (KeyPress::returnKey));
         w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
         ui::present (w, ModalCallbackFunction::create ([this, w] (int ok)
@@ -1100,6 +1102,7 @@ void Arrange::paint (Graphics& g)
         for (auto& clip : t->clips())
         {
             if (clip.id == dragClip && (drag == Drag::MoveClip || drag == Drag::TrimStart || drag == Drag::TrimEnd) && ! copying) continue;
+            if (drag == Drag::MoveClip && ! copying && dragClip != 0 && c.selectedClips.count (dragClip) && c.selectedClips.count (clip.id)) continue;
             const float x0 = xOf (clip.start), x1 = xOf (clip.end());
             if (x1 < (float) lanes.getX() || x0 > (float) lanes.getRight()) continue;
             drawClip (g, *t, clip, { x0, (float) rr.getY() + 2, jmax (3.0f, x1 - x0), (float) rr.getHeight() - 4 },
@@ -1109,6 +1112,21 @@ void Arrange::paint (Graphics& g)
         g.fillRect (lanes.getX(), rr.getBottom() - 1, lanes.getWidth(), 1);
     }
 
+    // The others chosen with it, where they'd land.
+    for (auto& m : movingTogether())
+    {
+        if (m.clip == dragClip) continue;
+        const auto* clip = c.project.clip (m.clip);
+        if (! clip) continue;
+        for (auto& row : rows)
+            if (row.track == m.track && row.isClips())
+            {
+                Clip ghost = *clip;
+                ghost.start = m.start;
+                drawClip (g, *c.project.track (m.track), ghost,
+                          { xOf (m.start), (float) (lanes.getY() + row.y - scrollY + 2), xOf (m.start + clip->length) - xOf (m.start), (float) row.h - 4 }, true);
+            }
+    }
     // A clip being dragged, where it would land.
     if (dragClip != 0 && (drag == Drag::MoveClip || drag == Drag::TrimStart || drag == Drag::TrimEnd))
     {
@@ -1540,6 +1558,31 @@ void Arrange::mouseDrag (const MouseEvent& e)
     }
 }
 
+std::vector<Arrange::Moving> Arrange::movingTogether() const
+{
+    std::vector<Moving> out;
+    const auto* dragged = c.project.clip (dragClip);
+    if (drag != Drag::MoveClip || ! dragged || ! c.selectedClips.count (dragClip) || c.selectedClips.size() < 2) return out;
+    Tick shift = previewStart - dragged->start;
+    const auto order = c.arrangeOrder();
+    auto indexOf = [&order] (Id t) { return (int) (std::find (order.begin(), order.end(), t) - order.begin()); };
+    const int trackShift = indexOf (previewTrack) - indexOf (dragTrack);
+    for (auto id : c.selectedClips)
+        if (const auto* cl = c.project.clip (id)) shift = std::max (shift, -cl->start);   // none before the start
+    for (auto id : c.selectedClips)
+    {
+        const Track* owner = nullptr;
+        const auto* cl = c.project.clip (id, &owner);
+        if (! cl || ! owner) continue;
+        Id to = owner->id;
+        const int i = indexOf (owner->id) + trackShift;
+        if (trackShift != 0 && i >= 0 && i < (int) order.size())
+            if (const auto* t = c.project.track (order[(size_t) i]); t && t->holdsClips()) to = t->id;
+        out.push_back ({ id, cl->start + shift, to });
+    }
+    return out;
+}
+
 void Arrange::mouseUp (const MouseEvent& e)
 {
     if (toolDrag) { toolUp (e); return; }
@@ -1562,7 +1605,30 @@ void Arrange::mouseUp (const MouseEvent& e)
     if (drag == Drag::MoveClip && dragClip)
     {
         const auto* clip = c.project.clip (dragClip);
-        if (clip && (previewStart != clip->start || previewTrack != dragTrack || copying))
+        const auto together = movingTogether();
+        if (clip && ! together.empty() && (previewStart != clip->start || previewTrack != dragTrack || copying))
+        {
+            // Every chosen clip, one undo step.
+            if (copying)
+            {
+                std::set<Id> made;
+                c.apply ("Copy Clips", [&] (Project& p)
+                {
+                    for (auto& m : together)
+                        if (const auto* from = p.clip (m.clip))
+                        {
+                            Clip copy = *from;
+                            copy.start = m.start;
+                            for (auto& n : copy.midi.notes) n.id = 0;
+                            made.insert (edit::addClip (p, m.track, copy));
+                        }
+                });
+                c.selectedClips = made;
+            }
+            else
+                c.apply ("Move Clips", [together] (Project& p) { for (auto& m : together) edit::moveClip (p, m.clip, m.start, m.track); });
+        }
+        else if (clip && (previewStart != clip->start || previewTrack != dragTrack || copying))
         {
             const Id id = dragClip, to = previewTrack;
             const Tick start = previewStart;
@@ -2052,7 +2118,13 @@ void Arrange::itemDropped (const SourceDetails& d)
     {
         // Kalibre Drums' pattern (0105), dragged from its window: a clip where it's let go.
         const auto* from = reinterpret_cast<const AudioProcessor*> ((pointer_sized_int) text.fromFirstOccurrenceOf ("drums:", false, false).getHexValue64());
-        c.dropDrumPattern (from, row && row->isClips() ? row->track : 0, c.arrangeSnap (std::max<Tick> (0, tickAt ((float) d.localPosition.x))));
+        // A beat is bars long: let go within a beat of a bar line, it starts on the bar (the UAT
+        // let go a little after bar 1 and got a sixteenth late); further off, on the grid.
+        const Tick at = std::max<Tick> (0, tickAt ((float) d.localPosition.x));
+        const int b = c.project.tempo.barAt (at);
+        const Tick before = c.project.tempo.barStart (b), after = c.project.tempo.barStart (b + 1);
+        const Tick bar = at - before <= after - at ? before : after;
+        c.dropDrumPattern (from, row && row->isClips() ? row->track : 0, std::abs (at - bar) <= PPQ ? bar : c.arrangeSnap (at));
         return;
     }
     if (text.startsWith ("file:"))

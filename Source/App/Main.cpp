@@ -2,6 +2,7 @@
 
 #include "CrashReports.h"
 #include "MainComponent.h"
+#include "MainWindow.h"
 #include "McpServer.h"
 #include <iostream>
 
@@ -13,41 +14,6 @@
 namespace kal
 {
 using namespace juce;
-
-class MainWindow : public DocumentWindow
-{
-public:
-    MainWindow (Controller& c)
-        : DocumentWindow ("Kalibre", theme::ground, DocumentWindow::allButtons)
-    {
-        setUsingNativeTitleBar (true);
-        content = new MainComponent (c);
-        setContentOwned (content, true);
-        setResizable (true, true);
-        // The smallest the window goes: the transport and a track still fit.
-        setResizeLimits (900, 560, 10000, 10000);
-        centreWithSize (jmin (1440, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.getWidth() - 40),
-                        jmin (900, Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea.getHeight() - 40));
-       #if JUCE_MAC
-        MenuBarModel::setMacMainMenu (content, &extraAppMenu);
-       #endif
-        setVisible (true);
-        Component::SafePointer<MainComponent> safe (content);
-        MessageManager::callAsync ([safe] { if (safe) safe->firstRun(); });
-    }
-
-    ~MainWindow() override
-    {
-       #if JUCE_MAC
-        MenuBarModel::setMacMainMenu (nullptr);
-       #endif
-    }
-
-    void closeButtonPressed() override { JUCEApplication::getInstance()->systemRequestedQuit(); }
-
-    MainComponent* content = nullptr;
-    PopupMenu extraAppMenu;
-};
 
 class Application : public JUCEApplication
 {
