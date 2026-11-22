@@ -716,6 +716,18 @@ TEST ("match loudness: a plug-in that turns the sound down 10 dB is brought back
 #include "Editors.h"
 #include "PluginClip.h"
 
+namespace
+{
+// A component on the screen, as Kalibre's window is: on the Mac a plug-in's window
+// opens in the rack only then (DeviceRack::pluginsNeedAWindow, 0110).
+struct OnScreen
+{
+    explicit OnScreen (Component& c) : comp (c) { comp.addToDesktop (0); comp.setVisible (true); }
+    ~OnScreen() { comp.removeFromDesktop(); }
+    Component& comp;
+};
+} // namespace
+
 TEST ("plug-in windows: closed properly, so a plug-in opens its own window again; adding devices leaves the others' windows alone")
 {
     PluginManager plugins;
@@ -748,6 +760,7 @@ TEST ("plug-in windows: closed properly, so a plug-in opens its own window again
     // In the rack: a third device added; the first two keep the very windows they had.
     DeviceRack rack (c);
     rack.setSize (1400, 360);
+    OnScreen shown (rack);
     std::vector<Id> devices;
     c.apply ("Add", [&] (Project& p) { devices.push_back (edit::addDevice (p, t, synthRef(), DeviceRole::Instrument)); devices.push_back (edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument)); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
@@ -889,6 +902,7 @@ TEST ("plug-in panels: Kalibre's own keep their width and take the zone's height
     c.refresh();
     DeviceRack rack (c);
     rack.setSize (1400, 200);   // a short lower zone
+    OnScreen onScreen (rack);
     Id sampler = 0;
     c.apply ("Add", [&] (Project& p) { sampler = edit::addDevice (p, t, samplerRef(), DeviceRole::Instrument); });
     MessageManager::getInstance()->runDispatchLoopUntil (50);
@@ -936,6 +950,7 @@ TEST ("questions: plug-ins in the rack step aside too, though on the Mac they're
     c.refresh();
     Component host;
     host.setSize (1400, 600);
+    OnScreen shown (host);
     ui::setHost (&host);
     DeviceRack rack (c);
     host.addAndMakeVisible (rack);
