@@ -95,12 +95,19 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+      # Visual Studio's compiler in the shell, for Ninja; NASM for the JSFX engine's x64 code (ysfx).
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - uses: ilammy/setup-nasm@v1
+      - name: Install Ninja
+        run: choco install ninja --no-progress -y
       - name: Configure
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
       - name: Build
-        run: cmake --build build --config Release --parallel --target Kalibre KalibreTests KalibreAppTests
+        run: cmake --build build --target Kalibre KalibreTests KalibreAppTests
       - name: Core tests
-        run: .\build\Release\KalibreTests.exe
+        run: .\build\KalibreTests.exe
       - name: App tests
         run: .\build\KalibreAppTests_artefacts\Release\KalibreAppTests.exe
       - name: Package
