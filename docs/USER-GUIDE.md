@@ -897,7 +897,8 @@ Every change in it is one undo step.
 Each plug-in in it has:
 
 - **On**, and **S** (solo: with any soloed, only those play);
-- **Stereo / Mid / Side**: what it hears and changes;
+- **Stereo / Mid / Side / Mono**: what it hears and changes (Mono: both
+  sides as one, and one sent back);
 - **a band** (low and high edges; double-click for none): it changes only
   those frequencies;
 - its own **Volume** and **Pan**.

@@ -450,6 +450,7 @@ public:
     void empty()
     {
         if (editor) editor->removeKeyListener (this);
+        setConstrainer (nullptr);   // the script window's: it goes with it (0115)
         clearContentComponent();
         editor.reset();   // the script's window is told first (0056)
     }

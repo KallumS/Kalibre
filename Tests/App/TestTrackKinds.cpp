@@ -2471,10 +2471,11 @@ TEST ("x/y morph: taken out of the song, its corners' windows close at once (011
     CHECK (morph->loadPlugin (0, synthRef(), error));
     morph->showCornerWindow (0);
     CHECK (morph->cornerWindowOpen (0));
-    const int windowsBefore = Desktop::getInstance().getNumComponents();
+    Component::SafePointer<DocumentWindow> window (morph->cornerWindow (0));
     c.apply ("Remove", [&] (Project& p) { edit::removeDevice (p, dev); });
     CHECK (engine.instance (dev) == nullptr);
-    CHECK_EQ (Desktop::getInstance().getNumComponents(), windowsBefore - 1);
+    // Closed at once: nothing shown, and its plug-in's window gone (the window itself waits, 0115).
+    CHECK (window == nullptr || (! window->isVisible() && window->getContentComponent() == nullptr));
 }
 
 TEST ("windows: a plug-in's own window closed is emptied and hidden at once, and deleted only seconds later (the macOS crash in a scroll's glide, 0115)")
@@ -2499,16 +2500,18 @@ TEST ("windows: a plug-in's own window closed is emptied and hidden at once, and
         CHECK_EQ (Desktop::getInstance().getNumComponents(), before + 1);
         auto* inst = engine.instance (dev);
         CHECK (inst != nullptr && inst->getActiveEditor() != nullptr);
+        Component::SafePointer<Component> window (Desktop::getInstance().getComponent (Desktop::getInstance().getNumComponents() - 1));
+        CHECK (dynamic_cast<DocumentWindow*> (window.getComponent()) != nullptr);
         rack.dock (dev);
-        // The plug-in's window has gone; the window that held it waits, hidden.
-        CHECK_EQ (Desktop::getInstance().getNumComponents(), before + 1);
-        CHECK (editors::Retired::waiting() >= 1);
-        for (int i = 0; i < Desktop::getInstance().getNumComponents(); ++i)
-            if (auto* w = dynamic_cast<DocumentWindow*> (Desktop::getInstance().getComponent (i)))
-                CHECK (! w->isVisible() || w->getContentComponent() != nullptr);
+        // The plug-in's window has gone; the window that held it waits, hidden and empty.
+        CHECK (window != nullptr);
+        if (auto* w = dynamic_cast<DocumentWindow*> (window.getComponent()))
+        {
+            CHECK (! w->isVisible());
+            CHECK (w->getContentComponent() == nullptr);
+        }
         MessageManager::getInstance()->runDispatchLoopUntil (900);
-        CHECK_EQ (Desktop::getInstance().getNumComponents(), before);
-        CHECK_EQ (editors::Retired::waiting(), size_t (0));
+        CHECK (window == nullptr);
     }
     editors::Retired::delayMs = was;
 }

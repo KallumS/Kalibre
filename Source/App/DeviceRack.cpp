@@ -35,7 +35,9 @@ public:
         toFront (true);
     }
     ~PluginWindow() override { empty(); }
-    void empty() { clearContentComponent(); content.reset(); }   // the plug-in is told its window is going
+    // The plug-in is told its window is going; the window lets go of its size rules first
+    // (they're the plug-in window's, and a retired window was asked for them: 0115).
+    void empty() { setConstrainer (nullptr); clearContentComponent(); content.reset(); }
     void closeButtonPressed() override { MessageManager::callAsync ([f = onClosed] { if (f) f(); }); }
 
     // Closed: its plug-in's window goes now; the window itself a little later (0115).

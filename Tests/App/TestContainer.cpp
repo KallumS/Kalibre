@@ -229,3 +229,90 @@ TEST ("container: a plug-in at 0 dB leaves the sound exactly as it was; its pan 
     CHECK (std::abs (Decibels::gainToDecibels (amount (panned, 0, 440) / 0.5f) - 3.0103f) < 0.05f);
     CHECK (amount (panned, 1, 440) < 1.0e-6f);
 }
+
+TEST ("container: on Mono the plug-in hears both sides as one and sends one back; a song saved before keeps its Stereo, Mid and Side (0118)")
+{
+    auto leftOnly = [] (int i) { return std::pair<float, float> { 0.5f * sine (i, 440), 0.0f }; };
+    {
+        // A plug-in that changes nothing, on Mono: the left alone comes out as a quarter on each side, alike.
+        Rig r;
+        r.add (0, "test-gain:0");
+        r.c.slot (0).mono->setValueNotifyingHost (1.0f);
+        const auto out = run (r.c, leftOnly, 1.0);
+        CHECK (std::abs (amount (out, 0, 440) - 0.25f) < 0.01f);
+        CHECK (std::abs (amount (out, 1, 440) - 0.25f) < 0.01f);
+        CHECK (out.getSample (0, 12000) * out.getSample (1, 12000) >= 0.0f);
+    }
+    {
+        // A plug-in that silences, on Mono: nothing passes by (Mid would leave the sides).
+        Rig r;
+        r.add (0, "test-gain:-100");
+        r.c.slot (0).mono->setValueNotifyingHost (1.0f);
+        const auto out = run (r.c, leftOnly, 1.0);
+        CHECK (amount (out, 0, 440) < 0.001f);
+        CHECK (amount (out, 1, 440) < 0.001f);
+    }
+    {
+        // Every parameter that was there before Mono is where it was: Mono's come after them all.
+        Rig r;
+        const auto& ps = r.c.getParameters();
+        CHECK_EQ (ps.size(), 1 + ContainerProcessor::slotCount * 8);
+        for (int i = 0; i < ContainerProcessor::slotCount; ++i)
+        {
+            CHECK (ps[1 + i * 7 + 2] == r.c.slot (i).width);
+            CHECK (ps[1 + ContainerProcessor::slotCount * 7 + i] == r.c.slot (i).mono);
+        }
+        // Side saved as before (its fraction, 1) is still Side.
+        r.c.slot (0).width->setValueNotifyingHost (1.0f);
+        CHECK (r.c.slot (0).width->getIndex() == 2);
+        CHECK (! r.c.slot (0).mono->get());
+    }
+}
+
+#include "BuiltinInstruments.h"
+#include "Editors.h"
+
+TEST ("container: it takes the size of the plug-in shown, when one is added and when another is chosen by its name, so the rack fits it whole (0118)")
+{
+    Rig r;
+    editors::Owned editor (editors::open (r.c));
+    CHECK (editor != nullptr);
+    if (! editor) return;
+    String e;
+    CHECK (r.c.loadPlugin (0, synthRef(), e));
+    MessageManager::getInstance()->runDispatchLoopUntil (20);
+    auto innerOf = [&]() -> AudioProcessorEditor*
+    {
+        for (auto* ch : editor->getChildren()) if (auto* ed = dynamic_cast<AudioProcessorEditor*> (ch)) return ed;
+        return nullptr;
+    };
+    auto* synthWindow = innerOf();
+    CHECK (synthWindow != nullptr);
+    if (! synthWindow) return;
+    // The whole of it inside the container: nothing cut off.
+    auto fits = [&] (AudioProcessorEditor* in) { return editor->getLocalBounds().contains (in->getBounds()); };
+    CHECK (fits (synthWindow));
+    CHECK (editor->getWidth() >= synthWindow->getWidth() + 620);
+    // Another added: it's shown, and the container takes its size.
+    CHECK (r.c.loadPlugin (1, samplerRef(), e));
+    MessageManager::getInstance()->runDispatchLoopUntil (20);
+    // Chosen by its name: shown whole.
+    Button* samplerName = nullptr;
+    std::function<void (Component&)> walk = [&] (Component& c)
+    {
+        if (auto* b = dynamic_cast<Button*> (&c); b && b->getButtonText() == "Kalibre Sampler") samplerName = b;
+        for (auto* ch : c.getChildren()) walk (*ch);
+    };
+    walk (*editor);
+    CHECK (samplerName != nullptr);
+    if (! samplerName) return;
+    samplerName->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    auto* samplerWindow = innerOf();
+    CHECK (samplerWindow != nullptr && samplerWindow != synthWindow);
+    if (! samplerWindow) return;
+    CHECK (fits (samplerWindow));
+    // The plug-in grows its own window: the container grows with it.
+    samplerWindow->setSize (samplerWindow->getWidth() + 200, samplerWindow->getHeight() + 150);
+    CHECK (fits (samplerWindow));
+}

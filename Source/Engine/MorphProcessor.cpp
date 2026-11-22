@@ -426,7 +426,7 @@ public:
         if (auto* k = editor->getConstrainer()) setConstrainer (k);
     }
     ~CornerWindow() override { empty(); }
-    void empty() { clearContentComponent(); content.reset(); }   // the plug-in is told first (0056)
+    void empty() { setConstrainer (nullptr); clearContentComponent(); content.reset(); }   // the plug-in is told first (0056)
     void closeButtonPressed() override { MessageManager::callAsync ([f = onClosed] { if (f) f(); }); }
     std::function<void()> onClosed;
 
