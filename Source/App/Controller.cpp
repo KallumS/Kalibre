@@ -44,7 +44,7 @@ Controller::Controller (Engine& e) : engine (e)
         pluginChanged (before, label);
     };
     DrumMachine::sounds = [this] { return soundsIndex ? soundsIndex() : nullptr; };
-    // Drum Pads (0113): the same.
+    // Drum Pads (0128): the same.
     DrumPadsProcessor::edit = [this] (DrumPadsProcessor& dp, const String& label, std::function<void()> change)
     {
         const Id id = deviceOf (&dp);
@@ -1836,7 +1836,7 @@ std::optional<drumkit::Kit> Controller::drumKitOn (Id track) const
         if (d.active)
         {
             if (auto* dm = dynamic_cast<DrumMachine*> (engine.instance (d.id))) return dm->kit();
-            // Drum Pads (0113): its pads that have a sound, lowest first.
+            // Drum Pads (0128): its pads that have a sound, lowest first.
             if (auto* dp = dynamic_cast<DrumPadsProcessor*> (engine.instance (d.id)))
                 if (const auto pads = drumpads::sounding (dp->kit()); ! pads.empty()) return drumpads::asDrumKit (dp->kit(), pads);
         }

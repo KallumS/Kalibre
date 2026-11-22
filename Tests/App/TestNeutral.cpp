@@ -788,7 +788,7 @@ TEST ("delay compensation: a send's lane after a 300-sample plug-in steps on the
 
 #include "DrumPadsDevice.h"
 
-TEST ("neutral: a Drum Pads pad at 0 dB in the centre, hit at full velocity, cancels against its sample; two pads at once are their sum rounded once (0113)")
+TEST ("neutral: a Drum Pads pad at 0 dB in the centre, hit at full velocity, cancels against its sample; two pads at once are their sum rounded once (0128)")
 {
     PluginManager plugins;
     DrumPadsProcessor d (plugins);

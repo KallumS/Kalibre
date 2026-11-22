@@ -1,4 +1,4 @@
-// Drum Pads (decision 0113): 128 pads, a note each; samples and plug-ins;
+// Drum Pads (decision 0128): 128 pads, a note each; samples and plug-ins;
 // volume, pan, mute, solo and choke groups; its window of sixteen; undo.
 #include "Check.h"
 #include "BuiltinInstruments.h"
@@ -65,7 +65,7 @@ Button* buttonNamed (Component& in, const String& text)
 }
 } // namespace
 
-TEST ("drum pads: each of the 128 pads plays on its own note, as loud as the hit and its volume, panned (0113)")
+TEST ("drum pads: each of the 128 pads plays on its own note, as loud as the hit and its volume, panned (0128)")
 {
     PluginManager plugins;
     DrumPadsProcessor d (plugins);
@@ -97,7 +97,7 @@ TEST ("drum pads: each of the 128 pads plays on its own note, as loud as the hit
     CHECK_EQ (buf.getMagnitude (0, 512), 0.0f);
 }
 
-TEST ("drum pads: a muted pad is silent; soloed pads are the only ones heard (0113)")
+TEST ("drum pads: a muted pad is silent; soloed pads are the only ones heard (0128)")
 {
     PluginManager plugins;
     DrumPadsProcessor d (plugins);
@@ -122,7 +122,7 @@ TEST ("drum pads: a muted pad is silent; soloed pads are the only ones heard (01
     CHECK_EQ (buf.getSample (0, 10), 0.75f);         // both
 }
 
-TEST ("drum pads: a pad in a choke group stops the others in it, fading out in 2 ms; a pad outside it plays on (0113)")
+TEST ("drum pads: a pad in a choke group stops the others in it, fading out in 2 ms; a pad outside it plays on (0128)")
 {
     PluginManager plugins;
     DrumPadsProcessor d (plugins);
@@ -149,7 +149,7 @@ TEST ("drum pads: a pad in a choke group stops the others in it, fading out in 2
     CHECK_EQ (buf.getSample (0, 400), 0.25f);
 }
 
-TEST ("drum pads: a pad can be a plug-in, sent its note on each hit; its settings are kept with the kit (0113)")
+TEST ("drum pads: a pad can be a plug-in, sent its note on each hit; its settings are kept with the kit (0128)")
 {
     PluginManager plugins;
     DrumPadsProcessor d (plugins);
@@ -190,7 +190,7 @@ TEST ("drum pads: a pad can be a plug-in, sent its note on each hit; its setting
     if (again.padPlugin (39)) CHECK (std::abs (again.padPlugin (39)->getParameters()[3]->getValue() - 0.81f) < 0.001f);
 }
 
-TEST ("drum pads: an edit is one undo step; on its track the drum grid's rows are the pads with sounds, and its clips open there (0113)")
+TEST ("drum pads: an edit is one undo step; on its track the drum grid's rows are the pads with sounds, and its clips open there (0128)")
 {
     theme::LookAndFeel look;
     LookAndFeel::setDefaultLookAndFeel (&look);
@@ -238,7 +238,7 @@ TEST ("drum pads: an edit is one undo step; on its track the drum grid's rows ar
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
 
-TEST ("drum pads: its window shows sixteen pads, the lowest at the bottom left; any of the 128 can be shown; sounds dropped on a pad play it (0113)")
+TEST ("drum pads: its window shows sixteen pads, the lowest at the bottom left; any of the 128 can be shown; sounds dropped on a pad play it (0128)")
 {
     theme::LookAndFeel look;
     LookAndFeel::setDefaultLookAndFeel (&look);
@@ -307,7 +307,7 @@ TEST ("drum pads: its window shows sixteen pads, the lowest at the bottom left; 
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
 
-TEST ("drum pads: Random Samples gives each of the sixteen pads shown a drum of its kind, one undo step (0113)")
+TEST ("drum pads: Random Samples gives each of the sixteen pads shown a drum of its kind, one undo step (0128)")
 {
     theme::LookAndFeel look;
     LookAndFeel::setDefaultLookAndFeel (&look);

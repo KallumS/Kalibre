@@ -5,7 +5,7 @@
 
 using namespace kal;
 
-TEST ("drum pads: 128 pads, one a note, named by General MIDI or their note; sixteen shown from the kick; the hats one choke group (0113)")
+TEST ("drum pads: 128 pads, one a note, named by General MIDI or their note; sixteen shown from the kick; the hats one choke group (0128)")
 {
     const auto k = drumpads::standard();
     CHECK_EQ (k.pads.size(), (size_t) 128);
@@ -25,7 +25,7 @@ TEST ("drum pads: 128 pads, one a note, named by General MIDI or their note; six
     CHECK_EQ (drumpads::nameOf (named, 36), std::string ("Big Kick"));
 }
 
-TEST ("drum pads: the view is a row of four at a time, 0 to 112; a pad is shown with the row below it (0113)")
+TEST ("drum pads: the view is a row of four at a time, 0 to 112; a pad is shown with the row below it (0128)")
 {
     CHECK_EQ (drumpads::clampView (36), 36);
     CHECK_EQ (drumpads::clampView (38), 36);
@@ -41,7 +41,7 @@ TEST ("drum pads: the view is a row of four at a time, 0 to 112; a pad is shown 
     }
 }
 
-TEST ("drum pads: mute silences a pad; solo silences every pad not soloed; a muted soloed pad is silent (0113)")
+TEST ("drum pads: mute silences a pad; solo silences every pad not soloed; a muted soloed pad is silent (0128)")
 {
     auto k = drumpads::standard();
     CHECK (drumpads::heard (k, 36));
@@ -59,7 +59,7 @@ TEST ("drum pads: mute silences a pad; solo silences every pad not soloed; a mut
     CHECK (! drumpads::heard (k, 200));
 }
 
-TEST ("drum pads: a kit comes back from its state, plug-ins and all; only pads with something on them are written (0113)")
+TEST ("drum pads: a kit comes back from its state, plug-ins and all; only pads with something on them are written (0128)")
 {
     auto k = drumpads::standard();
     k.pads[36].sample = "/Sounds/Kicks/Deep.wav";
@@ -97,7 +97,7 @@ TEST ("drum pads: a kit comes back from its state, plug-ins and all; only pads w
     CHECK (! drumpads::fromJson ("not json").has_value());
 }
 
-TEST ("drum pads: Random Samples gives each pad shown a drum of its kind, never one twice (0113)")
+TEST ("drum pads: Random Samples gives each pad shown a drum of its kind, never one twice (0128)")
 {
     library::Index ix;
     for (auto* name : { "Kick 1", "Snare 1", "HH Closed", "HH Open", "Pad Long" })

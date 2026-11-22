@@ -1,5 +1,5 @@
 /*
-    DrumPadsDevice - Drum Pads (decision 0113): 128 pads, one for each note, each
+    DrumPadsDevice - Drum Pads (decision 0128): 128 pads, one for each note, each
     a sample or a plug-in (a drum synth), with its own volume, pan, mute,
     solo and choke group; sixteen shown at a time in its window.
 

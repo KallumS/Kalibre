@@ -351,7 +351,7 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "xy-morph") return std::make_unique<MorphProcessor> (pm);
     if (ref.identifier == "container") return std::make_unique<ContainerProcessor> (pm);
     if (ref.identifier == "drums") return std::make_unique<DrumMachine> (pm);   // decision 0105
-    if (ref.identifier == "drum-pads") return std::make_unique<DrumPadsProcessor> (pm);   // decision 0113
+    if (ref.identifier == "drum-pads") return std::make_unique<DrumPadsProcessor> (pm);   // decision 0128
     if (auto inst = makeInstrument (ref)) return inst;
     if (ref.identifier == "hardware-insert") return std::make_unique<HardwareInsert>();
     if (String (ref.identifier).startsWith ("test-gain:"))

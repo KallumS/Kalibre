@@ -776,7 +776,7 @@ int main (int argc, char** argv)
                 c.focusTrack = synthTrack;
                 c.refresh();
             }
-            // Drum Pads (decision 0113): sixteen of 128 pads, samples and a synth, a pad muted, the kick chosen.
+            // Drum Pads (decision 0128): sixteen of 128 pads, samples and a synth, a pad muted, the kick chosen.
             {
                 const Id padTrack = edit::addTrack (c.project, TrackKind::Track, "Pads");
                 const Id dev = edit::addDevice (c.project, padTrack, drumPadsRef(), DeviceRole::Instrument);

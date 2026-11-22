@@ -1,4 +1,4 @@
-// Drum Pads' window (decision 0113): sixteen of its 128 pads, four rows of
+// Drum Pads' window (decision 0128): sixteen of its 128 pads, four rows of
 // four with the lowest note at the bottom left; beside them a map of all 128
 // to move through them; the chosen pad's controls; its plug-in beside those.
 #include "DrumPadsDevice.h"

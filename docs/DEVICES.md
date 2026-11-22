@@ -86,7 +86,7 @@ stop each other.
 
 ### Drum Pads
 
-Kalibre's own pad sampler (0113): **128 pads, one for each MIDI note**, each a
+Kalibre's own pad sampler (0128): **128 pads, one for each MIDI note**, each a
 **sample** or a **plug-in** (a drum synth), sixteen shown at a time. No steps
 inside: clips' notes and keyboards play it, each note its own pad.
 

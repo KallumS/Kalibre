@@ -1,5 +1,5 @@
 /*
-    DrumPads - Drum Pads (decision 0113): 128 pads, one for each MIDI note,
+    DrumPads - Drum Pads (decision 0128): 128 pads, one for each MIDI note,
     each a sample or a plug-in (a plug-in wins), with its own volume, pan,
     mute, solo and choke group. Sixteen are shown at a time, four rows of
     four, the lowest note at the bottom left.
