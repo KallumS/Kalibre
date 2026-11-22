@@ -441,10 +441,10 @@ public:
         unsolo.setBounds (top.removeFromLeft (unsolo.idealWidth (theme::smallControl)));
         r.removeFromTop (8);
 
-        overview.setBounds (r.removeFromLeft (theme::px (40)));
+        overview.setBounds (r.removeFromLeft (theme::px (48)));
         r.removeFromLeft (10);
-        const int tileH = jmax (theme::px (40), (r.getHeight() - 3 * gap) / 4);
-        const int tileW = jlimit (theme::px (96), theme::px (150), (tileH * 16) / 10);
+        const int tileH = jmax (theme::px (48), (r.getHeight() - 3 * gap) / 4);
+        const int tileW = jlimit (theme::px (120), theme::px (170), tileH * 2 + theme::px (20));
         auto grid = r.removeFromLeft (4 * tileW + 3 * gap);
         for (int s = 0; s < drumpads::shown; ++s)
         {
@@ -554,8 +554,8 @@ void Tile::paint (Graphics& g)
     g.setColour (dropping || lit > 0 ? theme::playhead : chosen ? theme::edge : theme::rule);
     g.drawRoundedRectangle (b, theme::cornerRadius, dropping || lit > 0 || chosen ? 2.0f : 1.0f);
 
-    auto r = getLocalBounds().reduced (8, 5);
-    auto top = r.removeFromTop (theme::px (16));
+    auto r = getLocalBounds().reduced (8, 4);
+    auto top = r.removeFromTop (theme::px (15));
     g.setFont (theme::font (theme::smallPoints));
     g.setColour (theme::textSecondary);
     const auto note = String (drumpads::noteName (i));
@@ -566,7 +566,7 @@ void Tile::paint (Graphics& g)
     g.drawFittedText (padName (k, i), top, Justification::centredLeft, 1);
     g.setFont (theme::font (theme::smallPoints));
     const auto said = soundOf (p);
-    auto mid = r.removeFromTop (theme::px (16));
+    auto mid = r.removeFromTop (theme::px (15));
     if (said.isEmpty()) { g.setColour (theme::textSecondary); g.drawFittedText ("Empty", mid, Justification::centredLeft, 1); }
     else
     {
@@ -574,17 +574,17 @@ void Tile::paint (Graphics& g)
         g.setColour (sounds ? theme::text : theme::warnText);
         g.drawFittedText (said + (sounds ? String() : String (" (missing)")), mid, Justification::centredLeft, 1);
     }
-    if (p.choke > 0 && getHeight() > theme::px (56))
+    if (p.choke > 0)
     {
         g.setColour (theme::textSecondary);
-        g.drawText ("Choke " + String (p.choke), r.removeFromBottom (theme::px (18)).withTrimmedRight (2 * theme::px (22)), Justification::centredLeft, false);
+        g.drawText ("Choke " + String (p.choke), r.removeFromBottom (theme::px (16)).withTrimmedRight (2 * theme::px (22)), Justification::centredLeft, false);
     }
 }
 
 void Tile::resized()
 {
-    auto r = getLocalBounds().reduced (6, 5);
-    auto row = r.removeFromBottom (theme::px (18));
+    auto r = getLocalBounds().reduced (6, 4);
+    auto row = r.removeFromBottom (theme::px (16));
     solo.setBounds (row.removeFromRight (theme::px (20)));
     row.removeFromRight (3);
     mute.setBounds (row.removeFromRight (theme::px (20)));
@@ -628,7 +628,7 @@ void Overview::paint (Graphics& g)
         const int row = rows - 1 - i / drumpads::perRow, col = i % drumpads::perRow;
         const auto cell = Rectangle<float> ((float) col * cw, (float) row * rh, cw, rh).reduced (1.0f, rh > 4.0f ? 1.0f : 0.5f);
         const auto& p = k.pads[(size_t) i];
-        Colour c = theme::lane;
+        Colour c = theme::raised;
         if (p.hasSound()) c = drumpads::heard (k, i) ? theme::control : theme::scrollGrab;
         if (p.solo) c = theme::accent;
         if (lit[(size_t) i] > 0) c = theme::playhead;
