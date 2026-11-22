@@ -2709,12 +2709,15 @@ TEST ("playhead: between the audio's blocks it moves on with the clock, evenly, 
     engine.play();
     playLive (engine, 0.05);   // a few blocks
     const double heard = engine.heardPosition();
+    const double t0 = Time::getMillisecondCounterHiRes();
     const double a = engine.smoothPosition();
     Thread::sleep (30);
     const double b = engine.smoothPosition();
+    const double gone = (Time::getMillisecondCounterHiRes() - t0) / 1000.0;   // however long the sleep really was
     // No block since: the block-by-block position hasn't moved, the smooth one has, by the time gone.
     CHECK (std::abs (engine.heardPosition() - heard) < 1.0e-12);
-    CHECK (b - a > 0.020 && b - a < 0.060);
+    CHECK (b > a);
+    if (gone < 0.2) CHECK (std::abs ((b - a) - gone) < 0.005);
     // The audio stops coming: the playhead stops a quarter of a second on, at most.
     Thread::sleep (400);
     CHECK (engine.smoothPosition() - a <= 0.26);
