@@ -117,7 +117,7 @@ bool Controller::randomDevices (Id trackId, unsigned seed, bool replace)
     const bool drums = String (t->name).containsIgnoreCase ("drum") || String (t->name).containsIgnoreCase ("beat")
                     || String (t->name).containsIgnoreCase ("perc");
     const auto picks = randomsong::devices (randomCatalogue (sounds ? *sounds : none), seed, instrument, drums, notes && (instrument || hasInstrument));
-    if (picks.empty()) { say ("There's nothing to add: scan for plug-ins in Kalibre > Plug-in Manager."); return false; }
+    if (picks.empty()) { say ("There's nothing to add: scan for plug-ins in " + String (platform::inSettings ("Plug-in Manager")) + "."); return false; }
     // Each Sampler's sound loaded before it goes in.
     std::vector<std::string> states;
     for (auto& pk : picks)

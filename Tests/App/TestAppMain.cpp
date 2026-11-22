@@ -4,6 +4,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "PluginManager.h"
+#include "CrashReports.h"
+#include "CrashContext.h"
 
 #include <cstring>
 
@@ -15,6 +17,15 @@ int main (int argc, char** argv)
     installTestFormats();
     if (argc > 1 && std::strcmp (argv[1], kal::PluginManager::workerFlag) == 0)
         return kal::PluginManager::runWorker (argc, argv);
+    // The crash reports' test runs this program again to crash it (on Windows, which can't fork: 0129).
+    if (argc > 2 && std::strcmp (argv[1], "--kalibre-crash") == 0)
+    {
+        kal::crash::install (juce::File (juce::String::fromUTF8 (argv[2])), "test");
+        kal::crashcontext::audioPlugin = "Riffer";
+        volatile int* nothing = nullptr;
+        *nothing = 1;   // a bad memory access
+        return 0;
+    }
     juce::ScopedJuceInitialiser_GUI gui;
     int ran = 0;
     for (const auto& t : check::all())

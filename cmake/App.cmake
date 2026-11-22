@@ -250,6 +250,10 @@ if(APPLE)
     target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm Source/App/PluginClipMac.mm Source/App/FilePanelsMac.mm)
     target_link_libraries(KalibreApp PRIVATE "-framework CoreMIDI")
     target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab (decision 0046)
+elseif(WIN32)
+    # Windows (decision 0129): the scanner's helper, CLAP windows and crash reports of its own.
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp Source/App/PluginClipOther.cpp Source/App/FilePanelsOther.cpp
+                                      Source/Engine/HelperProcessWin.cpp Source/Engine/ClapGuiWin.cpp Source/App/CrashReportsWin.cpp)
 else()
     target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp Source/App/PluginClipOther.cpp Source/App/FilePanelsOther.cpp)
 endif()

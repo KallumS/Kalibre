@@ -44,10 +44,10 @@ public:
        #endif
         if (error.isNotEmpty()) controller->say ("The audio device didn't start: " + error + " Choose one under Audio in the browser.", true);
         else if (plugins->known().getNumTypes() == 0)
-            controller->say ("Welcome. Kalibre hasn't looked for your plug-ins yet: choose Plug-in Manager from the Kalibre menu and click Scan for New Plug-ins.");
+            controller->say ("Welcome. Kalibre hasn't looked for your plug-ins yet: choose Plug-in Manager from " + String (ui::words().settingsMenu) + " and click Scan for New Plug-ins.");
         else if (plugins->needingAnotherLook() > 0)
             controller->say ("Kalibre now opens each plug-in as it scans, to learn which send MIDI (Riffer, Scaler) and file them as MIDI effects. "
-                             "Choose Plug-in Manager from the Kalibre menu and click Scan for New Plug-ins: it looks at yours again.");
+                             "Choose Plug-in Manager from " + String (ui::words().settingsMenu) + " and click Scan for New Plug-ins: it looks at yours again.");
         else if (! plugins->blocked().empty())
         {
             // Left by the old scanner, which crashed with the plug-in (decision 0047).
@@ -55,7 +55,7 @@ public:
             for (auto& b : plugins->blocked()) crashed += b.detail == "it closed Kalibre while being scanned" ? 1 : 0;
             if (crashed > 0)
                 controller->say ("A plug-in closed Kalibre while it was being scanned. It's turned off now, and scans look at each plug-in "
-                                 "in a helper, so a crash can't close Kalibre again. Kalibre > Plug-in Manager shows it.");
+                                 "in a helper, so a crash can't close Kalibre again. " + String (platform::inSettings ("Plug-in Manager")) + " shows it.");
         }
         if (! unread.isEmpty())
         {

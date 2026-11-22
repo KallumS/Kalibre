@@ -904,6 +904,10 @@ public:
         window.api = native->api();
        #if JUCE_MAC
         window.cocoa = native->handle();
+       #elif JUCE_WINDOWS
+        if (! native->component().isShowing()) return;
+        window.win32 = native->handle();
+        if (window.win32 == nullptr) return;
        #else
         if (! native->component().isShowing() || native->x11Window() == 0) return;
         window.x11 = native->x11Window();
@@ -952,7 +956,7 @@ void ClapInstance::editorClosing()
 } // namespace
 
 //==============================================================================
-#if ! JUCE_MAC
+#if ! JUCE_MAC && ! JUCE_WINDOWS   // the Mac's is in ClapGuiMac.mm, Windows' in ClapGuiWin.cpp (0129)
 namespace
 {
 class GenericHost : public NativeHost
@@ -1036,12 +1040,18 @@ FileSearchPath ClapPluginFormat::getDefaultLocationsToSearch()
     p.add (File ("/Library/Audio/Plug-Ins/CLAP"));
    #elif JUCE_WINDOWS
     p.add (File::getSpecialLocation (File::globalApplicationsDirectory).getChildFile ("Common Files/CLAP"));
+    // CLAP's own per-user place on Windows: %LOCALAPPDATA%\Programs\Common\CLAP.
+    p.add (File (SystemStats::getEnvironmentVariable ("LOCALAPPDATA", {})).getChildFile ("Programs/Common/CLAP"));
    #else
     p.add (File ("~/.clap"));
     p.add (File ("/usr/lib/clap"));
    #endif
     const auto env = SystemStats::getEnvironmentVariable ("CLAP_PATH", {});
+   #if JUCE_WINDOWS
+    for (auto& dir : StringArray::fromTokens (env, ";", ""))   // Windows parts a path list at ";" (C:\ has a colon)
+   #else
     for (auto& dir : StringArray::fromTokens (env, ":", ""))
+   #endif
         if (dir.isNotEmpty()) p.add (File (dir));
     p.removeNonExistentPaths();
     return p;

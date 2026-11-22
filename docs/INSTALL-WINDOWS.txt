@@ -1,0 +1,26 @@
+Kalibre for Windows
+===================
+
+1. Unzip Kalibre-Windows.zip anywhere you like, for example into
+   C:\Program Files\Kalibre or your Documents. Keep Kalibre.exe and its
+   Scripts folder together.
+2. Double-click Kalibre.exe. The first time, Windows may say "Windows
+   protected your PC" (Kalibre isn't signed yet): click More info, then
+   Run anyway.
+3. Choose File > Settings > Plug-in Manager... and click Scan for New
+   Plug-ins. Your VST3 and CLAP plug-ins are found once and remembered
+   (VST3 in C:\Program Files\Common Files\VST3, CLAP in
+   C:\Program Files\Common Files\CLAP).
+4. Audio and MIDI Settings are under File > Settings (Ctrl+,), and appear in
+   the browser on the left of the window. For the lowest delay, choose your
+   interface's Windows Audio (Exclusive Mode) device.
+
+Keys: where the Mac's guide says Command, press Ctrl; Option is Alt; Return
+is Enter. Help > Keys... lists every key as Windows writes it.
+
+If Kalibre ever quits unexpectedly, it says so next time; Help > Show Crash
+Reports has the report, and File > Open a Backup has your song from up to 15
+minutes before.
+
+Scripts: Scripts > Add the Example Scripts puts a few in the Scripts menu.
+Your own go in %APPDATA%\Kalibre\Scripts.

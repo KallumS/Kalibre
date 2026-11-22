@@ -69,7 +69,7 @@ void VideoView::paint (Graphics& g)
     String note;
     if (c.project.video.file.empty()) note = "No video yet: File > Import Video.";
    #if ! JUCE_MAC
-    else note = "The video plays in Kalibre on the Mac.";
+    else note = "The video plays in Kalibre on the Mac; on this " + String (ui::words().computer) + " its sound plays, but the picture isn't shown yet.";
    #endif
     if (note.isNotEmpty())
     {

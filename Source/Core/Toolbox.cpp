@@ -1,5 +1,6 @@
 #include "Toolbox.h"
 #include "Edit.h"
+#include "Platform.h"
 
 #include <algorithm>
 #include <cmath>
@@ -15,15 +16,15 @@ const std::vector<Info>& all()
             { "Click Adds or Takes Away", "Each click adds what's clicked to the choice, or takes it out." },
             { "Everything at the Click", "A click chooses every clip (or note) playing at that moment." } } },
         { Tool::Range, "Range", "Drag across tracks to choose a stretch of time; Delete clears what's in it. In the piano roll, drag to choose an area of notes.", true, true, {} },
-        { Tool::Split, "Split", "Click a clip or note to cut it there. Option-click cuts it into pieces as long as from its start to the click.", true, true,
+        { Tool::Split, "Split", "Click a clip or note to cut it there. " + platform::optionClick() + " cuts it into pieces as long as from its start to the click.", true, true,
           { { "Split the Clicked One", "Only what's clicked is cut." },
             { "Split Every Chosen One", "Clicking a chosen clip or note cuts every chosen one at that point." } } },
         { Tool::Glue, "Glue", "Click a clip to join it to the next one on its track, or a note to the next of its pitch.", true, true, {} },
         { Tool::Erase, "Erase", "Click or drag over clips, notes and automation points to delete them.", true, true, {} },
-        { Tool::Zoom, "Zoom", "Click to zoom in, Option-click to zoom out.", true, true,
+        { Tool::Zoom, "Zoom", "Click to zoom in, " + platform::optionClick() + " to zoom out.", true, true,
           { { "Zoom to the Dragged Area", "Drag around what you want to fill the view." },
             { "Zoom Horizontally", "Drag right to zoom in, left to zoom out." },
-            { "Zoom Vertically", "Click to make rows taller; Option-click makes them shorter." } } },
+            { "Zoom Vertically", "Click to make rows taller; " + platform::optionClick() + " makes them shorter." } } },
         { Tool::Mute, "Mute", "Click or drag over clips or notes to mute them, or unmute them.", true, true, {} },
         { Tool::Draw, "Draw", "Drag in an empty lane for a new MIDI clip; drag over automation to draw it. In the piano roll, click or drag to draw notes, even over others.", true, true, {} },
         { Tool::Line, "Line", "Drag a straight line of automation, or a run of notes in the piano roll.", true, true,

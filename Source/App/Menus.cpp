@@ -95,7 +95,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             }
             if (found.isEmpty()) backups.addItem (item ("No backups yet: one is made every 15 minutes while there are changes", [] {}, {}, false));
             backups.addSeparator();
-            backups.addItem (item ("Show Backups in Finder", [this]
+            backups.addItem (item (platform::windows ? "Show Backups in File Explorer" : "Show Backups in Finder", [this]
             {
                 auto folder = c.backupsFolder();
                 folder.createDirectory();
@@ -220,7 +220,12 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                     if (fc.getResult().existsAsFile()) c.importXml (fc.getResult());
                 });
             }));
-           #if ! JUCE_MAC
+           #if JUCE_WINDOWS
+            // Windows' words (decision 0129): settings in File > Settings, and Exit on Alt+F4.
+            m.addSeparator();
+            m.addSubMenu ("Settings", appMenu());
+            m.addItem (item ("Exit", [] { JUCEApplication::getInstance()->systemRequestedQuit(); }, "Alt+F4"));
+           #elif ! JUCE_MAC
             m.addSeparator();
             m.addSubMenu ("Kalibre", appMenu());
             m.addItem (item ("Quit", [] { JUCEApplication::getInstance()->systemRequestedQuit(); }, cmd ("Q")));
@@ -399,7 +404,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item (c.engine.isPlaying() ? "Stop" : "Play", [this] { c.togglePlay(); }, "Space"));
             m.addItem (item ("Record", [this] { c.record(); }, k ("record"), true, c.engine.isRecording()));
             m.addItem (item ("Stop and Go to the Start", [this] { c.stopAndGoToStart(); }, k ("stopStart")));
-            m.addItem (item ("Go to the Start", [this] { c.goToStart(); }, "Return"));
+            m.addItem (item ("Go to the Start", [this] { c.goToStart(); }, k ("start")));
             m.addItem (item ("Go to the End", [this] { c.goToEnd(); }, k ("end")));
             m.addSeparator();
             m.addItem (item ("Loop", [this] { c.toggleLoop(); }, k ("loop"), true, p.loop.on));
@@ -517,8 +522,13 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addItem (item ("Show the Scripts Folder", [folder] { folder.revealToUser(); }));
             m.addItem (item ("Add the Example Scripts", [this, folder]
             {
+               #if JUCE_MAC
                 const auto examples = File::getSpecialLocation (File::currentApplicationFile)
                                          .getChildFile ("Contents/Resources/Scripts");
+               #else
+                // Beside Kalibre.exe, as the zip unpacks (decision 0129).
+                const auto examples = File::getSpecialLocation (File::currentExecutableFile).getSiblingFile ("Scripts");
+               #endif
                 int copied = 0;
                 for (auto& f : examples.findChildFiles (File::findFiles, false, "*.lua"))
                     if (f.copyFileTo (folder.getChildFile (f.getFileName()))) ++copied;

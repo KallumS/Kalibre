@@ -703,7 +703,7 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
         PopupMenu m;
         for (auto& d : c.engine.plugins().known().getTypes())
             m.addItem (d.name + " (" + d.pluginFormatName + ")", [chosen, d] { chosen (PluginManager::refFor (d)); });
-        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
+        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (" + String (platform::inSettings ("Plug-in Manager")) + ")", false, false, [] {});
         m.showMenuAsync (PopupMenu::Options());
     };
     // The Multiband's bands and Stereo Split's parts take audio effects too (0126, 0127): the same menu.
@@ -721,7 +721,7 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
                 byMaker[d.manufacturerName.isEmpty() ? String ("Other") : d.manufacturerName]
                     .addItem (d.name + "  (" + d.pluginFormatName + ")", [chosen, d] { chosen (PluginManager::refFor (d)); });
         for (auto& [maker, sub] : byMaker) m.addSubMenu (maker, sub);
-        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
+        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (" + String (platform::inSettings ("Plug-in Manager")) + ")", false, false, [] {});
         m.showMenuAsync (PopupMenu::Options());
     };
     NoteSplitterProcessor::makeEditor = [this] (NoteSplitterProcessor& p) -> AudioProcessorEditor* { return new NoteSplitterEditor (p, c); };

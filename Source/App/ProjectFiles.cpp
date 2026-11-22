@@ -613,7 +613,7 @@ bool Controller::importDawProject (const File& f)
     cursor = 0;
     syncEngine();
     String msg = "Opened " + f.getFileName() + " as a new song (save it to keep it).";
-    if (unmatched > 0) msg << " " << unmatched << (unmatched == 1 ? " plug-in isn't" : " plug-ins aren't") << " on this Mac.";
+    if (unmatched > 0) msg << " " << unmatched << (unmatched == 1 ? " plug-in isn't" : " plug-ins aren't") << " on this " << ui::words().computer << ".";
     if (! r.leftOut.empty())
     {
         StringArray left;

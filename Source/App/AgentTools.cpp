@@ -696,7 +696,7 @@ void addAgentTools (mcp::Server& server, Controller& c)
 std::unique_ptr<mcp::Server> makeAgentServer (Controller& c)
 {
     auto s = std::make_unique<mcp::Server> ("Kalibre", KALIBRE_VERSION,
-        "Kalibre is a DAW, open on the musician's Mac. Call get_song first: it lists every track, device and clip with the ids the "
+        "Kalibre is a DAW, open on the musician's computer. Call get_song first: it lists every track, device and clip with the ids the "
         "other tools take. Positions are in beats (quarter notes) from the song's start; notes' starts are from their clip's start. "
         "Every change is one undo step the musician can take back; tell them what you did.");
     addAgentTools (*s, c);

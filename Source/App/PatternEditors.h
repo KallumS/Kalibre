@@ -104,7 +104,7 @@ private:
     int dragStep = -1, dragPitch = 60, dragVelocity = 100;
     double dragValue = 0;
     noteopt::Kind kind = noteopt::Kind::Velocity;
-    theme::HouseButton option { juce::String::fromUTF8 ("Velocity \xe2\x96\xbe"), "What Option-drag sets on a step: its velocity, its chance of playing, or how far its velocity or timing may wander." };
+    theme::HouseButton option { juce::String::fromUTF8 ("Velocity \xe2\x96\xbe"), "What " + ui::optionClick ("drag") + " sets on a step: its velocity, its chance of playing, or how far its velocity or timing may wander." };
     juce::Rectangle<int> cellsArea() const;
     void resized() override;
     theme::HouseButton randomise { "Random", "A new tune from Good Idea in the song's key, every click: replaces these steps (Undo puts them back)." };

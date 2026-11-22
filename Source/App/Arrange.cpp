@@ -1791,7 +1791,7 @@ void Arrange::clipMenu (Id id)
             m.addItem (chosen.size() > 1 ? "Create Alias Clips" : "Create Alias Clip", [this, chosen]
             {
                 c.apply ("Create Alias Clip", [chosen] (Project& p) { song::makeAlias (p, chosen); });
-                c.say ("An alias clip: duplicate it (Command-D, or Option-drag) and an edit to the notes of any copy is made to them all.", false, true);
+                c.say ("An alias clip: duplicate it (" + ui::commandKey ("D") + ", or " + ui::optionClick ("drag") + ") and an edit to the notes of any copy is made to them all.", false, true);
             });
         else
             m.addItem ("Make Independent", [this, chosen]
@@ -1961,7 +1961,7 @@ void Arrange::clipMenu (Id id)
                         }
                     });
                 });
-        if (offline.getNumItems() == 0) offline.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
+        if (offline.getNumItems() == 0) offline.addItem ("Scan for plug-ins first (" + String (platform::inSettings ("Plug-in Manager")) + ")", false, false, [] {});
         PopupMenu fxMenu;
         fxMenu.addSubMenu ("Add", offline);
         for (size_t i = 0; i < clip->offlineFx.chain.size(); ++i)

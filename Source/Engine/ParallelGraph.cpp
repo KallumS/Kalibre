@@ -1,12 +1,16 @@
 #include "ParallelGraph.h"
 
 #include <algorithm>
+#include <bit>
 #include <map>
 #include <set>
 #include <thread>
 
 #if JUCE_MAC
  #include <sys/sysctl.h>
+#endif
+#if defined (_MSC_VER)
+ #include <intrin.h>
 #endif
 
 namespace kal
@@ -18,7 +22,11 @@ namespace
 {
 inline void pause()
 {
-   #if defined (__aarch64__) || defined (__arm64__)
+   #if defined (_MSC_VER) && (defined (_M_X64) || defined (_M_IX86))
+    _mm_pause();
+   #elif defined (_MSC_VER) && defined (_M_ARM64)
+    __yield();
+   #elif defined (__aarch64__) || defined (__arm64__)
     __asm__ __volatile__ ("yield");
    #elif defined (__x86_64__) || defined (__i386__)
     __builtin_ia32_pause();
@@ -666,7 +674,7 @@ void ParallelGraph::processBlock (AudioBuffer<float>& buffer, MidiBuffer& midi)
         else buffer.clear (ch, 0, n);
     }
     midi.clear();
-    threadsInLastBlock.store (__builtin_popcount (threadMask.exchange (0)));
+    threadsInLastBlock.store (std::popcount ((std::uint32_t) threadMask.exchange (0)));   // std:: for every compiler (0129)
     blocksByPlan.fetch_add (1);
     busy.store (0);
 }

@@ -1631,9 +1631,11 @@ TEST ("articulation manager: maps imported into the library, used on a track fro
 
 #include "CrashReports.h"
 #include "CrashContext.h"
-#include <sys/wait.h>
-#include <unistd.h>
 #include <csignal>
+#if ! JUCE_WINDOWS
+ #include <sys/wait.h>
+ #include <unistd.h>
+#endif
 
 TEST ("crash reports: a crash writes what went wrong and the plug-in that was playing, then ends as before (0073)")
 {
@@ -1641,6 +1643,13 @@ TEST ("crash reports: a crash writes what went wrong and the plug-in that was pl
     reports.deleteRecursively();
     reports.createDirectory();
     const auto before = Time::getCurrentTime() - RelativeTime::seconds (2);
+   #if JUCE_WINDOWS
+    // No fork on Windows (0129): this program run again, crashing on a bad memory access.
+    ChildProcess child;
+    CHECK (child.start (StringArray { File::getSpecialLocation (File::currentExecutableFile).getFullPathName(), "--kalibre-crash", reports.getFullPathName() }, 0));
+    CHECK (child.waitForProcessToFinish (60000));
+    CHECK_EQ ((uint32) child.getExitCode(), (uint32) 0xC0000005);   // it still ends as a crash
+   #else
     const pid_t child = fork();
     if (child == 0)
     {
@@ -1652,6 +1661,7 @@ TEST ("crash reports: a crash writes what went wrong and the plug-in that was pl
     int status = 0;
     waitpid (child, &status, 0);
     CHECK (WIFSIGNALED (status) && WTERMSIG (status) == SIGSEGV);   // it still ends as a crash
+   #endif
     const auto found = crash::since (reports, before);
     CHECK_EQ (found.size(), 1);
     if (found.isEmpty()) return;

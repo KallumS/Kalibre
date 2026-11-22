@@ -35,14 +35,14 @@ enum class Area { Arrange, Roll };
 struct Mode
 {
     const char* name;   // Title Case, for the menu
-    const char* help;
+    std::string help;   // in the words of the system it runs on (Option-click, Alt+click: 0129)
 };
 
 struct Info
 {
     Tool tool;
     const char* name;   // "Time Warp"
-    const char* help;   // what a click does, in a sentence or two
+    std::string help;   // what a click does, in a sentence or two
     bool inArrange, inRoll;
     std::vector<Mode> modes;   // empty: the tool has one way of working
 };

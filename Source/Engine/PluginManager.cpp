@@ -2,16 +2,22 @@
 
 #include "ClapFormat.h"
 #include "MorphProcessor.h"
+#include "Platform.h"
 
 #include <cerrno>
 #include <cstdlib>
-#include <fcntl.h>
-#include <signal.h>
-#include <spawn.h>
-#include <sys/wait.h>
-#include <unistd.h>
+
+#if JUCE_WINDOWS
+ #include "HelperProcess.h"   // decision 0129
+#else
+ #include <fcntl.h>
+ #include <signal.h>
+ #include <spawn.h>
+ #include <sys/wait.h>
+ #include <unistd.h>
 
 extern char** environ;
+#endif
 
 namespace kal
 {
@@ -239,12 +245,27 @@ namespace
 struct Outcome
 {
     enum How { Exited, Signalled, TimedOut, Cancelled, CouldNotStart } how = CouldNotStart;
-    int code = 0;
+    int64 code = 0;   // a signal, or on Windows the crash's exception code
 };
 
 // Runs the helper and waits for it, without a shell, its output thrown away.
 Outcome runHelper (const File& exe, const StringArray& args, const File& log, int timeoutMs, Thread& thread)
 {
+   #if JUCE_WINDOWS
+    std::vector<std::string> a;
+    for (auto& s : args) a.push_back (s.toStdString());
+    const auto r = helper::run (exe.getFullPathName().toStdString(), a, log.getFullPathName().toStdString(), timeoutMs,
+                                [&thread] { return thread.threadShouldExit(); });
+    switch (r.how)
+    {
+        case helper::Result::Exited:        return { Outcome::Exited, (int64) r.code };
+        case helper::Result::Crashed:       return { Outcome::Signalled, (int64) r.code };
+        case helper::Result::TimedOut:      return { Outcome::TimedOut, 0 };
+        case helper::Result::Cancelled:     return { Outcome::Cancelled, 0 };
+        case helper::Result::CouldNotStart: break;
+    }
+    return { Outcome::CouldNotStart, (int64) r.code };
+   #else
     std::vector<std::string> strings { exe.getFullPathName().toStdString() };
     for (auto& a : args) strings.push_back (a.toStdString());
     std::vector<char*> argv;
@@ -282,10 +303,14 @@ Outcome runHelper (const File& exe, const StringArray& args, const File& log, in
         }
         Thread::sleep (15);
     }
+   #endif
 }
 
-String signalName (int sig)
+String signalName (int64 sig)
 {
+   #if JUCE_WINDOWS
+    return helper::crashName ((unsigned long) sig);
+   #else
     switch (sig)
     {
         case SIGABRT: return "it aborted, signal 6";
@@ -296,6 +321,7 @@ String signalName (int sig)
         case SIGKILL: return "it was killed, signal 9";
         default:      return "signal " + String (sig);
     }
+   #endif
 }
 } // namespace
 
@@ -699,7 +725,7 @@ void PluginManager::finish (bool cancelled)
         msg = String (list.getNumTypes()) + " plug-ins" + (cancelled ? " (stopped before the end)" : "");
         if (! newlyBlocked.isEmpty())
             msg << ". Turned off because they crashed, hung or wouldn't open: " << newlyBlocked.joinIntoString (", ")
-                << ". Kalibre > Plug-in Manager shows them";
+                << ". " << String (platform::inSettings ("Plug-in Manager")) << " shows them";
     }
     auto progress = std::move (onProgress);
     onProgress = nullptr;
@@ -815,7 +841,7 @@ std::unique_ptr<AudioPluginInstance> PluginManager::create (const PluginRef& ref
         const auto why = it != reasons.end() ? it->second.reason : Reason::Crashed;
         error = d.name + (why == Reason::TurnedOff ? String (" is turned off.")
                                                    : " is turned off: it " + describe (why).replace ("Wouldn't", "wouldn't").replace ("Crashed", "crashed").replace ("Took", "took") + ".")
-              + " Turn it on in Kalibre > Plug-in Manager.";
+              + " Turn it on in " + String (platform::inSettings ("Plug-in Manager")) + ".";
         return nullptr;
     }
     return formatManager.createPluginInstance (d, sampleRate, blockSize, error);

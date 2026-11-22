@@ -63,7 +63,7 @@ void LibraryFoldersView::paint (Graphics& g)
     g.setFont (theme::font());
     auto r = getLocalBounds().reduced (theme::px (16));
     g.drawFittedText ("Kalibre looks through these folders, and every folder inside them, for samples and MIDI files to list in the browser's "
-                      "Sounds tab. Nothing else on this Mac is looked through.",
+                      "Sounds tab. Nothing else on this " + String (ui::words().computer) + " is looked through.",
                       r.removeFromTop (theme::px (40)), Justification::topLeft, 3);
     g.setColour (theme::textSecondary);
     g.setFont (theme::font (theme::smallPoints));

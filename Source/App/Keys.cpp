@@ -40,8 +40,16 @@ String Keys::textFor (const String& id) const
    #endif
     const int code = k.getKeyCode();
     if (code == KeyPress::spaceKey) return s + "Space";
+   #if JUCE_MAC
     if (code == KeyPress::returnKey) return s + String::fromUTF8 ("\xe2\x86\xa9");
-    if (code == KeyPress::backspaceKey || code == KeyPress::deleteKey) return s + String::fromUTF8 ("\xe2\x8c\xab");
+    if (code == KeyPress::backspaceKey) return s + String::fromUTF8 ("\xe2\x8c\xab");
+    if (code == KeyPress::deleteKey) return s + String::fromUTF8 ("\xe2\x8c\xa6");
+   #else
+    // Windows names its keys in words (decision 0129).
+    if (code == KeyPress::returnKey) return s + "Enter";
+    if (code == KeyPress::backspaceKey) return s + "Backspace";
+    if (code == KeyPress::deleteKey) return s + "Delete";
+   #endif
     if (code == KeyPress::escapeKey) return s + "Esc";
     const auto desc = KeyPress (code).getTextDescription();
     return s + (desc.length() == 1 ? desc.toUpperCase() : desc);

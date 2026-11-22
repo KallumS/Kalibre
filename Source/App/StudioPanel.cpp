@@ -21,7 +21,7 @@ StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
     mtcRate.addItemList ({ "24 fps", "25 fps", "29.97 fps drop", "30 fps" }, 1);
     sendMmc.setTooltip (theme::wrapTip ("Send start, stop and locate as MIDI Machine Control to the ports ticked above: recorders and other software follow."));
     followMmc.setTooltip (theme::wrapTip ("Play, stop, locate and record when another machine sends MIDI Machine Control."));
-    networkMidi.setTooltip (theme::wrapTip ("Switch on the Mac's network MIDI session, so an iPad or another computer can connect. It then shows up as a MIDI port."));
+    networkMidi.setTooltip (theme::wrapTip ("Switch on the " + String (ui::words().computer) + "'s network MIDI session, so an iPad or another computer can connect. It then shows up as a MIDI port."));
     followMtc.setTooltip (theme::wrapTip ("Chase timecode from a video machine or another computer: Kalibre starts, stops and locates with it."));
     for (auto* box : { &mtcRate, &follow, &mackieIn, &mackieOut, &followMtc, &huiIn, &huiOut })
     {
@@ -42,7 +42,7 @@ StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
     replyPort.setTitle ("Reply port");
     agentsPort.setInputRestrictions (5, "0123456789");
     agentsPort.setTitle ("AI agents' port");
-    agentsOn.setTooltip (theme::wrapTip ("AI agents on this Mac (Claude and others that speak MCP) can look at the song and change it: "
+    agentsOn.setTooltip (theme::wrapTip ("AI agents on this " + String (ui::words().computer) + " (Claude and others that speak MCP) can look at the song and change it: "
                                          "make tracks, add plug-ins, write clips and notes. Each change is one undo step, said in the message line. "
                                          "Nothing from another computer can reach it."));
     for (auto* b : { &copyDesktop, &copyCode }) addAndMakeVisible (b);
@@ -54,7 +54,7 @@ StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
     copyCode.onClick = [this]
     {
         SystemClipboard::copyTextToClipboard (McpServer::claudeCodeSetup());
-        c.say ("Copied. Paste it into Terminal and press Return: Claude Code can then reach Kalibre.");
+        c.say ("Copied. Paste it into " + String (ui::words().terminal) + " and press " + ui::words().returnKey + ": Claude Code can then reach Kalibre.");
     };
     addAndMakeVisible (rescan);
     rescan.onClick = [this] { build(); };
@@ -161,7 +161,7 @@ void StudioPanel::timerCallback()
         p << (p.isEmpty() ? "" : " ") << "Following " << String (c.engine.syncDevices.followedBpm(), 2) << " BPM.";
     if (p != peers) { peers = p; repaint(); }
     if (agentsOn.getToggleState() != c.studio.mcpOn) agentsOn.setToggleState (c.studio.mcpOn, dontSendNotification);
-    const String a = c.agentsListening > 0 ? "Listening on this Mac, port " + String (c.agentsListening) + "." : String ("Off.");
+    const String a = c.agentsListening > 0 ? "Listening on this " + String (ui::words().computer) + ", port " + String (c.agentsListening) + "." : String ("Off.");
     if (a != agentsStatus) { agentsStatus = a; repaint(); }
 }
 
