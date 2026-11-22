@@ -36,7 +36,7 @@ void placeFilePanelsAtTop()
     if (watching) return;
     watching = true;
     // A panel is placed as it comes forward to be used (Open and Save panels are new each time).
-    for (NSNotificationName name : { NSWindowDidBecomeKeyNotification, NSWindowDidBecomeMainNotification })
+    for (NSNotificationName name in @[ NSWindowDidBecomeKeyNotification, NSWindowDidBecomeMainNotification ])
         [[NSNotificationCenter defaultCenter] addObserverForName: name
                                                           object: nil
                                                            queue: [NSOperationQueue mainQueue]
