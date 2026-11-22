@@ -806,8 +806,8 @@ what it makes into your song, is in **[the devices manual](DEVICES.md)**.
 | **Hardware Insert** | Effect | Outboard gear in the chain: out to the interface and back, its round trip measured. |
 | **X/Y Morph** | Instrument or effect | Four corners, each a plug-in or a sample, mixed by where the dot is on a pad. A corner's plug-in opens in a window of its own when it's loaded; click its letter (**A** to **D**) to open it again, right-click to change it. Sample corners play the track's notes. X and Y can be automated and modulated. |
 | **Container** | Effect | Up to eight plug-ins in a row, each on a band, the mid or the sides. |
-| **Multiband** | Effect | The spectrum in 2, 3 or 4 bands, the crossovers dragged on a picture of the sound (never past one another), up to four plug-ins on each band, each band with On, Solo and Volume. [DEVICES.md](DEVICES.md#multiband). |
-| **Stereo Split** | Effect | The sound split by where it sits: **Left, Middle, Right** (each frequency by its place, the two edges dragged on a vectorscope) or **Middle and Sides**; up to four plug-ins on each part, each with On, Solo and Volume. [DEVICES.md](DEVICES.md#stereo-split). |
+| **Multiband** | Effect | The spectrum in 2, 3 or 4 bands, the crossovers dragged on a picture of the sound (never past one another), up to four plug-ins on each band, each band with On, Solo and Volume. [Below](#the-multiband). |
+| **Stereo Split** | Effect | The sound split by where it sits: **Left, Middle, Right** (each frequency by its place, the two edges dragged on a vectorscope) or **Middle and Sides**; up to four plug-ins on each part, each with On, Solo and Volume. [Below](#stereo-split). |
 | **Note Splitter** | MIDI effect | A chord's notes, top to bottom, each to another track. |
 | **Instant Virtual Instrument** | Instrument | Builds an instrument from a sample, in its own window. |
 | **ScaleView** | MIDI effect | Shows the scale and names the chord played through it; the sound is unchanged. Put it before the instrument. |
@@ -915,6 +915,42 @@ takes that plug-in's size, so it's always shown whole (a plug-in just added
 is the one shown). Its **⋯** menu: Show Its Window, Replace…, Move Up, Move
 Down, Remove.
 **Match Loudness** brings what goes out to the loudness of what came in.
+
+### The Multiband
+
+![The Multiband: four bands, plug-ins on two](guide/multiband.png)
+
+**2 Bands**, **3 Bands** or **4 Bands** along its top. The picture shows the
+sound coming in; **drag a handle** between two bands to move where one ends
+and the next begins (they never pass one another). Each band has **On**,
+**S** (solo), its **volume** (double-click for 0 dB) and up to four
+plug-ins: click **Add Plug-in…**, click a plug-in to open its window,
+right-click it for Show Its Window, Replace…, Remove. With nothing in it, the
+sound is untouched. [More in DEVICES.md](DEVICES.md#multiband).
+
+### Stereo Split
+
+![Stereo Split: Left, Middle, Right, with plug-ins on two parts](guide/stereo-split.png)
+
+Splits the sound by where it sits between the speakers, with up to four
+plug-ins on each part. Click along its top:
+
+- **Left, Middle, Right**: every frequency goes to the part it sits in. Drag
+  the two **edges** on the picture (their round handles) to widen or narrow
+  the middle; they never pass one another. In this split the sound is 43 ms
+  later (2048 samples at 48 kHz), always, and Kalibre lines everything else
+  up with it.
+- **Middle and Sides**: what both speakers share, and what differs between
+  them. Middle keeps the same plug-ins in both splits.
+
+![Stereo Split: Middle and Sides](guide/stereo-split-sides.png)
+
+The picture is a **vectorscope**: the middle straight up, left and right on
+the diagonals, louder further out. Grey dots are the sound itself; coloured
+dots are its frequencies, low (rose) to high (violet), each where it sits.
+Each part has **On**, **S** (solo), its **volume** and its plug-ins, as in
+the Multiband. With nothing in it, the sound is untouched.
+[More in DEVICES.md](DEVICES.md#stereo-split).
 
 ### The Note Splitter
 
