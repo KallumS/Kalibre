@@ -124,6 +124,8 @@ private:
     juce::OwnedArray<TrackHeader> headers;
     // The headers' column, below the ruler and its lanes: scrolled headers are cut off at
     // its top, never drawn over the Sections and Chords lanes (0120).
+    std::unique_ptr<juce::VBlankAttachment> vblank;
+    float playheadX() const { return (float) headerWidth() + timeline.xAt (c.playheadExact()); }
     juce::Component headerColumn;
     juce::ScrollBar vbar { true }, hbar { false };
     int scrollY = 0;

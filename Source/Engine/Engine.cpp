@@ -187,7 +187,15 @@ void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numI
         if (auto* d = deviceManager.getCurrentAudioDevice()) latencyMs = d->getOutputLatencyInSamples() * 1000.0 / rate;
         syncDevices.block (c, *map, Time::getMillisecondCounterHiRes() + latencyMs, jmax (1, quantum));
     }
-    if (c.playing) pos.store (next);
+    if (c.playing)
+    {
+        // When and where this block began, for the playhead between blocks (0121).
+        stampSeq.fetch_add (1, std::memory_order_acq_rel);
+        stampPos.store (p, std::memory_order_relaxed);
+        stampMs.store (Time::highResolutionTicksToSeconds (callbackStart) * 1000.0, std::memory_order_relaxed);
+        stampSeq.fetch_add (1, std::memory_order_acq_rel);
+        pos.store (next);
+    }
     else pos.store (p);
     // A block that took longer than it lasts is a dropout (decision 0038).
     if (Time::highResolutionTicksToSeconds (Time::getHighResolutionTicks() - callbackStart) > n / rate) ++late;
@@ -224,6 +232,27 @@ void Engine::locate (double seconds)
 double Engine::heardPosition()
 {
     return playing ? pos.load() - graph.getLatencySamples() / rate : pos.load();
+}
+
+double Engine::smoothPosition() const
+{
+    if (! playing.load()) return pos.load();
+    double at = 0, ms = 0;
+    for (int tries = 0; tries < 8; ++tries)
+    {
+        const auto before = stampSeq.load (std::memory_order_acquire);
+        if (before & 1u) continue;
+        at = stampPos.load (std::memory_order_relaxed);
+        ms = stampMs.load (std::memory_order_relaxed);
+        if (stampSeq.load (std::memory_order_acquire) == before) break;
+    }
+    if (ms <= 0) return pos.load() - graph.getLatencySamples() / rate;
+    // Never further than a few blocks on: if the audio stops coming, neither does the playhead.
+    const double since = jlimit (0.0, 0.25, Time::highResolutionTicksToSeconds (Time::getHighResolutionTicks()) - ms / 1000.0);
+    double x = at + since;
+    const double le = loopEnd.load(), ls = loopStart.load();
+    if (loopOn.load() && le > ls && at < le && x >= le) x = ls + (x - le);
+    return x - graph.getLatencySamples() / rate;
 }
 
 void Engine::setLoop (bool on, double start, double end)

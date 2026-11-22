@@ -19,6 +19,7 @@ struct Timeline
     double startTick = 0;          // at x = 0
 
     float x (Tick t) const { return (float) ((double (t) - startTick) * pixelsPerTick); }
+    float xAt (double ticks) const { return (float) ((ticks - startTick) * pixelsPerTick); }   // between ticks (the playhead, 0121)
     Tick tick (float px) const { return (Tick) std::llround (startTick + px / pixelsPerTick); }
     Tick ticksFor (float points) const { return (Tick) std::llround (points / pixelsPerTick); }
 

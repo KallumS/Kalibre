@@ -2696,3 +2696,28 @@ TEST ("arrangement: scrolled down, the tracks' headers never cover the Sections 
     walk (arrange);
     CHECK (shown > 0);
 }
+
+TEST ("playhead: between the audio's blocks it moves on with the clock, evenly, not in a block's steps; it never runs far ahead of the audio (0121)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Project p;
+    edit::addTrack (p, TrackKind::Track, "Keys");
+    startLive (engine, device, p);
+    engine.locate (0);
+    engine.play();
+    playLive (engine, 0.05);   // a few blocks
+    const double heard = engine.heardPosition();
+    const double a = engine.smoothPosition();
+    Thread::sleep (30);
+    const double b = engine.smoothPosition();
+    // No block since: the block-by-block position hasn't moved, the smooth one has, by the time gone.
+    CHECK (std::abs (engine.heardPosition() - heard) < 1.0e-12);
+    CHECK (b - a > 0.020 && b - a < 0.060);
+    // The audio stops coming: the playhead stops a quarter of a second on, at most.
+    Thread::sleep (400);
+    CHECK (engine.smoothPosition() - a <= 0.26);
+    engine.stop();
+    CHECK (std::abs (engine.smoothPosition() - engine.position()) < 1.0e-12);
+}

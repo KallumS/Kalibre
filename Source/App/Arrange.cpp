@@ -470,7 +470,9 @@ Arrange::Arrange (Controller& ctrl) : c (ctrl)
     setWantsKeyboardFocus (false);
     setTitle ("Tracks");
     c.addChangeListener (this);
-    startTimerHz (30);
+    // The playhead follows the screen's own refresh, not a timer of its own: a timer beats
+    // against the screen and the audio's blocks, and the playhead stuttered (0121).
+    vblank = std::make_unique<VBlankAttachment> (this, [this] { timerCallback(); });
     changeListenerCallback (nullptr);
 }
 
@@ -585,12 +587,13 @@ void Arrange::timerCallback()
             return;
         }
     }
-    const float x = xOf (c.playhead());
-    if (std::abs (x - lastPlayheadX) > 0.5f)
+    // Every refresh of the screen, at its place between ticks and blocks (0121).
+    const float x = playheadX();
+    if (std::abs (x - lastPlayheadX) > 0.05f)
     {
         const int top = 0;
-        repaint ((int) lastPlayheadX - 2, top, 5, getHeight());
-        repaint ((int) x - 2, top, 5, getHeight());
+        repaint ((int) std::floor (lastPlayheadX) - 2, top, 6, getHeight());
+        repaint ((int) std::floor (x) - 2, top, 6, getHeight());
         lastPlayheadX = x;
     }
 }
@@ -1175,7 +1178,7 @@ void Arrange::paintOverChildren (Graphics& g)
     }
     if (c.engine.isPlaying())
     {
-        const float x = xOf (c.playhead());
+        const float x = lastPlayheadX = playheadX();
         if (x >= (float) lanes.getX())
         {
             g.setColour (theme::playhead);

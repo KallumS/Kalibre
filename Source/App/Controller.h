@@ -210,6 +210,9 @@ public:
     void stopAndGoToStart();    // the transport's Stop (0107)
     void toggleLoop();
     Tick playhead() const;
+    // Where the playhead is to draw it, between ticks and between audio blocks, so it moves
+    // evenly (0121); the cursor while stopped.
+    double playheadExact() const;
     void tapTempo();
 
     //==========================================================================

@@ -929,6 +929,11 @@ Tick Controller::playhead() const
     return engine.isPlaying() ? project.tempo.tickAt (const_cast<Engine&> (engine).heardPosition()) : cursor;
 }
 
+double Controller::playheadExact() const
+{
+    return engine.isPlaying() ? project.tempo.ticksAt (engine.smoothPosition()) : (double) cursor;
+}
+
 void Controller::tapTempo()
 {
     const double now = Time::getMillisecondCounterHiRes() / 1000.0;

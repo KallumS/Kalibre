@@ -106,6 +106,9 @@ public:
     double position() const { return pos.load(); }
     // Where the music heard right now is: the position less what the graph delays it by.
     double heardPosition();
+    // The same, between blocks too (0121): where the last block began, plus the time since,
+    // so a playhead drawn many times a block moves evenly, not in a block's steps. Any thread.
+    double smoothPosition() const;
     void setLoop (bool on, double start, double end);
     void setCountIn (double seconds) { countInSeconds = seconds; }
 
@@ -247,6 +250,10 @@ private:
     std::atomic<bool> playing { false }, recording { false };
     static constexpr double noJump = -1.0e9;
     std::atomic<double> pos { 0 }, seekTo { noJump };
+    // When the last block played began, and where (0121): written by the audio thread
+    // between two counts of `stampSeq` (odd while writing), read without a lock.
+    std::atomic<juce::uint32> stampSeq { 0 };
+    std::atomic<double> stampPos { 0 }, stampMs { 0 };
     std::atomic<bool> loopOn { false };
     std::atomic<double> loopStart { 0 }, loopEnd { 0 };
     double countInSeconds = 0;

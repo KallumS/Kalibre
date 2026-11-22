@@ -26,6 +26,16 @@ PianoRoll::PianoRoll (Controller& ctrl) : c (ctrl), lanes (ctrl)
     timeline.pixelsPerTick = 0.12;
     c.addChangeListener (this);
     startTimerHz (30);
+    // The playhead on every refresh of the screen, at its place between ticks and blocks (0121).
+    vblank = std::make_unique<VBlankAttachment> (this, [this]
+    {
+        if (! c.engine.isPlaying()) return;
+        const float x = playheadX();
+        if (std::abs (x - lastPlayheadX) < 0.05f) return;
+        repaint ((int) std::floor (lastPlayheadX) - 2, 0, 6, getHeight());
+        repaint ((int) std::floor (x) - 2, 0, 6, getHeight());
+        lastPlayheadX = x;
+    });
 }
 
 PianoRoll::~PianoRoll() { c.removeChangeListener (this); }
@@ -424,7 +434,7 @@ void PianoRoll::paint (Graphics& g)
     // The playhead.
     if (c.engine.isPlaying() && clip)
     {
-        const float x = (float) keyboardWidth() + timeline.x (c.playhead());
+        const float x = lastPlayheadX = playheadX();
         if (x >= (float) area.getX())
         {
             g.setColour (theme::playhead);
