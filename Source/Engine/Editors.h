@@ -39,3 +39,45 @@ inline juce::AudioProcessorEditor* open (juce::AudioProcessor& p)
 }
 
 } // namespace kal::editors
+
+#include <juce_gui_basics/juce_gui_basics.h>
+#include <vector>
+
+namespace kal::editors
+{
+// A window that closes is emptied and hidden at once, and deleted some seconds
+// later (decision 0115): macOS goes on sending a two-finger scroll's glide to the
+// window it began over, and Kalibre crashed there when that window had been
+// freed (-[NSWindow _latchViewForScrollEvent:]). Empty first: whatever it showed
+// (a plug-in's window) is closed by its owner as usual; only the window waits.
+class Retired : private juce::Timer, private juce::DeletedAtShutdown
+{
+public:
+    static inline int delayMs = 10000;   // tests shorten it
+    static void add (std::unique_ptr<juce::Component> window, int afterMs = -1)
+    {
+        if (window == nullptr) return;
+        if (afterMs < 0) afterMs = delayMs;
+        window->setVisible (false);
+        auto& r = get();
+        r.list.push_back ({ std::move (window), juce::Time::getMillisecondCounter() + (juce::uint32) afterMs });
+        r.startTimer (250);
+    }
+    static size_t waiting() { return instance != nullptr ? instance->list.size() : 0; }   // tests
+
+private:
+    struct Entry { std::unique_ptr<juce::Component> window; juce::uint32 at; };
+    std::vector<Entry> list;
+    static inline Retired* instance = nullptr;
+    static Retired& get() { if (instance == nullptr) instance = new Retired(); return *instance; }
+    ~Retired() override { stopTimer(); list.clear(); instance = nullptr; }
+    void timerCallback() override
+    {
+        const auto now = juce::Time::getMillisecondCounter();
+        list.erase (std::remove_if (list.begin(), list.end(), [now] (const Entry& e) { return (juce::int32) (now - e.at) >= 0; }), list.end());
+        if (list.empty()) stopTimer();
+    }
+};
+
+inline void retire (std::unique_ptr<juce::Component> window, int afterMs = -1) { Retired::add (std::move (window), afterMs); }
+} // namespace kal::editors

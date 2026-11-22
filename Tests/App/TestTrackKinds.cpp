@@ -2476,3 +2476,39 @@ TEST ("x/y morph: taken out of the song, its corners' windows close at once (011
     CHECK (engine.instance (dev) == nullptr);
     CHECK_EQ (Desktop::getInstance().getNumComponents(), windowsBefore - 1);
 }
+
+TEST ("windows: a plug-in's own window closed is emptied and hidden at once, and deleted only seconds later (the macOS crash in a scroll's glide, 0115)")
+{
+    const int was = editors::Retired::delayMs;
+    editors::Retired::delayMs = 400;
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Synths");
+        c.focusTrack = t;
+        c.refresh();
+        DeviceRack rack (c);
+        rack.setSize (1400, 360);
+        Id dev = 0;
+        c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, synthRef(), DeviceRole::Instrument); });
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        const int before = Desktop::getInstance().getNumComponents();
+        rack.float_ (dev);
+        CHECK_EQ (Desktop::getInstance().getNumComponents(), before + 1);
+        auto* inst = engine.instance (dev);
+        CHECK (inst != nullptr && inst->getActiveEditor() != nullptr);
+        rack.dock (dev);
+        // The plug-in's window has gone; the window that held it waits, hidden.
+        CHECK_EQ (Desktop::getInstance().getNumComponents(), before + 1);
+        CHECK (editors::Retired::waiting() >= 1);
+        for (int i = 0; i < Desktop::getInstance().getNumComponents(); ++i)
+            if (auto* w = dynamic_cast<DocumentWindow*> (Desktop::getInstance().getComponent (i)))
+                CHECK (! w->isVisible() || w->getContentComponent() != nullptr);
+        MessageManager::getInstance()->runDispatchLoopUntil (900);
+        CHECK_EQ (Desktop::getInstance().getNumComponents(), before);
+        CHECK_EQ (editors::Retired::waiting(), size_t (0));
+    }
+    editors::Retired::delayMs = was;
+}

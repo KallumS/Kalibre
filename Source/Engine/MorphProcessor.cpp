@@ -425,12 +425,13 @@ public:
         setResizable (editor->isResizable(), false);
         if (auto* k = editor->getConstrainer()) setConstrainer (k);
     }
-    ~CornerWindow() override { clearContentComponent(); content.reset(); }   // the plug-in is told first (0056)
+    ~CornerWindow() override { empty(); }
+    void empty() { clearContentComponent(); content.reset(); }   // the plug-in is told first (0056)
     void closeButtonPressed() override { MessageManager::callAsync ([f = onClosed] { if (f) f(); }); }
+    std::function<void()> onClosed;
 
 private:
     editors::Owned content;
-    std::function<void()> onClosed;
 };
 } // namespace
 
@@ -462,7 +463,9 @@ void MorphProcessor::showCornerWindow (int c)
 void MorphProcessor::closeCornerWindow (int c)
 {
     if (c < 0 || c >= 4 || ! windows[(size_t) c]) return;
-    windows[(size_t) c].reset();
+    // Its plug-in's window goes now; the window itself a little later (0115).
+    if (auto* w = dynamic_cast<CornerWindow*> (windows[(size_t) c].get())) { w->onClosed = nullptr; w->setVisible (false); w->empty(); }
+    editors::retire (std::move (windows[(size_t) c]));
     if (onWindowsChanged) onWindowsChanged();
 }
 

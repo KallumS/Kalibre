@@ -34,8 +34,19 @@ public:
         setVisible (true);
         toFront (true);
     }
-    ~PluginWindow() override { clearContentComponent(); content.reset(); }   // the plug-in is told its window is going
+    ~PluginWindow() override { empty(); }
+    void empty() { clearContentComponent(); content.reset(); }   // the plug-in is told its window is going
     void closeButtonPressed() override { MessageManager::callAsync ([f = onClosed] { if (f) f(); }); }
+
+    // Closed: its plug-in's window goes now; the window itself a little later (0115).
+    static void retire (std::unique_ptr<PluginWindow> w)
+    {
+        if (! w) return;
+        w->onClosed = nullptr;
+        w->setVisible (false);
+        w->empty();
+        editors::retire (std::move (w));
+    }
 
 private:
     editors::Owned content;
@@ -710,7 +721,7 @@ void DeviceRack::float_ (Id device)
 
 void DeviceRack::dock (Id device)
 {
-    windows.erase (device);
+    if (auto it = windows.find (device); it != windows.end()) { PluginWindow::retire (std::move (it->second)); windows.erase (it); }
     windowFor.erase (device);
     for (auto* p : panels) if (p->id == device) { p->update(); p->repaint(); }
     layoutStrip();
@@ -724,6 +735,7 @@ void DeviceRack::closeStaleWindows()
         const auto* d = c.project.device (it->first);
         if (d && d->active && c.engine.instance (it->first) == windowFor[it->first]) { ++it; continue; }
         windowFor.erase (it->first);
+        PluginWindow::retire (std::move (it->second));
         it = windows.erase (it);
     }
 }
