@@ -110,3 +110,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0106. Telling drum sounds: name, length and the shape of the hit; the scan at half a million sounds](0106-telling-drum-sounds.md)
 - [0107. Stop, and Go to End, in the transport](0107-stop-and-go-to-end.md)
 - [0108. The Sampler's Random Sample: any sound from the scanned folders](0108-the-samplers-random-sample.md)
+- [0109. What the UAT song found, and how each was fixed](0109-what-the-uat-song-found.md)

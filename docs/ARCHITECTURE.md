@@ -168,6 +168,10 @@ performance core, each as soon as what feeds it is done (0078).
 - A plug-in's role is `PluginManager::roleOf` (the user's filing, what the scan learned, then the description), never the static `roleFor` alone (0069).
 - Nothing important along the bottom but the transport (0095, asked for): the message line stays at the top.
 - Kalibre Sampler's slices are found on the audio thread from `candidates`, made when the sample loads: never call `transients` there (it allocates).
+- A number shown with no decimals goes through `ui::number`: juce::String's own takes 0 decimals to mean all of them ("502.246 Hz", 0109).
+- `paint` changes nothing it's drawn from: the knob panels cut their group boxes and the headings walked down a step each repaint (0109).
+- The window (`MainWindow.h`) passes keys that reach it with nothing focused on to `MainComponent::keyPressed`: after a dialog closes, the shortcuts still work (0109).
+- An export of the whole song ends at `Project::songEnd` (the bar after the last clip); `endTick` is the view's, at least 16 bars (0109).
 - A message the engine sends itself (`MessageManager::callAsync`) carries `std::weak_ptr<bool> (aliveToken)` and does nothing once it's expired; the Controller clears every engine callback it set (`onDevicePluginChanged`, `onLearned`...) in its destructor. A message can arrive after either has gone: on the Mac a plug-in's "settings changed" arriving after its engine crashed the tests (0108).
 - The crash handler may only use calls safe in a signal handler: no allocation, no JUCE (0073).
 - Audio Kalibre writes for itself goes through `audiofile::floatWav` (0079); audio brought in that isn't 32-bit float WAV is copied as one.

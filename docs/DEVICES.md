@@ -56,7 +56,9 @@ resonant low-pass filter. Up to 16 notes at once.
 | Output | **Glide** | Notes slide into each other. |
 | | **Volume** | -48 to +6 dB. |
 
-The mod wheel adds vibrato.
+The mod wheel adds vibrato. **Presets > Factory Presets**: Init, Warm Bass,
+Sub Bass, Acid Bass, Soft Pad, Bright Lead, Pluck, Brass, Keys, Strings,
+Noise Sweep (0109).
 
 ### Kalibre Drums
 
@@ -86,8 +88,8 @@ stop each other.
 
 One sample, played three ways (**Mode**, 0095). **Drop an audio file onto
 its panel** to load it, click **Load Sample…**, or **Random Sample** for any
-sound from the Sounds folders, its Root Note set to the note the scan heard
-in it (0108). Up to 32 notes at once.
+sound from the Sounds folders. However it's loaded, its Root Note is set to
+the note the scan heard in it (0108, 0109). Up to 32 notes at once.
 
 - **Keys**: across the keyboard from the Root Note, higher keys higher and
   faster, as a tape.
@@ -152,6 +154,9 @@ in tune to within 32 cents; notes the bore can't sound play an octave up.
 
 *Tried: its notes, its slides and that it stays finite, in the tests. Its
 sound hasn't been heard on your Mac yet.*
+
+Its notes are kept about as loud as each other: a ceiling holds its peaks,
+so a slide between notes of very different strength can't jump out (0109).
 
 ### Reese Basser
 

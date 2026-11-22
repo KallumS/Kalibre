@@ -288,17 +288,21 @@ public:
 
     Rectangle<int> waveArea() const
     {
-        return getLocalBounds().removeFromTop (getHeight() * 2 / 5).reduced (6).withTrimmedRight (jmax (loadButton.getWidth(), randomButton.getWidth()) + 8);
+        return getLocalBounds().removeFromTop (waveHeight()).reduced (6).withTrimmedRight (jmax (loadButton.getWidth(), randomButton.getWidth()) + 8);
     }
+
+    // The waveform gives way first in a short panel, so the knobs stay big enough to turn
+    // (the UAT's were dots): two fifths, but no less than 70 (its two buttons) and leaving the knobs 170.
+    int waveHeight() const { return jlimit (70, jmax (70, getHeight() * 2 / 5), getHeight() - 170); }
 
     void resized() override
     {
-        auto top = getLocalBounds().removeFromTop (getHeight() * 2 / 5).reduced (6);
+        auto top = getLocalBounds().removeFromTop (waveHeight()).reduced (6);
         auto side = top.removeFromRight (jmax (loadButton.idealWidth (theme::smallControl), randomButton.idealWidth (theme::smallControl)));
         loadButton.setBounds (side.removeFromTop (theme::px (24)));
         side.removeFromTop (theme::px (4));
         randomButton.setBounds (side.removeFromTop (theme::px (24)));
-        knobs.setBounds (getLocalBounds().withTrimmedTop (getHeight() * 2 / 5));
+        knobs.setBounds (getLocalBounds().withTrimmedTop (waveHeight()));
     }
 
     bool isInterestedInFileDrag (const StringArray& files) override { return files.size() == 1; }
