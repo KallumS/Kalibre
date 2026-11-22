@@ -6,6 +6,7 @@
 #include "../Tests/App/Demo.h"
 #include "BuiltinInstruments.h"
 #include "DrumMachine.h"
+#include "DrumPadsDevice.h"
 #include "ContainerProcessor.h"
 #include "Comp.h"
 #include "Song.h"
@@ -863,6 +864,52 @@ int main (int argc, char** argv)
                 MessageManager::getInstance()->runDispatchLoopUntil (300);
                 shoot ("42-kalibre-drums");
                 edit::removeTrack (c.project, drumTrack);
+                c.focusTrack = synthTrack;
+                c.refresh();
+            }
+            // Drum Pads (decision 0128): sixteen of 128 pads, samples and a synth, a pad muted, the kick chosen.
+            {
+                const Id padTrack = edit::addTrack (c.project, TrackKind::Track, "Pads");
+                const Id dev = edit::addDevice (c.project, padTrack, drumPadsRef(), DeviceRole::Instrument);
+                c.focusTrack = padTrack;
+                c.refresh();
+                if (auto* dp = dynamic_cast<DrumPadsProcessor*> (c.engine.instance (dev)))
+                {
+                    auto kit = dp->kit();
+                    const std::pair<int, const char*> sounds[] { { 36, "Kick 808" }, { 37, "Rim Dry" }, { 38, "Snare Tight" }, { 40, "Snare Ghost" },
+                                                                 { 42, "HH Closed 2" }, { 44, "HH Pedal" }, { 46, "HH Open" }, { 45, "Tom Low" },
+                                                                 { 48, "Tom High" }, { 49, "Crash 1" }, { 51, "Ride Bell" }, { 60, "Shaker" }, { 72, "Vox Hey" } };
+                    int n = 0;
+                    for (auto& [pad, name] : sounds)
+                    {
+                        const auto f = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-render-pads").getChildFile (String (name) + ".wav");
+                        f.getParentDirectory().createDirectory();
+                        AudioBuffer<float> b (2, 4800);
+                        for (int i = 0; i < b.getNumSamples(); ++i)
+                            for (int ch = 0; ch < 2; ++ch) b.setSample (ch, i, (float) (0.5 * std::sin (i * 0.04 * (++n % 7 + 1)) * std::exp (-i / 1500.0)));
+                        f.deleteFile();
+                        WavAudioFormat wavOut;
+                        std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+                        if (auto w = wavOut.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (24)))
+                            w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+                        kit.pads[(size_t) pad].sample = f.getFullPathName().toStdString();
+                    }
+                    kit.pads[39].plugin = synthRef();
+                    kit.pads[39].name = "Synth Clap";
+                    kit.pads[36].volumeDb = -2.5;
+                    kit.pads[36].pan = -0.2;
+                    kit.pads[40].mute = true;
+                    kit.pads[49].choke = 2;
+                    kit.pads[51].choke = 2;
+                    dp->setKit (kit);
+                    dp->selected = 36;
+                }
+                c.zoneTab = ZoneTab::Devices;
+                window.lowerHeight = 380;
+                c.refresh();
+                MessageManager::getInstance()->runDispatchLoopUntil (300);
+                shoot ("50-drum-pads");
+                edit::removeTrack (c.project, padTrack);
                 c.focusTrack = synthTrack;
                 c.refresh();
             }

@@ -785,3 +785,31 @@ TEST ("delay compensation: a send's lane after a 300-sample plug-in steps on the
     CHECK (std::abs (out.getSample (0, k - 1) - 0.5f) < 1e-5f);
     CHECK (out.getSample (0, k) < 0.001f);
 }
+
+#include "DrumPadsDevice.h"
+
+TEST ("neutral: a Drum Pads pad at 0 dB in the centre, hit at full velocity, cancels against its sample; two pads at once are their sum rounded once (0128)")
+{
+    PluginManager plugins;
+    DrumPadsProcessor d (plugins);
+    d.prepareToPlay (rate, 512);
+    const auto a = make (Signal::Noise, 32, 11, 0.05), b = make (Signal::Sine, 24, 12, 0.05);
+    auto k = d.kit();
+    k.pads[36].sample = write (a, 32, "pad a").getFullPathName().toStdString();
+    k.pads[38].sample = write (b, 24, "pad b").getFullPathName().toStdString();
+    d.setKit (k);
+    AudioBuffer<float> out (2, 512);
+    MidiBuffer m;
+    m.addEvent (MidiMessage::noteOn (1, 36, (uint8) 127), 0);
+    d.processBlock (out, m);
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < 512; ++i) CHECK_EQ (out.getSample (ch, i) - a.getSample (ch, i), 0.0f);
+    d.reset();
+    MidiBuffer both;
+    both.addEvent (MidiMessage::noteOn (1, 36, (uint8) 127), 0);
+    both.addEvent (MidiMessage::noteOn (1, 38, (uint8) 127), 0);
+    d.processBlock (out, both);
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < 512; ++i)
+            CHECK_EQ (out.getSample (ch, i), (float) ((double) a.getSample (ch, i) + (double) b.getSample (ch, i)));
+}

@@ -10,6 +10,7 @@
 #include "MultibandProcessor.h"
 #include "StereoSplitProcessor.h"
 #include "DrumMachine.h"
+#include "DrumPadsDevice.h"
 #include "HardwareInsert.h"
 #include "Morph.h"
 #include "PluginManager.h"
@@ -354,6 +355,7 @@ std::unique_ptr<AudioPluginInstance> makeBuiltIn (const PluginRef& ref, PluginMa
     if (ref.identifier == "multiband") return std::make_unique<MultibandProcessor> (pm);   // decision 0126
     if (ref.identifier == "stereo-split") return std::make_unique<StereoSplitProcessor> (pm);   // decision 0127
     if (ref.identifier == "drums") return std::make_unique<DrumMachine> (pm);   // decision 0105
+    if (ref.identifier == "drum-pads") return std::make_unique<DrumPadsProcessor> (pm);   // decision 0128
     if (auto inst = makeInstrument (ref)) return inst;
     if (ref.identifier == "hardware-insert") return std::make_unique<HardwareInsert>();
     if (String (ref.identifier).startsWith ("test-gain:"))

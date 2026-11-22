@@ -129,3 +129,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0125. The browser's plug-ins by kind, and right-click](0125-the-browsers-plug-ins-by-kind.md)
 - [0126. The Multiband device](0126-the-multiband-device.md)
 - [0127. Stereo Split](0127-stereo-split.md)
+- [0128. Drum Pads: 128 pads of samples and plug-ins, sixteen shown](0128-drum-pads.md)

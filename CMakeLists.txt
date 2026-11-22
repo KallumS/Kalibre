@@ -96,6 +96,7 @@ add_library(KalibreCore STATIC
     Source/Core/Mcp.cpp
     Source/Core/RandomSong.cpp
     Source/Core/DrumKit.cpp
+    Source/Core/DrumPads.cpp
     Source/Core/DrumSounds.cpp
     ${EMBEDDED_LUA_CPP}
     Source/Script/LuaHost.cpp)
@@ -148,6 +149,7 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestMcp.cpp
         Tests/TestRandomSong.cpp
         Tests/TestDrumKit.cpp
+        Tests/TestDrumPads.cpp
         Tests/TestDrumSounds.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
