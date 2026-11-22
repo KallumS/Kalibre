@@ -125,6 +125,7 @@ public:
         natural = {};
         ownSize = false;
         fittedBox = {};
+        askedScale = 1.0f;
     }
 
     void update()
@@ -233,6 +234,20 @@ public:
             size = editor->getBounds().withZeroOrigin();   // what it took: some keep to sizes of their own
         }
         else if (editor->getBounds().withZeroOrigin() != natural) editor->setBounds (natural);
+       #if JUCE_WINDOWS
+        // Windows can't shrink another program's window as the Mac does (0129): a VST3 that
+        // can draw itself smaller is asked to, as Windows hosts do; one that can't is clipped.
+        if (! ours && isVst3())
+        {
+            const float s = jmin (1.0f, (float) box.getWidth() / (float) natural.getWidth(), (float) box.getHeight() / (float) natural.getHeight());
+            if (std::abs (s - askedScale) > 0.01f)
+            {
+                askedScale = s;
+                editor->setScaleFactor (s);
+            }
+            size = editor->getBounds().withZeroOrigin();
+        }
+       #endif
         laying = false;
         editor->setTopLeftPosition (0, 0);
         if (size.isEmpty()) size = natural;
@@ -451,6 +466,12 @@ public:
     Rectangle<int> fittedBox;
     Fit fitted;
     bool ownSize = false;     // it chose a size itself: kept, only shown smaller
+    float askedScale = 1.0f;  // on Windows, how much smaller a VST3 was asked to draw itself (0129)
+    bool isVst3() const
+    {
+        auto* p = editor ? dynamic_cast<AudioPluginInstance*> (&editor->processor) : nullptr;
+        return p != nullptr && p->getPluginDescription().pluginFormatName == "VST3";
+    }
     bool laying = false;
 
     // The plug-in resized its own window (a bigger view, a panel opened, its
@@ -459,6 +480,9 @@ public:
     {
         if (laying || ! wasResized || &comp != editor.get()) return;
         natural = editor->getBounds().withZeroOrigin();
+        // Asked to draw itself smaller (Windows): its own size is this at full size.
+        if (askedScale < 0.999f)
+            natural = natural.withSize (roundToInt ((float) natural.getWidth() / askedScale), roundToInt ((float) natural.getHeight() / askedScale));
         ownSize = true;
         fittedBox = {};
         rack.relayout();
