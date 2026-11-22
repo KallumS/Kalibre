@@ -903,7 +903,10 @@ Each plug-in in it has:
   those frequencies;
 - its own **Volume** and **Pan**.
 
-Its **⋯** menu: Show Its Window, Replace…, Move Up, Move Down, Remove.
+Click a plug-in's name to see its window beside the list: the Container
+takes that plug-in's size, so it's always shown whole (a plug-in just added
+is the one shown). Its **⋯** menu: Show Its Window, Replace…, Move Up, Move
+Down, Remove.
 **Match Loudness** brings what goes out to the loudness of what came in.
 
 ### The Note Splitter
