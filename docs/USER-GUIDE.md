@@ -1809,7 +1809,7 @@ celebrations, crates, gear, ideas and achievements.
   cursor, the mouse and keys while Kalibre is the app in front. New tracks,
   clips, notes, plug-ins, recorded takes, markers and sections earn XP.
 - **An idea you win** goes into the song at the cursor, on the chosen track
-  (a new one if none is), as one undo step (**Put It In**); an arrangement
+  (a new one if none is), as one undo step (**Insert MIDI**, in the Ideas page); an arrangement
   becomes sections (**Add Sections**); a tempo becomes the song's.
 - **Your progress** is kept in Kalibre's folder
   (`~/Library/Application Support/Kalibre/Data/DAW Battle Pass/`). The first
