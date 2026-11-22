@@ -72,5 +72,8 @@ few places where the test's own drum samples peak together: the faders'.
 
 ## Consequences
 
+The pictures taken as it went, and the mix before and after:
+[docs/uat/2026-11-22](../uat/2026-11-22/README.md).
+
 Tested: each above (236 core, 198 app tests). The song made again: exported
 13.9 seconds (the song and its reverbs), no blow-up; the renders.
