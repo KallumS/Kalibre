@@ -2,14 +2,16 @@
 
 Everything Kalibre does, where to find it, and every key and click.
 
-Kalibre is a music program for Apple silicon Macs. Everything happens in one
+Kalibre is a music program for Apple silicon Macs, and for Windows PCs
+([On Windows](#on-windows)). Everything happens in one
 window: your tracks at the top, and under them the **lower zone**, where your
 plug-ins, editors and mixer sit side by side. Only settings (the Plug-in
 Manager, the Articulation Manager) get windows of their own.
 
 > On the Mac, menus are in the menu bar at the top of the screen. Key commands
 > are written as on the Mac: ⌘ is Command, ⇧ Shift, ⌥ Option, ⌃ Control.
-> Every key can be changed: **Help > Keys**.
+> Every key can be changed: **Help > Keys**. On Windows, read ⌘ as Ctrl and
+> ⌥ as Alt: [On Windows](#on-windows) has every difference.
 
 **Contents**
 
@@ -48,6 +50,9 @@ Manager, the Articulation Manager) get windows of their own.
 3. The first time, **right-click Kalibre > Open** (it isn't signed with an
    Apple Developer ID yet). After that it opens normally.
 
+On Windows: download **Kalibre-Windows** from the same run, unzip it, and
+double-click **Kalibre.exe** ([On Windows](#on-windows)).
+
 ### The first few minutes
 
 1. **Choose your audio interface.** Kalibre > Audio and MIDI Settings… (⌘,)
@@ -74,6 +79,39 @@ Manager, the Articulation Manager) get windows of their own.
 7. **Play.** Space plays and stops; Return goes back to the start.
 8. **Save.** ⌘S. A song is a `.kalibre` file in its own folder, with its
    audio in an **Audio** folder beside it.
+
+### On Windows
+
+Kalibre on Windows is the same program, with Windows' keys and words
+(decision 0129). Download **Kalibre-Windows** from a build's Artifacts, unzip
+it anywhere, keep **Kalibre.exe** and its **Scripts** folder together, and
+double-click Kalibre.exe. The first time, Windows may say it protected your
+PC (Kalibre isn't signed yet): **More info > Run anyway**.
+
+| On the Mac | On Windows |
+| --- | --- |
+| ⌘ (Command), as in ⌘S, ⌘Z | **Ctrl**, as in Ctrl+S, Ctrl+Z |
+| ⌥ (Option), as in Option-click, Option-drag | **Alt**, as in Alt+click, Alt+drag |
+| ⇧⌘Z Redo | **Ctrl+Shift+Z**, or Windows' own **Ctrl+Y** |
+| Return (go to the start) | **Enter** |
+| Delete (⌫) | **Backspace**, or **Delete** |
+| The **Kalibre** menu (Audio and MIDI Settings, Plug-in Manager, Library Folders) | **File > Settings** |
+| Kalibre > Quit (⌘Q) | **File > Exit** (Alt+F4) |
+| Menus in the Mac's menu bar | Menus along the top of Kalibre's window |
+| Show in Finder | **Show in File Explorer** |
+| The Trash | **The Recycle Bin** |
+| Control-right-click for the toolbox | **Ctrl+right-click** |
+| AU, VST3 and CLAP plug-ins | **VST3 and CLAP** (AU is the Mac's alone) |
+
+Every tip, menu and message in Kalibre says Windows' words on Windows, and
+Help > Keys lists every key as Windows writes it. What isn't there yet:
+
+- **Video**: a video's sound plays; its picture is shown only on the Mac.
+- **ARA** (Melodyne inside the arrangement) and the **Mac's network MIDI**.
+- **Plug-in windows** in the rack aren't clipped when the zone is short, as
+  they are on the Mac: give the lower zone room, or open a plug-in in its own
+  window.
+- Your settings, scripts and crash reports are in `%APPDATA%\Kalibre`.
 
 ---
 

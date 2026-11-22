@@ -25,6 +25,7 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/Platform.h` | The words each system uses: Option-click or Alt+click, the Finder or File Explorer, this Mac or this PC, the Kalibre menu or File > Settings (0129); `ui::words()` in Theme.h. |
 | `Core/Toolbox.*` | The tools Control-right-click chooses, each area's, their modes; Split into pieces, Glue, clearing a range, Line's shapes, Time Warp (0092). |
 | `Core/Trombolese.*` | Trombolese's voice, ported from its Python (waveguide, reed, geometry), its tables made by its own functions, and each note's partial and slide (0093). |
 | `Core/RandomSong.*` | The Random button's song: parts, instruments, effects and loops chosen by chance, music from Ideas (0101). |
@@ -48,7 +49,7 @@
 | `Engine/Engine.*` | The audio graph built from the project, plug-in instances kept across changes, the transport and loop, rendering (0016). |
 | `Engine/TrackProcessors.*` | Each track's Source (clips, live input, recording, automation, modulators), Fader and Sends; the metronome. |
 | `Engine/ClapFormat.*`, `ClapGuiMac.mm` | Hosting CLAP (0021). |
-| `Engine/PluginManager.*` | Scanning (each plug-in in a helper: Kalibre run with `--kalibre-scan`), turning plug-ins off and on, and making them (0047). The helper's `controls` mode reads every control for the Random Settings Report (0104). |
+| `Engine/PluginManager.*` | Scanning (each plug-in in a helper: Kalibre run with `--kalibre-scan`; on Windows through `HelperProcessWin.cpp`, 0129), turning plug-ins off and on, and making them (0047). The helper's `controls` mode reads every control for the Random Settings Report (0104). |
 | `Engine/MorphProcessor.*` | The X/Y morph (0018), and the latency and gain devices the tests use. |
 | `Engine/ContainerProcessor.*` | The Container: plug-ins in a row, each on a band, the mid or the sides (0055). |
 | `Engine/MultibandProcessor.*` | The Multiband: 2 to 4 Linkwitz-Riley bands, plug-ins on each, crossovers dragged on a live spectrum (0126). |
@@ -94,7 +95,7 @@
 | `App/NoteSplitterEditor.*` | The Note Splitter's panel: its outputs and their tracks (0083). |
 | `App/PluginManagerView.*` | The Plug-in Manager and its window (0047); File As (0069). |
 | `App/ArticulationManagerView.*` | The Articulation Manager and its window (0072). |
-| `App/CrashReports.*` | The crash handler and its reports (0073). |
+| `App/CrashReports.*` | The crash handler and its reports (0073); on Windows `CrashReportsWin.cpp` (0129). |
 | `App/BattlePass.*` | DAW Battle Pass (0111): its script, unchanged in `Engines/tools/daw-battle-pass/`, run as a Lua tool that's never a device, with `reaper` answered from the song; unseen until the timer is clicked seven times (`SecretClicks`). |
 | `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045), in the Keys window. |
 | `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md). |
@@ -127,6 +128,10 @@ performance core, each as soon as what feeds it is done (0078).
 
 ## Rules that are easy to break
 
+- **Words on screen that name a key or a place come from `ui::words()`**
+  (0129): Option-click is Alt+click on Windows, the Finder is File Explorer,
+  the Kalibre menu is File > Settings. Never write "Option", "Command",
+  "Finder", "Return" or "this Mac" straight into a string.
 - No JUCE in `Source/Core`.
 - The audio thread doesn't allocate or lock: data arrives whole through `Swap`.
 - Where signals meet, they are added at 64 bits and rounded to float once

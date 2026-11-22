@@ -1,6 +1,6 @@
 # Kalibre
 
-A DAW for Apple silicon Macs, made to be exactly right for one musician, and
+A DAW for Apple silicon Macs, and Windows PCs (0129), made to be exactly right for one musician, and
 so maybe for others. Everything happens in one window: the plug-ins you use
 sit side by side under your tracks, their own windows inside Kalibre's, and
 grow and shrink with it.
