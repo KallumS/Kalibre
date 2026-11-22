@@ -1,5 +1,6 @@
 #include "Controller.h"
 #include "DrumMachine.h"
+#include "NetworkMidi.h"
 #include "DrumPadsDevice.h"
 #include "BuiltinInstruments.h"
 #include "LibraryScanner.h"
@@ -116,6 +117,10 @@ Controller::Controller (Engine& e) : engine (e)
         }
     };
     if (auto loaded = loadSettings (studioFile().loadFileAsString().toStdString())) studio = *loaded;
+   #if ! JUCE_MAC
+    // Kalibre's own network MIDI session (0129) back on, as the Mac keeps its own on.
+    if (studio.networkMidi) networkmidi::setEnabled (true);
+   #endif
     engine.syncDevices.configure (studio);
     engine.onDevicePluginChanged = [this] { dirty = true; };
     MorphProcessor::choosePlugin = nullptr;

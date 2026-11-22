@@ -101,16 +101,28 @@ PC (Kalibre isn't signed yet): **More info > Run anyway**.
 | Show in Finder | **Show in File Explorer** |
 | The Trash | **The Recycle Bin** |
 | Control-right-click for the toolbox | **Ctrl+right-click** |
-| AU, VST3 and CLAP plug-ins | **VST3 and CLAP** (AU is the Mac's alone) |
+| AU, VST3 and CLAP plug-ins | **VST3 and CLAP** (AU is the Mac's alone); ARA (Melodyne) through VST3 |
+| The Mac's network MIDI session | **Kalibre's own**, the same to an iPad or a Mac |
 
 Every tip, menu and message in Kalibre says Windows' words on Windows, and
-Help > Keys lists every key as Windows writes it. What isn't there yet:
+Help > Keys lists every key as Windows writes it.
 
-- **Video**: a video's sound plays; its picture is shown only on the Mac.
-- **ARA** (Melodyne inside the arrangement) and the **Mac's network MIDI**.
-- **Plug-in windows** in the rack aren't clipped when the zone is short, as
-  they are on the Mac: give the lower zone room, or open a plug-in in its own
-  window.
+- **Video**: the Video tab shows the picture, drawn by Windows; a video's
+  AAC sound is read through Windows Media. A film Windows itself can't play
+  (Windows Media Player can't) shows no picture here either.
+- **Melodyne and other ARA plug-ins** work as on the Mac (their VST3).
+- **Network MIDI**: File > Studio > **Network MIDI** starts Kalibre's own
+  session, called "Kalibre on" and your PC's name. On a Mac, open Audio MIDI
+  Setup > Window > Show MIDI Studio > Network: it's listed under Directory;
+  choose it and click **Connect**. On an iPad, connect from the app's network
+  MIDI. What they play comes in; for them to follow Kalibre's clock, tick
+  **Network Session (Kalibre)** under Send Clock To. The Studio window says
+  how many are connected. If it isn't listed, add it by your PC's address
+  and port 5004.
+- **Plug-in windows in the rack** are cut to their panel, as on the Mac.
+  Windows can't shrink another program's window as the Mac does, so a VST3
+  that can draw itself smaller (most new ones) is asked to; one that can't
+  shows the part that fits. Its own window (the ⧉ button) shows it all.
 - Your settings, scripts and crash reports are in `%APPDATA%\Kalibre`.
 
 ---

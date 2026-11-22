@@ -60,6 +60,7 @@ public:
 private:
     juce::CriticalSection outputLock;
     std::vector<std::unique_ptr<juce::MidiOutput>> outputs;
+    bool toNetwork = false;   // the clock to Kalibre's own network session too (0129)
     ControlSettings settings;
     bool wasPlaying = false;
     std::int64_t nextQuarterFrame = 0;

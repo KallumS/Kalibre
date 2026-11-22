@@ -116,6 +116,8 @@ public:
     // Playing a note to hear it (clicking in the piano roll).
     // A message as if played on a keyboard (the tests play notes in with it).
     void playIn (const juce::MidiMessage& m) { handleIncomingMidiMessage (nullptr, m); }
+    // MIDI from a port that isn't a system one (Kalibre's own network session, 0129), as if from a device of that id.
+    void playInFrom (const juce::String& from, const juce::MidiMessage& m) { incoming (from, m); }
     std::atomic<juce::uint32> notesPlayedIn { 0 };   // notes from MIDI keyboards, for the top bar's timer (0091)
     void audition (Id track, int pitch, int velocity = 100, double seconds = 0.3);
 
@@ -267,6 +269,7 @@ private:
     juce::Optional<juce::AudioPlayHead::PositionInfo> getPosition() const override { return info; }
 
     void handleIncomingMidiMessage (juce::MidiInput*, const juce::MidiMessage&) override;
+    void incoming (const juce::String& from, const juce::MidiMessage&);
     void audioProcessorParameterChanged (juce::AudioProcessor*, int index, float value) override;
     void audioProcessorParameterChangeGestureBegin (juce::AudioProcessor*, int index) override;
     void audioProcessorParameterChangeGestureEnd (juce::AudioProcessor*, int index) override;

@@ -25,6 +25,7 @@
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
+| `Core/RtpMidi.*` | Network MIDI's packets as Apple's session speaks them (RTP-MIDI, AppleMIDI's IN, OK, BY, CK): Kalibre's own session off the Mac, `Engine/NetworkMidiRtp.cpp`, announced on Windows by `NetworkMidiDnsWin.cpp` (0129). |
 | `Core/Platform.h` | The words each system uses: Option-click or Alt+click, the Finder or File Explorer, this Mac or this PC, the Kalibre menu or File > Settings (0129); `ui::words()` in Theme.h. |
 | `Core/Toolbox.*` | The tools Control-right-click chooses, each area's, their modes; Split into pieces, Glue, clearing a range, Line's shapes, Time Warp (0092). |
 | `Core/Trombolese.*` | Trombolese's voice, ported from its Python (waveguide, reed, geometry), its tables made by its own functions, and each note's partial and slide (0093). |

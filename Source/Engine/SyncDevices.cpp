@@ -1,5 +1,6 @@
 #include "SyncDevices.h"
 
+#include "NetworkMidi.h"
 #include "TrackProcessors.h"
 
 #include <ableton/Link.hpp>
@@ -34,8 +35,10 @@ void SyncDevices::configure (const ControlSettings& s)
     const ScopedLock sl (outputLock);
     settings = s;
     outputs.clear();
+    toNetwork = false;
     for (auto& id : s.clockOut)
-        if (auto out = MidiOutput::openDevice (String (id)))
+        if (id == networkmidi::portId) toNetwork = true;   // Kalibre's own session (0129)
+        else if (auto out = MidiOutput::openDevice (String (id)))
         {
             out->startBackgroundThread();
             outputs.push_back (std::move (out));
@@ -74,7 +77,7 @@ void SyncDevices::block (const Clock& c, const TempoMap& tempo, double heardAtMs
     }
 
     const ScopedTryLock sl (outputLock);
-    if (! sl.isLocked() || outputs.empty())
+    if (! sl.isLocked() || (outputs.empty() && ! toNetwork))
     {
         wasPlaying = c.playing;
         return;
@@ -162,6 +165,8 @@ void SyncDevices::send (double heardAtMs, double rate)
 {
     if (scratch.isEmpty()) return;
     for (auto& out : outputs) out->sendBlockOfMessages (scratch, heardAtMs, rate);
+    if (toNetwork)
+        for (const auto m : scratch) networkmidi::sendAt (m.getMessage(), heardAtMs + 1000.0 * m.samplePosition / rate);
 }
 
 //==============================================================================

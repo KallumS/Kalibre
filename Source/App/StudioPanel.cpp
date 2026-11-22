@@ -21,7 +21,12 @@ StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
     mtcRate.addItemList ({ "24 fps", "25 fps", "29.97 fps drop", "30 fps" }, 1);
     sendMmc.setTooltip (theme::wrapTip ("Send start, stop and locate as MIDI Machine Control to the ports ticked above: recorders and other software follow."));
     followMmc.setTooltip (theme::wrapTip ("Play, stop, locate and record when another machine sends MIDI Machine Control."));
-    networkMidi.setTooltip (theme::wrapTip ("Switch on the " + String (ui::words().computer) + "'s network MIDI session, so an iPad or another computer can connect. It then shows up as a MIDI port."));
+   #if JUCE_MAC
+    networkMidi.setTooltip (theme::wrapTip ("Switch on the Mac's network MIDI session, so an iPad or another computer can connect. It then shows up as a MIDI port."));
+   #else
+    networkMidi.setTooltip (theme::wrapTip ("Switch on Kalibre's own network MIDI session, so an iPad or a Mac can connect to it as to a Mac's. "
+                                            "It then shows up in the lists here as " + networkmidi::portName().quoted() + "."));
+   #endif
     followMtc.setTooltip (theme::wrapTip ("Chase timecode from a video machine or another computer: Kalibre starts, stops and locates with it."));
     for (auto* box : { &mtcRate, &follow, &mackieIn, &mackieOut, &followMtc, &huiIn, &huiOut })
     {
@@ -66,6 +71,13 @@ void StudioPanel::build()
 {
     ins = MidiInput::getAvailableDevices();
     outs = MidiOutput::getAvailableDevices();
+    // Off the Mac, Kalibre's own network session is a port of its own (0129).
+    networkMidiListed = networkmidi::ownPort();
+    if (networkMidiListed)
+    {
+        ins.add ({ networkmidi::portName(), networkmidi::portId });
+        outs.add ({ networkmidi::portName(), networkmidi::portId });
+    }
     const auto& s = c.studio;
     clockOuts.clear();
     for (auto& d : outs)
@@ -134,7 +146,14 @@ void StudioPanel::store()
     if (networkMidi.getToggleState() != s.networkMidi)
     {
         s.networkMidi = networkMidi.getToggleState();
+        if (networkmidi::ownPort() != networkMidiListed || s.networkMidi != networkMidiListed)   // its port in the lists, or out of them
+            MessageManager::callAsync ([sp = SafePointer<StudioPanel> (this)] { if (sp) { sp->build(); sp->resized(); } });
         if (! networkmidi::setEnabled (s.networkMidi)) c.say ("The network MIDI session couldn't be switched " + String (s.networkMidi ? "on." : "off."), true);
+        else if (! s.networkMidi) {}
+        else if (networkmidi::ownPort())
+            c.say ("Network MIDI is on as " + networkmidi::sessionName().quoted() + " (port " + String (networkmidi::port())
+                   + "). On a Mac: Audio MIDI Setup > MIDI Studio > Network, choose it and click Connect; on an iPad, in the app's network MIDI. "
+                   + "It's " + networkmidi::portName().quoted() + " in the lists above, for the clock.");
         else if (s.networkMidi) c.say ("Network MIDI is on as " + networkmidi::sessionName().quoted() + ". Connect from the other device, then click Look Again.");
     }
     s.link = link.getToggleState();
@@ -159,6 +178,11 @@ void StudioPanel::timerCallback()
     }
     if (c.studio.followClock.size() > 0 && c.engine.syncDevices.followedBpm() > 0)
         p << (p.isEmpty() ? "" : " ") << "Following " << String (c.engine.syncDevices.followedBpm(), 2) << " BPM.";
+    if (networkmidi::ownPort())
+    {
+        const int n = networkmidi::peers();
+        p << (p.isEmpty() ? "" : " ") << "Network MIDI: " << (n == 0 ? String ("no one connected yet.") : n == 1 ? String ("1 connected.") : String (n) + " connected.");
+    }
     if (p != peers) { peers = p; repaint(); }
     if (agentsOn.getToggleState() != c.studio.mcpOn) agentsOn.setToggleState (c.studio.mcpOn, dontSendNotification);
     const String a = c.agentsListening > 0 ? "Listening on this " + String (ui::words().computer) + ", port " + String (c.agentsListening) + "." : String ("Off.");

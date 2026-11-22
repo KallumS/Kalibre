@@ -47,16 +47,45 @@ anywhere JUCE does.
   as on the Mac with Ctrl for ⌘. Shown in words: Ctrl+Shift+S, Enter,
   Backspace, Delete. Redo is also on **Ctrl+Y**, Windows' own.
 
+- **Asked next (22 November), and done**:
+  - **The video's picture** through JUCE's VideoComponent, which Windows
+    draws (DirectShow); the video's AAC sound read through Windows Media
+    (`JUCE_USE_WINDOWS_MEDIA_FORMAT`), as the Mac reads it through Core Audio.
+  - **ARA** (Melodyne) on Windows: the ARA SDK built there too; JUCE hosts it
+    through VST3.
+  - **Network MIDI**: Kalibre's own session off the Mac
+    (`Engine/NetworkMidiRtp.cpp`, the packets in `Core/RtpMidi.*`): RTP-MIDI
+    with AppleMIDI's session protocol, on UDP 5004 and 5005 (or the next
+    free pair), saying yes to anyone, answering clock sync, playing what
+    comes in as from a port of its own (`networkmidi::portId`, "Network
+    Session (Kalibre)" in the Studio window's lists), sending what's sent
+    that port (the clock) at its time from a lock-free queue the audio
+    thread fills. Announced as an `_apple-midi._udp` service through
+    Windows' own DNS-SD (`NetworkMidiDnsWin.cpp`, Windows 10 1809 and
+    later), so a Mac's Audio MIDI Setup lists it. On at start if it was on.
+    Linux gets the session too, unannounced.
+  - **Plug-in windows in the rack** (`App/PluginClipWin.cpp`): each child
+    window inside a panel's content (a VST3's, a CLAP's) given a window
+    region, so only what's inside the panel shows, checked as it's placed
+    and ten times a second. Kalibre's own devices scale as before. Shrinking:
+    a VST3 is asked to draw itself smaller (its content scale), as Windows
+    hosts do (`DeviceRack`, `askedScale`); one that can't is cut, never
+    stretched or hung over the window.
+
 ## Consequences
 
-- Not on Windows yet: the Video tab's picture (AVFoundation), ARA
-  (Melodyne), the Mac's network MIDI. AU is the Mac's alone.
-- A plug-in's window in the rack is a child window that JUCE can't clip, so
-  in a short zone it isn't fitted as on the Mac (0058): roomier zone, or its
-  own window.
+- AU is the Mac's alone. A video Windows can't play shows no picture.
+- A network MIDI session sends no journal (RTP-MIDI's recovery of lost
+  packets): on a busy Wi-Fi a note can be lost, as with any session without
+  one. Control surfaces aren't reached through it, only notes and the clock.
+- A non-VST3 plug-in (CLAP) or a VST3 that can't draw smaller is shown cut
+  in a short zone, not smaller.
 - Kalibre.exe isn't signed: the first start asks (More info > Run anyway).
 - Tried only by CI: built, its tests run. Not yet by the musician, nor with
   real plug-ins, audio interfaces or MIDI gear on Windows.
 - Tested: the words for each system; Core's paths with backslashes; Final
-  Cut XML's Windows links; on Windows CI, every core and app test,
-  including a crash report written by the Windows handler.
+  Cut XML's Windows links; RTP-MIDI's packets (invitation, clock sync,
+  running status, delta times, SysEx, long lists); the session over the
+  loopback, as an iPad joins it, syncs, plays a note into the engine, hears
+  the clock and leaves; on Windows CI, every core and app test, including
+  a crash report written by the Windows handler.

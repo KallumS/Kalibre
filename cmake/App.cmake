@@ -262,13 +262,15 @@ if(APPLE)
     target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab (decision 0046)
 elseif(WIN32)
     # Windows (decision 0129): the scanner's helper, CLAP windows and crash reports of its own.
-    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp Source/App/PluginClipWin.cpp Source/App/FilePanelsOther.cpp
-                                      Source/Engine/HelperProcessWin.cpp Source/Engine/ClapGuiWin.cpp Source/App/CrashReportsWin.cpp)
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiRtp.cpp Source/Engine/NetworkMidiDnsWin.cpp Source/App/PluginClipWin.cpp
+                                      Source/App/FilePanelsOther.cpp Source/Engine/HelperProcessWin.cpp Source/Engine/ClapGuiWin.cpp
+                                      Source/App/CrashReportsWin.cpp)
+    target_link_libraries(KalibreApp PRIVATE dnsapi)   # the network MIDI session announced (0129)
     target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab's picture, through DirectShow (0129)
     # A video's sound (AAC in an .mp4) read through Windows Media, as the Mac reads it through Core Audio.
     target_compile_definitions(KalibreApp PUBLIC JUCE_USE_WINDOWS_MEDIA_FORMAT=1)
 else()
-    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp Source/App/PluginClipOther.cpp Source/App/FilePanelsOther.cpp)
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiRtp.cpp Source/App/PluginClipOther.cpp Source/App/FilePanelsOther.cpp)
 endif()
 
 target_include_directories(KalibreApp PUBLIC
@@ -341,7 +343,7 @@ if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp Tests/App/TestBattlePass.cpp
     Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp Tests/App/TestTools.cpp Tests/App/TestFamilyDevices.cpp
-    Tests/App/TestNeutral.cpp Tests/App/TestLibrary.cpp Tests/App/TestAgents.cpp Tests/App/TestRandom.cpp Tests/App/TestDrums.cpp Tests/App/TestDrumPads.cpp)
+    Tests/App/TestNeutral.cpp Tests/App/TestLibrary.cpp Tests/App/TestAgents.cpp Tests/App/TestRandom.cpp Tests/App/TestDrums.cpp Tests/App/TestDrumPads.cpp Tests/App/TestNetworkMidi.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     if(WIN32)
         target_sources(KalibreAppTests PRIVATE Tests/App/TestCrashWin.cpp)
