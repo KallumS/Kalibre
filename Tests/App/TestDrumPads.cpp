@@ -355,6 +355,7 @@ TEST ("drum pads: Random Samples gives each of the sixteen pads shown a drum of 
 }
 
 #include "DeviceRack.h"
+#include "PluginClip.h"
 
 TEST ("drum pads: a sound dragged from the browser onto its window in the rack plays the pad it's let go over, handed on by the panel (the Mac's native views, 0116, 0128)")
 {
@@ -398,29 +399,38 @@ TEST ("drum pads: a sound dragged from the browser onto its window in the rack p
         rack.setVisible (true);
         Id dev = 0;
         c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, drumPadsRef(), DeviceRole::Instrument); });
-        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        MessageManager::getInstance()->runDispatchLoopUntil (300);   // on the Mac its window waits until the panel is on the screen
         auto* d = dynamic_cast<DrumPadsProcessor*> (engine.instance (dev));
         CHECK (d != nullptr);
+        // On the Mac the window sits in a native view: it's found through the plug-in, and the
+        // point through the clip that shows it, as the panel will turn it back.
         DragAndDropTarget* panel = nullptr;
-        AudioProcessorEditor* ed = nullptr;
+        PluginClip* clip = nullptr;
         std::function<void (Component&)> walk = [&] (Component& comp)
         {
-            if (auto* e = dynamic_cast<AudioProcessorEditor*> (&comp)) { ed = e; return; }
+            if (dynamic_cast<AudioProcessorEditor*> (&comp) != nullptr) return;
+            if (auto* pc = dynamic_cast<PluginClip*> (&comp); pc && clip == nullptr) clip = pc;
             if (panel == nullptr && &comp != &rack)
                 if (auto* t2 = dynamic_cast<DragAndDropTarget*> (&comp)) panel = t2;
             for (auto* ch : comp.getChildren()) walk (*ch);
         };
         walk (rack);
-        CHECK (panel != nullptr && ed != nullptr && d != nullptr);
-        if (panel && ed && d)
+        auto* ed = d != nullptr ? d->getActiveEditor() : nullptr;
+        CHECK (panel != nullptr);
+        CHECK (clip != nullptr);
+        CHECK (ed != nullptr);
+        if (panel && clip && ed && d)
         {
             auto tiles = tilesOf (*ed);
             CHECK_EQ (tiles.size(), (size_t) 16);
             if (tiles.size() == 16)
             {
-                // The kick's pad, as the panel sees it.
-                auto* kick = dynamic_cast<Component*> (tiles[0]);
-                const auto at = dynamic_cast<Component*> (panel)->getLocalPoint (kick, kick->getLocalBounds().getCentre());
+                // The kick's pad: its centre in the window's units, placed in the clip (toContent backwards), then in the panel.
+                const auto c = dynamic_cast<Component*> (tiles[0])->getBounds().getCentre().toFloat();
+                const auto o = clip->toContent ({ 0.0f, 0.0f });
+                const float scale = 1.0f / jmax (1.0e-6f, clip->toContent ({ 1.0f, 0.0f }).x - o.x);
+                const auto inClip = (c - o) * scale;
+                const auto at = dynamic_cast<Component*> (panel)->getLocalPoint (clip, inClip).roundToInt();
                 const auto wav = flat ("Rack Kick", 0.1, 0.3f);
                 DragAndDropTarget::SourceDetails drop (var ("file:" + wav.getFullPathName()), nullptr, at);
                 CHECK (panel->isInterestedInDragSource (drop));
