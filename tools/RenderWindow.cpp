@@ -279,7 +279,7 @@ int main (int argc, char** argv)
                 return "ok")");
             // The welcome, as it is once its lines have come in (a Debug build draws slowly).
             pass.run ("ui.modals[1].t = 3; return 'ok'");
-            shootPass ("45-battle-pass-welcome");
+            shootPass ("45-battle-pass-welcome", 4000);
             for (auto* page : { "pass", "quests", "shop", "gear", "loot", "ideas", "trophies", "stats" })
             {
                 pass.run (String ("ui.modals = {}; ui.tab = '") + page + "'; return 'ok'");

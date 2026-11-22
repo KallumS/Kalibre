@@ -54,9 +54,8 @@ family's ReaImGui scripts unchanged on Dear ImGui (0068). Its `ableton` branch
 
 ## Consequences
 
-- Its words are REAPER's ("something happened in REAPER", "Start the Battle
-  Pass When REAPER Starts"): the scripts are copied unchanged, so a wording
-  for Kalibre goes to the battle pass's repository first.
+- Its words were REAPER's ("something happened in REAPER", "Start the Battle
+  Pass When REAPER Starts"); 0112 puts them in Kalibre's.
 - Two clocks: the top bar's (per song, 0091) and the battle pass's own (the
   musician's, across songs).
 - Tested: the script runs with every page drawn and no call missing; a new

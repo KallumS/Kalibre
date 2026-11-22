@@ -1,3 +1,7 @@
+-- Kalibre's version (decision 0112 in Kalibre): the battle pass's own file,
+-- with what the musician sees said in Kalibre's words (song, clip, section,
+-- cursor, plug-in, Kalibre) and REAPER's own features taken out. The rules
+-- are unchanged. tools/update_engines.py says when the original changes.
 --[[ DAW Battle Pass - watching REAPER, and putting rewards into it.
 
      Everything here talks to REAPER, and nothing here touches ImGui, so
@@ -94,11 +98,11 @@ end
 ------------------------------------------------------------------------------
 
 local PLUGIN_FILE_HELP = [[
-# DAW Battle Pass - your plugins
+# DAW Battle Pass - your plug-ins
 #
-# Quests can ask you to use particular plugins. By default the battle pass
-# picks them from every plugin REAPER knows about. To choose for yourself,
-# write one plugin name per line below (just the name, e.g. Serum or
+# Quests can ask you to use particular plug-ins. By default the battle pass
+# picks them from every plug-in Kalibre knows about. To choose for yourself,
+# write one plug-in name per line below (just the name, e.g. Serum or
 # Pro-Q 3) and save this file. Lines starting with # are ignored.
 # Leave it with no names to go back to using everything installed.
 
@@ -226,7 +230,7 @@ end
 
 function W.projectName(proj)
   local name = reaper.GetProjectName(proj, "")
-  if not name or name == "" then return "(unsaved project)" end
+  if not name or name == "" then return "(unsaved song)" end
   return (name:gsub("%.[Rr][Pp][Pp]$", ""))
 end
 
@@ -383,7 +387,7 @@ function W.addRegions(sections)
     reaper.AddProjectMarker2(0, true, a, b, s[1], -1, shade | 0x1000000)
   end
   reaper.UpdateArrange()
-  reaper.Undo_EndBlock("Battle Pass: arrangement regions", -1)
+  reaper.Undo_EndBlock("Battle Pass: Arrangement Sections", -1)
   return W.OK
 end
 

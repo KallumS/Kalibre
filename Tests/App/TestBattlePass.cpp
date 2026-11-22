@@ -222,3 +222,36 @@ TEST ("battle pass: seven left clicks in a row on the Making Music timer open it
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
 
+
+TEST ("battle pass: says Kalibre, song, clip and section, never REAPER, project, item or region; no start-with-REAPER option (0112)")
+{
+    Rig rig;
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    BattlePass bp (c);
+    bp.frameNow();
+    CHECK_EQ (bp.run (reach), String ("true"));
+    // Every word the musician can read that the rules make: quests, achievements, the shop.
+    const auto words = bp.run (R"(
+        local out = {}
+        for _, q in ipairs(G.QUESTS) do out[#out + 1] = q.text end
+        for _, a in ipairs(G.ACHIEVEMENTS) do out[#out + 1] = (a.name or "") .. " " .. (a.fmt or "") .. " " .. (a.title or "") end
+        for _, s in ipairs(G.SHOP) do out[#out + 1] = (s.name or "") .. " " .. (s.desc or "") end
+        local function up(fn, name) for i = 1, 300 do local n, v = debug.getupvalue(fn, i); if not n then return end; if n == name then return v end end end
+        local frame = up(debug.getregistry().kal_deferred, "frame")
+        local welcome = up(up(frame, "MODALS").welcome, "WELCOME")
+        for _, l in ipairs(welcome) do out[#out + 1] = l end
+        return table.concat(out, "\n"))");
+    CHECK (words.contains ("song"));
+    CHECK (words.contains ("Kalibre"));
+    for (auto* gone : { "REAPER", "project", "media item", "region", "plugin" })
+        CHECK (! words.containsIgnoreCase (gone));
+    // The Stats page has no start-up option: drawing it never touches REAPER's start-up script.
+    bp.run ("ui.modals = {}; ui.tab = 'stats'; W.setAutostart = function() error('asked to start with REAPER') end; return 'ok'");
+    bp.frameNow();
+    bp.frameNow();
+    CHECK_EQ (bp.error(), String());
+    CHECK (! BattlePass::resourceFolder().getChildFile ("Scripts/__startup.lua").exists());
+}

@@ -1,3 +1,7 @@
+-- Kalibre's version (decision 0112 in Kalibre): the battle pass's own file,
+-- with what the musician sees said in Kalibre's words (song, clip, section,
+-- cursor, plug-in, Kalibre) and REAPER's own features taken out. The rules
+-- are unchanged. tools/update_engines.py says when the original changes.
 --[[ DAW Battle Pass - the loot.
 
      Pure Lua. Nothing in this file touches REAPER or ImGui: it takes a dice
@@ -219,8 +223,8 @@ local IMAGES = { "a frozen lake cracking", "sunlight through stained glass",
   "a distant thunderstorm", "a slot machine jackpot", "velvet curtains",
   "a jellyfish glowing", "a rusty swing", "a robot sighing", "a library at night" }
 
-local LIMITS = { "a single oscillator", "only a sine wave", "only stock REAPER plugins",
-  "one sample you record on your phone", "no more than three plugins",
+local LIMITS = { "a single oscillator", "only a sine wave", "only Kalibre's own devices",
+  "one sample you record on your phone", "no more than three plug-ins",
   "only white noise as the source", "only your own voice", "only kitchen sounds",
   "a synth's init preset as the starting point", "nothing but EQ and distortion",
   "a field recording from outside your window" }
@@ -236,7 +240,7 @@ local CONSTRAINTS = { "Use only four tracks", "No reverb allowed",
   "Keep the tempo under 80 BPM", "Keep the tempo over 160 BPM", "No quantising",
   "Use a field recording", "Only minor chords", "Write the melody with only three notes",
   "Reverse something important", "Every section is exactly 8 bars",
-  "No drums for the first minute", "Record something live", "Use only stock REAPER plugins",
+  "No drums for the first minute", "Record something live", "Use only Kalibre's own devices",
   "Make a vocal chop the lead", "Sidechain everything to the kick", "Start with the outro",
   "Make the bass the loudest thing", "Use a polyrhythm", "Mono only - no stereo widening",
   "Use an instrument you've never used", "No EQ allowed", "Use 7/8 time",
@@ -945,8 +949,8 @@ L.AFFIXES = {
   { id = "quest",   lo = 4, hi = 10,  fmt = "+%d%% quest rewards",                 prefix = "Questing",  suffix = "of the Seeker" },
   { id = "notes",   lo = 8, hi = 20,  fmt = "+%d%% XP from writing MIDI notes",    prefix = "Melodic",   suffix = "of the Composer" },
   { id = "rec",     lo = 8, hi = 20,  fmt = "+%d%% XP from recording",             prefix = "Live",      suffix = "of the Performer" },
-  { id = "fx",      lo = 8, hi = 20,  fmt = "+%d%% XP from plugins",               prefix = "Processed", suffix = "of the Engineer" },
-  { id = "tracks",  lo = 8, hi = 20,  fmt = "+%d%% XP from new tracks and items",  prefix = "Building",  suffix = "of the Arranger" },
+  { id = "fx",      lo = 8, hi = 20,  fmt = "+%d%% XP from plug-ins",               prefix = "Processed", suffix = "of the Engineer" },
+  { id = "tracks",  lo = 8, hi = 20,  fmt = "+%d%% XP from new tracks and clips",  prefix = "Building",  suffix = "of the Arranger" },
   { id = "endure",  lo = 5, hi = 15,  fmt = "+%d%% XP after an hour in a session", prefix = "Tireless",  suffix = "of Endurance" },
   { id = "night",   lo = 8, hi = 25,  fmt = "+%d%% XP between midnight and 5am",   prefix = "Nocturnal", suffix = "of the Night Owl" },
   { id = "dawn",    lo = 8, hi = 25,  fmt = "+%d%% XP between 5am and 9am",        prefix = "Dawnlit",   suffix = "of the Early Bird" },

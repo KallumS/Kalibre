@@ -1,3 +1,7 @@
+-- Kalibre's version (decision 0112 in Kalibre): the battle pass's own file,
+-- with what the musician sees said in Kalibre's words (song, clip, section,
+-- cursor, plug-in, Kalibre) and REAPER's own features taken out. The rules
+-- are unchanged. tools/update_engines.py says when the original changes.
 --[[
  * ReaScript Name: DAW Battle Pass
  * Description:    A battle pass for making music. Every fifteen minutes of
@@ -1433,7 +1437,7 @@ local function pageQuests()
   end
   if #plugins > 0 then
     y = y + wrapText(dl, FONT.body, 13, x, y, w, DIM,
-                     "Plugin quests choose from " .. pluginSource .. " (" .. #plugins .. " plugins). Change this on the Stats page.") + 6
+                     "Plug-in quests choose from " .. pluginSource .. " (" .. #plugins .. " plug-ins). Change this on the Stats page.") + 6
   end
   finish(x, y)
 end
@@ -1818,7 +1822,7 @@ for _, d in ipairs(L.IDEAS) do FILTERS[#FILTERS + 1] = { d.id, d.label } end
 local function ideaButtons(v)
   local list = { { v.fav and "Starred" or "Star", 80 }, { "Copy", 70 } }
   if v.data and v.data.block then list[#list + 1] = { "Insert MIDI", 110 } end
-  if v.data and v.data.sections then list[#list + 1] = { "Add Regions", 110 } end
+  if v.data and v.data.sections then list[#list + 1] = { "Add Sections", 110 } end
   if v.data and v.data.bpm then list[#list + 1] = { "Set Tempo to " .. v.data.bpm, 0 } end
   list[#list + 1] = { "Delete", 70 }
   return list
@@ -1870,20 +1874,20 @@ local function ideaCard(dl, x, y, w, v, visible)
         local res, made = W.insert(v.data.block)
         if res == W.OK then
           G.ideaUsed(st, ss, v.uid)
-          F.toast(fx, { text = "In your project", sub = made and "On a new track at the edit cursor" or "On the selected track at the edit cursor", icon = "note", rarity = v.rarity })
+          F.toast(fx, { text = "In your song", sub = made and "On a new track at the cursor" or "On the chosen track at the cursor", icon = "note", rarity = v.rarity })
           saveSoon()
         end
       end
-      tip("Puts it on the selected track at the edit cursor (or a new track if none is selected).")
-    elseif label == "Add Regions" then
+      tip("Puts it on the chosen track at the cursor (or a new track if none is chosen), as one undo step.")
+    elseif label == "Add Sections" then
       if pickAt(bx, byy, label, false, b[2]) then
         if W.addRegions(v.data.sections) == W.OK then
           G.ideaUsed(st, ss, v.uid)
-          F.toast(fx, { text = "Regions added", sub = "From the edit cursor", icon = "blocks", rarity = v.rarity })
+          F.toast(fx, { text = "Sections added", sub = "From the cursor", icon = "blocks", rarity = v.rarity })
           saveSoon()
         end
       end
-      tip("Lays the sections out as regions from the edit cursor.")
+      tip("Lays the arrangement out in the Sections lane, from the cursor.")
     elseif label == "Delete" then
       at(bx, byy)
       if sure("del" .. v.uid, label, b[2], false, "Delete") then G.removeIdea(st, v.uid); saveSoon() end
@@ -1894,7 +1898,7 @@ local function ideaCard(dl, x, y, w, v, visible)
         G.ideaUsed(st, ss, v.uid)
         saveSoon()
       end
-      tip("Sets the project's tempo to " .. v.data.bpm .. " BPM (REAPER's Undo puts it back).")
+      tip("Sets the song's tempo to " .. v.data.bpm .. " BPM (Undo puts it back).")
     end
   end
   ImGui.PopID(ctx)
@@ -1983,12 +1987,11 @@ end
 -- What the battle pass looks at, and where it keeps it, in plain words
 -- (Apple's Privacy page: say what is read and why, keep it on the device).
 local PRIVACY = {
-  "To tell whether you're working, it notices that something happened in REAPER - " ..
-  "an edit, playback, the edit cursor moving or the mouse moving. With js_ReaScriptAPI " ..
-  "it also notices that a key was pressed while REAPER is in front. It never records " ..
-  "which keys, what you type or where you point.",
-  "For quests and stats it counts the tracks, items, MIDI notes, takes and markers you " ..
-  "add, and remembers the names of your projects and plugins.",
+  "To tell whether you're working, it notices that something happened in Kalibre - " ..
+  "an edit, playback, the cursor moving, a key pressed or the mouse moving while Kalibre " ..
+  "is the app in front. It never records which keys, what you type or where you point.",
+  "For quests and stats it counts the tracks, clips, MIDI notes, takes, markers and sections " ..
+  "you add, and remembers the names of your songs and plug-ins.",
   "All of it stays in one file on this computer. Nothing is sent anywhere.",
 }
 
@@ -2004,7 +2007,7 @@ local function pageStats()
     { "Coins earned", fmtNum(s.coinsEarned) }, { "Quests done", fmtNum(s.dailies + s.weeklies) },
     { "Crates opened", fmtNum(s.crates) }, { "Ideas collected", fmtNum(s.ideas) },
     { "Tracks created", fmtNum(s.tracks) }, { "MIDI notes written", fmtNum(s.notes) },
-    { "Plugins discovered", fmtNum(plugCount) }, { "Treats redeemed", fmtNum(s.redeemed) },
+    { "Plug-ins discovered", fmtNum(plugCount) }, { "Treats redeemed", fmtNum(s.redeemed) },
   }
   y = sectionTitle(dl, x, y, "All time")
   local cols = math.max(1, math.floor((w + 12) / 190))
@@ -2065,11 +2068,11 @@ local function pageStats()
   end
   local half = (w >= 640) and (w - 12) / 2 or w
   local yTop = y
-  y = sectionTitle(dl, x, y, "Most-worked projects")
+  y = sectionTitle(dl, x, y, "Most-worked songs")
   y = ranked(x, y, half, top(st.projects, 6), PASS_COL, fmtDur)
   local lx = (half < w) and (x + half + 12) or x
   local ly = (half < w) and yTop or (y + 10)
-  ly = sectionTitle(dl, lx, ly, "Most-used plugins")
+  ly = sectionTitle(dl, lx, ly, "Most-used plug-ins")
   ly = ranked(lx, ly, half, top(st.plugins, 6), RC(5), tostring)
   y = math.max(y, ly) + 12
 
@@ -2100,30 +2103,24 @@ local function pageStats()
   if chm then st.settings.reduceMotion = calm; saveSoon() end
   tip("On: no sparks, confetti, shaking, flashing or bouncing - rewards appear at their " ..
       "final size and messages without sliding in. Apple's Reduce Motion, for this window.")
-  local on = W.autostartOn()
-  local ch3, want = ImGui.Checkbox(ctx, "Start the Battle Pass When REAPER Starts", on)
-  if ch3 then
-    if W.setAutostart(want, SCRIPT) then ui.status = want and "It will start with REAPER." or "It won't start with REAPER any more."
-    else ui.status = "Could not change REAPER's startup script - check that REAPER's Scripts folder can be written to." end
-  end
-  tip("On: REAPER opens the battle pass every time it starts, so the clock never misses a session.")
+  -- No "start with REAPER": in Kalibre it always runs while Kalibre is open.
   ImGui.PopStyleColor(ctx, 1)
   ImGui.PopStyleVar(ctx, 1)
   local _, ry = here()
-  local labels = { "Open My Plugin List", "Reload Plugins" }
+  local labels = { "Open My Plug-in List", "Reload Plug-ins" }
   local spots, bh = flowRows(x, ry, w, { btnW(labels[1], 180), btnW(labels[2], 140) })
   if pickAt(spots[1][1], spots[1][2], labels[1], false, 180) then
     local path = W.ensurePluginFile()
     if not W.open(path) then ImGui.SetClipboardText(ctx, path); ui.status = "The list is at " .. path .. " (path copied)." end
   end
-  tip("Write the plugins you want quests about, one a line. Leave it empty to use everything installed.")
+  tip("Write the plug-ins you want quests about, one a line. Leave it empty to use every plug-in Kalibre knows.")
   if pickAt(spots[2][1], spots[2][2], labels[2], false, 140) then
     plugins, pluginSource = W.plugins()
-    ui.status = "Quests now choose from " .. pluginSource .. ": " .. #plugins .. " plugins (new quests from tomorrow, or reroll one)."
+    ui.status = "Quests now choose from " .. pluginSource .. ": " .. #plugins .. " plug-ins (new quests from tomorrow, or reroll one)."
   end
-  tip("Reads your plugin list again, after you have changed it.")
+  tip("Reads your plug-in list again, after you have changed it.")
   at(x, ry + bh + 12)
-  dim("Plugin quests use " .. pluginSource .. " (" .. #plugins .. ").")
+  dim("Plug-in quests use " .. pluginSource .. " (" .. #plugins .. ").")
   if ui.status ~= "" then dim(ui.status) end
   local _, endY = here()
   finish(x, endY)
@@ -2458,13 +2455,13 @@ local function modalSeason(m, dl, x, y, w, h)
 end
 
 local WELCOME = {
-  "Keep this window open while you make music. Dock it anywhere: right-click its title bar.",
+  "It runs whenever Kalibre is open, with this window shut or not: your music-making counts either way, and rewards wait here for you.",
   "Every 15 minutes of active music-making unlocks a tier of the season's battle pass. Every hour is a big one.",
-  "It pauses by itself when you're away, and carries your progress across every project.",
-  "It only notices that something happened in REAPER - never what you type - and everything it keeps stays on this computer.",
+  "It pauses by itself when you're away, and carries your progress across every song.",
+  "It only notices that something happened in Kalibre - never what you type - and everything it keeps stays on this Mac.",
   "Everything you do earns XP. Every level gives a loot crate.",
   "Spend coins in the Shop on passes - a takeaway, a movie, a gaming session - then redeem them when you've earned the break.",
-  "Ideas you win (chords, drums, melodies, titles...) wait in the Idea vault, ready to drop into your project.",
+  "Ideas you win (chords, drums, melodies, titles...) wait in the Idea vault, ready to drop into your song.",
 }
 
 local function modalWelcome(m, dl, x, y, w, h)

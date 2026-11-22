@@ -1,3 +1,7 @@
+-- Kalibre's version (decision 0112 in Kalibre): the battle pass's own file,
+-- with what the musician sees said in Kalibre's words (song, clip, section,
+-- cursor, plug-in, Kalibre) and REAPER's own features taken out. The rules
+-- are unchanged. tools/update_engines.py says when the original changes.
 --[[ DAW Battle Pass - the rules of the game.
 
      Pure Lua. Nothing in this file touches REAPER or ImGui. Every function
@@ -69,8 +73,8 @@ G.SHOP = {
     desc = "Permission to order a takeaway. You earned it." },
   { id = "day_off",  kind = "pass",  name = "Day Off Pass",       price = 6000, icon = "calendar",
     desc = "A whole day off music, with zero guilt." },
-  { id = "plugin",   kind = "pass",  name = "New Plugin Pass",    price = 12000, icon = "plug",
-    desc = "Permission to buy one new plugin or sample pack." },
+  { id = "plugin",   kind = "pass",  name = "New Plug-in Pass",    price = 12000, icon = "plug",
+    desc = "Permission to buy one new plug-in or sample pack." },
   { id = "reroll",   kind = "token", name = "Quest Reroll",       price = 120,  icon = "dice",  token = "reroll",
     desc = "Swap a quest you don't fancy for a new one." },
   { id = "freeze",   kind = "token", name = "Streak Freeze",      price = 300,  icon = "snow",  token = "freeze",
@@ -618,7 +622,7 @@ function G.event(st, ss, kind, n, info)
     G.addXp(st, ss, G.XP.fx, "fx")
     if info.first then
       G.addXp(st, ss, G.XP.discover, "discover")
-      notice(ss, { kind = "toast", text = "New plugin discovered", sub = info.name .. "  +" .. G.XP.discover .. " XP", icon = "plug", rarity = 4 })
+      notice(ss, { kind = "toast", text = "New plug-in discovered", sub = info.name .. "  +" .. G.XP.discover .. " XP", icon = "plug", rarity = 4 })
     end
     G.progress(st, ss, "fx", 1, info)
   end
@@ -634,20 +638,20 @@ G.QUESTS = {
   { kind = "minutes",  text = "Make music for %d minutes", unit = 60, daily = { 20, 60, 5 }, weekly = { 180, 420, 30 } },
   { kind = "session",  text = "Work for %d minutes in one sitting", unit = 60, daily = { 30, 60, 15 }, weekly = { 90, 180, 30 } },
   { kind = "tracks",   text = "Create %d new tracks", daily = { 2, 5, 1 }, weekly = { 10, 25, 5 } },
-  { kind = "items",    text = "Create %d new media items", daily = { 5, 15, 5 }, weekly = { 30, 80, 10 } },
-  { kind = "fx",       text = "Add %d plugins to tracks", daily = { 3, 8, 1 }, weekly = { 15, 40, 5 } },
+  { kind = "items",    text = "Create %d new clips", daily = { 5, 15, 5 }, weekly = { 30, 80, 10 } },
+  { kind = "fx",       text = "Add %d plug-ins to tracks", daily = { 3, 8, 1 }, weekly = { 15, 40, 5 } },
   { kind = "plugin",   text = "Use %s", daily = { 1, 2, 1 }, weekly = { 3, 5, 1 }, plugins = true, weight = 3 },
   { kind = "category", text = "Use %s", daily = { 1, 3, 1 }, weekly = { 5, 10, 1 } },
-  { kind = "discover", text = "Try %d plugins you've never used before", daily = { 1, 2, 1 }, weekly = { 3, 6, 1 } },
-  { kind = "distinct", text = "Use %d different plugins", daily = { 3, 6, 1 }, weekly = { 10, 20, 2 } },
+  { kind = "discover", text = "Try %d plug-ins you've never used before", daily = { 1, 2, 1 }, weekly = { 3, 6, 1 } },
+  { kind = "distinct", text = "Use %d different plug-ins", daily = { 3, 6, 1 }, weekly = { 10, 20, 2 } },
   { kind = "notes",    text = "Write %d MIDI notes", daily = { 50, 200, 25 }, weekly = { 500, 1500, 100 } },
   { kind = "takes",    text = "Record %d takes", daily = { 1, 4, 1 }, weekly = { 5, 15, 5 } },
-  { kind = "markers",  text = "Add %d markers or regions", daily = { 2, 6, 1 }, weekly = { 10, 25, 5 } },
+  { kind = "markers",  text = "Add %d markers or sections", daily = { 2, 6, 1 }, weekly = { 10, 25, 5 } },
   { kind = "edits",    text = "Make %d edits", daily = { 50, 150, 25 }, weekly = { 400, 1000, 100 } },
   { kind = "tiers",    text = "Unlock %d battle pass tiers", daily = { 2, 4, 1 }, weekly = { 12, 24, 4 } },
   { kind = "crates",   text = "Open %d loot crates", daily = { 1, 2, 1 }, weekly = { 4, 8, 1 } },
-  { kind = "ideas",    text = "Put %d reward ideas into a project", daily = { 1, 2, 1 }, weekly = { 3, 6, 1 } },
-  { kind = "projects", text = "Work on %d different projects", weekly = { 2, 4, 1 } },
+  { kind = "ideas",    text = "Put %d reward ideas into a song", daily = { 1, 2, 1 }, weekly = { 3, 6, 1 } },
+  { kind = "projects", text = "Work on %d different songs", weekly = { 2, 4, 1 } },
   { kind = "dailies",  text = "Complete %d daily quests", weekly = { 8, 15, 1 } },
   { kind = "checkins", text = "Check in on %d days", weekly = { 4, 6, 1 } },
 }
@@ -1061,15 +1065,15 @@ G.ACHIEVEMENTS = {
     value = function(st) return st.checkin.total end, goals = { 7, 30, 100, 365, 1000 } },
   { id = "tracks", name = "Track Builder", fmt = "Create %s tracks", title = "Architect of Tracks",
     value = function(st) return st.stats.tracks end, goals = { 10, 50, 250, 1000, 5000 } },
-  { id = "items", name = "Item Maker", fmt = "Create %s media items", title = "Clip Collector",
+  { id = "items", name = "Clip Maker", fmt = "Create %s clips", title = "Clip Collector",
     value = function(st) return st.stats.items end, goals = { 50, 250, 1000, 5000, 20000 } },
   { id = "notes", name = "Note Writer", fmt = "Write %s MIDI notes", title = "The Composer",
     value = function(st) return st.stats.notes end, goals = { 100, 1000, 10000, 50000, 250000 } },
   { id = "takes", name = "Tape Rolling", fmt = "Record %s takes", title = "One More Take",
     value = function(st) return st.stats.takes end, goals = { 1, 25, 100, 500 } },
-  { id = "fx", name = "Plugin Stacker", fmt = "Add %s plugins to tracks", title = "Rack Master",
+  { id = "fx", name = "Plug-in Stacker", fmt = "Add %s plug-ins to tracks", title = "Rack Master",
     value = function(st) return st.stats.fx end, goals = { 10, 100, 500, 2500 } },
-  { id = "plugins", name = "Plugin Explorer", fmt = "Use %s different plugins", title = "Plugin Connoisseur",
+  { id = "plugins", name = "Plug-in Explorer", fmt = "Use %s different plug-ins", title = "Plug-in Connoisseur",
     value = function(st) return count(st.plugins) end, goals = { 5, 15, 40, 100, 250 } },
   { id = "quests", name = "Quest Giver's Favourite", fmt = "Complete %s quests", title = "The Questor",
     value = function(st) return st.stats.dailies + st.stats.weeklies end, goals = { 1, 10, 50, 200, 1000 } },
@@ -1081,7 +1085,7 @@ G.ACHIEVEMENTS = {
     value = function(st) return st.stats.redeemed end, goals = { 1, 10, 50, 100 } },
   { id = "ideas", name = "Idea Collector", fmt = "Collect %s ideas", title = "Keeper of Ideas",
     value = function(st) return st.stats.ideas end, goals = { 10, 100, 500, 2000 } },
-  { id = "used", name = "Ideas Into Music", fmt = "Put %s reward ideas into projects", title = "The Finisher",
+  { id = "used", name = "Ideas Into Music", fmt = "Put %s reward ideas into songs", title = "The Finisher",
     value = function(st) return st.stats.ideasUsed end, goals = { 1, 10, 50, 200 } },
   { id = "legend", name = "Legendary Luck", fmt = "Find %s Legendary or better items", title = "Touched by Fortune",
     value = function(st) return st.stats.legendaries end, goals = { 1, 10, 50, 200 } },
@@ -1095,7 +1099,7 @@ G.ACHIEVEMENTS = {
     value = function(st) return st.stats.dawn / 3600 end, goals = { 1, 10, 50 } },
   { id = "weekend", name = "Weekend Warrior", fmt = "Make music for %s hours at weekends", title = "Weekend Warrior",
     value = function(st) return st.stats.weekend / 3600 end, goals = { 5, 25, 100 } },
-  { id = "projects", name = "Project Hopper", fmt = "Work on %s different projects", title = "Many Hats",
+  { id = "projects", name = "Song Hopper", fmt = "Work on %s different songs", title = "Many Hats",
     value = function(st) return count(st.projects) end, goals = { 3, 10, 50, 200 } },
   { id = "shopper", name = "Big Spender", fmt = "Spend %s coins", title = "Patron of the Shop",
     value = function(st) return st.stats.coinsSpent end, goals = { 500, 5000, 25000, 100000 } },

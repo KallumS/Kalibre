@@ -288,15 +288,17 @@
       "ref": "main",
       "commit": "c0035b5f36cea3d6115d9be3316b2f95d1bba657",
       "kind": "lua-window",
-      "decision": "0111",
+      "decision": "0111, 0112",
       "files": {
+        "reascripts/bp_theory.lua": "Engines/tools/daw-battle-pass/bp_theory.lua",
+        "reascripts/bp_fx.lua": "Engines/tools/daw-battle-pass/bp_fx.lua",
+        "LICENSE": "Engines/tools/daw-battle-pass/LICENSE"
+      },
+      "standins": {
         "reascripts/DAW Battle Pass.lua": "Engines/tools/daw-battle-pass/DAW Battle Pass.lua",
         "reascripts/bp_game.lua": "Engines/tools/daw-battle-pass/bp_game.lua",
         "reascripts/bp_loot.lua": "Engines/tools/daw-battle-pass/bp_loot.lua",
-        "reascripts/bp_theory.lua": "Engines/tools/daw-battle-pass/bp_theory.lua",
-        "reascripts/bp_fx.lua": "Engines/tools/daw-battle-pass/bp_fx.lua",
-        "reascripts/bp_watch.lua": "Engines/tools/daw-battle-pass/bp_watch.lua",
-        "LICENSE": "Engines/tools/daw-battle-pass/LICENSE"
+        "reascripts/bp_watch.lua": "Engines/tools/daw-battle-pass/bp_watch.lua"
       }
     }
   ]

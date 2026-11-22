@@ -1809,14 +1809,15 @@ celebrations, crates, gear, ideas and achievements.
   cursor, the mouse and keys while Kalibre is the app in front. New tracks,
   clips, notes, plug-ins, recorded takes, markers and sections earn XP.
 - **An idea you win** goes into the song at the cursor, on the chosen track
-  (a new one if none is), as one undo step; an arrangement becomes sections;
-  a tempo becomes the song's.
+  (a new one if none is), as one undo step (**Put It In**); an arrangement
+  becomes sections (**Add Sections**); a tempo becomes the song's.
 - **Your progress** is kept in Kalibre's folder
   (`~/Library/Application Support/Kalibre/Data/DAW Battle Pass/`). The first
   time, the progress your REAPER copy saved is brought over, if there is one.
-- Its words are the REAPER version's, unchanged: where it says REAPER, read
-  Kalibre. **Start the Battle Pass When REAPER Starts** does nothing here: it
-  always starts with Kalibre.
+- It speaks Kalibre's language: songs, clips, sections, plug-ins. There's
+  no "start with REAPER" setting: it always runs with Kalibre. Its quests ask
+  for the same things as in REAPER (clips where REAPER said media items,
+  sections where it said regions), and its rules are the same.
 
 ![Quests](guide/battle-pass-quests.png)
 ![The Shop](guide/battle-pass-shop.png)
