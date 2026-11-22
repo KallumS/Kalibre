@@ -57,7 +57,8 @@ add_library(KalibreShine STATIC ${SHINE_SOURCES})
 target_include_directories(KalibreShine PUBLIC ${shine_SOURCE_DIR}/src/lib)
 set_target_properties(KalibreShine PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
-    target_compile_definitions(KalibreShine PRIVATE "__attribute__(x)=")   # GCC's, which MSVC hasn't (0129)
+    # GCC's __attribute__, which MSVC hasn't, made nothing (0129); /D can't define a macro with an argument.
+    target_compile_options(KalibreShine PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/cmake/NoGccAttributes.h)
 endif()
 
 # ysfx (Apache-2.0): the JSFX engine (REAPER's EEL2) with its graphics, for the

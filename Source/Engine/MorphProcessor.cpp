@@ -606,7 +606,7 @@ void MorphProcessor::renderSamples (AudioBuffer<float>& out, const MidiBuffer& m
             for (int c = 0; c < 4; ++c)
             {
                 if (corners[(size_t) c].kind != Corner::Kind::Sample) continue;
-                auto* v = std::find_if (voices.begin(), voices.end(), [] (const Voice& x) { return x.corner < 0; });
+                auto v = std::find_if (voices.begin(), voices.end(), [] (const Voice& x) { return x.corner < 0; });   // an iterator, not always a pointer (MSVC)
                 if (v == voices.end()) v = voices.begin();
                 v->corner = c;
                 v->note = msg.getNoteNumber();
