@@ -20,6 +20,7 @@
 #include "NoteSplitter.h"
 #include "MorphProcessor.h"
 #include "PianoRoll.h"
+#include "NotationView.h"
 
 using namespace kal;
 using namespace juce;
@@ -569,4 +570,30 @@ TEST ("piano roll: the lane under the notes, set to Pitch Bend, can be cleared f
     CHECK_EQ (now.size(), size_t (1));
     CHECK (now.front().type == EventType::Controller);
     CHECK_EQ (c.history.size(), steps + 1);
+}
+
+TEST ("notation: four bars fill the staff's width, not a tenth of it each (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Flute");
+        const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 16);
+        for (int b = 0; b < 4; ++b) edit::addNote (c.project, clip, { 0, PPQ * 4 * b, PPQ * 4, 72, 90 });
+        c.refresh();
+        c.selectClip (clip);
+        NotationView view (c);
+        view.setSize (1400, 500);
+        c.sendChangeMessage();
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        view.createComponentSnapshot (view.getLocalBounds());
+        const float end = view.xOfTick (PPQ * 16);
+        CHECK (end > 1400 * 0.75f);
+        CHECK (end <= 1400.0f);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

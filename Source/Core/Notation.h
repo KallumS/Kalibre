@@ -76,6 +76,11 @@ struct Bar
     std::vector<Glyph> glyphs;
 };
 
+// Where a note's start or end is read on the staff: the nearest 1/32 or
+// 1/16 triplet, so notes played or humanised a few ticks off the grid read
+// as the notes they were (the UAT). The notes themselves aren't moved.
+Tick shown (Tick);
+
 // A clip's notes laid out bar by bar. Ticks are the clip's own.
 std::vector<Bar> layout (const Clip&, const TempoMap&, const ScaleChoice&, Clef);
 
