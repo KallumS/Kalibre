@@ -130,6 +130,15 @@ public:
         int gesture = 0;   // 1 began, 0 a change, 2 ended
     };
     std::function<void (const Touch&)> onTouched;
+    // While a plug-in's whole state is put back (A/B, a preset, Undo, switching
+    // it on), the controls it sets weren't touched by hand (decision 0133).
+    struct QuietTouches
+    {
+        explicit QuietTouches (Engine& e) : engine (e) { ++engine.quietTouches; }
+        ~QuietTouches() { --engine.quietTouches; }
+        Engine& engine;
+    };
+    int quietTouches = 0;   // message thread
 
     // MIDI learn (decision 0032).
     std::atomic<bool> learning { false };

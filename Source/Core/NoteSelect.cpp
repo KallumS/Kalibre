@@ -182,6 +182,12 @@ std::vector<Id> explode (Project& p, Id clipId)
         for (auto& ver : nt->versions) { ver.clips.clear(); ver.takes.clear(); ver.comp.clear(); }
         nt->name = base + " " + std::to_string (v + 1) + (v == voices - 1 ? " (Top)" : v == 0 ? " (Bottom)" : "");
         nt->armed = false;
+        // A Note Splitter stays on the chords' track: on a voice's own, it would
+        // send that voice to its tracks a second time (the UAT, decision 0133).
+        const auto splitter = [] (const Device& d) { return d.plugin.format == "Kalibre" && d.plugin.identifier == "note-splitter"; };
+        nt->devices.erase (std::remove_if (nt->devices.begin(), nt->devices.end(), splitter), nt->devices.end());
+        for (auto& ver : nt->versions)
+            ver.devices.erase (std::remove_if (ver.devices.begin(), ver.devices.end(), splitter), ver.devices.end());
         Clip c = clip;
         c.link = 0;
         c.detectChords = false;

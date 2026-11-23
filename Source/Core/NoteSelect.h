@@ -41,7 +41,7 @@ int degreeOf (int pitch, int rootPc, const std::vector<int>& pitchesInChord);
 
 // Explode Chords (0075): the clip's notes, voice by voice (bottom voice first),
 // each to a new track made like the clip's own (its plug-ins and settings)
-// just after it; the clip itself removed. Returns the new tracks, top voice
+// just after it, a Note Splitter left out (0133); the clip itself removed. Returns the new tracks, top voice
 // first as they're listed. Nothing happens for a clip with no chords.
 std::vector<Id> explode (Project&, Id clip);
 

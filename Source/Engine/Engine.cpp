@@ -378,7 +378,11 @@ void Engine::touched (AudioProcessor* p, int index, float value, int gesture)
         if (auto* prm = p->getParameters()[index]) t.name = prm->getName (64);
         onTouched (t);
     };
-    if (MessageManager::existsAndIsCurrentThread()) send();
+    if (MessageManager::existsAndIsCurrentThread())
+    {
+        if (quietTouches > 0) return;   // a state being put back, not a hand (0133)
+        send();
+    }
     else MessageManager::callAsync (send);
 }
 
@@ -651,7 +655,11 @@ Engine::Node::Ptr Engine::nodeForDevice (const Device& d, Id version, String& er
     if (! d.state.empty())
     {
         MemoryBlock m;
-        if (m.fromBase64Encoding (d.state)) instance->setStateInformation (m.getData(), (int) m.getSize());
+        if (m.fromBase64Encoding (d.state))
+        {
+            const QuietTouches quiet (*this);
+            instance->setStateInformation (m.getData(), (int) m.getSize());
+        }
     }
     enableSidechain (*instance);
     // An instrument with more outputs than two has them all switched on (decision 0040).
@@ -1538,7 +1546,11 @@ bool Engine::renderOfflineFx (const Clip& clip, const File& source, const File& 
         if (! d.state.empty())
         {
             MemoryBlock m;
-            if (m.fromBase64Encoding (d.state)) inst->setStateInformation (m.getData(), (int) m.getSize());
+            if (m.fromBase64Encoding (d.state))
+            {
+                const QuietTouches quiet (*this);
+                inst->setStateInformation (m.getData(), (int) m.getSize());
+            }
         }
         inst->setNonRealtime (true);
         inst->setPlayConfigDetails (2, 2, rate, block);

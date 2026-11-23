@@ -274,6 +274,7 @@ void Controller::reloadChangedStates (const std::map<Id, int>& was)
             if (auto* inst = engine.instance (d.id))
             {
                 MemoryBlock m;
+                const Engine::QuietTouches quiet (engine);   // not a hand (0133)
                 if (m.fromBase64Encoding (d.state)) inst->setStateInformation (m.getData(), (int) m.getSize());
             }
         }
