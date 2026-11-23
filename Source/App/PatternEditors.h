@@ -113,6 +113,7 @@ private:
     double gateSetting = 0.5;     // the gate every step takes (decision 0063)
     bool changed = false;
     Project before;
+    size_t historyAtClick = 0;   // a double-click's first click undone, so it is one step (the UAT)
     void read();
     void write (const juce::String&);
     int stepAt (int x) const;

@@ -580,6 +580,9 @@ void StepSequencer::mouseDown (const MouseEvent& e)
 {
     const int s = stepAt (e.x);
     if (s < 0) return;
+    // A double-click's second press: the tie, in mouseDoubleClick.
+    if (e.getNumberOfClicks() > 1 && ! e.mods.isPopupMenu()) return;
+    historyAtClick = c.history.size();
     before = c.project;
     changed = false;
     dragStep = s;
@@ -645,6 +648,13 @@ void StepSequencer::mouseDoubleClick (const MouseEvent& e)
 {
     const int s = stepAt (e.x);
     if (s < 0) return;
+    // What the first click did (on or off) is undone: the tie is the one step.
+    if (c.history.size() > historyAtClick)
+    {
+        while (c.history.size() > historyAtClick) c.history.undo (c.project);
+        c.refresh();
+        read();
+    }
     seq.steps[(size_t) s].on = true;
     seq.steps[(size_t) s].tie = ! seq.steps[(size_t) s].tie;
     write ("Tie");

@@ -597,3 +597,45 @@ TEST ("notation: four bars fill the staff's width, not a tenth of it each (UAT)"
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("steps: a double-click to tie a step is one undo step, the step left on (UAT)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Line");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    c.grid = PPQ / 4;
+    c.refresh();
+    c.selectClip (clip);
+    StepSequencer steps (c);
+    steps.setSize (900, 400);
+    const auto cells = steps.getLocalBounds().reduced (theme::px (12)).withTrimmedTop (theme::px (30));
+    const Point<int> at (cells.getX() + cells.getWidth() * 7 / 32, cells.getCentreY());
+    auto ev = [&] (int clicks)
+    {
+        return MouseEvent (Desktop::getInstance().getMainMouseSource(), at.toFloat(), ModifierKeys (ModifierKeys::leftButtonModifier),
+                           MouseInputSource::defaultPressure, 0.0f, 0.0f, 0.0f, 0.0f, &steps, &steps, Time::getCurrentTime(),
+                           at.toFloat(), Time::getCurrentTime(), clicks, false);
+    };
+    auto notesOn = [&]
+    {
+        int n = 0;
+        for (auto& note : c.project.clip (clip)->midi.notes) if (note.from == NoteFrom::Steps) ++n;
+        return n;
+    };
+    steps.mouseDown (ev (1));
+    steps.mouseUp (ev (1));
+    CHECK_EQ (notesOn(), 1);
+    const auto before = c.history.size();
+    steps.mouseDown (ev (1));
+    steps.mouseUp (ev (1));
+    steps.mouseDown (ev (2));
+    steps.mouseUp (ev (2));
+    steps.mouseDoubleClick (ev (2));
+    CHECK_EQ (notesOn(), 1);
+    CHECK_EQ (c.history.size(), before + 1);
+    c.undo();
+    CHECK_EQ (notesOn(), 1);   // back to the step on, not tied
+}
