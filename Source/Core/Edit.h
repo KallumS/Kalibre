@@ -104,6 +104,8 @@ std::vector<Id> keepSourceSpans (Project&, Id clip, const std::vector<std::pair<
 // its file) is heard, the pieces side by side as it played. The pieces' ids,
 // first to last (the first keeps the clip's id). Hits within 10 ms of an edge are passed over.
 std::vector<Id> splitAtSource (Project&, Id clip, const std::vector<double>& hitSeconds);
+// Where it would be cut, without cutting: so a question can say how many clips it makes (0130).
+std::set<Tick> cutsAtSource (const Project&, Id clip, const std::vector<double>& hitSeconds);
 // Reverse (0095): a MIDI clip's notes and controllers played backwards within
 // what it plays; an audio clip played backwards (its `reversed`).
 void reverseClip (Project&, Id clip);

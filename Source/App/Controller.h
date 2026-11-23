@@ -237,9 +237,15 @@ public:
     // Audio or MIDI. With `makeTrack`, it runs first, in the same undo step, and
     // the clip goes on the track it returns (the browser's New Track with..., 0094).
     bool importFile (const juce::File&, Id track, Tick at, std::function<Id (Project&)> makeTrack = {}, const juce::String& label = {},
-                     bool splitAtTransients = false);
+                     bool splitAtTransients = false, double sensitivity = -1);
     // A sample on the timeline split into a clip for each hit (0095): one undo step.
-    bool importSplit (const juce::File& f, Id track, Tick at) { return importFile (f, track, at, {}, "Import Split at Transients", true); }
+    // At `sensitivity` (0..1, higher finds more hits), or the one last chosen.
+    bool importSplit (const juce::File& f, Id track, Tick at, double sensitivity = -1)
+    { return importFile (f, track, at, {}, "Import Split at Transients", true, sensitivity); }
+    // How readily a hit is found when audio is split at transients (0..1: higher finds
+    // more, the quiet ones too), the last chosen, kept for next time (decision 0130).
+    double transientSensitivity = 0.5;
+    void setTransientSensitivity (double);
     // The tempo an audio file was made at: from its name ("Drums 96bpm") or its ACID chunk; 0 when unknown.
     static double tempoOfAudioFile (const juce::File&);
     // A device's printed sound (a JSFX's export_buffer_to_project) on a new track under its own.
@@ -362,8 +368,8 @@ public:
     void normaliseClip (Id clip);
     void stripSilence (Id clip, double thresholdDb = -48.0);
     void quantiseAudio (Id clip, double strength = 1.0);
-    std::vector<double> hitsIn (Id clip, double sensitivity = 0.5);   // seconds into its file
-    int splitAtTransients (Id clip, double sensitivity = 0.5);        // the pieces made (0095)
+    std::vector<double> hitsIn (Id clip, double sensitivity = -1);    // seconds into its file; -1: transientSensitivity
+    int splitAtTransients (Id clip, double sensitivity = -1);         // the pieces made (0095, 0130)
     void renderOfflineFx (Id clip);
 
     //==========================================================================
@@ -450,6 +456,7 @@ public:
     // The studio's sync and control surface settings (decisions 0034, 0035).
     ControlSettings studio;
     juce::File studioFile() const;
+    juce::File editingFile() const;   // editing choices kept between songs (the transients' sensitivity)
     void setStudio (const ControlSettings&);
     std::function<void()> onStudioChanged;   // the surfaces reconfigure
     int agentsListening = 0;                 // the port AI agents reach Kalibre on (MCP, 0099), 0 when off

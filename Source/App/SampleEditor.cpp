@@ -77,13 +77,14 @@ void SampleEditor::load()
     }
     const auto f = c.fileOf (*cl, false);
     const auto path = f.getFullPathName().toStdString();
-    if (cl->id == loadedClip && path == loadedFile) { repaint(); return; }
+    if (cl->id == loadedClip && path == loadedFile && loadedSensitivity == c.transientSensitivity) { repaint(); return; }
+    loadedSensitivity = c.transientSensitivity;
     if (cl->id != loadedClip) selStart = selEnd = -1;
     loadedClip = cl->id;
     loadedFile = path;
     if (! Controller::readAudio (f, audio, rate)) audio.setSize (0, 0);
     hits.clear();
-    for (int s : audiotools::transients (audio.getArrayOfReadPointers(), audio.getNumChannels(), audio.getNumSamples(), rate, 0.5))
+    for (int s : audiotools::transients (audio.getArrayOfReadPointers(), audio.getNumChannels(), audio.getNumSamples(), rate, c.transientSensitivity))
         hits.push_back (s);
     peaksWidth = 0;
     spectrogram = {};
