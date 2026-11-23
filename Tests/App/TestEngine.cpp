@@ -773,6 +773,10 @@ TEST ("lua tools: Insert at Cursor puts the block on the device's track at the p
     const String one = "return dofile('<embedded>/tools/starting-blocks/sb_place.lua').insert({ name = 'Lift', beats = 4, "
                        "notes = { { start = 0, len = 1, pitch = 60, vel = 100 }, { start = 1.5, len = 0.5, pitch = 64, vel = 90 } } })";
     CHECK_EQ (luaToolRun (*inst, one), String ("0"));   // Place.OK
+    // A script's own files found with Windows' separator too: Lua's package.config says "\\" there,
+    // and Orchestration Helper built its data file's path with it (0129: on Windows it hung).
+    CHECK_EQ (luaToolRun (*inst, "return type (dofile ('<embedded>/tools/starting-blocks\\\\sb_place.lua'))"), String ("table"));
+
     const auto& clips = c.project.track (t)->clips();
     CHECK_EQ (clips.size(), size_t (1));
     if (clips.size() == 1)
