@@ -80,6 +80,8 @@ anywhere JUCE does.
   one. Control surfaces aren't reached through it, only notes and the clock.
 - A non-VST3 plug-in (CLAP) or a VST3 that can't draw smaller is shown cut
   in a short zone, not smaller.
+- Sounds named with a dot first (a Mac's "._" files copied to a Windows
+  drive) aren't scanned, as on the Mac, though Windows doesn't hide them.
 - Kalibre.exe isn't signed: the first start asks (More info > Run anyway).
 - Tried only by CI: built, its tests run. Not yet by the musician, nor with
   real plug-ins, audio interfaces or MIDI gear on Windows.
