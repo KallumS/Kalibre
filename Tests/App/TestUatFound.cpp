@@ -13,6 +13,7 @@
 #include "PluginMenu.h"
 #include "DrumMachine.h"
 #include "PatternEditors.h"
+#include "DrumPadsDevice.h"
 
 using namespace kal;
 using namespace juce;
@@ -302,6 +303,32 @@ TEST ("euclidean: every row's dials line up and fit, each named (Steps, Hits, Ro
             CHECK (d->getY() >= theme::px (16));   // room for its name over it
         }
         CHECK_EQ (xs.size(), size_t (3));   // three columns, every row the same
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("drum pads: in a short lower zone every one of the sixteen pads shown is whole, the bottom row too (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        String error;
+        auto inst = plugins.create (drumPadsRef(), 48000, 512, error);
+        CHECK (inst != nullptr);
+        if (! inst) return;
+        std::unique_ptr<AudioProcessorEditor> ed (inst->createEditorIfNeeded());
+        ed->setSize (1120, 220);
+        int tiles = 0;
+        for (auto* ch : ed->getChildren())
+            if (ch->getWidth() >= theme::px (100) && ch->getHeight() >= theme::px (30) && ch->getHeight() < theme::px (100)
+                && dynamic_cast<Button*> (ch) == nullptr && dynamic_cast<Slider*> (ch) == nullptr)
+            {
+                ++tiles;
+                CHECK (ed->getLocalBounds().contains (ch->getBounds()));
+            }
+        CHECK (tiles >= 16);
+        inst->editorBeingDeleted (ed.get());
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

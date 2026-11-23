@@ -444,7 +444,9 @@ public:
 
         overview.setBounds (r.removeFromLeft (theme::px (48)));
         r.removeFromLeft (10);
-        const int tileH = jmax (theme::px (48), (r.getHeight() - 3 * gap) / 4);
+        // As tall as four fit, down to 36 points: in a short zone the bottom
+        // row (the kick, the snare) was cut off (the UAT, 0133).
+        const int tileH = jmax (theme::px (36), (r.getHeight() - 3 * gap) / 4);
         const int tileW = jlimit (theme::px (120), theme::px (170), tileH * 2 + theme::px (20));
         auto grid = r.removeFromLeft (4 * tileW + 3 * gap);
         for (int s = 0; s < drumpads::shown; ++s)
@@ -591,7 +593,10 @@ void Tile::paint (Graphics& g)
     g.drawFittedText (padName (k, i), top, Justification::centredLeft, 1);
     g.setFont (theme::font (theme::smallPoints));
     const auto said = soundOf (p);
+    // Short, the sound's line shares its row with M and S (the UAT, 0133).
+    const bool compact = getHeight() < theme::px (52);
     auto mid = r.removeFromTop (theme::px (15));
+    if (compact) mid = mid.withTrimmedRight (2 * theme::px (22));
     if (said.isEmpty()) { g.setColour (theme::textSecondary); g.drawFittedText ("Empty", mid, Justification::centredLeft, 1); }
     else
     {
@@ -599,7 +604,7 @@ void Tile::paint (Graphics& g)
         g.setColour (sounds ? theme::text : theme::warnText);
         g.drawFittedText (said + (sounds ? String() : String (" (missing)")), mid, Justification::centredLeft, 1);
     }
-    if (p.choke > 0)
+    if (p.choke > 0 && ! compact)
     {
         g.setColour (theme::textSecondary);
         g.drawText ("Choke " + String (p.choke), r.removeFromBottom (theme::px (16)).withTrimmedRight (2 * theme::px (22)), Justification::centredLeft, false);
