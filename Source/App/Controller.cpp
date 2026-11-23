@@ -710,6 +710,56 @@ void Controller::arm (Id id, ArmFor how)
     });
 }
 
+namespace
+{
+// The notes a track's own clips play, taken out of what its instrument was
+// played while recording: a note-on of the same pitch within 15 ms of when
+// one of theirs was sent (its track's and its own delay, its random timing
+// allowed for), and its note-off (decision 0133).
+std::vector<capture::Event> withoutClipNotes (const Track& t, const TempoMap& tempo, const std::vector<capture::Event>& caught)
+{
+    struct Theirs { int pitch; double seconds, slack; };
+    std::vector<Theirs> theirs;
+    for (const auto& c : t.clips())
+    {
+        if (! c.isMidi() || c.muted) continue;
+        const Tick content = c.loopLength > 0 ? c.loopLength : std::numeric_limits<Tick>::max() / 4;
+        for (Tick base = c.start - c.offset; base < c.end(); base += content)
+        {
+            for (const auto& n : c.midi.notes)
+            {
+                if (c.loopLength > 0 && n.start >= c.loopLength) continue;
+                const Tick at = base + n.start;
+                if (at >= c.start && at < c.end())
+                    theirs.push_back ({ n.pitch, tempo.secondsAt (at) + (t.delayMs + n.delayMs) / 1000.0,
+                                        0.015 + std::abs (n.timingMs) / 1000.0 });
+            }
+            if (c.loopLength <= 0) break;
+        }
+    }
+    std::vector<capture::Event> out;
+    std::array<int, 128> dropping {};
+    for (const auto& e : caught)
+    {
+        const int kind = e.bytes[0] & 0xF0, pitch = e.bytes[1] & 0x7F;
+        const bool on = kind == 0x90 && e.bytes[2] > 0, off = kind == 0x80 || (kind == 0x90 && e.bytes[2] == 0);
+        if (on && std::any_of (theirs.begin(), theirs.end(), [&] (const Theirs& x)
+                               { return x.pitch == pitch && std::abs (x.seconds - e.wallSeconds) <= x.slack; }))
+        {
+            ++dropping[(size_t) pitch];
+            continue;
+        }
+        if (off && dropping[(size_t) pitch] > 0)
+        {
+            --dropping[(size_t) pitch];
+            continue;
+        }
+        out.push_back (e);
+    }
+    return out;
+}
+} // namespace
+
 void Controller::record()
 {
     if (wasRecording) { stop(); return; }
@@ -773,11 +823,12 @@ void Controller::finishRecording()
         if (auto* rs = engine.recordSource (t.id); rs && rs->isRecording())
         {
             auto* s = rs;
-            const double startSeconds = s->recordStartSeconds();
             const auto f = s->stopRecording();
+            const double startSeconds = s->recordStartSeconds();
+            const bool began = s->recordBegan();
             double seconds = 0, sr = 0;
             int channels = 0;
-            if (startSeconds >= 0 && AudioCache::describe (f, seconds, sr, channels) && seconds > 0.05)
+            if (began && AudioCache::describe (f, seconds, sr, channels) && seconds > 0.05)
             {
                 Clip c;
                 c.kind = Clip::Kind::Audio;
@@ -795,6 +846,14 @@ void Controller::finishRecording()
                     c.audio.sourceStart = lead;
                     c.start = project.tempo.tickAt (startSeconds + lead);
                     c.length = std::max<Tick> (1, project.tempo.tickAt (startSeconds + seconds) - c.start);
+                }
+                // What came before the song's start (a take from zero, less the
+                // input's delay) is left out (decision 0133).
+                if (startSeconds + c.audio.sourceStart < 0)
+                {
+                    c.audio.sourceStart = -startSeconds;
+                    c.start = 0;
+                    c.length = std::max<Tick> (1, project.tempo.tickAt (startSeconds + seconds));
                 }
                 if (project.punch.on)
                 {
@@ -830,12 +889,11 @@ void Controller::finishRecording()
             }
             s->tappedFifo.finishedRead (n1 + n2);
         }
-        const bool sentNotes = std::any_of (tappedOut.begin(), tappedOut.end(), [] (const capture::Event& e) { return (e.bytes[0] & 0xF0) == 0x90; });
-        if (t.armedPlugins()) events = sentNotes ? tappedOut : tappedIn;
-        // Armed for MIDI input (decision 0065): what was played in, before any plug-in.
-        int s1, n1, s2, n2;
-        s->playedFifo.prepareToRead (s->playedFifo.getNumReady(), s1, n1, s2, n2);
-        if (events.empty() && (t.armedPlugins() || t.armedMidiIn()))
+        // What was played in, before any plug-in.
+        std::vector<capture::Event> playedIn;
+        {
+            int s1, n1, s2, n2;
+            s->playedFifo.prepareToRead (s->playedFifo.getNumReady(), s1, n1, s2, n2);
             for (int i = 0; i < n1 + n2; ++i)
             {
                 const auto& p = s->played[(size_t) (i < n1 ? s1 + i : s2 + i - n1)];
@@ -843,9 +901,17 @@ void Controller::finishRecording()
                 e.songTicks = p.ticks;
                 e.wallSeconds = project.tempo.secondsAt ((Tick) p.ticks);
                 std::memcpy (e.bytes, p.bytes, 3);
-                events.push_back (e);
+                playedIn.push_back (e);
             }
-        s->playedFifo.finishedRead (n1 + n2);
+            s->playedFifo.finishedRead (n1 + n2);
+        }
+        const bool sentNotes = std::any_of (tappedOut.begin(), tappedOut.end(), [] (const capture::Event& e) { return (e.bytes[0] & 0xF0) == 0x90; });
+        // What the instrument was played holds the track's own clips too: they're
+        // not a performance, and are taken out (the UAT: every note came back
+        // doubled, decision 0133). An arpeggiator's own notes stay (0064).
+        if (t.armedPlugins()) events = sentNotes ? tappedOut : withoutClipNotes (t, project.tempo, tappedIn);
+        // Armed for MIDI input (decision 0065): what was played in, before any plug-in.
+        if (events.empty() && (t.armedPlugins() || t.armedMidiIn())) events = playedIn;
         if (! (t.armedPlugins() || t.armedMidiIn()) || events.empty()) continue;
         Recorded midi { t.id, {} };
         for (auto& pass : looping ? comp::midiPasses (events) : std::vector<std::vector<capture::Event>> { events })

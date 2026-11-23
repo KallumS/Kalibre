@@ -695,5 +695,15 @@ void present (juce::AlertWindow* w, juce::ModalComponentManager::Callback* cb, b
         w->setBounds (questionBounds (h->getLocalBounds(), above, w->getBounds()));
     }
     w->enterModalState (true, aside.release(), deleteWhenDismissed);
+    // A field to type in is ready, its text chosen, so typing replaces it:
+    // otherwise the keys went to the window's shortcuts (the UAT typed a
+    // section's name, and R started recording, decision 0133).
+    for (auto* child : w->getChildren())
+        if (auto* field = dynamic_cast<juce::TextEditor*> (child); field != nullptr && field->isVisible())
+        {
+            field->grabKeyboardFocus();
+            field->selectAll();
+            break;
+        }
 }
 } // namespace kal::ui

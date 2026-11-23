@@ -250,6 +250,9 @@ private:
     std::atomic<bool> playing { false }, recording { false };
     static constexpr double noJump = -1.0e9;
     std::atomic<double> pos { 0 }, seekTo { noJump };
+    // Where a recording begins: after a count-in, where playing was asked
+    // from, not the bar of clicks before it (decision 0133).
+    std::atomic<double> recordFrom { noJump };
     // When the last block played began, and where (0121): written by the audio thread
     // between two counts of `stampSeq` (odd while writing), read without a lock.
     std::atomic<juce::uint32> stampSeq { 0 };

@@ -124,6 +124,7 @@ void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numI
         else waitingForLink = false;
     }
     c.recording = recording.load();
+    c.recordFrom = recordFrom.load();
     c.start = p;
     c.samples = n;
     c.rate = rate;
@@ -211,7 +212,9 @@ void Engine::play()
         if (auto* m = dynamic_cast<Metronome*> (metronomeNode ? metronomeNode->getProcessor() : nullptr))
             m->countInUntil = pos.load();
         seekTo = pos.load() - countInSeconds;
+        recordFrom = pos.load();
     }
+    else if (! playing) recordFrom = noJump;
     waitingForLink = syncDevices.linkOn() && syncDevices.linkPeers() > 0;
     playing = true;
 }
