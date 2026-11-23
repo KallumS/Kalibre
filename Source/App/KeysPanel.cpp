@@ -11,8 +11,6 @@ KeysPanel::KeysPanel (Keys& k) : keys (k)
     list.setModel (this);
     list.setRowHeight (theme::px (24));
     list.setTitle ("Commands and their keys");
-    list.setColour (ListBox::backgroundColourId, theme::sunken);
-    list.setColour (ListBox::outlineColourId, theme::rule);
     list.setWantsKeyboardFocus (false);
     addAndMakeVisible (list);
     for (auto* b : { &resetOne, &resetAll }) addAndMakeVisible (b);

@@ -85,6 +85,9 @@ ADSR::Parameters adsr (float a, float d, float s, float r) { return { a, d, s, r
 class KnobPanel : public Component
 {
 public:
+    // Another theme (0132): the knobs' names take its colour.
+    void lookAndFeelChanged() override { for (auto* l : labels) l->setColour (Label::textColourId, theme::textSecondary); }
+
     explicit KnobPanel (BuiltinInstrument& p)
     {
         for (auto& g : p.groups)

@@ -323,8 +323,6 @@ LibraryView::LibraryView (Controller& ctrl)
     listBox.setModel (model.get());
     listBox.setRowHeight (theme::px (34));
     listBox.setTitle ("Sounds");
-    listBox.setColour (ListBox::backgroundColourId, theme::sunken);
-    listBox.setColour (ListBox::outlineColourId, theme::rule);
     listBox.setOutlineThickness (1);
     addAndMakeVisible (listBox);
 
