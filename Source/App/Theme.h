@@ -164,7 +164,10 @@ public:
 
 //==============================================================================
 // A house button: dark ink on light grey, yellow when on, a title for
-// VoiceOver, Space presses it, and its tip shown when the pointer rests on it.
+// VoiceOver, its tip shown when the pointer rests on it. Space presses it
+// only when the keyboard brought it the focus (Tab, as with the Mac's
+// keyboard navigation): a button that was just given the focus back by the
+// window lets Space play (the musician's report: Space pressed Devices).
 class HouseButton : public juce::TextButton
 {
 public:
@@ -172,6 +175,11 @@ public:
     void setTip (const juce::String&);
     int idealWidth (int height = controlHeight);
     bool keyPressed (const juce::KeyPress&) override;
+    void focusGained (FocusChangeType) override;
+    void focusLost (FocusChangeType) override;
+
+private:
+    bool byKeyboard = false;   // the focus came by Tab
 };
 
 } // namespace kal::theme

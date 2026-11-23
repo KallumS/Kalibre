@@ -419,9 +419,25 @@ int HouseButton::idealWidth (int height)
     return getLookAndFeel().getTextButtonWidthToFitText (*this, px (height));
 }
 
+void HouseButton::focusGained (FocusChangeType how)
+{
+    byKeyboard = how == focusChangedByTabKey;
+    TextButton::focusGained (how);
+}
+
+void HouseButton::focusLost (FocusChangeType how)
+{
+    byKeyboard = false;
+    TextButton::focusLost (how);
+}
+
 bool HouseButton::keyPressed (const KeyPress& key)
 {
-    if (key == KeyPress::spaceKey && isEnabled()) { triggerClick(); return true; }
+    if (key == KeyPress::spaceKey || key == KeyPress::returnKey)
+    {
+        if (byKeyboard && isEnabled()) { triggerClick(); return true; }
+        return false;   // the window's: Play, Go to the Start
+    }
     if (key == KeyPress::escapeKey && hasKeyboardFocus (false)) { giveAwayKeyboardFocus(); return true; }
     return TextButton::keyPressed (key);
 }
