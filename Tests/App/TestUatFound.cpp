@@ -15,6 +15,7 @@
 #include "PatternEditors.h"
 #include "DrumPadsDevice.h"
 #include "DeviceRack.h"
+#include "LowerZone.h"
 #include "JsfxDevice.h"
 #include "NoteSplitter.h"
 #include "MorphProcessor.h"
@@ -501,6 +502,39 @@ TEST ("ReaImGui tools: Good Idea in the rack fills its panel's height, its New I
         auto* ed = rack.editorOf (dev);
         CHECK (ed != nullptr);
         if (ed) CHECK (rack.pluginArea (dev).getHeight() >= 600 - theme::px (30) - 40);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("editor bar: at 1110 points wide (1440 with the browser open) every button shows, CC Lanes and Auto too (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Lead");
+        const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+        c.refresh();
+        c.selectClip (clip);
+        c.zoneTab = ZoneTab::Editor;
+        c.editor = EditorKind::PianoRoll;
+        LowerZone zone (c);
+        zone.setSize (1110, 400);
+        c.sendChangeMessage();
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        zone.resized();
+        int shown = 0;
+        for (auto* ch : zone.getChildren())
+            if (auto* b = dynamic_cast<Button*> (ch); b && b->isVisible())
+            {
+                ++shown;
+                CHECK (zone.getLocalBounds().contains (b->getBounds()));
+                CHECK (b->getWidth() >= 30);   // not squeezed to nothing at the end
+            }
+        CHECK (shown >= 15);
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
