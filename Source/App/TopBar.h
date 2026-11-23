@@ -77,6 +77,9 @@ public:
     void resized() override;
     int preferredHeight() const;
     void mouseDown (const juce::MouseEvent&) override;
+    // The message line drawn now, not when the message thread is next free:
+    // while it's busy writing an export (the UAT).
+    void showNow();
 
     // What can be hidden, by the names the right-click menu uses.
     static const juce::StringArray& hideable();
@@ -102,6 +105,11 @@ public:
     // Song versions (0103): 1 and 2, left of Random. 2, not made yet, is in the quieter grey;
     // a click makes it, a copy of 1. Right-click either for New and Delete.
     BarButton songOne { "1", "", true }, songTwo { "2", "", true };
+    // Whether the tempo's label fits its box (the UAT, 0133).
+    bool tempoLabelFits() const
+    {
+        return juce::GlyphArrangement::getStringWidth (theme::font (theme::smallPoints), tempo.label) <= (float) (tempo.getWidth() - 16);
+    }
 private:
     void songVersionMenu (int index);
 

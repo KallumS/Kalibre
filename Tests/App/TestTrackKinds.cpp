@@ -282,6 +282,133 @@ TEST ("summing: armed, it records the master from where recording starts, in tim
     CHECK_EQ (c.project.track (sum)->clips().size(), size_t (1));
 }
 
+TEST ("recording with a count-in: the take starts where recording starts, not a bar early, and holds no count-in (UAT 23 November)")
+{
+    // The UAT: with Count-in on, a Summing take began with a silent bar and
+    // the song a bar late in it.
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Click");
+    edit::addClip (c.project, t, audioClip (clickFile (0.25), c.project.tempo.tickAt (1.0), PPQ * 8));
+    c.project.track (t)->pan = 0;
+    const Id sum = edit::addTrack (c.project, TrackKind::Summing, "Summing");
+    c.project.track (sum)->armed = true;
+    c.project.metronome.countIn = true;   // a bar of clicks first: 2 s at 120 BPM
+    c.project.metronome.on = false;
+    c.focusTrack = sum;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 2.0 + 2.0);
+    c.stop();
+
+    const auto* s = c.project.track (sum);
+    CHECK_EQ (s->clips().size(), size_t (1));
+    if (s->clips().empty()) return;
+    const auto& clip = s->clips().front();
+    CHECK (clip.start >= 0 && clip.start < c.project.tempo.tickAt (0.01));
+    const auto recorded = read (File (String (clip.audio.file)));
+    const auto [at, v] = peak (recorded, 0);
+    CHECK (v > 0.3f);
+    // The click is 1.25 s into the song: 1.25 s into the take (from where it's read).
+    CHECK (std::abs (at - (int) ((1.25 - c.project.tempo.secondsAt (clip.start) + clip.audio.sourceStart) * 48000)) <= 2);
+}
+
+TEST ("recording: the take grows on the armed track as it's recorded, from where recording starts, none during the count-in (UAT)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id sum = edit::addTrack (c.project, TrackKind::Summing, "Summing");
+    c.project.track (sum)->armed = true;
+    c.project.metronome.countIn = true;   // a bar of clicks first: 2 s at 120 BPM
+    c.project.metronome.on = false;
+    c.focusTrack = sum;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    CHECK (c.recordingTake().first < 0);
+    c.cursor = PPQ * 4;
+    c.record();
+    playLive (engine, 1.0);
+    CHECK (c.recordingTake().first < 0);                  // counting in
+    playLive (engine, 2.0);
+    const auto [from, to] = c.recordingTake();
+    CHECK_EQ (from, PPQ * 4);
+    CHECK (std::abs (to - (PPQ * 4 + PPQ * 2)) <= PPQ / 4);   // a second in: two beats
+    c.stop();
+    CHECK (c.recordingTake().first < 0);
+}
+
+TEST ("meters: playing, the Master's fader has a level to show, as each track's does (UAT: its strip showed none)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Click");
+    edit::addClip (c.project, t, audioClip (clickFile (0.25), 0, PPQ * 4));
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    const Id master = c.project.master.id;
+    CHECK (engine.fader (master) != nullptr);
+    engine.play();
+    playLive (engine, 0.5);
+    engine.stop();
+    if (auto* f = engine.fader (t)) CHECK (std::max (f->takePeak (0), f->takePeak (1)) > 0.1f);
+    if (auto* f = engine.fader (master)) CHECK (std::max (f->takePeak (0), f->takePeak (1)) > 0.1f);
+}
+
+TEST ("recording MIDI: a track armed for MIDI records what's played in, not its own clips playing (UAT 23 November)")
+{
+    // The UAT: armed for MIDI with nothing played, recording laid copies of
+    // the track's own clip over it, every note doubled.
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Lead");
+    edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+    Clip clip;
+    clip.kind = Clip::Kind::Midi;
+    clip.start = 0;
+    clip.length = PPQ * 4;
+    for (int i = 0; i < 4; ++i)
+    {
+        Note n;
+        n.id = 100 + i;
+        n.start = i * PPQ;
+        n.length = PPQ / 2;
+        n.pitch = 60 + i;
+        clip.midi.notes.push_back (n);
+    }
+    edit::addClip (c.project, t, clip);
+    c.project.track (t)->armed = true;
+    c.project.track (t)->armFor = ArmFor::Midi;
+    c.focusTrack = t;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+
+    c.cursor = 0;
+    c.record();
+    playLive (engine, 2.5);
+    c.stop();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    CHECK_EQ (c.project.track (t)->clips().size(), size_t (1));
+}
+
 TEST ("summing: recording the master at 32 bits is neutral: the take is the song's sound, sample for sample (0081)")
 {
     PluginManager plugins;

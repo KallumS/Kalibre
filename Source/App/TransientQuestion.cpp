@@ -71,21 +71,31 @@ private:
     // How many clips it makes at this sensitivity: the cuts the split itself would make.
     void count()
     {
-        size_t clips = 0;
+        size_t clips = 0, hits = 0;
         for (auto& l : looked)
         {
             std::vector<double> seconds;
             for (int s : audiotools::hitsAt (l.candidates, sensitivity(), l.rate)) seconds.push_back (s / l.rate);
+            hits += seconds.size();
             if (l.clip != 0) clips += edit::cutsAtSource (c.project, l.clip, seconds).size() + 1;
             else clips += (size_t) std::count_if (seconds.begin(), seconds.end(), [] (double s) { return s > 0.01; }) + 1;
         }
         said = clips <= looked.size() ? String ("No hits found: nothing is split. Raise the sensitivity to find quieter ones.")
-                                      : "Makes " + String ((int) clips) + " clips, one for each hit.";
+                                      : "Makes " + clipsForHits ((int) clips, (int) hits) + ".";
         setDescription (said);   // VoiceOver reads it too
         repaint();
     }
 };
 } // namespace
+
+String clipsForHits (int clips, int hits)
+{
+    if (clips == hits + 1)
+        return String (clips) + " clips: one for each of the " + String (hits) + (hits == 1 ? " hit" : " hits")
+             + ", and one for what comes before the first";
+    if (clips == hits) return String (clips) + " clips, one for each hit";
+    return String (clips) + " clips, at " + String (hits) + (hits == 1 ? " hit" : " hits");
+}
 
 void askTransients (Controller& c, const String& title, std::vector<TransientSource> sources, std::function<void (double)> go)
 {

@@ -185,9 +185,22 @@ public:
     }
 
     // The width this panel takes at a height: the plug-in as shown, fitted.
+    // The buttons along the top, and the device's name beside them: a panel
+    // is at least that wide (the UAT: X/Y Morph's name was "...", one switched
+    // off had none, 0133).
+    int headerNeeds()
+    {
+        int w = theme::px (12) + presets.idealWidth (theme::smallControl) + 3 + ab.idealWidth (theme::smallControl) + 6
+              + (match.isVisible() ? match.idealWidth (theme::smallControl) + 3 : 0)
+              + theme::px (30) * 3 + 3 * 4 + random.idealWidth (theme::smallControl) + theme::px (26);
+        const auto* d = device();
+        if (d) w += theme::px (14) + roundToInt (GlyphArrangement::getStringWidth (theme::font (theme::bodyPoints, true), String (d->plugin.name))) + 2;
+        return w;
+    }
+
     int widthFor (int height)
     {
-        const int least = theme::px (330);
+        const int least = jmax (theme::px (330), headerNeeds());
         if (! editor || natural.isEmpty()) return least;
         return jmax (least, fitInto (boxFor (height)).shownWidth() + 4);
     }
@@ -229,6 +242,11 @@ public:
             const float s = jmin ((float) box.getWidth() / (float) natural.getWidth(), (float) box.getHeight() / (float) natural.getHeight());
             Rectangle<int> want (0, 0, jmax (1, roundToInt ((float) natural.getWidth() * s)), jmax (1, roundToInt ((float) natural.getHeight() * s)));
             if (ours) want = { 0, 0, jmin (natural.getWidth(), box.getWidth() - rack.sideWidth()), jmin (box.getHeight(), natural.getHeight()) };
+            // The family's ReaImGui tools scroll what they show: the panel's whole
+            // height, and their usual width (the UAT: Good Idea a 400 x 300 box,
+            // New Idea and Insert out of reach, 0133).
+            if (ours && d->plugin.identifier.rfind ("tool:", 0) == 0)
+                want = { 0, 0, jmin (jmax (natural.getWidth(), 860), box.getWidth() - rack.sideWidth()), box.getHeight() };
             if (auto* k = editor->getConstrainer())
                 k->checkBounds (want, editor->getBounds(), Rectangle<int> (0, 0, 100000, 100000), false, false, true, true);
             editor->setBounds (want);
@@ -287,6 +305,8 @@ public:
             g.setFont (theme::font (theme::smallPoints));
             String sub = String (roles[(int) d->role]) + " " + ui::u8 ("\xc2\xb7") + " " + String (d->plugin.format);
             if (editor && fitted.scale < 0.995f) sub << " " << ui::u8 ("\xc2\xb7") << " " << roundToInt (fitted.scale * 100.0f) << "% to fit";
+            // Too small to use (a JSFX drawn at its own size, 0133): where to see it whole.
+            if (editor && fitted.scale < 0.6f) sub << " " << ui::u8 ("\xc2\xb7") << " " << ui::u8 ("\xe2\xa7\x89") << " shows it bigger";
             if (const auto* from = c.project.track (d->sidechainFrom)) sub << " " << ui::u8 ("\xc2\xb7") << " sidechain: " << String (from->name);
             g.drawFittedText (sub, header, Justification::topLeft, 1);
             const auto body = getLocalBounds().withTrimmedTop (theme::px (30)).reduced (12);
@@ -562,6 +582,16 @@ public:
         shape.setButtonText (m->kind == ModKind::Lfo ? String (shapes[(int) m->shape])
                            : m->kind == ModKind::Wavetable ? String ("Table") : String ("Source"));
         shape.setVisible (m->kind == ModKind::Lfo || m->kind == ModKind::Wavetable || m->kind == ModKind::EnvelopeFollower);
+        // Each knob named for what it is on this kind, over it (the UAT: four
+        // numbers, their names only in tooltips, 0133).
+        const bool cycle = m->kind == ModKind::Lfo || m->kind == ModKind::Wavetable;
+        const bool follow = m->kind == ModKind::EnvelopeFollower;
+        const String names[] { cycle ? "Rate" : "Attack", cycle ? "Phase" : follow ? "Release" : "Decay",
+                               cycle ? "Both Ways" : follow ? "Gain" : "Sustain", "Amount" };
+        Slider* knobs[] { &a, &b, &s3, &amount };
+        for (int i = 0; i < 4; ++i) { knobs[i]->setTitle (names[i]); knobs[i]->setTooltip (names[i]); }
+        // The shape is drawn from the modulator: drawn again when it changes.
+        repaint();
     }
 
     void push()
@@ -677,6 +707,10 @@ public:
         }
         g.setColour (theme::control);
         g.strokePath (p, PathStrokeType (1.5f));
+        g.setColour (theme::textSecondary);
+        g.setFont (theme::font (theme::smallPoints));
+        for (auto* k : { &a, &b, &s3, &amount })
+            g.drawText (k->getTitle(), k->getX(), k->getY() - theme::px (14), k->getWidth(), theme::px (14), Justification::centred, false);
     }
 
     void resized() override
@@ -687,6 +721,7 @@ public:
         r.removeFromTop (theme::px (14) + theme::px (34) + 2);
         shape.setBounds (r.removeFromTop (theme::px (22)).reduced (0, 1));
         const int w = r.getWidth() / 4;
+        r.removeFromTop (theme::px (14));   // the knobs' names
         for (auto* k : { &a, &b, &s3, &amount }) k->setBounds (r.removeFromLeft (w));
     }
 
@@ -726,8 +761,8 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     MorphProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
         // A corner plays an instrument or an effect: both, each under its heading (0131).
-        pluginmenu::make (c.engine.plugins(), { DeviceRole::Instrument, DeviceRole::AudioFx },
-                          [chosen] (const PluginDescription& d, DeviceRole) { chosen (PluginManager::refFor (d)); })
+        pluginmenu::forSlot (c.engine.plugins(), { DeviceRole::Instrument, DeviceRole::AudioFx },
+                             [chosen] (const PluginRef& r, DeviceRole) { chosen (r); })
             .showMenuAsync (PopupMenu::Options());
     };
     // The Multiband's bands and Stereo Split's parts take audio effects too (0126, 0127): the same menu.
@@ -738,8 +773,8 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     // The Container takes audio effects (decision 0055).
     ContainerProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
-        pluginmenu::make (c.engine.plugins(), { DeviceRole::AudioFx },
-                          [chosen] (const PluginDescription& d, DeviceRole) { chosen (PluginManager::refFor (d)); })
+        pluginmenu::forSlot (c.engine.plugins(), { DeviceRole::AudioFx },
+                             [chosen] (const PluginRef& r, DeviceRole) { chosen (r); })
             .showMenuAsync (PopupMenu::Options());
     };
     NoteSplitterProcessor::makeEditor = [this] (NoteSplitterProcessor& p) -> AudioProcessorEditor* { return new NoteSplitterEditor (p, c); };
@@ -824,29 +859,9 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     for (auto& [maker, menu] : byMaker[2]) effects.addSubMenu (maker, menu);
     // Kalibre's own, in the same three parts (0131).
     PopupMenu ownMidi, ownInstruments, ownEffects;
-    auto own = [&c, track] (PopupMenu& in, const String& name, PluginRef ref, DeviceRole role)
-    {
-        in.addItem (name, [&c, track, ref, role] { c.addBuiltIn (track, ref, role); });
-    };
-    own (ownInstruments, "Kalibre Synth", synthRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Kalibre Sampler", samplerRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Kalibre Drums (a Kit of Samples and Plug-ins, with Steps)", drumsRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Drum Pads (128 Pads of Samples and Plug-ins)", drumPadsRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Trombolese (a Trombone Crossed with an Oboe)", tromboleseRef(), DeviceRole::Instrument);
-    own (ownInstruments, "X/Y Morph (Samples or Instruments)", morphRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Instant Virtual Instrument", instantVirtualInstrumentRef(), DeviceRole::Instrument);
-    own (ownEffects, "Hardware Insert (Outboard Gear)", hardwareInsertRef(), DeviceRole::AudioFx);
-    own (ownEffects, "X/Y Morph (Effects)", morphRef(), DeviceRole::AudioFx);
-    own (ownEffects, "Container (Plug-ins on a Band, the Mid or the Sides)", containerRef(), DeviceRole::AudioFx);
-    own (ownEffects, "Multiband (2 to 4 Bands, Plug-ins on Each)", multibandRef(), DeviceRole::AudioFx);
-    own (ownEffects, "Stereo Split (Left, Middle, Right or Middle and Sides, Plug-ins on Each)", stereoSplitRef(), DeviceRole::AudioFx);
-    own (ownMidi, "Note Splitter (a Chord's Notes to Several Tracks)", noteSplitterRef(), DeviceRole::MidiFx);
-    // ScaleView reads what's played: before the instrument, where the notes are (decision 0093).
-    own (ownMidi, "ScaleView", scaleViewRef(), DeviceRole::MidiFx);
-    // The family's JSFX (decision 0066) and ReaImGui tools (0068), built in, each in its part.
-    for (auto& s : jsfxDevices())
-        own (s.role == DeviceRole::MidiFx ? ownMidi : s.role == DeviceRole::Instrument ? ownInstruments : ownEffects, s.name, jsfxRef (s), s.role);
-    for (auto& s : luaTools()) own (ownMidi, s.name, luaToolRef (s), DeviceRole::MidiFx);
+    for (auto& d : pluginmenu::ownDevices())
+        (d.role == DeviceRole::MidiFx ? ownMidi : d.role == DeviceRole::Instrument ? ownInstruments : ownEffects)
+            .addItem (d.name, [&c, track, ref = d.ref, role = d.role] { c.addBuiltIn (track, ref, role); });
     for (auto [part, items] : { std::pair { DeviceRole::MidiFx, &ownMidi }, { DeviceRole::Instrument, &ownInstruments }, { DeviceRole::AudioFx, &ownEffects } })
     {
         kalibre.addSectionHeader (pluginmenu::heading (part));
@@ -952,6 +967,16 @@ juce::Rectangle<int> DeviceRack::pluginArea (Id device) const
                      p->getY() + p->body.getY() + (p->body.getHeight() - p->fitted.shownHeight()) / 2 + viewport.getY(),
                      p->fitted.shownWidth(), p->fitted.shownHeight() };
     return {};
+}
+
+bool DeviceRack::nameFits (Id device) const
+{
+    for (auto* p : panels)
+        if (p->id == device)
+            if (const auto* d = c.project.device (device))
+                return GlyphArrangement::getStringWidth (theme::font (theme::bodyPoints, true), String (d->plugin.name))
+                       <= (float) (p->presets.getX() - theme::px (14));
+    return false;
 }
 
 juce::AudioProcessorEditor* DeviceRack::editorOf (Id device) const

@@ -54,7 +54,8 @@ private:
 public:
     // Where the playhead is drawn, or below zero when it isn't (stopped, or outside the clip).
     float playheadX() const;
-    float shownPlayheadX = -1;   // where it was last drawn (tests)
+    float shownPlayheadX = -1;
+    float xOfTick (Tick clipTick) const { return xOfClipTick (clipTick); }   // tests   // where it was last drawn (tests)
 };
 
 } // namespace kal

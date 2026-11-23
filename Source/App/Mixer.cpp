@@ -431,9 +431,11 @@ void Mixer::rebuild()
         strip.addAndMakeVisible (strips.add (new ChannelStrip (c, t.id)));
         shape << (int64) t.id << (int) t.sends.size() << ",";
     }
-    strip.addAndMakeVisible (strips.add (new ChannelStrip (c, c.project.master.id)));
-    // The Cue track, after the master (decision 0051).
-    for (auto& t : c.project.cue) { strip.addAndMakeVisible (strips.add (new ChannelStrip (c, t.id))); shape << "cue"; }
+    // The master, and the Cue track after it (decision 0051), stay in sight
+    // beside the loudness, however many tracks scroll (the UAT: the master's
+    // strip had gone past the end, its meter with it).
+    addAndMakeVisible (strips.add (new ChannelStrip (c, c.project.master.id)));
+    for (auto& t : c.project.cue) { addAndMakeVisible (strips.add (new ChannelStrip (c, t.id))); shape << "cue"; }
     for (auto* s : strips) s->onChosen = [this] (Id id, const ModifierKeys& mods) { choose (id, mods); };
     resized();
 }
@@ -464,19 +466,38 @@ void Mixer::timerCallback()
 
 void Mixer::paint (Graphics& g) { g.fillAll (theme::ground); }
 
+Rectangle<int> Mixer::stripShown (Id id) const
+{
+    for (auto* s : strips)
+        if (s->id == id)
+        {
+            auto r = getLocalArea (s, s->getLocalBounds());
+            if (s->getParentComponent() == &strip) r = r.getIntersection (viewport.getBounds());
+            return r.getIntersection (getLocalBounds());
+        }
+    return {};
+}
+
 void Mixer::resized()
 {
     auto area = getLocalBounds().reduced (theme::px (8), theme::px (6));
     loudness.setBounds (area.removeFromRight (theme::px (220)));
     area.removeFromRight (theme::px (8));
-    viewport.setBounds (area);
-    const int h = jmax (theme::px (200), viewport.getHeight() - viewport.getScrollBarThickness());
     const int w = theme::px (84);
+    const int h = jmax (theme::px (200), area.getHeight() - viewport.getScrollBarThickness());
+    // The master and Cue strips, from the right; the tracks scroll in what's left.
+    std::vector<ChannelStrip*> pinned;
+    for (auto* s : strips) if (s->getParentComponent() == this) pinned.push_back (s);
+    for (auto it = pinned.rbegin(); it != pinned.rend(); ++it)
+    {
+        (*it)->setBounds (area.removeFromRight (w).withHeight (h));
+        area.removeFromRight (theme::px (12));   // each stands apart
+    }
+    viewport.setBounds (area);
     int x = 0;
     for (auto* s : strips)
     {
-        // The master stands apart, and the Cue track apart again after it.
-        if (s->id == c.project.master.id || c.project.track (s->id) && c.project.track (s->id)->isCue()) x += theme::px (12);
+        if (s->getParentComponent() != &strip) continue;
         s->setBounds (x, 0, w, h);
         x += w + theme::px (4);
     }

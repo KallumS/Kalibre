@@ -20,6 +20,11 @@ struct TransientSource
     juce::File file;
 };
 
+// "4 clips: one for each of the 3 hits, and one for what comes before the
+// first", or "4 clips, one for each hit": the clips counted as the Sample
+// Editor counts the hits (the UAT).
+juce::String clipsForHits (int clips, int hits);
+
 void askTransients (Controller&, const juce::String& title, std::vector<TransientSource>, std::function<void (double sensitivity)> go);
 
 } // namespace kal

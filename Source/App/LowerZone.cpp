@@ -212,29 +212,49 @@ void LowerZone::paint (Graphics& g)
 {
     g.fillAll (theme::ground);
     g.setColour (theme::rule);
-    g.fillRect (0, theme::px (36) - 1, getWidth(), 1);
+    g.fillRect (0, barHeight - 1, getWidth(), 1);
 }
 
 void LowerZone::resized()
 {
     auto r = getLocalBounds();
-    auto bar = r.removeFromTop (theme::px (36)).reduced (theme::px (8), theme::px (4));
-    auto place = [&] (theme::HouseButton& b) { const int w = b.idealWidth (theme::smallControl); b.setBounds (bar.removeFromLeft (w)); bar.removeFromLeft (theme::px (4)); };
-    place (devicesTab);
-    place (editorTab);
-    place (mixerTab);
-    place (metersTab);
-    if (videoTab.isVisible()) place (videoTab);
-    bar.removeFromLeft (theme::px (12));
-    if (c.zoneTab == ZoneTab::Editor && ! shownAudio)
+    const int rowH = theme::px (36), gap = theme::px (4), part = theme::px (12);
+    const bool editing = c.zoneTab == ZoneTab::Editor && ! shownAudio;
+    std::vector<theme::HouseButton*> tabs { &devicesTab, &editorTab, &mixerTab, &metersTab };
+    if (videoTab.isVisible()) tabs.push_back (&videoTab);
+    std::vector<theme::HouseButton*> editors, tools;
+    if (editing)
     {
-        for (auto* b : { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab }) place (*b);
-        bar.removeFromLeft (theme::px (12));
-        for (auto* b : { &gridButton, &snapButton, &quantise, &legato, &selectButton }) place (*b);
-        if (stepButton.isVisible()) place (stepButton);
-        if (ccLanes.isVisible())
+        editors = { &rollTab, &drumsTab, &stepsTab, &euclidTab, &notationTab };
+        tools = { &gridButton, &snapButton, &quantise, &legato, &selectButton };
+        if (stepButton.isVisible()) tools.push_back (&stepButton);
+    }
+    const bool lanes = editing && ccLanes.isVisible();
+    auto widthOf = [&] (const std::vector<theme::HouseButton*>& bs)
+    {
+        int w = 0;
+        for (auto* b : bs) w += b->idealWidth (theme::smallControl) + gap;
+        return w;
+    };
+    const int all = widthOf (tabs) + part + widthOf (editors) + part + widthOf (tools)
+                  + (lanes ? part + ccLanes.idealWidth (theme::smallControl) + gap + autoCc.idealWidth (theme::smallControl) : 0);
+    // Too wide for one row (a 1440-point window with the browser open): the
+    // editor's tools go on a second row, none pushed off the end (the UAT, 0133).
+    const bool twoRows = editing && all > getWidth() - 2 * theme::px (8);
+    barHeight = twoRows ? 2 * rowH : rowH;
+    auto bar = r.removeFromTop (rowH).reduced (theme::px (8), theme::px (4));
+    auto place = [&] (theme::HouseButton& b) { const int w = b.idealWidth (theme::smallControl); b.setBounds (bar.removeFromLeft (w)); bar.removeFromLeft (gap); };
+    for (auto* b : tabs) place (*b);
+    bar.removeFromLeft (part);
+    if (editing)
+    {
+        for (auto* b : editors) place (*b);
+        if (twoRows) bar = r.removeFromTop (rowH).reduced (theme::px (8), theme::px (4));
+        else bar.removeFromLeft (part);
+        for (auto* b : tools) place (*b);
+        if (lanes)
         {
-            bar.removeFromLeft (theme::px (12));
+            bar.removeFromLeft (part);
             place (ccLanes);
             place (autoCc);
         }

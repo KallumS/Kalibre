@@ -214,6 +214,11 @@ public:
     void setTip (const juce::String&);
     int idealWidth (int height = controlHeight);
     bool keyPressed (const juce::KeyPress&) override;
+    // A right-click calls this instead of pressing the button (a pad's name
+    // opens the pad's menu, 0133). Unset, a right-click does nothing.
+    std::function<void()> onRightClick;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
     void focusGained (FocusChangeType) override;
     void focusLost (FocusChangeType) override;
 

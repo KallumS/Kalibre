@@ -65,7 +65,10 @@ bool Controller::loadPreset (Id deviceId, const File& f)
     if (! m.fromBase64Encoding (v.getProperty ("state", {}).toString())) { say ("That preset can't be read.", true); return false; }
     storeDeviceStates();
     const Project before = project;
-    inst->setStateInformation (m.getData(), (int) m.getSize());
+    {
+        const Engine::QuietTouches quiet (engine);   // not a hand (0133)
+        inst->setStateInformation (m.getData(), (int) m.getSize());
+    }
     changedDevice = deviceId;
     pluginChanged (before, "Preset " + f.getFileNameWithoutExtension());
     say ("Loaded " + f.getFileNameWithoutExtension().quoted() + ".", false, true);
@@ -121,7 +124,11 @@ void Controller::switchAB (Id deviceId)
     const auto now = d->state;
     const auto other = d->stateB.empty() ? now : d->stateB;
     MemoryBlock m;
-    if (m.fromBase64Encoding (other)) inst->setStateInformation (m.getData(), (int) m.getSize());
+    if (m.fromBase64Encoding (other))
+    {
+        const Engine::QuietTouches quiet (engine);   // not a hand (0133)
+        inst->setStateInformation (m.getData(), (int) m.getSize());
+    }
     d->stateB = now;
     d->onB = ! d->onB;
     changedDevice = deviceId;

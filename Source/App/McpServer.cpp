@@ -151,9 +151,20 @@ std::string McpServer::onMessageThread (const std::string& body)
         job->out = server->handle (job->in);
         job->done.signal();
     });
-    // An export can take a while; a few minutes is plenty.
-    while (! job->done.wait (200))
+    // An export can take a while; a few minutes is plenty. Past that the agent
+    // is told, and what it asked may still happen (the UAT: one request waited
+    // for ever, every later one behind it, decision 0133).
+    const auto until = Time::getMillisecondCounterHiRes() + answerWithinSeconds * 1000.0;
+    while (! job->done.wait (jmax (1, jmin (200, (int) (answerWithinSeconds * 1000.0)))))
+    {
         if (threadShouldExit()) return mcp::errorReply (nullptr, -32000, "Kalibre is closing.").dump();
+        if (Time::getMillisecondCounterHiRes() > until)
+        {
+            const auto request = mcp::json::parse (body, nullptr, false);
+            return mcp::errorReply (request.is_object() && request.contains ("id") ? request["id"] : mcp::json(), -32000,
+                                    "Kalibre is busy and didn't get to this in time; it may still do it. Call get_song to see, then try again.").dump();
+        }
+    }
     return job->out;
 }
 

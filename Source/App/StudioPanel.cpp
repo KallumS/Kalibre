@@ -18,6 +18,7 @@ StudioPanel::StudioPanel (Controller& ctrl) : c (ctrl)
     sendClock.setTooltip (theme::wrapTip ("Send 24 clock pulses a beat, with Start, Stop and Song Position, to the ports ticked above."));
     sendMtc.setTooltip (theme::wrapTip ("Send MIDI timecode to the same ports, for video and other machines that follow time rather than beats."));
     link.setTooltip (theme::wrapTip ("Share the tempo, and start on the same bar, with Live, apps and other computers on the network."));
+    linkStartStop.setTooltip (theme::wrapTip ("With Link on: Play and Stop here start and stop the others in the session, and theirs start and stop Kalibre."));
     mtcRate.addItemList ({ "24 fps", "25 fps", "29.97 fps drop", "30 fps" }, 1);
     sendMmc.setTooltip (theme::wrapTip ("Send start, stop and locate as MIDI Machine Control to the ports ticked above: recorders and other software follow."));
     followMmc.setTooltip (theme::wrapTip ("Play, stop, locate and record when another machine sends MIDI Machine Control."));

@@ -159,6 +159,13 @@ int TopBar::preferredHeight() const
     return rows * theme::px (48) + lineHeight();
 }
 
+void TopBar::showNow()
+{
+    update();
+    repaint();
+    if (auto* peer = getPeer()) peer->performAnyPendingRepaintsNow();
+}
+
 void TopBar::mouseDown (const MouseEvent& e)
 {
     if (e.mods.isPopupMenu()) { showMenu(); return; }
@@ -223,7 +230,8 @@ void TopBar::resized()
     }
     // Where the song is, and what it's in (the transport is at the bottom of the window, 0095).
     if (shown ("Position")) readout (position, theme::px (130));
-    if (shown ("Tempo")) { tempo.setBounds (r.removeFromLeft (theme::px (80))); r.removeFromLeft (gap / 2); }
+    // Wide enough for "Tempo (changes)" when the song has them (the UAT saw "Tempo (chan", 0133).
+    if (shown ("Tempo")) { tempo.setBounds (r.removeFromLeft (theme::px (tempo.label == "Tempo" ? 80 : 116))); r.removeFromLeft (gap / 2); }
     if (shown ("Tap")) place (tap, tap.idealWidth());
     if (shown ("Time Signature")) readout (signature, theme::px (56));
     if (shown ("Grid")) readout (grid, theme::px (64));
@@ -280,7 +288,11 @@ void TopBar::update()
         case TimeFormat::Timecode:  position.label = "Timecode"; position.value = TempoMap::formatTimecode (seconds, 25.0); break;
     }
     tempo.value = String (p.tempo.bpmAt (now), p.tempo.bpmAt (now) == std::floor (p.tempo.bpmAt (now)) ? 0 : 2);
-    tempo.label = p.tempo.tempos().size() > 1 ? "Tempo (changes)" : "Tempo";
+    if (const String label = p.tempo.tempos().size() > 1 ? "Tempo (changes)" : "Tempo"; label != tempo.label)
+    {
+        tempo.label = label;
+        resized();
+    }
     const auto& m = p.tempo.meterAt (now);
     signature.value = String (m.numerator) + "/" + String (m.denominator);
     scale.value = harmony::scaleName (p.scale);
@@ -599,7 +611,7 @@ void TopBar::chooseScale()
         roots.addItem ((int) i + 1, scaleview::roots[i].name, true, (int) i == c.project.scale.root);
     for (size_t i = 0; i < scaleview::scales.size(); ++i)
         scales.addItem (1000 + (int) i, scaleview::scales[i].name, true, (int) i == c.project.scale.scale);
-    m.addSectionHeader ("Root");
+    m.addSectionHeader ("Key");
     m.addSubMenu ("Root", roots);
     m.addSubMenu ("Scale", scales);
     m.addSeparator();

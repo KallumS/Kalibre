@@ -67,6 +67,7 @@ private:
     MetersView meters;
     VideoView videoView;
     bool shownAudio = false;
+    int barHeight = 36;   // one row of tabs and tools, or two when they don't fit (0133)
     bool audioChosen() const;
 
     ZoneTab shownTab = ZoneTab::Devices;

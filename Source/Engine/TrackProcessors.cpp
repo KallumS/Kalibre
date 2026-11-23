@@ -227,7 +227,8 @@ void TrackSource::startRecording (const File& f, double rate)
     auto w = audiofile::floatWav (f, rate, 2);
     if (! w) return;
     recordFile = f;
-    recordStart = -1;
+    recordStart = 0;
+    recordBegun = false;
     writer = std::make_unique<AudioFormatWriter::ThreadedWriter> (w.release(), writerThread, 1 << 17);
     writing = true;
 }
@@ -603,9 +604,23 @@ void TrackSource::processBlock (AudioBuffer<float>& audio, MidiBuffer& midi)
 
     if (writing && writer && clock.recording && clock.playing)
     {
-        if (recordStart < 0) recordStart = clock.start - recordLatencySeconds.load();
-        const float* chans[2] { live.getReadPointer (0), live.getReadPointer (1) };
-        writer->write (chans, n);
+        // During a count-in nothing is written: the take starts on the sample
+        // where the count-in ends (decision 0133).
+        int from = 0;
+        if (clock.start < clock.recordFrom)
+            from = (int) std::ceil ((clock.recordFrom - clock.start) * clock.rate - 1.0e-6);
+        if (from < n)
+        {
+            // Its own flag: a take from the song's start, less the master's delay,
+            // starts below zero, and was started again every block (decision 0133).
+            if (! recordBegun.load (std::memory_order_relaxed))
+            {
+                recordStart = clock.start + from / clock.rate - recordLatencySeconds.load();
+                recordBegun.store (true);
+            }
+            const float* chans[2] { live.getReadPointer (0, from), live.getReadPointer (1, from) };
+            writer->write (chans, n - from);
+        }
     }
 
     // Live MIDI: kept (it only arrives when this track is the one played),

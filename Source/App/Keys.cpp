@@ -43,16 +43,21 @@ String Keys::textFor (const String& id) const
    #if JUCE_MAC
     if (code == KeyPress::returnKey) return s + String::fromUTF8 ("\xe2\x86\xa9");
     if (code == KeyPress::backspaceKey) return s + String::fromUTF8 ("\xe2\x8c\xab");
+    // As the Mac's menus name them (decision 0133): forward delete, Home, End.
     if (code == KeyPress::deleteKey) return s + String::fromUTF8 ("\xe2\x8c\xa6");
+    if (code == KeyPress::homeKey) return s + String::fromUTF8 ("\xe2\x86\x96");
+    if (code == KeyPress::endKey) return s + String::fromUTF8 ("\xe2\x86\x98");
    #else
     // Windows names its keys in words (decision 0129).
     if (code == KeyPress::returnKey) return s + "Enter";
     if (code == KeyPress::backspaceKey) return s + "Backspace";
     if (code == KeyPress::deleteKey) return s + "Delete";
+    if (code == KeyPress::homeKey) return s + "Home";
+    if (code == KeyPress::endKey) return s + "End";
    #endif
     if (code == KeyPress::escapeKey) return s + "Esc";
     const auto desc = KeyPress (code).getTextDescription();
-    return s + (desc.length() == 1 ? desc.toUpperCase() : desc);
+    return s + (desc.length() == 1 ? desc.toUpperCase() : desc.substring (0, 1).toUpperCase() + desc.substring (1));
 }
 
 void Keys::set (const String& id, const KeyPress& k)

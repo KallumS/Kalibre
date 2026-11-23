@@ -42,6 +42,20 @@ TEST ("harmony: the chord lane merges a held chord")
     CHECK_EQ (spans[1].name, std::string ("F"));
 }
 
+TEST ("harmony: soloing a return or the folder holding the chords leaves the chord lane as it was (UAT)")
+{
+    auto p = withChords();
+    const Id ret = edit::addTrack (p, TrackKind::Return, "Reverb");
+    p.track (ret)->solo = true;
+    CHECK_EQ (harmony::chordsAlong (p, 0, PPQ * 8).size(), size_t (2));
+    p.track (ret)->solo = false;
+    // A folder soloed: the tracks inside it are heard.
+    const Id folder = edit::addTrack (p, TrackKind::Folder, "Band");
+    for (auto& t : p.tracks) if (t.holdsClips()) t.parent = folder;
+    p.track (folder)->solo = true;
+    CHECK_EQ (harmony::chordsAlong (p, 0, PPQ * 8).size(), size_t (2));
+}
+
 TEST ("harmony: scale membership and spelling")
 {
     ScaleChoice s;   // C Major

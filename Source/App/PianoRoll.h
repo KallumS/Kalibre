@@ -60,6 +60,11 @@ public:
 
     // Shows a lane under the notes, as its menu does (the renders).
     void showLane (int kind) { laneKind = kind; repaint(); }
+    // Takes every value from the lane shown (a controller, pitch bend, pressure
+    // or a note's expression), one undo step; its menu's Clear Lane (the UAT).
+    void clearLane();
+    // An articulation's pill in its lane: its colour, deep enough that its name reads at 7:1 (the UAT).
+    static juce::Colour articulationFill (const Articulation&);
 
 private:
     Controller& c;

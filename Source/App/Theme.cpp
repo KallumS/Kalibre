@@ -601,6 +601,18 @@ void HouseButton::focusLost (FocusChangeType how)
     TextButton::focusLost (how);
 }
 
+void HouseButton::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu() && onRightClick) { onRightClick(); return; }
+    juce::TextButton::mouseDown (e);
+}
+
+void HouseButton::mouseUp (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu() && onRightClick) return;
+    juce::TextButton::mouseUp (e);
+}
+
 bool HouseButton::keyPressed (const KeyPress& key)
 {
     if (key == KeyPress::spaceKey || key == KeyPress::returnKey)
@@ -695,5 +707,15 @@ void present (juce::AlertWindow* w, juce::ModalComponentManager::Callback* cb, b
         w->setBounds (questionBounds (h->getLocalBounds(), above, w->getBounds()));
     }
     w->enterModalState (true, aside.release(), deleteWhenDismissed);
+    // A field to type in is ready, its text chosen, so typing replaces it:
+    // otherwise the keys went to the window's shortcuts (the UAT typed a
+    // section's name, and R started recording, decision 0133).
+    for (auto* child : w->getChildren())
+        if (auto* field = dynamic_cast<juce::TextEditor*> (child); field != nullptr && field->isVisible())
+        {
+            field->grabKeyboardFocus();
+            field->selectAll();
+            break;
+        }
 }
 } // namespace kal::ui

@@ -113,6 +113,7 @@ private:
     double gateSetting = 0.5;     // the gate every step takes (decision 0063)
     bool changed = false;
     Project before;
+    size_t historyAtClick = 0;   // a double-click's first click undone, so it is one step (the UAT)
     void read();
     void write (const juce::String&);
     int stepAt (int x) const;
@@ -129,7 +130,8 @@ class EuclidEditor : public juce::Component, private juce::ChangeListener, priva
 public:
     explicit EuclidEditor (Controller&);
     ~EuclidEditor() override;
-    int preferredHeight() const { return theme::px (48) + (int) rows.size() * theme::px (90); }
+    // The top line, its gaps and the margins (60), then a row each: the last row whole (0133).
+    int preferredHeight() const { return theme::px (60) + (int) rows.size() * theme::px (90); }
     void paint (juce::Graphics&) override;
     void resized() override;
 

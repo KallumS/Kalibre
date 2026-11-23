@@ -42,6 +42,9 @@ public:
     void update (const Track&);
     void refreshButtons();
     void showMenu();
+    // The small words under the name: "3 inside" for a folder, "Frozen" for a
+    // frozen track (the UAT: a frozen track looked as it did before).
+    juce::String footnote() const;
 
     Id id;
 
@@ -115,6 +118,11 @@ public:
 
     void zoomToFit();
     void reorder (Id track, int y);   // a header was dragged here
+
+    // Where the ruler writes a bar's number (empty when it skips that bar at
+    // this zoom), and a marker's name: after the number when they'd meet (the UAT).
+    juce::Rectangle<int> barNumberArea (int bar) const;
+    juce::Rectangle<int> markerNameArea (const Marker&) const;
 
 private:
     Controller& c;
@@ -225,6 +233,7 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
     float lastPlayheadX = -1;
+    int chordSounding = -1;   // the chord lane's lit chord: the whole lane drawn again when it changes (the UAT)
     void scrollBarMoved (juce::ScrollBar*, double) override;
 };
 

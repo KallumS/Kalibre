@@ -1,5 +1,6 @@
 #include "Engine.h"
 #include "NetworkMidi.h"
+#include "JsfxDevice.h"
 
 #include "Edit.h"
 #include "AudioFiles.h"
@@ -128,6 +129,7 @@ void Engine::audioDeviceIOCallbackWithContext (const float* const* ins, int numI
         else waitingForLink = false;
     }
     c.recording = recording.load();
+    c.recordFrom = recordFrom.load();
     c.start = p;
     c.samples = n;
     c.rate = rate;
@@ -215,7 +217,9 @@ void Engine::play()
         if (auto* m = dynamic_cast<Metronome*> (metronomeNode ? metronomeNode->getProcessor() : nullptr))
             m->countInUntil = pos.load();
         seekTo = pos.load() - countInSeconds;
+        recordFrom = pos.load();
     }
+    else if (! playing) recordFrom = noJump;
     waitingForLink = syncDevices.linkOn() && syncDevices.linkPeers() > 0;
     playing = true;
 }
@@ -383,7 +387,11 @@ void Engine::touched (AudioProcessor* p, int index, float value, int gesture)
         if (auto* prm = p->getParameters()[index]) t.name = prm->getName (64);
         onTouched (t);
     };
-    if (MessageManager::existsAndIsCurrentThread()) send();
+    if (MessageManager::existsAndIsCurrentThread())
+    {
+        if (quietTouches > 0) return;   // a state being put back, not a hand (0133)
+        send();
+    }
     else MessageManager::callAsync (send);
 }
 
@@ -656,8 +664,15 @@ Engine::Node::Ptr Engine::nodeForDevice (const Device& d, Id version, String& er
     if (! d.state.empty())
     {
         MemoryBlock m;
-        if (m.fromBase64Encoding (d.state)) instance->setStateInformation (m.getData(), (int) m.getSize());
+        if (m.fromBase64Encoding (d.state))
+        {
+            const QuietTouches quiet (*this);
+            instance->setStateInformation (m.getData(), (int) m.getSize());
+        }
     }
+    // A ScaleView new to the song shows the song's scale (the UAT: "No scale selected", 0133).
+    else if (d.plugin.format == "Kalibre" && d.plugin.identifier == scaleViewRef().identifier)
+        startScaleViewOn (*instance, songRoot, songScale);
     enableSidechain (*instance);
     // An instrument with more outputs than two has them all switched on (decision 0040).
     if (d.role == DeviceRole::Instrument)
@@ -673,6 +688,8 @@ Engine::Node::Ptr Engine::nodeForDevice (const Device& d, Id version, String& er
 
 void Engine::sync (const Project& project, Id live, const File& folder)
 {
+    songRoot = project.scale.root;
+    songScale = project.scale.scale;
     using Kind = AudioProcessorGraph::UpdateKind;
     liveTrack = live;
     tempoCopy = project.tempo;
@@ -1419,6 +1436,8 @@ bool Engine::render (const Project& project, const File& folder, const File& out
                 for (int i = 0; i < frames; ++i)
                     result.addSample (ch, i, (r.nextFloat() - r.nextFloat()) * lsb);
         }
+        lastExportPeak = result.getMagnitude (0, frames);
+        lastExportWhole = mp3 || ! writer->isFloatingPoint();
         if (mp3)
         {
             if (! writeMp3 (out, result, renderRate, o.metadata, o.mp3Kbps, error)) cancelled = true;
@@ -1543,7 +1562,11 @@ bool Engine::renderOfflineFx (const Clip& clip, const File& source, const File& 
         if (! d.state.empty())
         {
             MemoryBlock m;
-            if (m.fromBase64Encoding (d.state)) inst->setStateInformation (m.getData(), (int) m.getSize());
+            if (m.fromBase64Encoding (d.state))
+            {
+                const QuietTouches quiet (*this);
+                inst->setStateInformation (m.getData(), (int) m.getSize());
+            }
         }
         inst->setNonRealtime (true);
         inst->setPlayConfigDetails (2, 2, rate, block);

@@ -136,6 +136,17 @@ std::vector<Duration> split (Tick length)
     return out;
 }
 
+Tick shown (Tick t)
+{
+    auto nearest = [t] (Tick grid)
+    {
+        const Tick down = (t >= 0 ? t / grid : (t - grid + 1) / grid) * grid;
+        return t - down < down + grid - t ? down : down + grid;
+    };
+    const Tick a = nearest (PPQ / 8), b = nearest (PPQ / 6);
+    return std::abs (a - t) <= std::abs (b - t) ? a : b;
+}
+
 std::vector<Bar> layout (const Clip& clip, const TempoMap& tempo, const ScaleChoice& scale, Clef clef)
 {
     std::vector<Bar> bars;
@@ -145,8 +156,8 @@ std::vector<Bar> layout (const Clip& clip, const TempoMap& tempo, const ScaleCho
     std::map<Tick, std::vector<const Note*>> starts;
     for (auto& n : clip.midi.notes)
     {
-        const Tick at = n.start - clip.offset;
-        if (at >= 0 && at < clip.length) starts[at].push_back (&n);
+        const Tick at = std::max<Tick> (0, shown (n.start - clip.offset));
+        if (n.start - clip.offset >= 0 && at < clip.length) starts[at].push_back (&n);
     }
 
     const int firstBar = tempo.barAt (clip.start);
@@ -174,7 +185,8 @@ std::vector<Bar> layout (const Clip& clip, const TempoMap& tempo, const ScaleCho
     for (auto it = starts.begin(); it != starts.end(); ++it)
     {
         Tick end = 0;
-        for (auto* n : it->second) end = std::max (end, n->start - clip.offset + n->length);
+        for (auto* n : it->second) end = std::max (end, shown (n->start - clip.offset + n->length));
+        end = std::max (end, it->first + PPQ / 8);   // a note shorter than a 1/32 still shows
         auto next = std::next (it);
         if (next != starts.end()) end = std::min (end, next->first);
         end = std::min (end, clip.length);

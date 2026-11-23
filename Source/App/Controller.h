@@ -210,6 +210,12 @@ public:
     void stopAndGoToStart();    // the transport's Stop (0107)
     void toggleLoop();
     Tick playhead() const;
+    // While recording, the take so far: from where recording starts to the
+    // playhead, drawn growing on the armed tracks; {-1, -1} otherwise (the UAT).
+    std::pair<Tick, Tick> recordingTake() const;
+    // How far an export has got, 0 to 1, as it's written: the window shows it
+    // at once in the message line (the UAT: the save panel sat frozen).
+    std::function<void (float)> onExportProgress;
     // Where the playhead is to draw it, between ticks and between audio blocks, so it moves
     // evenly (0121); the cursor while stopped.
     double playheadExact() const;

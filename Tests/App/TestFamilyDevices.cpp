@@ -341,6 +341,25 @@ TEST ("family devices: ScaleView names the chord played through it, and leaves t
     CHECK_EQ (worst, 0.0f);
 }
 
+TEST ("family devices: ScaleView added to a song starts on the song's scale, not 'No scale selected' (UAT 23 November)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    c.project.scale.root = 13;   // as the top bar's Scale menu numbers them
+    c.project.scale.scale = 1;   // Minor (Natural)
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Chords");
+    const Id dev = edit::addDevice (c.project, t, scaleViewRef(), DeviceRole::MidiFx);
+    c.refresh();
+    auto* hosted = dynamic_cast<HostedProcessor*> (engine.instance (dev));
+    auto* view = hosted ? dynamic_cast<ScaleViewProcessor*> (&hosted->inner()) : nullptr;
+    CHECK (view != nullptr);
+    if (! view) return;
+    CHECK_EQ (view->getRootIndex(), 13);
+    CHECK_EQ (view->getScaleIndex(), 1);
+}
+
 TEST ("family devices: Trombolese plays a phrase in a song: it speaks, slides between held notes, stays finite, and keeps its settings")
 {
     auto inst = makeInstrument (tromboleseRef());

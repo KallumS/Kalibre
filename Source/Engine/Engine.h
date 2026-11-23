@@ -132,6 +132,15 @@ public:
         int gesture = 0;   // 1 began, 0 a change, 2 ended
     };
     std::function<void (const Touch&)> onTouched;
+    // While a plug-in's whole state is put back (A/B, a preset, Undo, switching
+    // it on), the controls it sets weren't touched by hand (decision 0133).
+    struct QuietTouches
+    {
+        explicit QuietTouches (Engine& e) : engine (e) { ++engine.quietTouches; }
+        ~QuietTouches() { --engine.quietTouches; }
+        Engine& engine;
+    };
+    int quietTouches = 0;   // message thread
 
     // MIDI learn (decision 0032).
     std::atomic<bool> learning { false };
@@ -195,6 +204,8 @@ public:
     AudioCache cache;
     SyncDevices syncDevices;   // MIDI clock, timecode, Link (decision 0034)
     double lastExportLoudness = loudness::silence;   // what the last export measured, after its gain
+    float lastExportPeak = 0;                        // its loudest sample, as written (1 is full scale, 0133)
+    bool lastExportWhole = false;                    // written in whole numbers (16 or 24 bits, MP3): over 1 clips
 
     // AudioIODeviceCallback (the audio thread)
     void audioDeviceIOCallbackWithContext (const float* const*, int, float* const*, int, int,
@@ -252,6 +263,11 @@ private:
     std::atomic<bool> playing { false }, recording { false };
     static constexpr double noJump = -1.0e9;
     std::atomic<double> pos { 0 }, seekTo { noJump };
+    // Where a recording begins: after a count-in, where playing was asked
+    // from, not the bar of clicks before it (decision 0133).
+    std::atomic<double> recordFrom { noJump };
+    // The song's scale, for a ScaleView added to it (0133).
+    int songRoot = 0, songScale = 0;
     // When the last block played began, and where (0121): written by the audio thread
     // between two counts of `stampSeq` (odd while writing), read without a lock.
     std::atomic<juce::uint32> stampSeq { 0 };

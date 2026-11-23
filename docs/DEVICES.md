@@ -96,7 +96,7 @@ inside: clips' notes and keyboards play it, each note its own pad.
 | **The map**, left | All 128, a row of four a line, the highest at the top: a sound lit, soloed in yellow, muted dimmer, the sixteen shown framed. Click or drag to show others; or scroll over the pads. |
 | **Random Samples** | A drum of its kind for each of the sixteen shown, from the Sounds folders. |
 | **Unsolo All** | Every pad heard again. |
-| The chosen pad | Its name and note; **Choose a Sample…**, **Plug-in ▾**, **Clear**, **Rename…**; **Volume** (-36 to +12 dB) and **Pan**; **M**, **S**; **Choke Group ▾** (None, 1 to 8); **Sends ▾**, the note its plug-in is sent. Its plug-in's window beside these. |
+| The chosen pad | Its name and note; **Choose a Sample…**, **Plug-in ▾** (your plug-ins, then Kalibre's own instruments), **Clear**, **Rename…**; **Volume** (-36 to +12 dB) and **Pan**; **M**, **S**; **Choke Group ▾** (None, 1 to 8); **Sends ▾**, the note its plug-in is sent. Its plug-in's window beside these. |
 
 A pad's sample is read into memory when chosen (30 seconds at most) and
 played as a one-shot, as loud as the hit; hit again, it starts again. Pads
@@ -649,7 +649,9 @@ its track, clips included. The sound is unchanged.
 | Click | The scale list: a root under a scale type (16 scales, 18 spelt roots). |
 | Right-click | Choose a Random Scale, note names on or off, Simplify Note Names (plain sharps), the highlight colour. |
 
-Put it before the instrument, where the notes are.
+Put it before the instrument, where the notes are. **In Kalibre**, a new
+ScaleView starts on the song's scale (the top bar's **Scale**); after that it
+keeps its own.
 
 ---
 

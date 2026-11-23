@@ -98,3 +98,17 @@ TEST ("explode chords: each voice to a track of its own, made like the clip's, t
     CHECK (explode (p, line).empty());
     CHECK (p.clip (line) != nullptr);
 }
+
+TEST ("explode chords: a Note Splitter on the track isn't copied to the voices' tracks, which would send each voice to its tracks again (UAT 23 November)")
+{
+    Id clip = 0;
+    auto p = song (clip);
+    const Id original = p.tracks.front().id;
+    edit::addDevice (p, original, PluginRef { "Kalibre", "note-splitter", "Note Splitter" }, DeviceRole::MidiFx);
+    edit::addDevice (p, original, PluginRef { "Kalibre", "synth", "Kalibre Synth" }, DeviceRole::Instrument);
+    for (const auto t : explode (p, clip))
+    {
+        CHECK_EQ (p.track (t)->devices.size(), size_t (1));
+        for (auto& d : p.track (t)->devices) CHECK (d.plugin.identifier != "note-splitter");
+    }
+}

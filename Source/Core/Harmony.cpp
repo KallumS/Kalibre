@@ -40,11 +40,20 @@ bool isDrumTrack (const Track& t)
 std::vector<TimedPitch> collect (const Project& p, Tick from, Tick to, bool detectedOnly)
 {
     std::vector<TimedPitch> out;
+    // Only a solo of a track with notes, or of a folder holding some, says
+    // which are heard: soloing a return left the chord lane empty (the UAT).
     bool anySolo = false;
-    for (auto& t : p.tracks) anySolo = anySolo || t.solo;
+    for (auto& t : p.tracks) anySolo = anySolo || (t.solo && (t.holdsClips() || t.isFolder()));
+    auto soloed = [&p] (const Track& t)
+    {
+        if (t.solo) return true;
+        for (auto& f : p.tracks)
+            if (f.solo && f.isFolder() && p.isInside (t.id, f.id)) return true;
+        return false;
+    };
     for (auto& t : p.tracks)
     {
-        if (! t.holdsClips() || t.mute || (anySolo && ! t.solo) || isDrumTrack (t)) continue;
+        if (! t.holdsClips() || t.mute || (anySolo && ! soloed (t)) || isDrumTrack (t)) continue;
         for (auto& c : t.clips())
         {
             if (! c.isMidi() || c.muted || c.end() <= from || c.start >= to || (detectedOnly && ! c.detectChords)) continue;

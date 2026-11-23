@@ -166,7 +166,12 @@ void NotationView::paint (Graphics& g)
     g.drawText (clef == notation::Clef::Treble ? "Treble" : "Bass", a.getX(), (int) yOfStep (-4), 60, 14, Justification::centredLeft, false);
 
     float x = (float) a.getX() + 40;
-    const float unit = (float) theme::px (34);   // a quarter note's width at its least
+    // A quarter note's width: at least 34 points, more so up to four bars
+    // fill the staff, rather than a bar in a tenth of it (the UAT).
+    double quarters = 0;
+    for (size_t i = 0; i < bars.size() && i < 4; ++i) quarters += (double) bars[i].length / PPQ;
+    const float room = (float) a.getRight() - x - 24.0f - 8.0f;
+    const float unit = jmax ((float) theme::px (34), quarters > 0 ? room / (float) quarters : 0.0f);
     for (auto& bar : bars)
     {
         g.setColour (theme::textSecondary);
@@ -182,7 +187,7 @@ void NotationView::paint (Graphics& g)
         }
         for (auto& gl : bar.glyphs)
         {
-            const float w = jmax (unit * 0.7f, unit * (float) gl.duration.ticks / (float) PPQ);
+            const float w = jmax ((float) theme::px (24), unit * (float) gl.duration.ticks / (float) PPQ);
             tickX.push_back ({ gl.start, x });
             const bool filled = gl.duration.value != Value::Whole && gl.duration.value != Value::Half;
             if (gl.rest)
@@ -197,7 +202,7 @@ void NotationView::paint (Graphics& g)
             {
                 const bool chosen = std::any_of (clip->midi.notes.begin(), clip->midi.notes.end(), [&] (const Note& n)
                 {
-                    return c.selectedNotes.count (n.id) && n.start - clip->offset == gl.start;
+                    return c.selectedNotes.count (n.id) && notation::shown (n.start - clip->offset) == gl.start;
                 });
                 g.setColour (chosen ? theme::accent : theme::text);
                 float stemTop = 1e9f, stemBottom = -1e9f;
@@ -281,7 +286,7 @@ void NotationView::mouseDown (const MouseEvent& e)
             {
                 std::set<Id> gone;
                 for (auto& n : clip->midi.notes)
-                    if (n.start - clip->offset == p.start && n.pitch == p.pitch) gone.insert (n.id);
+                    if (notation::shown (n.start - clip->offset) == p.start && n.pitch == p.pitch) gone.insert (n.id);
                 c.apply ("Remove Note", [=] (Project& pr) { edit::removeNotes (pr, cid, gone); });
                 return;
             }
@@ -293,7 +298,7 @@ void NotationView::mouseDown (const MouseEvent& e)
         {
             c.selectedNotes.clear();
             for (auto& n : clip->midi.notes)
-                if (n.start - clip->offset == p.start && n.pitch == p.pitch) c.selectedNotes.insert (n.id);
+                if (notation::shown (n.start - clip->offset) == p.start && n.pitch == p.pitch) c.selectedNotes.insert (n.id);
             c.engine.audition (c.focusTrack, p.pitch, 100, 0.3);
             c.viewChanged();
             return;

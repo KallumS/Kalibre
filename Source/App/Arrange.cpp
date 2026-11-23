@@ -105,11 +105,11 @@ void TrackHeader::paint (Graphics& g)
         g.setColour (theme::accent);
         g.fillRect (getWidth() - 3, 0, 3, getHeight());
     }
-    if (t->isFolder())
+    if (const auto words = footnote(); words.isNotEmpty())
     {
         g.setColour (theme::textSecondary);
         g.setFont (theme::font (theme::smallPoints));
-        g.drawText (String ((int) c.project.childrenOf (id).size()) + " inside", getLocalBounds().reduced (6, 2).withTrimmedLeft (depth * theme::px (10) + theme::px (30)),
+        g.drawText (words, getLocalBounds().reduced (6, 2).withTrimmedLeft (depth * theme::px (10) + theme::px (t->isFolder() ? 30 : 10)),
                     Justification::bottomLeft, false);
     }
     if (t->delayMs != 0)
@@ -120,6 +120,15 @@ void TrackHeader::paint (Graphics& g)
     }
     g.setColour (theme::rule);
     g.fillRect (0, getHeight() - 1, getWidth(), 1);
+}
+
+String TrackHeader::footnote() const
+{
+    const auto* t = c.project.track (id);
+    if (! t) return {};
+    if (t->isFolder()) return String ((int) c.project.childrenOf (id).size()) + " inside";
+    if (t->frozen) return "Frozen";
+    return {};
 }
 
 void TrackHeader::resized()
@@ -564,6 +573,7 @@ void Arrange::changeListenerCallback (ChangeBroadcaster*)
     {
         chordsFor = stamp;
         chords = harmony::chordsAlong (c.project, 0, c.project.endTick(), true);   // only the clips asked for (0071)
+        chordSounding = -1;   // found again on the next refresh
     }
     layoutRows();
     repaint();
@@ -588,10 +598,30 @@ void Arrange::timerCallback()
             return;
         }
     }
+    // The chord lane's lit chord: drawn again whole when another sounds, not
+    // only in the strips the playhead passes (the UAT: it was in pieces).
+    if (c.showChordLane)
+    {
+        int now = -1;
+        if (c.engine.isPlaying())
+        {
+            const Tick t = c.playhead();
+            for (size_t i = 0; i < chords.size(); ++i)
+                if (! chords[i].name.empty() && t >= chords[i].start && t < chords[i].end) { now = (int) i; break; }
+        }
+        if (now != chordSounding)
+        {
+            chordSounding = now;
+            repaint (0, theme::px (36) + sectionLaneHeight(), getWidth(), theme::px (24));
+        }
+    }
     // Every refresh of the screen, at its place between ticks and blocks (0121).
     const float x = playheadX();
     if (std::abs (x - lastPlayheadX) > 0.05f)
     {
+        // While recording, all between, where the take grows.
+        if (c.recordingTake().first >= 0)
+            repaint ((int) std::floor (jmin (x, lastPlayheadX)) - 2, 0, (int) std::ceil (std::abs (x - lastPlayheadX)) + 6, getHeight());
         const int top = 0;
         repaint ((int) std::floor (lastPlayheadX) - 2, top, 6, getHeight());
         repaint ((int) std::floor (x) - 2, top, 6, getHeight());
@@ -651,7 +681,7 @@ void Arrange::drawRuler (Graphics& g, Rectangle<int> r)
             g.fillRect (x, (float) r.getY() + theme::px (4), 1.0f, (float) theme::px (16));
             g.setColour (theme::text);
             g.setFont (theme::font (theme::smallPoints));
-            g.drawText (String (bar + 1), (int) x + 4, r.getY() + theme::px (2), 40, theme::px (16), Justification::centredLeft, false);
+            g.drawText (String (bar + 1), barNumberArea (bar).withY (r.getY() + theme::px (2)), Justification::centredLeft, false);
         }
         if (bar == 0 || tempo.meterAtBar (bar - 1).numerator != m.numerator || tempo.meterAtBar (bar - 1).denominator != m.denominator)
             if (bar > 0 || tempo.meters().size() > 1)
@@ -669,11 +699,40 @@ void Arrange::drawRuler (Graphics& g, Rectangle<int> r)
         p.addTriangle (x, (float) r.getY() + theme::px (20), x + 6, (float) r.getY() + theme::px (14), x, (float) r.getY() + theme::px (8));
         g.fillPath (p);
         g.setColour (theme::text);
-        g.drawText (String (mk.name), (int) x + 8, r.getY() + theme::px (8), 120, theme::px (14), Justification::centredLeft, true);
+        g.drawText (String (mk.name), markerNameArea (mk).withY (r.getY() + theme::px (8)), Justification::centredLeft, true);
     }
     g.restoreState();
     g.setColour (theme::rule);
     g.fillRect (r.getX(), r.getBottom() - 1, r.getWidth(), 1);
+}
+
+Rectangle<int> Arrange::barNumberArea (int bar) const
+{
+    const auto& tempo = c.project.tempo;
+    const auto& m = tempo.meterAtBar (bar);
+    const float barWidth = (float) (m.barTicks() * timeline.pixelsPerTick);
+    const int every = barWidth < 24 ? 8 : barWidth < 48 ? 4 : barWidth < 80 ? 2 : 1;
+    if (bar < 0 || bar % every != 0) return {};
+    int x = (int) xOf (tempo.barStart (bar)) + 4;
+    // A marker's flag on the bar line: the number after it.
+    for (auto& mk : c.project.markers)
+        if (const float fx = xOf (mk.tick); fx > (float) x - 8 && fx < (float) x + 4) x = jmax (x, (int) fx + 9);
+    const int w = GlyphArrangement::getStringWidthInt (theme::font (theme::smallPoints), String (bar + 1)) + 2;
+    return { x, theme::px (2), w, theme::px (16) };
+}
+
+Rectangle<int> Arrange::markerNameArea (const Marker& mk) const
+{
+    int x = (int) xOf (mk.tick) + 8;
+    // The bar number it would cover, if any: the name goes after it, and
+    // stops short of the next one.
+    const int bar = c.project.tempo.barAt (mk.tick);
+    if (const auto n = barNumberArea (bar); ! n.isEmpty() && n.getRight() > x && n.getX() < x + theme::px (8))
+        x = n.getRight() + theme::px (4);
+    int w = jmin (theme::px (120), GlyphArrangement::getStringWidthInt (theme::font (theme::smallPoints), String (mk.name)) + 4);
+    if (const auto next = barNumberArea (bar + 1); ! next.isEmpty() && next.getX() < x + w)
+        w = jmax (theme::px (24), next.getX() - x - 2);
+    return { x, theme::px (8), w, theme::px (14) };
 }
 
 int Arrange::sectionLaneHeight() const { return c.showSectionLane ? theme::px (20) : 0; }
@@ -795,12 +854,12 @@ void Arrange::drawChordLane (Graphics& g, Rectangle<int> r)
     g.drawText ("Chords", r.withWidth (headerWidth()).reduced (8, 0), Justification::centredLeft, false);
     g.saveState();
     g.reduceClipRegion (r.withLeft (laneArea().getX()));
-    const Tick now = c.playhead();
-    for (auto& ch : chords)
+    for (size_t i = 0; i < chords.size(); ++i)
     {
+        const auto& ch = chords[i];
         if (ch.name.empty()) continue;
         auto box = Rectangle<float> (xOf (ch.start), (float) r.getY() + 3, jmax (2.0f, xOf (ch.end) - xOf (ch.start) - 2.0f), (float) r.getHeight() - 6);
-        const bool sounding = now >= ch.start && now < ch.end && c.engine.isPlaying();
+        const bool sounding = (int) i == chordSounding;
         g.setColour (sounding ? theme::accent : theme::raised);
         g.fillRoundedRectangle (box, 3.0f);
         g.setColour (sounding ? theme::ink : theme::text);
@@ -1115,6 +1174,20 @@ void Arrange::paint (Graphics& g)
             drawClip (g, *t, clip, { x0, (float) rr.getY() + 2, jmax (3.0f, x1 - x0), (float) rr.getHeight() - 4 },
                       c.selectedClips.count (clip.id) > 0);
         }
+        // The take being recorded, growing to the playhead in the arm's colour (the UAT).
+        if (t->armed && t->holdsClips())
+            if (const auto [from, to] = c.recordingTake(); from >= 0)
+            {
+                const auto colour = t->armFor == ArmFor::Audio || t->armFor == ArmFor::Both ? theme::armAudio : theme::armMidi;
+                const Rectangle<float> take (xOf (from), (float) rr.getY() + 2, jmax (3.0f, xOf (to) - xOf (from)), (float) rr.getHeight() - 4);
+                g.setColour (theme::underWords (colour, 0.35f));
+                g.fillRoundedRectangle (take, 4.0f);
+                g.setColour (colour);
+                g.drawRoundedRectangle (take.reduced (0.5f), 4.0f, 1.0f);
+                g.setColour (theme::text);
+                g.setFont (theme::font (theme::smallPoints));
+                g.drawText ("Recording", take.reduced (6, 2).toNearestInt(), Justification::topLeft, false);
+            }
         g.setColour (theme::lane);
         g.fillRect (lanes.getX(), rr.getBottom() - 1, lanes.getWidth(), 1);
     }
@@ -1835,6 +1908,27 @@ void Arrange::clipMenu (Id id)
             c.say (on ? String ("The chords of ") + (chosen.size() > 1 ? "these clips" : "this clip") + " are in the chord lane above the tracks."
                       : String ("Their chords are no longer shown."), false, true);
         });
+        // MIDI clips: their notes up or down, every chosen clip at once (the
+        // guide had it; the UAT found it missing, decision 0133).
+        if (midi)
+        {
+            PopupMenu notesTranspose;
+            for (int s : { 12, 7, 1, -1, -7, -12 })
+                notesTranspose.addItem ((s > 0 ? "Up " : "Down ") + String (std::abs (s)), [this, chosen, s]
+                {
+                    c.apply ("Transpose", [chosen, s] (Project& p)
+                    {
+                        for (auto cid : chosen)
+                            if (auto* x = p.clip (cid); x && x->isMidi())
+                            {
+                                std::set<Id> all;
+                                for (auto& n : x->midi.notes) all.insert (n.id);
+                                edit::transpose (p, cid, all, s);
+                            }
+                    });
+                });
+            m.addSubMenu ("Transpose", notesTranspose);
+        }
     }
     m.addSeparator();
     m.addItem ("Loop Its Content", true, clip->loopLength > 0, [this, id]
@@ -1951,15 +2045,15 @@ void Arrange::clipMenu (Id id)
 
         // Offline effects (decision 0026).
         // Audio effects only, under their heading, by maker (0131).
-        offline = pluginmenu::make (c.engine.plugins(), { DeviceRole::AudioFx }, [this, id] (const PluginDescription& d, DeviceRole)
+        offline = pluginmenu::forSlot (c.engine.plugins(), { DeviceRole::AudioFx }, [this, id] (const PluginRef& ref, DeviceRole)
         {
-            c.apply ("Offline Effect", [id, d] (Project& p)
+            c.apply ("Offline Effect", [id, ref] (Project& p)
             {
                 if (auto* cl = p.clip (id))
                 {
                     Device dev;
                     dev.id = p.newId();
-                    dev.plugin = PluginManager::refFor (d);
+                    dev.plugin = ref;
                     cl->offlineFx.chain.push_back (dev);
                 }
             });

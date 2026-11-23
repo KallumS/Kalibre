@@ -112,6 +112,10 @@ std::vector<HitCandidate> hitCandidates (const float* const* ch, int numChannels
         energy[(size_t) f] = 10.0 * std::log10 (e / (hop * std::max (1, numChannels)) + 1e-12);
     }
     std::vector<HitCandidate> out;
+    // A sound already there at the very start is a hit too, rising from
+    // silence: the Sample Editor counts it, as Split at Transients' first
+    // clip is it (the UAT: 15 hits shown, 16 clips made).
+    if (frames > 0 && energy[0] >= -70.0) out.push_back ({ 0, 0, energy[0] + 120.0, energy[0] });
     for (int f = 1; f < frames; ++f)
     {
         double before = -120;

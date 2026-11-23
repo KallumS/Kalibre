@@ -72,5 +72,8 @@ PluginRef instantVirtualInstrumentRef();
 // ScaleView, built in (decision 0093; ScaleViewDevice.cpp): the scale, and the chord being played.
 std::unique_ptr<juce::AudioPluginInstance> makeScaleView();
 PluginRef scaleViewRef();
+// A ScaleView with nothing chosen yet set to the song's scale (Kalibre's root
+// and scale are numbered as ScaleView's, 0133).
+void startScaleViewOn (juce::AudioProcessor&, int root, int scale);
 
 } // namespace kal

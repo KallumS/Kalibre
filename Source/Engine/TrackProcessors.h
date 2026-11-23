@@ -51,6 +51,7 @@ struct Clock
     double rate = 48000;
     double ppq = 0;            // quarter notes at the block's start
     double bpm = 120;
+    double recordFrom = -1.0e9; // nothing before this is recorded: a count-in's clicks (decision 0133)
 
     double secondsAt (int sample) const
     {
@@ -335,6 +336,8 @@ public:
     juce::File stopRecording();
     bool isRecording() const { return writer != nullptr; }
     double recordStartSeconds() const { return recordStart; }
+    // Whether anything was written: a take can start before zero (decision 0133).
+    bool recordBegan() const { return recordBegun.load(); }
     // What reaches this source arrives this late after the song position it
     // belongs to: a Summing track's recorder hears the master after the
     // graph's delay compensation (decision 0052).
@@ -415,6 +418,7 @@ private:
     std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> writer;
     juce::TimeSliceThread writerThread { "Kalibre recording" };
     double recordStart = 0;
+    std::atomic<bool> recordBegun { false };
     juce::File recordFile;
     std::atomic<bool> writing { false };
 

@@ -72,5 +72,7 @@ extern std::function<bool (juce::AudioPluginInstance&, const ToolBlock&)> insert
 // and a line of Lua run in its state (what it returns, as text).
 juce::String luaToolError (juce::AudioPluginInstance&);
 juce::String luaToolRun (juce::AudioPluginInstance&, const juce::String& lua);
+// How many frames a tool's script has drawn (tests: none while its window isn't on screen).
+int luaToolFrames (juce::AudioPluginInstance&);
 
 } // namespace kal

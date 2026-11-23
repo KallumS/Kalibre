@@ -453,6 +453,7 @@ void ToolSession::buildFonts (float scale)
 
 void ToolSession::frame (float width, float height, float scale)
 {
+    ++framesRun;
     if (L == nullptr) return;
     use();
     auto& io = ImGui::GetIO();

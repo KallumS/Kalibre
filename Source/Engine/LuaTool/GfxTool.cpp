@@ -780,7 +780,7 @@ private:
     void timerCallback() override
     {
         auto* s = proc.session();
-        if (s == nullptr) return;
+        if (s == nullptr || ! isShowing()) return;   // nothing to draw off screen (the UAT)
         const double d = density();
         s->frame ((int) std::lround (getWidth() * d), (int) std::lround (getHeight() * d), d, this);
         s->input.buttons &= ~letGo;

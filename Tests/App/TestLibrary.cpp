@@ -734,3 +734,40 @@ TEST ("sounds: Sync switched while a sound plays changes it at once, carrying on
     CHECK (stepAfter > 0);
     CHECK (std::abs (stepAfter - stepBefore * 0.5) < stepBefore * 0.15);
 }
+
+TEST ("sounds: once the folders are looked through, the message line says what was found, not still 'Looking through' (UAT 23 November)")
+{
+    const auto dir = makeSounds ("found");
+    Library lib (dir);
+    lib.c.say ("Looking through the folder for sounds: they appear in the browser's Sounds tab as they're found.");
+    lib.view.sayWhatWasFound();
+    CHECK (! lib.c.message.startsWith ("Looking through"));
+    CHECK (lib.c.message.contains ("5 sounds"));
+}
+
+TEST ("split at transients: a sample whose first hit comes after its start says so: 4 clips for 3 hits, as the Sample Editor counts them (UAT)")
+{
+    const auto dir = libraryFolder ("leadin");
+    const auto f = dir.getChildFile ("Late Hits.wav");
+    {
+        f.deleteFile();
+        AudioBuffer<float> b (1, 96000);
+        b.clear();
+        for (int start : { 12000, 36000, 60000 })
+            for (int i = 0; i < 4000; ++i)
+                b.setSample (0, start + i, 0.8f * std::exp (-i / 800.0f) * std::sin (6.2831853f * 200.0f * i / 48000.0f));
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (1).withBitsPerSample (24));
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    }
+    Library lib (dir);
+    auto& c = lib.c;
+    c.apply ("Track", [] (Project& p) { edit::addTrack (p, TrackKind::Track, "Drums"); });
+    const Id t = c.project.tracks.back().id;
+    CHECK (c.importFile (f, t, 0));
+    const Id one = c.project.track (t)->clips().front().id;
+    CHECK_EQ (c.splitAtTransients (one, 0.5), 4);
+    CHECK (c.message.contains ("3 hits"));
+    CHECK (! c.message.contains ("one for each hit."));
+}
