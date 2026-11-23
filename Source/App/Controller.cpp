@@ -1011,6 +1011,15 @@ void Controller::toggleLoop()
     apply (project.loop.on ? "Loop Off" : "Loop On", [] (Project& p) { p.loop.on = ! p.loop.on; });
 }
 
+std::pair<Tick, Tick> Controller::recordingTake() const
+{
+    if (! wasRecording || ! engine.isRecording()) return { -1, -1 };
+    const Tick from = project.tempo.tickAt (recordFromSeconds);
+    const Tick now = playhead();
+    if (now <= from) return { -1, -1 };   // counting in, or not yet at the punch
+    return { from, now };
+}
+
 Tick Controller::playhead() const
 {
     return engine.isPlaying() ? project.tempo.tickAt (const_cast<Engine&> (engine).heardPosition()) : cursor;

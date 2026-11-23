@@ -318,6 +318,34 @@ TEST ("recording with a count-in: the take starts where recording starts, not a 
     CHECK (std::abs (at - (int) ((1.25 - c.project.tempo.secondsAt (clip.start) + clip.audio.sourceStart) * 48000)) <= 2);
 }
 
+TEST ("recording: the take grows on the armed track as it's recorded, from where recording starts, none during the count-in (UAT)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id sum = edit::addTrack (c.project, TrackKind::Summing, "Summing");
+    c.project.track (sum)->armed = true;
+    c.project.metronome.countIn = true;   // a bar of clicks first: 2 s at 120 BPM
+    c.project.metronome.on = false;
+    c.focusTrack = sum;
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    CHECK (c.recordingTake().first < 0);
+    c.cursor = PPQ * 4;
+    c.record();
+    playLive (engine, 1.0);
+    CHECK (c.recordingTake().first < 0);                  // counting in
+    playLive (engine, 2.0);
+    const auto [from, to] = c.recordingTake();
+    CHECK_EQ (from, PPQ * 4);
+    CHECK (std::abs (to - (PPQ * 4 + PPQ * 2)) <= PPQ / 4);   // a second in: two beats
+    c.stop();
+    CHECK (c.recordingTake().first < 0);
+}
+
 TEST ("recording MIDI: a track armed for MIDI records what's played in, not its own clips playing (UAT 23 November)")
 {
     // The UAT: armed for MIDI with nothing played, recording laid copies of

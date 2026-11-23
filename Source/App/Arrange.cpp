@@ -601,6 +601,9 @@ void Arrange::timerCallback()
     const float x = playheadX();
     if (std::abs (x - lastPlayheadX) > 0.05f)
     {
+        // While recording, all between, where the take grows.
+        if (c.recordingTake().first >= 0)
+            repaint ((int) std::floor (jmin (x, lastPlayheadX)) - 2, 0, (int) std::ceil (std::abs (x - lastPlayheadX)) + 6, getHeight());
         const int top = 0;
         repaint ((int) std::floor (lastPlayheadX) - 2, top, 6, getHeight());
         repaint ((int) std::floor (x) - 2, top, 6, getHeight());
@@ -1124,6 +1127,20 @@ void Arrange::paint (Graphics& g)
             drawClip (g, *t, clip, { x0, (float) rr.getY() + 2, jmax (3.0f, x1 - x0), (float) rr.getHeight() - 4 },
                       c.selectedClips.count (clip.id) > 0);
         }
+        // The take being recorded, growing to the playhead in the arm's colour (the UAT).
+        if (t->armed && t->holdsClips())
+            if (const auto [from, to] = c.recordingTake(); from >= 0)
+            {
+                const auto colour = t->armFor == ArmFor::Audio || t->armFor == ArmFor::Both ? theme::armAudio : theme::armMidi;
+                const Rectangle<float> take (xOf (from), (float) rr.getY() + 2, jmax (3.0f, xOf (to) - xOf (from)), (float) rr.getHeight() - 4);
+                g.setColour (theme::underWords (colour, 0.35f));
+                g.fillRoundedRectangle (take, 4.0f);
+                g.setColour (colour);
+                g.drawRoundedRectangle (take.reduced (0.5f), 4.0f, 1.0f);
+                g.setColour (theme::text);
+                g.setFont (theme::font (theme::smallPoints));
+                g.drawText ("Recording", take.reduced (6, 2).toNearestInt(), Justification::topLeft, false);
+            }
         g.setColour (theme::lane);
         g.fillRect (lanes.getX(), rr.getBottom() - 1, lanes.getWidth(), 1);
     }
