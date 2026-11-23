@@ -1835,6 +1835,27 @@ void Arrange::clipMenu (Id id)
             c.say (on ? String ("The chords of ") + (chosen.size() > 1 ? "these clips" : "this clip") + " are in the chord lane above the tracks."
                       : String ("Their chords are no longer shown."), false, true);
         });
+        // MIDI clips: their notes up or down, every chosen clip at once (the
+        // guide had it; the UAT found it missing, decision 0133).
+        if (midi)
+        {
+            PopupMenu notesTranspose;
+            for (int s : { 12, 7, 1, -1, -7, -12 })
+                notesTranspose.addItem ((s > 0 ? "Up " : "Down ") + String (std::abs (s)), [this, chosen, s]
+                {
+                    c.apply ("Transpose", [chosen, s] (Project& p)
+                    {
+                        for (auto cid : chosen)
+                            if (auto* x = p.clip (cid); x && x->isMidi())
+                            {
+                                std::set<Id> all;
+                                for (auto& n : x->midi.notes) all.insert (n.id);
+                                edit::transpose (p, cid, all, s);
+                            }
+                    });
+                });
+            m.addSubMenu ("Transpose", notesTranspose);
+        }
     }
     m.addSeparator();
     m.addItem ("Loop Its Content", true, clip->loopLength > 0, [this, id]

@@ -639,8 +639,9 @@ It works in the piano roll, notation and the drum grid.
 Under the piano roll and notation: any of the 128 controllers by their
 standard names (Modulation, Breath, Volume, Expression, Sustain), pitch bend,
 pressure, and each note's MPE bend, pressure and slide. **CC Lanes…** chooses
-them. Draw in a lane with the mouse. Right-click a lane: **Clear Lane**,
-**Remove Lane**, **Show Lanes**.
+them. Draw in a lane with the mouse; right-drag along it to clear what's
+there. Click a lane's name (**CC 1 ▾**) for **Clear Lane**, **Remove
+Lane** and **Show Lanes**.
 
 ![CC lanes drawn by Auto, under a violin line](guide/auto-cc.png)
 
@@ -1086,7 +1087,7 @@ right; **Front to Back** from front to back. Exports have every channel.
 | On the arm button | Records |
 | --- | --- |
 | Click (red) | Audio, from the track's audio input. |
-| Right-click (blue) | MIDI: what the instrument is played, arpeggiators and MIDI effects included. |
+| Right-click (blue) | MIDI: what the instrument is played, arpeggiators and MIDI effects included. The track's own clips, playing as you record, aren't recorded again. |
 | Shift-click (half and half) | Both. |
 | Shift-right-click ("In") | MIDI as it comes in, before any plug-in. |
 
@@ -1098,7 +1099,8 @@ MIDI Input**.
 Press **R** (or ● Record). Recording adds clips; it never removes what's
 there. **Loop** on: one take each time round. **Punch** on: only inside the
 punch range (**Transport > Set the Punch Range to the Loop**). **Count-in**
-plays a bar first. The **Metronome** (**Click**) has an accent and
+plays a bar of clicks first; the take starts where you started recording,
+after them. The **Metronome** (**Click**) has an accent and
 subdivisions (Transport > Metronome Clicks: beats, or beats in 2, 3 or 4).
 
 Everything Kalibre records is 32-bit float WAV.
@@ -1488,6 +1490,10 @@ Exports cover the loop range when the loop is on, otherwise the whole song.
 | **Export Several at Once…** | Tick what you want (The Mix as WAV, The Mix as MP3, Every Track as WAV, The MIDI, The Mix at -14 LUFS, and the two below) and choose a folder. |
 | **Export Final Cut XML…** | The audio clips, for Final Cut, Resolve, Premiere or Logic. |
 
+An export in 16 or 24 bits, or MP3, whose mix goes past full scale is cut
+off there: the message line says so, and by how much. Turn the master down,
+or export at 32-bit float, which keeps it.
+
 Exporting the mix or every track first asks two things, ticked as you left
 them last time:
 
@@ -1615,7 +1621,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | --- | --- | --- |
 | Undo (what) | ⌘Z | Every gesture is one step. |
 | Redo (what) | ⇧⌘Z | |
-| Delete | ⌫ | The chosen notes, clips or range. |
+| Delete | ⌫ | The chosen notes, clips or range; with none of those, the chosen tracks (Undo brings them back). |
 | Duplicate | ⌘D | |
 | Split at the Cursor | ⌘E | |
 | Snap to Zero Crossings | | Edges and cuts land where the waveform crosses zero. |
@@ -1827,7 +1833,7 @@ These aren't in the Keys list: they belong to where you are.
 | The Sounds tab | ↑ / ↓ | The sound above or below, heard |
 | The Sounds tab | ← / → | Shut or open a folder |
 | The Sounds tab | Return | Put the sound on the chosen track at the cursor |
-| Questions Kalibre asks | Return / Esc | The default button / Cancel |
+| Questions Kalibre asks | Return / Esc | The default button / Cancel. A question with a name or number to type has it chosen, ready: just type. |
 | Keys window | Esc / Delete | Leave the key / take it away |
 
 ---
