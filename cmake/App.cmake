@@ -154,6 +154,7 @@ endif()
 add_library(KalibreApp STATIC
     Source/Engine/ClapFormat.cpp
     Source/Engine/PluginManager.cpp
+    Source/Engine/PluginMenu.cpp
     Source/Engine/TrackProcessors.cpp
     Source/Engine/MorphProcessor.cpp
     Source/Engine/ContainerProcessor.cpp

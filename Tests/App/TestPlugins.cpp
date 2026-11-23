@@ -298,6 +298,106 @@ TEST ("plug-ins: the scan opens each one; an instrument that only sends MIDI is 
     CHECK (old.roleOf (arp) == DeviceRole::MidiFx);
 }
 
+#include "Controller.h"
+#include "Engine.h"
+#include "PluginManagerView.h"
+#include "PluginMenu.h"
+
+TEST ("plug-ins: every list to choose from is in three parts, MIDI Effects, Instruments and Audio Effects, each by maker; the Plug-in Manager shows one at a time (0131)")
+{
+    const auto folder = freshFolder ("kinds");
+    fakeFiles() = { "fake:ok:Riffer", "fake:ok:Arp", "fake:ok:Good Synth", "fake:ok:Echo" };
+    PluginManager pm (folder);
+    waitFor (pm, [&] (auto p) { pm.scan (p); });
+    const auto echo = pm.known().getTypeForFile ("fake:ok:Echo");
+    CHECK (echo != nullptr);
+    if (! echo) return;
+    pm.fileAs (*echo, DeviceRole::AudioFx);
+
+    // What a menu holds: each heading, and under it the test maker's plug-ins.
+    auto parts = [] (const PopupMenu& m)
+    {
+        std::vector<std::pair<String, StringArray>> out;
+        for (PopupMenu::MenuItemIterator it (m); it.next();)
+        {
+            const auto& item = it.getItem();
+            if (item.isSectionHeader) { out.push_back ({ item.text, {} }); continue; }
+            if (item.text == "Tests" && item.subMenu != nullptr && ! out.empty())
+                for (PopupMenu::MenuItemIterator sub (*item.subMenu); sub.next();) out.back().second.add (sub.getItem().text.upToFirstOccurrenceOf ("  (", false, false));
+        }
+        return out;
+    };
+    DeviceRole picked = DeviceRole::Instrument;
+    String pickedName;
+    const auto all = pluginmenu::make (pm, { DeviceRole::MidiFx, DeviceRole::Instrument, DeviceRole::AudioFx },
+                                       [&] (const PluginDescription& d, DeviceRole r) { picked = r; pickedName = d.name; });
+    const auto found = parts (all);
+    CHECK_EQ (found.size(), (size_t) 3);
+    if (found.size() == 3)
+    {
+        CHECK_EQ (found[0].first, String ("MIDI Effects"));
+        CHECK (found[0].second.contains ("Arp") && found[0].second.contains ("Riffer"));   // Riffer sends MIDI: here too
+        CHECK_EQ (found[1].first, String ("Instruments"));
+        CHECK (found[1].second.contains ("Good Synth") && found[1].second.contains ("Riffer") && ! found[1].second.contains ("Arp"));
+        CHECK_EQ (found[2].first, String ("Audio Effects"));
+        CHECK (found[2].second.contains ("Echo") && ! found[2].second.contains ("Good Synth"));
+    }
+    // Only the kinds a place takes: the Container's effects.
+    const auto effects = parts (pluginmenu::make (pm, { DeviceRole::AudioFx }, [] (const PluginDescription&, DeviceRole) {}));
+    CHECK_EQ (effects.size(), (size_t) 1);
+    if (! effects.empty()) CHECK_EQ (effects[0].first, String ("Audio Effects"));
+    // Choosing Riffer under MIDI Effects says it was chosen as one.
+    for (PopupMenu::MenuItemIterator it (all); it.next();)
+        if (it.getItem().text == "Tests" && it.getItem().subMenu != nullptr)
+        {
+            for (PopupMenu::MenuItemIterator sub (*it.getItem().subMenu); sub.next();)
+                if (sub.getItem().text.startsWith ("Riffer") && sub.getItem().action) { sub.getItem().action(); break; }
+            break;   // the first Tests is under MIDI Effects
+        }
+    CHECK_EQ (pickedName, String ("Riffer"));
+    CHECK (picked == DeviceRole::MidiFx);
+
+    // The Plug-in Manager: All Kinds, or one at a time.
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        Engine engine (pm);
+        Controller c (engine);
+        PluginManagerView view (c);
+        view.setSize (1100, 500);
+        auto names = [&view]
+        {
+            StringArray n;
+            for (auto& r : view.shownRows()) if (r.format.containsIgnoreCase ("fake")) n.add (r.name);
+            n.sort (true);
+            return n;
+        };
+        CHECK_EQ (names().joinIntoString (","), String ("Arp,Echo,Good Synth,Riffer"));
+        auto click = [&view] (const String& text)
+        {
+            std::function<Button* (Component&)> find = [&] (Component& comp) -> Button*
+            {
+                for (auto* ch : comp.getChildren())
+                {
+                    if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText() == text) return b;
+                    if (auto* b = find (*ch)) return b;
+                }
+                return nullptr;
+            };
+            if (auto* b = find (view)) { b->triggerClick(); MessageManager::getInstance()->runDispatchLoopUntil (20); }
+        };
+        click ("MIDI Effects");
+        CHECK_EQ (names().joinIntoString (","), String ("Arp,Riffer"));
+        click ("Instruments");
+        CHECK_EQ (names().joinIntoString (","), String ("Good Synth,Riffer"));
+        click ("Audio Effects");
+        CHECK_EQ (names().joinIntoString (","), String ("Echo"));
+        click ("All Kinds");
+        CHECK_EQ (names().size(), 4);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
 #include "BuiltinInstruments.h"
 #include "Controller.h"
 #include "DeviceRack.h"

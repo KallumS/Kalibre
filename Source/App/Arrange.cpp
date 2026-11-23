@@ -1,4 +1,5 @@
 #include "Arrange.h"
+#include "PluginMenu.h"
 #include "TransientQuestion.h"
 #include "ToolPicker.h"
 
@@ -1950,22 +1951,20 @@ void Arrange::clipMenu (Id id)
         m.addItem ("Fade In and Out (10 ms)", [this, id] { c.apply ("Fades", [id] (Project& p) { if (auto* cl = p.clip (id)) { cl->audio.fadeIn = 0.01; cl->audio.fadeOut = 0.01; } }); });
 
         // Offline effects (decision 0026).
-        for (auto& d : c.engine.plugins().known().getTypes())
-            if (! d.isInstrument)
-                offline.addItem (d.name + " (" + d.pluginFormatName + ")", [this, id, d]
+        // Audio effects only, under their heading, by maker (0131).
+        offline = pluginmenu::make (c.engine.plugins(), { DeviceRole::AudioFx }, [this, id] (const PluginDescription& d, DeviceRole)
+        {
+            c.apply ("Offline Effect", [id, d] (Project& p)
+            {
+                if (auto* cl = p.clip (id))
                 {
-                    c.apply ("Offline Effect", [id, d] (Project& p)
-                    {
-                        if (auto* cl = p.clip (id))
-                        {
-                            Device dev;
-                            dev.id = p.newId();
-                            dev.plugin = PluginManager::refFor (d);
-                            cl->offlineFx.chain.push_back (dev);
-                        }
-                    });
-                });
-        if (offline.getNumItems() == 0) offline.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
+                    Device dev;
+                    dev.id = p.newId();
+                    dev.plugin = PluginManager::refFor (d);
+                    cl->offlineFx.chain.push_back (dev);
+                }
+            });
+        });
         PopupMenu fxMenu;
         fxMenu.addSubMenu ("Add", offline);
         for (size_t i = 0; i < clip->offlineFx.chain.size(); ++i)
