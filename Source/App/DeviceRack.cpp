@@ -702,8 +702,8 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     MorphProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
         // A corner plays an instrument or an effect: both, each under its heading (0131).
-        pluginmenu::make (c.engine.plugins(), { DeviceRole::Instrument, DeviceRole::AudioFx },
-                          [chosen] (const PluginDescription& d, DeviceRole) { chosen (PluginManager::refFor (d)); })
+        pluginmenu::forSlot (c.engine.plugins(), { DeviceRole::Instrument, DeviceRole::AudioFx },
+                             [chosen] (const PluginRef& r, DeviceRole) { chosen (r); })
             .showMenuAsync (PopupMenu::Options());
     };
     // The Multiband's bands and Stereo Split's parts take audio effects too (0126, 0127): the same menu.
@@ -714,8 +714,8 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     // The Container takes audio effects (decision 0055).
     ContainerProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
-        pluginmenu::make (c.engine.plugins(), { DeviceRole::AudioFx },
-                          [chosen] (const PluginDescription& d, DeviceRole) { chosen (PluginManager::refFor (d)); })
+        pluginmenu::forSlot (c.engine.plugins(), { DeviceRole::AudioFx },
+                             [chosen] (const PluginRef& r, DeviceRole) { chosen (r); })
             .showMenuAsync (PopupMenu::Options());
     };
     NoteSplitterProcessor::makeEditor = [this] (NoteSplitterProcessor& p) -> AudioProcessorEditor* { return new NoteSplitterEditor (p, c); };
@@ -800,29 +800,9 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     for (auto& [maker, menu] : byMaker[2]) effects.addSubMenu (maker, menu);
     // Kalibre's own, in the same three parts (0131).
     PopupMenu ownMidi, ownInstruments, ownEffects;
-    auto own = [&c, track] (PopupMenu& in, const String& name, PluginRef ref, DeviceRole role)
-    {
-        in.addItem (name, [&c, track, ref, role] { c.addBuiltIn (track, ref, role); });
-    };
-    own (ownInstruments, "Kalibre Synth", synthRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Kalibre Sampler", samplerRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Kalibre Drums (a Kit of Samples and Plug-ins, with Steps)", drumsRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Drum Pads (128 Pads of Samples and Plug-ins)", drumPadsRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Trombolese (a Trombone Crossed with an Oboe)", tromboleseRef(), DeviceRole::Instrument);
-    own (ownInstruments, "X/Y Morph (Samples or Instruments)", morphRef(), DeviceRole::Instrument);
-    own (ownInstruments, "Instant Virtual Instrument", instantVirtualInstrumentRef(), DeviceRole::Instrument);
-    own (ownEffects, "Hardware Insert (Outboard Gear)", hardwareInsertRef(), DeviceRole::AudioFx);
-    own (ownEffects, "X/Y Morph (Effects)", morphRef(), DeviceRole::AudioFx);
-    own (ownEffects, "Container (Plug-ins on a Band, the Mid or the Sides)", containerRef(), DeviceRole::AudioFx);
-    own (ownEffects, "Multiband (2 to 4 Bands, Plug-ins on Each)", multibandRef(), DeviceRole::AudioFx);
-    own (ownEffects, "Stereo Split (Left, Middle, Right or Middle and Sides, Plug-ins on Each)", stereoSplitRef(), DeviceRole::AudioFx);
-    own (ownMidi, "Note Splitter (a Chord's Notes to Several Tracks)", noteSplitterRef(), DeviceRole::MidiFx);
-    // ScaleView reads what's played: before the instrument, where the notes are (decision 0093).
-    own (ownMidi, "ScaleView", scaleViewRef(), DeviceRole::MidiFx);
-    // The family's JSFX (decision 0066) and ReaImGui tools (0068), built in, each in its part.
-    for (auto& s : jsfxDevices())
-        own (s.role == DeviceRole::MidiFx ? ownMidi : s.role == DeviceRole::Instrument ? ownInstruments : ownEffects, s.name, jsfxRef (s), s.role);
-    for (auto& s : luaTools()) own (ownMidi, s.name, luaToolRef (s), DeviceRole::MidiFx);
+    for (auto& d : pluginmenu::ownDevices())
+        (d.role == DeviceRole::MidiFx ? ownMidi : d.role == DeviceRole::Instrument ? ownInstruments : ownEffects)
+            .addItem (d.name, [&c, track, ref = d.ref, role = d.role] { c.addBuiltIn (track, ref, role); });
     for (auto [part, items] : { std::pair { DeviceRole::MidiFx, &ownMidi }, { DeviceRole::Instrument, &ownInstruments }, { DeviceRole::AudioFx, &ownEffects } })
     {
         kalibre.addSectionHeader (pluginmenu::heading (part));

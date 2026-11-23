@@ -1972,15 +1972,15 @@ void Arrange::clipMenu (Id id)
 
         // Offline effects (decision 0026).
         // Audio effects only, under their heading, by maker (0131).
-        offline = pluginmenu::make (c.engine.plugins(), { DeviceRole::AudioFx }, [this, id] (const PluginDescription& d, DeviceRole)
+        offline = pluginmenu::forSlot (c.engine.plugins(), { DeviceRole::AudioFx }, [this, id] (const PluginRef& ref, DeviceRole)
         {
-            c.apply ("Offline Effect", [id, d] (Project& p)
+            c.apply ("Offline Effect", [id, ref] (Project& p)
             {
                 if (auto* cl = p.clip (id))
                 {
                     Device dev;
                     dev.id = p.newId();
-                    dev.plugin = PluginManager::refFor (d);
+                    dev.plugin = ref;
                     cl->offlineFx.chain.push_back (dev);
                 }
             });

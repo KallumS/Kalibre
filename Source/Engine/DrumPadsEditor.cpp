@@ -253,8 +253,8 @@ public:
     PopupMenu pluginMenu (int pad)
     {
         // Instruments, under their heading, by maker (0131).
-        return pluginmenu::make (proc.pluginManager(), { DeviceRole::Instrument },
-                                 [this, pad] (const PluginDescription& d, DeviceRole) { setPlugin (pad, PluginManager::refFor (d)); });
+        return pluginmenu::forSlot (proc.pluginManager(), { DeviceRole::Instrument },
+                                    [this, pad] (const PluginRef& r, DeviceRole) { setPlugin (pad, r); });
     }
 
     PopupMenu chokeMenu (int pad)

@@ -239,8 +239,8 @@ public:
                                   [sp = SafePointer<PadRow> (this)] (const FileChooser& fc) { if (sp && fc.getResult().existsAsFile()) sp->setSample (fc.getResult().getFullPathName()); });
         });
         // Instruments, under their heading, by maker (0131).
-        m.addSubMenu ("Play It with a Plug-in", pluginmenu::make (proc.pluginManager(), { DeviceRole::Instrument },
-                                                                  [this] (const PluginDescription& d, DeviceRole) { setPlugin (PluginManager::refFor (d)); }));
+        m.addSubMenu ("Play It with a Plug-in", pluginmenu::forSlot (proc.pluginManager(), { DeviceRole::Instrument },
+                                                                     [this] (const PluginRef& r, DeviceRole) { setPlugin (r); }));
         if (pad.hasPlugin())
         {
             m.addItem ("Show Its Plug-in", [this] { show (i); });

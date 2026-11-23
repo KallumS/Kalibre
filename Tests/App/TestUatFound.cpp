@@ -10,6 +10,7 @@
 #include "AgentTools.h"
 #include "Keys.h"
 #include "MainComponent.h"
+#include "PluginMenu.h"
 
 using namespace kal;
 using namespace juce;
@@ -171,4 +172,41 @@ TEST ("export: a mix over full scale written in whole numbers (24-bit) says it c
     o.bitDepth = 32;
     CHECK (c.exportAudio (folder.getChildFile ("loud32.wav"), o, false));
     CHECK (! c.message.contains ("clip"));
+}
+
+TEST ("plug-in slots: with nothing scanned, a slot's menu offers Kalibre's own devices of its kind, never one that holds plug-ins itself (the musician's answer to the UAT)")
+{
+    PluginManager plugins;
+    auto names = [] (const PopupMenu& m)
+    {
+        StringArray out;
+        std::function<void (const PopupMenu&)> walk = [&] (const PopupMenu& x)
+        {
+            for (PopupMenu::MenuItemIterator it (x); it.next();)
+            {
+                if (it.getItem().subMenu) walk (*it.getItem().subMenu);
+                else if (! it.getItem().isSectionHeader && ! it.getItem().isSeparator) out.add (it.getItem().text);
+            }
+        };
+        walk (m);
+        return out;
+    };
+    const auto instruments = names (pluginmenu::forSlot (plugins, { DeviceRole::Instrument }, [] (const PluginRef&, DeviceRole) {}));
+    CHECK (instruments.contains ("Kalibre Synth"));
+    CHECK (instruments.contains ("Kalibre Sampler"));
+    CHECK (instruments.contains ("Trombolese"));
+    CHECK (! instruments.joinIntoString ("|").contains ("Drum Pads"));
+    CHECK (! instruments.joinIntoString ("|").contains ("X/Y Morph"));
+    CHECK (! instruments.joinIntoString ("|").contains ("Scan for plug-ins first"));
+    const auto effects = names (pluginmenu::forSlot (plugins, { DeviceRole::AudioFx }, [] (const PluginRef&, DeviceRole) {}));
+    CHECK (effects.contains ("Reverberator"));
+    CHECK (! effects.joinIntoString ("|").contains ("Container"));
+    CHECK (! effects.joinIntoString ("|").contains ("Multiband"));
+    CHECK (! effects.contains ("Kalibre Synth"));
+    // And one chosen plays in a slot: Reverberator in a Container.
+    PluginRef chosen;
+    for (const auto& d : pluginmenu::ownDevices())
+        if (d.name == "Reverberator") chosen = d.ref;
+    String error;
+    CHECK (plugins.create (chosen, 48000, 512, error) != nullptr);
 }
