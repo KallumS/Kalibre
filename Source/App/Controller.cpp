@@ -1489,6 +1489,11 @@ bool Controller::exportAudio (const File& f, const Engine::RenderOptions& given,
         say ("Exported " + f.getFileName() + " at " + String (engine.lastExportLoudness, 1) + " LUFS"
              + (engine.lastExportLoudness > options.loudnessTarget + 0.2 || engine.lastExportLoudness < options.loudnessTarget - 0.2
                     ? " (held back so its peaks stay under " + ui::number (options.truePeakCeiling, 0) + " dBTP)." : "."));
+    else if (ok && ! stems && engine.lastExportWhole && engine.lastExportPeak > 1.0f)
+        // Whole numbers stop at full scale: what went past it was cut off (the UAT, decision 0133).
+        say ("Exported " + f.getFileName() + ", but it clips: its loudest moment is "
+             + ui::number (Decibels::gainToDecibels (engine.lastExportPeak), 1)
+             + " dB over full scale. Turn the master down, or export at 32-bit float.", true);
     else if (ok) say (stems ? "Exported every track to " + f.getParentDirectory().getFileName() + "." : "Exported " + f.getFileName() + ".");
     else say ("The export didn't finish. " + error, true);
     return ok;

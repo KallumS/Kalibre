@@ -139,6 +139,29 @@ template <typename F> void whilePumping (F f)
 }
 } // namespace
 
+TEST ("agents: a request Kalibre can't get to in time is answered so, and doesn't hold up the next (UAT 23 November)")
+{
+    // The UAT: one request waited for a message thread busy painting, and
+    // every later one waited behind it, for ever.
+    Studio s;
+    McpServer server (s.c);
+    server.answerWithinSeconds = 0.5;
+    const int port = 47392;
+    server.configure (true, port);
+    std::string reply, error;
+    // The message thread is this one, and it isn't dispatching: nothing runs.
+    CHECK (postToKalibre (port, R"({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_song","arguments":{}}})", reply, error));
+    const auto busy = json::parse (reply, nullptr, false);
+    CHECK (! busy.is_discarded() && busy.contains ("error"));
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    bool ok = false;
+    whilePumping ([&] { ok = postToKalibre (port, R"({"jsonrpc":"2.0","id":2,"method":"ping"})", reply, error); });
+    CHECK (ok);
+    const auto next = json::parse (reply, nullptr, false);
+    CHECK (! next.is_discarded() && next["id"] == 2 && ! next.contains ("error"));
+    server.configure (false, port);
+}
+
 TEST ("agents: Kalibre listens on this Mac only when switched on; a web page is refused; the bridge passes messages through (0099)")
 {
     Studio s;

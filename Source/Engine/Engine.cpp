@@ -1422,6 +1422,8 @@ bool Engine::render (const Project& project, const File& folder, const File& out
                 for (int i = 0; i < frames; ++i)
                     result.addSample (ch, i, (r.nextFloat() - r.nextFloat()) * lsb);
         }
+        lastExportPeak = result.getMagnitude (0, frames);
+        lastExportWhole = mp3 || ! writer->isFloatingPoint();
         if (mp3)
         {
             if (! writeMp3 (out, result, renderRate, o.metadata, o.mp3Kbps, error)) cancelled = true;

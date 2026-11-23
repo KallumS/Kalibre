@@ -202,6 +202,8 @@ public:
     AudioCache cache;
     SyncDevices syncDevices;   // MIDI clock, timecode, Link (decision 0034)
     double lastExportLoudness = loudness::silence;   // what the last export measured, after its gain
+    float lastExportPeak = 0;                        // its loudest sample, as written (1 is full scale, 0133)
+    bool lastExportWhole = false;                    // written in whole numbers (16 or 24 bits, MP3): over 1 clips
 
     // AudioIODeviceCallback (the audio thread)
     void audioDeviceIOCallbackWithContext (const float* const*, int, float* const*, int, int,

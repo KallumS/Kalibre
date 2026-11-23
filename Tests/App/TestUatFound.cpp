@@ -124,3 +124,51 @@ TEST ("top bar: with tempo changes its label 'Tempo (changes)' fits its box, not
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("export: a mix over full scale written in whole numbers (24-bit) says it clipped, and by how much; at 32-bit float it doesn't (UAT)")
+{
+    // The UAT: the mix peaked at +12 dBTP; the 24-bit WAV came out clipped,
+    // and "Exported Full UAT.wav." said nothing of it.
+    const auto folder = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-uat-clip");
+    folder.createDirectory();
+    const auto click = folder.getChildFile ("click.wav");
+    click.deleteFile();
+    {
+        AudioBuffer<float> b (2, 48000);
+        b.clear();
+        b.setSample (0, 24000, 1.0f);
+        b.setSample (1, 24000, 1.0f);
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (click.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (2).withBitsPerSample (32));
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    }
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    for (const char* name : { "One", "Two" })
+    {
+        const Id t = edit::addTrack (c.project, TrackKind::Track, name);
+        Clip clip;
+        clip.kind = Clip::Kind::Audio;
+        clip.start = 0;
+        clip.length = PPQ * 2;
+        clip.audio.file = click.getFullPathName().toStdString();
+        clip.audio.sourceLength = 1.0;
+        edit::addClip (c.project, t, clip);
+        c.project.track (t)->pan = 0;
+    }
+    c.refresh();
+    Engine::RenderOptions o;
+    o.start = 0;
+    o.end = 1.0;
+    o.tail = 0;
+    o.dither = false;
+    o.bitDepth = 24;
+    CHECK (c.exportAudio (folder.getChildFile ("loud.wav"), o, false));
+    CHECK (c.message.contains ("clip"));
+    o.bitDepth = 32;
+    CHECK (c.exportAudio (folder.getChildFile ("loud32.wav"), o, false));
+    CHECK (! c.message.contains ("clip"));
+}

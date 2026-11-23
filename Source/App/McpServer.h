@@ -45,6 +45,9 @@ public:
     static juce::String claudeCodeSetup();
 
     mcp::Server& protocol() { return *server; }
+    // How long a request waits for the message thread: then the agent is told
+    // Kalibre is busy, and the next request isn't held up (decision 0133).
+    double answerWithinSeconds = 300.0;
 
 private:
     Controller& c;
