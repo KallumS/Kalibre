@@ -1355,7 +1355,12 @@ bool Controller::importFile (const File& original, Id trackId, Tick at, std::fun
                 if (c.midi.notes.empty()) continue;
                 Tick end = 0;
                 for (auto& n : c.midi.notes) end = std::max (end, n.end());
-                c.length = p.tempo.barStart (p.tempo.barAt (at + end - 1) + 1) - at;
+                // Whole bars counted from where it goes, not to the next bar line,
+                // so a file put on beat 3 keeps its length and its copies land on
+                // the beat (the UAT).
+                const int bar = p.tempo.barAt (at);
+                const Tick barTicks = std::max<Tick> (1, p.tempo.barStart (bar + 1) - p.tempo.barStart (bar));
+                c.length = (end + barTicks - 1) / barTicks * barTicks;
                 edit::sortNotes (c.midi);
                 if (! p.track (target) || ! p.track (target)->holdsClips())
                     target = edit::addTrack (p, TrackKind::Track, f.getFileNameWithoutExtension().toStdString());

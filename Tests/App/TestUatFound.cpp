@@ -639,3 +639,36 @@ TEST ("steps: a double-click to tie a step is one undo step, the step left on (U
     c.undo();
     CHECK_EQ (notesOn(), 1);   // back to the step on, not tied
 }
+
+TEST ("MIDI files: a four-bar file put at beat 3 is a four-bar clip, not stretched to the next bar line (UAT)")
+{
+    TemporaryFile tmp (".mid");
+    {
+        MidiMessageSequence seq;
+        for (int q = 0; q < 16; ++q)
+        {
+            seq.addEvent (MidiMessage::noteOn (1, 60, (uint8) 100), q * 480.0);
+            seq.addEvent (MidiMessage::noteOff (1, 60), q * 480.0 + 470.0);
+        }
+        seq.updateMatchedPairs();
+        MidiFile mf;
+        mf.setTicksPerQuarterNote (480);
+        mf.addTrack (seq);
+        FileOutputStream out (tmp.getFile());
+        mf.writeTo (out);
+    }
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Keys");
+    c.refresh();
+    CHECK (c.importFile (tmp.getFile(), t, PPQ * 2, {}, {}));
+    const auto& clips = c.project.track (t)->clips();
+    CHECK_EQ (clips.size(), size_t (1));
+    if (! clips.empty())
+    {
+        CHECK_EQ (clips.front().start, PPQ * 2);
+        CHECK_EQ (clips.front().length, PPQ * 16);
+    }
+}
