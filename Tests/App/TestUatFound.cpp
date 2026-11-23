@@ -21,6 +21,7 @@
 #include "MorphProcessor.h"
 #include "PianoRoll.h"
 #include "NotationView.h"
+#include "Arrange.h"
 
 using namespace kal;
 using namespace juce;
@@ -686,4 +687,40 @@ TEST ("articulation lane: its names read at 7:1 on every articulation's colour, 
         }
     }
     theme::usePalette (0);
+}
+
+TEST ("frozen tracks: the header says Frozen, and stops saying it when unfrozen (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Pad");
+        c.project.track (t)->frozen = true;
+        c.refresh();
+        Arrange arrange (c);
+        arrange.setSize (1200, 500);
+        arrange.resized();
+        TrackHeader* header = nullptr;
+        std::function<void (Component&)> find = [&] (Component& comp)
+        {
+            for (auto* ch : comp.getChildren())
+            {
+                if (auto* h = dynamic_cast<TrackHeader*> (ch); h && h->id == t) header = h;
+                else find (*ch);
+            }
+        };
+        find (arrange);
+        CHECK (header != nullptr);
+        if (header)
+        {
+            CHECK_EQ (header->footnote(), String ("Frozen"));
+            c.project.track (t)->frozen = false;
+            CHECK (header->footnote().isEmpty());
+        }
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

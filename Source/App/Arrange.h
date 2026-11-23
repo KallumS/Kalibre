@@ -42,6 +42,9 @@ public:
     void update (const Track&);
     void refreshButtons();
     void showMenu();
+    // The small words under the name: "3 inside" for a folder, "Frozen" for a
+    // frozen track (the UAT: a frozen track looked as it did before).
+    juce::String footnote() const;
 
     Id id;
 

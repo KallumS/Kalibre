@@ -105,11 +105,11 @@ void TrackHeader::paint (Graphics& g)
         g.setColour (theme::accent);
         g.fillRect (getWidth() - 3, 0, 3, getHeight());
     }
-    if (t->isFolder())
+    if (const auto words = footnote(); words.isNotEmpty())
     {
         g.setColour (theme::textSecondary);
         g.setFont (theme::font (theme::smallPoints));
-        g.drawText (String ((int) c.project.childrenOf (id).size()) + " inside", getLocalBounds().reduced (6, 2).withTrimmedLeft (depth * theme::px (10) + theme::px (30)),
+        g.drawText (words, getLocalBounds().reduced (6, 2).withTrimmedLeft (depth * theme::px (10) + theme::px (t->isFolder() ? 30 : 10)),
                     Justification::bottomLeft, false);
     }
     if (t->delayMs != 0)
@@ -120,6 +120,15 @@ void TrackHeader::paint (Graphics& g)
     }
     g.setColour (theme::rule);
     g.fillRect (0, getHeight() - 1, getWidth(), 1);
+}
+
+String TrackHeader::footnote() const
+{
+    const auto* t = c.project.track (id);
+    if (! t) return {};
+    if (t->isFolder()) return String ((int) c.project.childrenOf (id).size()) + " inside";
+    if (t->frozen) return "Frozen";
+    return {};
 }
 
 void TrackHeader::resized()
