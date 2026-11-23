@@ -100,7 +100,7 @@
 | `App/CrashReports.*` | The crash handler and its reports (0073); on Windows `CrashReportsWin.cpp` (0129). |
 | `App/BattlePass.*` | DAW Battle Pass (0111): its script, unchanged in `Engines/tools/daw-battle-pass/`, run as a Lua tool that's never a device, with `reaper` answered from the song; unseen until the timer is clicked seven times (`SecretClicks`). |
 | `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045), in the Keys window. |
-| `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md). |
+| `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md); the themes, each a palette that sets every colour (0132). |
 | `Tests/` | Core tests (no JUCE); `Tests/App/` engine and window tests. |
 | `tools/RenderWindow.cpp` | Draws the window into PNGs on CI (0023). |
 | `tools/export-chat.py` | Writes a session's transcript as the chat backup in `docs/sessions/`; a new part's title and description are its last two arguments. |
@@ -170,7 +170,7 @@ performance core, each as soon as what feeds it is done (0078).
 - A window that closes is emptied and hidden, and handed to `editors::retire`, never deleted at once: macOS sends a scroll's glide to a freed window (0115).
 - A plug-in's window is opened and closed with `editors::open` and `editors::close`, never `delete`: JUCE 9 needs the plug-in told first, or it won't open another (0056).
 - Graph channels are set before connecting to them: a connection to a channel that doesn't exist yet is silently refused (that cost a render).
-- Every colour comes from `Theme.h`; every word is 7:1.
+- Every colour comes from `Theme.h`; every word is 7:1, in every theme (0132). Read a theme colour when drawing, never keep a copy: a `setColour` on a component is set again in `lookAndFeelChanged`. Words on a track's colour go on `theme::underWords`.
 - The graph's ends take their channel count when it's prepared: prepare it before wiring a different number of outputs (a surround render was silent until it did).
 - The wiring's key holds each device node's own number, so a device replaced under the same id is rewired.
 - `main` is Kalibre's own (Main.cpp): with `--kalibre-scan` it's the scanner's helper and never starts the app. Test programs that scan do the same.

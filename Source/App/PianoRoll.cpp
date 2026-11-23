@@ -191,7 +191,7 @@ void PianoRoll::paint (Graphics& g)
     else
     {
         // Outside the clip, faint.
-        g.setColour (theme::ink.withAlpha (0.45f));
+        g.setColour (theme::veil());
         g.fillRect (Rectangle<float> ((float) area.getX(), (float) area.getY(), jmax (0.0f, xOf (clip->offset) - (float) area.getX()), (float) area.getHeight()));
         g.fillRect (Rectangle<float> (xOf (clip->offset + clip->length), (float) area.getY(), (float) area.getRight(), (float) area.getHeight()));
 
@@ -214,7 +214,7 @@ void PianoRoll::paint (Graphics& g)
             const float shade = 0.55f + 0.45f * (float) shown.velocity / 127.0f;
             // A muted note (decision 0092) is hollow: its outline only.
             const bool hollow = shown.muted && ! chosen && ! doomed;
-            g.setColour (hollow ? theme::roll : doomed ? theme::warn.withAlpha (0.5f) : chosen ? theme::accent : trackCol.withMultipliedBrightness (shade));
+            g.setColour (hollow ? theme::roll : doomed ? theme::warn.withAlpha (0.5f) : chosen ? theme::accent : theme::underWords (trackCol, shade, theme::ink));
             g.fillRoundedRectangle (r, 2.0f);
             g.setColour (hollow ? trackCol : theme::ink);
             g.drawRoundedRectangle (r, 2.0f, hollow ? 1.5f : 1.0f);

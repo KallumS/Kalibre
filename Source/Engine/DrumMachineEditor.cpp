@@ -119,7 +119,7 @@ public:
         {
             auto cell = Rectangle<float> ((float) steps.getX() + (float) s * colW, (float) steps.getY(), colW, (float) steps.getHeight()).reduced (1.5f);
             const int v = g8.lanes[(size_t) i].velocity[(size_t) s];
-            g.setColour (v > 0 ? theme::accent.withMultipliedBrightness (0.55f + 0.45f * (float) v / 127.0f)
+            g.setColour (v > 0 ? theme::fade (theme::accent, 0.55f + 0.45f * (float) v / 127.0f)
                                : (s % perBeat == 0 ? theme::rule : theme::raised));
             g.fillRoundedRectangle (cell, 3.0f);
             if (s == lit) { g.setColour (theme::playhead.withAlpha (0.5f)); g.drawRoundedRectangle (cell, 3.0f, 1.5f); }

@@ -133,3 +133,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0129. Kalibre on Windows: Microsoft's compiler, Windows' words and keys](0129-kalibre-on-windows.md)
 - [0130. Split at Transients asks how sensitive](0130-split-at-transients-sensitivity.md)
 - [0131. Every list of plug-ins in three parts](0131-plug-in-lists-in-three-parts.md)
+- [0132. Themes](0132-themes.md)

@@ -46,7 +46,7 @@ xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreRender
   The graph's nodes play on several threads at once (0078): nothing a
   processor touches may be shared with another node, unless it `runsAlone`.
 - **A gesture is one undo step**: views show a drag and call `Controller::apply` once.
-- **Every colour from `Theme.h`**, every word 7:1, greys R < G < B, the accent only for "on", red never for words.
+- **Every colour from `Theme.h`**, read when drawing (themes change it, 0132), every word 7:1 in every theme, greys R < G < B in the first, the accent only for "on", red never for words.
 - **Nothing important at the bottom of the window** but the transport, which the musician asked for there (0095); messages in the message line, at the top, which stays until dismissed.
 - **No extra windows for the music** (0002): ask with `ui::present`, show in the lower zone or the browser. Settings and preferences may have a window of their own (0002 amended, e.g. the Plug-in Manager, 0047).
 - **The piano roll's mouse rules are the user's** (0009): don't change them without asking.

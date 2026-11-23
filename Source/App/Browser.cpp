@@ -237,11 +237,6 @@ Browser::Browser (Controller& ctrl) : c (ctrl)
     presetBox.setTitle ("Presets");
     addChildComponent (presetBox);
     c.addChangeListener (this);
-    for (auto* box : { &pluginBox, &presetBox })
-    {
-        box->setColour (ListBox::backgroundColourId, theme::sunken);
-        box->setColour (ListBox::outlineColourId, theme::rule);
-    }
 
     c.engine.plugins().known().addChangeListener (this);
     showTab (Tab::Plugins);

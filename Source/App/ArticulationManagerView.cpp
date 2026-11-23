@@ -17,23 +17,17 @@ ArticulationManagerView::ArticulationManagerView (Controller& ctrl) : c (ctrl)
     for (auto* l : { &maps, &arts })
     {
         l->setRowHeight (theme::px (24));
-        l->setColour (ListBox::backgroundColourId, theme::sunken);
-        l->setColour (ListBox::outlineColourId, theme::rule);
         addAndMakeVisible (l);
     }
     for (auto* b : { &importButton, &useButton, &removeButton }) addAndMakeVisible (b);
     arts.setMultipleSelectionEnabled (true);
     delayLabel.setFont (theme::font (theme::smallPoints));
-    delayLabel.setColour (Label::textColourId, theme::text);
     delayLabel.setJustificationType (Justification::centredRight);
     addAndMakeVisible (delayLabel);
     delayField.setInputRestrictions (6, "-0123456789.");
     delayField.setTooltip ("The chosen articulations' delay in milliseconds: how much later they play (negative: earlier), "
                            "for a library whose notes speak late. Kept in the library and in this song. Press " + String (ui::words().returnKey) + " to set it.");
     delayField.setTitle ("Delay of the chosen articulations, in milliseconds");
-    delayField.setColour (TextEditor::backgroundColourId, theme::sunken);
-    delayField.setColour (TextEditor::textColourId, theme::text);
-    delayField.setColour (TextEditor::outlineColourId, theme::rule);
     delayField.setJustification (Justification::centredRight);
     delayField.onReturnKey = [this] { applyDelay(); };
     delayField.onFocusLost = [this] { applyDelay(); };

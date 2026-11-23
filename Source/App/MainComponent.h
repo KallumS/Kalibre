@@ -86,6 +86,7 @@ public:
     void exportBatch();
     void songDetails();
     void setTextSize (float);
+    void setTheme (int index);   // View > Themes (decision 0132)
     void showBrowser (Browser::Tab);
     StudioWindow& showStudio();   // File > Studio...: sync, control surfaces, OSC, AI agents
     void showAgents();            // the Studio window at AI Agents (0099)

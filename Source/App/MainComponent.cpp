@@ -57,6 +57,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
         c.followPages = s->getBoolValue ("followPages", false);
         c.engine.setParallel (s->getBoolValue ("everyCore", true));   // decision 0078
         setTextSize ((float) s->getDoubleValue ("textSize", 1.0));
+        theme::usePalette (s->getIntValue ("theme", 0));   // View > Themes (0132)
     }
     browser.setVisible (browserShown);
     lower.setVisible (lowerShown);
@@ -99,6 +100,7 @@ MainComponent::~MainComponent()
         s->setValue ("followPages", c.followPages);
         s->setValue ("everyCore", c.engine.isParallel());
         s->setValue ("textSize", (double) theme::scale());
+        s->setValue ("theme", theme::currentPalette());
         settingsStore().saveIfNeeded();
         settingsStore().closeFiles();
     }
@@ -183,6 +185,14 @@ void MainComponent::showArticulationManager()
     if (auto* view = dynamic_cast<ArticulationManagerView*> (articulationWindow->getContentComponent())) view->refresh();
     articulationWindow->setVisible (true);
     articulationWindow->toFront (true);
+}
+
+void MainComponent::setTheme (int index)
+{
+    theme::usePalette (index);
+    resized();
+    repaint();
+    c.say ("Theme: " + String (theme::palettes()[(size_t) theme::currentPalette()].name) + ".", false, true);
 }
 
 void MainComponent::setTextSize (float s)

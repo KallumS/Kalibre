@@ -146,6 +146,35 @@ int main (int argc, char** argv)
         c.selectClip (keysClip);
         c.editor = EditorKind::PianoRoll;
         c.viewChanged();
+        // Every theme (decision 0132): the piano roll and the arrangement in each, and all of
+        // them on one sheet, two across, each named, for the user guide.
+        {
+            const int n = (int) theme::palettes().size(), cellW = 720, cellH = 450 + 28;
+            Image sheet (Image::RGB, cellW * 2, cellH * ((n + 1) / 2), true);
+            Graphics sg (sheet);
+            sg.fillAll (Colour (0xff111419));
+            for (int i = 0; i < n; ++i)
+            {
+                window.setTheme (i);
+                MessageManager::getInstance()->runDispatchLoopUntil (50);
+                const String name (theme::palettes()[(size_t) i].name);
+                shoot ("theme-" + String (i) + "-" + name.toLowerCase().replace (" ", "-"));
+                window.resized();
+                const auto image = window.createComponentSnapshot (window.getLocalBounds(), true, 1.0f);
+                const int x = (i % 2) * cellW, y = (i / 2) * cellH;
+                sg.setColour (Colour (0xffDDE1E7));
+                sg.setFont (theme::font (15.0f));
+                sg.drawText (name, x + 10, y, cellW - 20, 28, Justification::centredLeft, false);
+                sg.drawImage (image, x, y + 28, cellW, cellH - 28, 0, 0, image.getWidth(), image.getHeight());
+            }
+            PNGImageFormat png;
+            const auto f = out.getChildFile ("themes.png");
+            f.deleteFile();
+            FileOutputStream st (f);
+            png.writeImageToStream (sheet, st);
+            std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+        }
+        window.setTheme (0);
         shoot ("2-piano-roll");
         c.selectClip (c.project.tracks[4].clips().front().id);
         for (auto kind : { EditorKind::Drums, EditorKind::Steps, EditorKind::Euclid })

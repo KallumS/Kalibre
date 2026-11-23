@@ -23,7 +23,6 @@ TrackHeader::TrackHeader (Arrange& a, Controller& ctrl, Id track) : id (track), 
     addAndMakeVisible (name);
     name.setEditable (false, true);
     name.setFont (theme::font());
-    name.setColour (Label::textColourId, theme::text);
     name.setInterceptsMouseClicks (false, false);
     name.onTextChange = [this]
     {
@@ -693,7 +692,7 @@ void Arrange::drawSectionLane (Graphics& g, Rectangle<int> r)
         const auto& sec = c.project.sections[i];
         const auto box = Rectangle<float> (xOf (sec.start) + 1, (float) r.getY() + 2, xOf (sec.end) - xOf (sec.start) - 2, (float) r.getHeight() - 4);
         const auto col = sec.colour ? Colour (sec.colour) : theme::trackColours()[(int) (i % (size_t) theme::trackColours().size())];
-        g.setColour (col.withMultipliedBrightness (0.5f));
+        g.setColour (theme::underWords (col));
         g.fillRoundedRectangle (box, 3.0f);
         g.setColour (col);
         g.fillRect (box.withWidth (3.0f));
@@ -844,7 +843,7 @@ void Arrange::drawTempoLane (Graphics& g, Rectangle<int> r)
 void Arrange::drawClip (Graphics& g, const Track& t, const Clip& clip, Rectangle<float> r, bool chosen)
 {
     const auto col = clip.colour ? Colour (clip.colour) : trackColour (t);
-    g.setColour (col.withMultipliedBrightness (clip.muted ? 0.35f : 0.55f).withAlpha (0.9f));
+    g.setColour (theme::underWords (col, clip.muted ? 0.35f : 0.55f).withAlpha (0.9f));
     g.fillRoundedRectangle (r, 4.0f);
     g.setColour (chosen ? theme::accent : col.withMultipliedBrightness (0.9f));
     g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, chosen ? 2.0f : 1.0f);
@@ -1017,7 +1016,7 @@ void Arrange::drawTake (Graphics& g, const Track& t, int index, Rectangle<int> r
     for (auto& clip : take.clips)
     {
         Rectangle<float> box (xOf (clip.start), (float) r.getY() + 3, jmax (3.0f, xOf (clip.end()) - xOf (clip.start)), (float) r.getHeight() - 6);
-        g.setColour (Colour (t.colour).withMultipliedBrightness (0.3f));
+        g.setColour (theme::underWords (Colour (t.colour), 0.3f));
         g.fillRoundedRectangle (box, 3.0f);
     }
     // Where the comp uses this take: brighter, with the accent along its top (it's "on" there).
@@ -1029,7 +1028,7 @@ void Arrange::drawTake (Graphics& g, const Track& t, int index, Rectangle<int> r
             const Tick a = std::max (seg.start, clip.start), b = std::min (seg.end, clip.end());
             if (b <= a) continue;
             Rectangle<float> box (xOf (a), (float) r.getY() + 3, jmax (2.0f, xOf (b) - xOf (a)), (float) r.getHeight() - 6);
-            g.setColour (Colour (t.colour).withMultipliedBrightness (0.6f));
+            g.setColour (theme::underWords (Colour (t.colour), 0.6f));
             g.fillRect (box);
             g.setColour (theme::accent);
             g.fillRect (box.withHeight (3.0f));

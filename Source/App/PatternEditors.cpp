@@ -312,7 +312,7 @@ void DrumGrid::paint (Graphics& g)
             auto cell = Rectangle<float> ((float) area.getX() + (float) s * colW, y, colW, rowH).reduced (1.5f);
             const int v = lane.velocity[(size_t) s];
             const bool beat = s % stepsPerBeat == 0;
-            g.setColour (v > 0 ? theme::accent.withMultipliedBrightness (0.55f + 0.45f * (float) v / 127.0f)
+            g.setColour (v > 0 ? theme::fade (theme::accent, 0.55f + 0.45f * (float) v / 127.0f)
                                : (beat ? theme::raised : theme::sunken));
             g.fillRoundedRectangle (cell, 3.0f);
             if (v > 0)

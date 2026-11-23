@@ -13,6 +13,173 @@ float textScale = 1.0f;
 }
 
 float scale() { return textScale; }
+
+//==============================================================================
+// Themes (decision 0132).
+namespace
+{
+int paletteNow = 0;
+
+// A colour moved lighter or darker, its hue kept, until it reads at `ratio` on `bg`.
+Colour reach (Colour fg, Colour bg, double ratio)
+{
+    const bool up = luminance (fg) >= luminance (bg);
+    float h = fg.getHue(), s = fg.getSaturation(), l = fg.getLightness();
+    for (int i = 0; i < 200 && contrast (fg, bg) < ratio; ++i)
+    {
+        l = jlimit (0.0f, 1.0f, l + (up ? 0.01f : -0.01f));
+        fg = Colour::fromHSL (h, s, l, 1.0f);
+    }
+    return fg;
+}
+
+struct Spec
+{
+    const char* name;
+    float hue, saturation;          // the greys' lean, and how strongly
+    Colour accent, warnText;
+    bool light = false;
+    float depth = 1.0f;             // how dark the darkest greys are (lower: darker)
+};
+
+Palette build (const Spec& t)
+{
+    Palette p {};
+    p.name = t.name;
+    p.light = t.light;
+    auto grey = [&t] (float l, float satShare) { return Colour::fromHSL (t.hue, jlimit (0.0f, 1.0f, t.saturation * satShare), jlimit (0.0f, 1.0f, l), 1.0f); };
+    const float accentHue = t.accent.getHue();
+    if (! t.light)
+    {
+        const float d = t.depth;
+        p.roll = grey (0.075f * d, 1.0f);   p.rowBlack = grey (0.085f * d, 1.0f);   p.rowWhite = grey (0.105f * d, 1.0f);
+        p.sunken = grey (0.115f * d, 1.0f); p.lane = grey (0.135f * d, 1.0f);       p.frameHover = grey (0.15f * d, 1.0f);
+        p.ground = grey (0.16f * d, 1.0f);  p.raised = grey (0.195f * d, 0.9f);     p.rule = grey (0.26f * d, 0.8f);
+        p.scrollGrab = grey (0.47f, 0.5f);  p.edge = grey (0.58f, 0.4f);
+        p.controlHeld = grey (0.60f, 0.25f); p.control = grey (0.70f, 0.25f);       p.controlHover = grey (0.78f, 0.25f);
+        p.ink = grey (0.09f, 0.5f);
+        p.textSecondary = grey (0.73f, 0.2f); p.textOnRaised = grey (0.78f, 0.2f);  p.text = grey (0.88f, 0.2f);
+        p.playhead = grey (0.955f, 0.2f);
+        p.rowInScale = Colour::fromHSL (accentHue, 0.25f, 0.15f * d + 0.02f, 1.0f);
+        p.rowRoot = Colour::fromHSL (accentHue, 0.25f, 0.19f * d + 0.03f, 1.0f);
+        p.warn = Colour (0xffD2483F);
+        p.meterGreen = Colour (0xff7FD29A);
+        p.meterAmber = Colour (0xffF2C46D);
+        p.armAudio = Colour (0xffFF8577);
+        p.armMidi = Colour (0xff7DB4E6);
+    }
+    else
+    {
+        p.roll = grey (0.985f, 1.0f);  p.rowWhite = grey (0.975f, 1.0f); p.rowBlack = grey (0.935f, 1.0f);
+        p.sunken = grey (0.945f, 1.0f); p.lane = grey (0.925f, 1.0f);    p.frameHover = grey (0.915f, 1.0f);
+        p.ground = grey (0.96f, 1.0f); p.raised = grey (0.995f, 0.5f);   p.rule = grey (0.80f, 0.8f);
+        p.scrollGrab = grey (0.55f, 0.5f); p.edge = grey (0.50f, 0.4f);
+        p.controlHeld = grey (0.72f, 0.4f); p.control = grey (0.82f, 0.4f); p.controlHover = grey (0.88f, 0.4f);
+        p.ink = grey (0.10f, 0.5f);
+        p.textSecondary = grey (0.32f, 0.3f); p.textOnRaised = grey (0.32f, 0.3f); p.text = grey (0.12f, 0.3f);
+        p.playhead = grey (0.18f, 0.3f);
+        p.rowInScale = Colour::fromHSL (accentHue, 0.45f, 0.90f, 1.0f);
+        p.rowRoot = Colour::fromHSL (accentHue, 0.45f, 0.85f, 1.0f);
+        p.warn = Colour (0xffD2483F);
+        p.meterGreen = Colour (0xff2E9E52);
+        p.meterAmber = Colour (0xffC98A10);
+        p.armAudio = Colour (0xffFF8577);
+        p.armMidi = Colour (0xff7DB4E6);
+    }
+    p.accent = t.accent;
+    p.accentHover = t.accent.interpolatedWith (Colours::white, 0.15f);
+    p.accentHeld = t.accent.darker (0.25f);
+    p.warnText = t.warnText;
+    // Every word 7:1 on what it sits on; things to see and grab 3:1 (0023's rule, every theme).
+    for (auto bg : { p.ground, p.sunken, p.roll, p.raised, p.lane }) p.text = reach (p.text, bg, 7.2);
+    for (auto bg : { p.ground, p.sunken, p.lane }) p.textSecondary = reach (p.textSecondary, bg, 7.1);
+    p.textOnRaised = reach (p.textOnRaised, p.raised, 7.1);
+    p.warnText = reach (p.warnText, p.ground, 7.1);
+    for (auto bg : { p.control, p.accent, p.accentHover, p.armAudio, p.armMidi }) p.ink = reach (p.ink, bg, 7.1);
+    // Still short (a dark accent): the fill moves, not the ink.
+    for (auto* fill : { &p.control, &p.accent, &p.accentHover, &p.armAudio, &p.armMidi }) *fill = reach (*fill, p.ink, 7.1);
+    p.controlHeld = reach (p.controlHeld, p.ink, 4.6);
+    p.edge = reach (p.edge, p.ground, 3.2);
+    p.scrollGrab = reach (p.scrollGrab, p.sunken, 3.2);
+    p.focusRing = p.playhead;
+    return p;
+}
+
+// The first, as Kalibre has always looked: these very values.
+Palette house()
+{
+    return { "Midnight Yellow", accent, control, ground, ink, controlHover, controlHeld, accentHover, accentHeld, armAudio, armMidi,
+             roll, sunken, lane, frameHover, raised, rule, scrollGrab, edge, playhead,
+             text, textSecondary, textOnRaised, warnText, focusRing, warn, meterGreen, meterAmber,
+             rowWhite, rowBlack, rowInScale, rowRoot, false };
+}
+} // namespace
+
+const std::vector<Palette>& palettes()
+{
+    static const std::vector<Palette> all = []
+    {
+        std::vector<Palette> v { house() };
+        const Spec specs[] {
+            { "Violet Lime",   0.77f, 0.32f, Colour (0xff9BFF5A), Colour (0xffFFB08F) },
+            { "Crimson Night", 0.99f, 0.40f, Colour (0xffFF7E6E), Colour (0xffFFD27A) },
+            { "Obsidian",      0.70f, 0.08f, Colour (0xffC9B6FF), Colour (0xffFF9E96), false, 0.45f },
+            { "Porcelain",     0.60f, 0.10f, Colour (0xff7CC6FF), Colour (0xffA3261C), true },
+            { "Cobalt Flare",  0.62f, 0.42f, Colour (0xffFF8A70), Colour (0xffFFD86E) },
+            { "Emerald Glow",  0.38f, 0.32f, Colour (0xff6CFF8E), Colour (0xffFFA796) },
+            { "Ember Gold",    0.03f, 0.34f, Colour (0xffFFCB45), Colour (0xffFF9E96) },
+            { "Frostbite",     0.55f, 0.34f, Colour (0xff8FF3FF), Colour (0xffFFA99E) },
+            { "Copper Tide",   0.47f, 0.38f, Colour (0xffFFA04D), Colour (0xffFFA9C9) },
+            { "Plum Gold",     0.86f, 0.24f, Colour (0xffFFD166), Colour (0xffFFA99E) },
+        };
+        for (auto& s : specs) v.push_back (build (s));
+        return v;
+    }();
+    return all;
+}
+
+int currentPalette() { return paletteNow; }
+
+Colour fade (Colour c, float depth)
+{
+    return palettes()[(size_t) paletteNow].light ? c.interpolatedWith (ground, 0.9f * (1.0f - depth)) : c.withMultipliedBrightness (depth);
+}
+
+Colour veil()
+{
+    return palettes()[(size_t) paletteNow].light ? textSecondary.withAlpha (0.22f) : ink.withAlpha (0.45f);
+}
+
+Colour underWords (Colour c, float depth, Colour words)
+{
+    return reach (fade (c, depth), words, 7.1);
+}
+
+void usePalette (int index)
+{
+    const auto& all = palettes();
+    index = jlimit (0, (int) all.size() - 1, index);
+    paletteNow = index;
+    const auto& p = all[(size_t) index];
+    accent = p.accent; control = p.control; ground = p.ground; ink = p.ink;
+    controlHover = p.controlHover; controlHeld = p.controlHeld; accentHover = p.accentHover; accentHeld = p.accentHeld;
+    armAudio = p.armAudio; armMidi = p.armMidi;
+    roll = p.roll; sunken = p.sunken; lane = p.lane; frameHover = p.frameHover; raised = p.raised; rule = p.rule;
+    scrollGrab = p.scrollGrab; edge = p.edge; playhead = p.playhead;
+    text = p.text; textSecondary = p.textSecondary; textOnRaised = p.textOnRaised; warnText = p.warnText; focusRing = p.focusRing;
+    warn = p.warn; meterGreen = p.meterGreen; meterAmber = p.meterAmber;
+    rowWhite = p.rowWhite; rowBlack = p.rowBlack; rowInScale = p.rowInScale; rowRoot = p.rowRoot;
+    // What JUCE draws, and every window, drawn again.
+    if (auto* look = dynamic_cast<LookAndFeel*> (&juce::LookAndFeel::getDefaultLookAndFeel())) look->useThemeColours();
+    auto& desktop = Desktop::getInstance();
+    for (int i = 0; i < desktop.getNumComponents(); ++i)
+        if (auto* comp = desktop.getComponent (i))
+        {
+            if (auto* w = dynamic_cast<ResizableWindow*> (comp)) w->setBackgroundColour (ground);
+            comp->sendLookAndFeelChange();
+            comp->repaint();
+        }
+}
 void setScale (float s) { textScale = jlimit (1.0f, 2.0f, s); }
 
 double luminance (Colour c)
@@ -66,9 +233,11 @@ String wrapTip (const String& text)
 }
 
 //==============================================================================
-LookAndFeel::LookAndFeel()
+LookAndFeel::LookAndFeel() { useThemeColours(); }
+
+void LookAndFeel::useThemeColours()
 {
-    auto scheme = getDarkColourScheme();
+    auto scheme = palettes()[(size_t) currentPalette()].light ? getLightColourScheme() : getDarkColourScheme();
     scheme.setUIColour (ColourScheme::windowBackground, ground);
     scheme.setUIColour (ColourScheme::widgetBackground, sunken);
     scheme.setUIColour (ColourScheme::menuBackground, raised);
@@ -122,6 +291,7 @@ LookAndFeel::LookAndFeel()
     setColour (Slider::rotarySliderFillColourId, control);
     setColour (Slider::rotarySliderOutlineColourId, rule);
     setColour (ListBox::backgroundColourId, sunken);
+    setColour (ListBox::outlineColourId, rule);
     setColour (ListBox::textColourId, text);
     setColour (TreeView::backgroundColourId, sunken);
     setColour (TreeView::selectedItemBackgroundColourId, rule);
