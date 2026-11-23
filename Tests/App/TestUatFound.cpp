@@ -755,3 +755,22 @@ TEST ("ruler: a marker's name at a bar line is written after the bar's number, n
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("themes: choosing one says so without an Undo beside it, which would undo something else (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        w.setTheme (4);
+        CHECK (c.message.startsWith ("Theme: "));
+        CHECK (! c.messageCanUndo);
+        w.setTheme (0);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

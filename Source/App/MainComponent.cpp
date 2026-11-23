@@ -192,7 +192,7 @@ void MainComponent::setTheme (int index)
     theme::usePalette (index);
     resized();
     repaint();
-    c.say ("Theme: " + String (theme::palettes()[(size_t) theme::currentPalette()].name) + ".", false, true);
+    c.say ("Theme: " + String (theme::palettes()[(size_t) theme::currentPalette()].name) + ".");
 }
 
 void MainComponent::setTextSize (float s)
