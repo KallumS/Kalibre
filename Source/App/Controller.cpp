@@ -1955,6 +1955,9 @@ Id Controller::dropDrumPattern (const AudioProcessor* from, Id track, Tick at)
     clip.start = std::max<Tick> (0, at);
     clip.length = drumkit::patternLength (kit);
     clip.midi = drumkit::patternNotes (kit);
+    // Its feel too: the drum grid shows the kit's swing and gate, and keeps
+    // them when the beat is changed there (the UAT showed 0%, decision 0133).
+    clip.drumsFeel = { kit.pattern.swing, kit.pattern.gate };
     for (auto& n : clip.midi.notes) n.id = 0;
     storeDeviceStates();
     const Project before = project;

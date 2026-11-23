@@ -11,6 +11,7 @@
 #include "Keys.h"
 #include "MainComponent.h"
 #include "PluginMenu.h"
+#include "DrumMachine.h"
 
 using namespace kal;
 using namespace juce;
@@ -209,4 +210,68 @@ TEST ("plug-in slots: with nothing scanned, a slot's menu offers Kalibre's own d
         if (d.name == "Reverberator") chosen = d.ref;
     String error;
     CHECK (plugins.create (chosen, 48000, 512, error) != nullptr);
+}
+
+TEST ("drums: right-clicking a pad's name opens its menu, as right-clicking the row does (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        DrumMachine d (plugins);
+        std::unique_ptr<AudioProcessorEditor> ed (d.createEditor());
+        ed->setSize (1100, 400);
+        ed->addToDesktop (0);
+        ed->setVisible (true);
+        Button* name = nullptr;
+        std::function<void (Component&)> find = [&] (Component& in)
+        {
+            for (auto* ch : in.getChildren())
+            {
+                if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText() == "Kick" && ! name) name = b;
+                find (*ch);
+            }
+        };
+        find (*ed);
+        CHECK (name != nullptr);
+        if (name)
+        {
+            const MouseEvent e (Desktop::getInstance().getMainMouseSource(), { 5.0f, 5.0f },
+                                ModifierKeys (ModifierKeys::rightButtonModifier | ModifierKeys::popupMenuClickModifier),
+                                MouseInputSource::defaultPressure, 0, 0, 0, 0, name, name, Time::getCurrentTime(), { 5.0f, 5.0f },
+                                Time::getCurrentTime(), 1, false);
+            static_cast<Component*> (name)->mouseDown (e);
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            CHECK (Component::getCurrentlyModalComponent() != nullptr);
+            PopupMenu::dismissAllActiveMenus();
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+        }
+        d.editorBeingDeleted (ed.get());
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("drums: the pattern dragged to the timeline keeps its swing and gate, so the drum grid shows them and editing keeps them (UAT)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Drums");
+    const Id dev = edit::addDevice (c.project, t, drumsRef(), DeviceRole::Instrument);
+    c.refresh();
+    auto* d = dynamic_cast<DrumMachine*> (engine.instance (dev));
+    CHECK (d != nullptr);
+    if (! d) return;
+    auto k = d->kit();
+    k.pattern.lanes[0].velocity[1] = 120;
+    k.pattern.swing = 0.3;
+    k.pattern.gate = 0.5;
+    d->setKit (k);
+    const Id made = c.dropDrumPattern (d, t, 0);
+    const auto* clip = c.project.clip (made);
+    CHECK (clip != nullptr);
+    if (! clip) return;
+    CHECK (std::abs (clip->drumsFeel.swing - 0.3) < 1.0e-9);
+    CHECK (std::abs (clip->drumsFeel.gate - 0.5) < 1.0e-9);
 }

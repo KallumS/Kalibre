@@ -601,6 +601,18 @@ void HouseButton::focusLost (FocusChangeType how)
     TextButton::focusLost (how);
 }
 
+void HouseButton::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu() && onRightClick) { onRightClick(); return; }
+    juce::TextButton::mouseDown (e);
+}
+
+void HouseButton::mouseUp (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu() && onRightClick) return;
+    juce::TextButton::mouseUp (e);
+}
+
 bool HouseButton::keyPressed (const KeyPress& key)
 {
     if (key == KeyPress::spaceKey || key == KeyPress::returnKey)

@@ -39,6 +39,7 @@ public:
             if (proc.kit().pads[(size_t) i].hasPlugin()) show (i);
         };
         name.setTitle ("Pad");
+        name.onRightClick = [this] { menu(); };   // the pad's menu, as on its row (the UAT, 0133)
         addAndMakeVisible (mute);
         mute.setClickingTogglesState (false);
         mute.onClick = [this] { change ("Mute Pad", [] (drumkit::Pad& pad, drumkit::Kit&) { pad.mute = ! pad.mute; }); };
