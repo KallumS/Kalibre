@@ -23,6 +23,7 @@
 #include "NotationView.h"
 #include "Arrange.h"
 #include "Mixer.h"
+#include "LuaTool.h"
 
 using namespace kal;
 using namespace juce;
@@ -834,6 +835,40 @@ TEST ("mixer: with more tracks than fit, the Master's strip is all there, meter 
         CHECK (master.getRight() <= mixer.getWidth() - theme::px (220));
         // A track's strip, scrolled out of sight at the far end: not all there.
         CHECK (mixer.stripShown (c.project.tracks.back().id).getWidth() < theme::px (84));
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("ReaImGui tools: a script's window not on screen runs no frames, so tools in the rack don't hold up Kalibre (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginRef goodIdea;
+        for (auto& d : pluginmenu::ownDevices()) if (d.name == "Good Idea") goodIdea = d.ref;
+        auto inst = makeLuaTool (goodIdea);
+        CHECK (inst != nullptr);
+        if (inst)
+        {
+            inst->prepareToPlay (48000, 512);
+            std::unique_ptr<AudioProcessorEditor> ed (inst->createEditorIfNeeded());
+            CHECK (ed != nullptr);
+            const int first = luaToolFrames (*inst);       // the one that learns its size
+            MessageManager::getInstance()->runDispatchLoopUntil (300);
+            CHECK_EQ (luaToolFrames (*inst), first);        // not shown: none more
+            Component host;
+            host.setSize (900, 700);
+            host.addAndMakeVisible (*ed);
+            host.addToDesktop (0);
+            host.setVisible (true);
+            MessageManager::getInstance()->runDispatchLoopUntil (1000);
+            CHECK (ed->isShowing());
+            CHECK (luaToolFrames (*inst) > first);          // shown: it draws
+            host.removeChildComponent (ed.get());
+            inst->editorBeingDeleted (ed.get());
+            ed.reset();
+            inst->releaseResources();
+        }
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

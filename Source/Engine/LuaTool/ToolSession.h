@@ -34,6 +34,7 @@ public:
 
     // One frame of the script at this size (points) and density.
     void frame (float width, float height, float scale);
+    int framesRun = 0;
 
     ImDrawData* drawData() const;
     const juce::Image& atlas() const { return fontAtlas; }

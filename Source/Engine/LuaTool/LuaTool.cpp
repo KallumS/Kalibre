@@ -93,6 +93,12 @@ String luaToolRun (AudioPluginInstance& instance, const String& lua)
     return "not a tool";
 }
 
+int luaToolFrames (AudioPluginInstance& instance)
+{
+    if (auto* t = toolOf<tools::ToolProcessor> (instance); t && t->session()) return t->session()->framesRun;
+    return 0;
+}
+
 namespace tools
 {
 
@@ -543,6 +549,12 @@ public:
 private:
     void timerCallback() override
     {
+        // Nothing to draw for a window not on screen; and a frame that cost
+        // more than a few milliseconds waits that much longer before the next,
+        // so several tools never hold the message thread (the UAT, a Debug build).
+        if (!isShowing()) return;
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        if (now < m_nextFrameAt) return;
         if (ToolSession *s = m_proc.session()) {
             float scale = 1;
             if (auto *peer = getPeer()) scale = (float)peer->getPlatformScaleFactor();
@@ -550,8 +562,11 @@ private:
                 scale = juce::jmax(scale, (float)d->scale);
             s->frame((float)getWidth(), (float)getHeight(), scale);
             repaint();
+            const double cost = juce::Time::getMillisecondCounterHiRes() - now;
+            m_nextFrameAt = cost > 8.0 ? now + cost * 3.0 : 0.0;
         }
     }
+    double m_nextFrameAt = 0;
     void pos(const juce::MouseEvent &e)
     {
         if (ToolSession *s = m_proc.session()) {
