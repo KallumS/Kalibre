@@ -408,3 +408,73 @@ TEST ("modulators: an LFO's knobs are named Rate, Phase, Both Ways and Amount, o
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("sampler: in a short lower zone it lays itself out, its knobs in one row, big enough to turn, names clear of the knobs (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        String error;
+        auto inst = plugins.create (samplerRef(), 48000, 512, error);
+        CHECK (inst != nullptr);
+        if (! inst) return;
+        std::unique_ptr<AudioProcessorEditor> ed (inst->createEditorIfNeeded());
+        // As short as the rack gives it in a short zone: it takes the size, not shown smaller.
+        ed->setSize (900, 170);
+        CHECK_EQ (ed->getHeight(), 170);
+        std::vector<Slider*> knobs;
+        std::vector<Label*> labels;
+        std::function<void (Component&)> find = [&] (Component& in)
+        {
+            for (auto* ch : in.getChildren())
+            {
+                if (! ch->isVisible()) continue;
+                if (auto* s = dynamic_cast<Slider*> (ch)) knobs.push_back (s);
+                if (auto* l = dynamic_cast<Label*> (ch); l && dynamic_cast<Slider*> (l->getParentComponent()) == nullptr) labels.push_back (l);
+                find (*ch);
+            }
+        };
+        find (*ed);
+        CHECK (knobs.size() >= 8);
+        for (auto* k : knobs)
+        {
+            CHECK (k->getHeight() >= 40);   // a dial and its value
+            const auto kb = ed->getLocalArea (k->getParentComponent(), k->getBounds());
+            CHECK (ed->getLocalBounds().contains (kb));
+            for (auto* l : labels)
+                CHECK (! ed->getLocalArea (l->getParentComponent(), l->getBounds()).intersects (kb));
+        }
+        inst->editorBeingDeleted (ed.get());
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("sampler: an Off/On knob (Loop) switches with a short drag, not two hundred points (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        String error;
+        auto inst = plugins.create (samplerRef(), 48000, 512, error);
+        CHECK (inst != nullptr);
+        if (! inst) return;
+        std::unique_ptr<AudioProcessorEditor> ed (inst->createEditorIfNeeded());
+        ed->setSize (1000, 300);
+        Slider* loop = nullptr;
+        std::function<void (Component&)> find = [&] (Component& in)
+        {
+            for (auto* ch : in.getChildren())
+            {
+                if (auto* s = dynamic_cast<Slider*> (ch); s && s->getTitle() == "Loop") loop = s;
+                find (*ch);
+            }
+        };
+        find (*ed);
+        CHECK (loop != nullptr);
+        if (loop) CHECK (loop->getMouseDragSensitivity() <= 60);
+        inst->editorBeingDeleted (ed.get());
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

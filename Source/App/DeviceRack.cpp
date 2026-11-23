@@ -285,6 +285,8 @@ public:
             g.setFont (theme::font (theme::smallPoints));
             String sub = String (roles[(int) d->role]) + " " + ui::u8 ("\xc2\xb7") + " " + String (d->plugin.format);
             if (editor && fitted.scale < 0.995f) sub << " " << ui::u8 ("\xc2\xb7") << " " << roundToInt (fitted.scale * 100.0f) << "% to fit";
+            // Too small to use (a JSFX drawn at its own size, 0133): where to see it whole.
+            if (editor && fitted.scale < 0.6f) sub << " " << ui::u8 ("\xc2\xb7") << " " << ui::u8 ("\xe2\xa7\x89") << " shows it bigger";
             if (const auto* from = c.project.track (d->sidechainFrom)) sub << " " << ui::u8 ("\xc2\xb7") << " sidechain: " << String (from->name);
             g.drawFittedText (sub, header, Justification::topLeft, 1);
             const auto body = getLocalBounds().withTrimmedTop (theme::px (30)).reduced (12);

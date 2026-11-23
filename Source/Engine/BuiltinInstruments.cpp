@@ -103,6 +103,10 @@ public:
                 s->setTooltip (prm->getName (64));
                 addAndMakeVisible (s);
                 attachments.add (new SliderParameterAttachment (*prm, *s));
+                // A choice of a few (Loop: Off, On) moves a step every 25 points of
+                // drag, not across 250 (the UAT: it took 200 to switch, 0133).
+                if (auto* choice = dynamic_cast<AudioParameterChoice*> (prm); choice && choice->choices.size() <= 6)
+                    s->setMouseDragSensitivity (jmax (20, 25 * (choice->choices.size() - 1)));
                 auto* l = labels.add (new Label ({}, prm->getName (32)));
                 l->setJustificationType (Justification::centred);
                 l->setFont (theme::font (theme::smallPoints));
@@ -147,21 +151,24 @@ public:
 
     void resized() override
     {
-        // Each group a box across; its knobs in two rows.
+        // Each group a box across; its knobs in two rows, or in one when two
+        // rows would leave the knobs too small to turn (the UAT: a short zone
+        // overlapped their names and values, 0133).
         auto r = getLocalBounds().reduced (6);
+        const int rows = (r.getHeight() - 18 - 8) / 2 >= 14 + 52 ? 2 : 1;
         int total = 0, shownGroups = 0;
         for (auto& gr : groups)
-            if (const int n = visibleIn (gr.indices); n > 0) { total += (n + 1) / 2; ++shownGroups; }
+            if (const int n = visibleIn (gr.indices); n > 0) { total += (n + rows - 1) / rows; ++shownGroups; }
         const int unit = total > 0 ? (r.getWidth() - 6 * jmax (0, shownGroups - 1)) / total : 0;
         for (auto& gr : groups)
         {
             const int n = visibleIn (gr.indices);
             if (n == 0) { gr.box = {}; continue; }
-            const int cols = (n + 1) / 2;
+            const int cols = (n + rows - 1) / rows;
             gr.box = r.removeFromLeft (unit * cols);
             r.removeFromLeft (6);
             auto inner = gr.box.withTrimmedTop (18).reduced (4);
-            const int rowH = inner.getHeight() / 2;
+            const int rowH = inner.getHeight() / rows;
             int k = 0;
             for (int idx : gr.indices)
             {
@@ -240,7 +247,7 @@ public:
         };
         proc.onLoaded = [sp = SafePointer<SamplerEditor> (this)] { if (sp) sp->repaint(); };
         setResizable (true, false);
-        setResizeLimits (360, 200, 3000, 1600);
+        setResizeLimits (360, 150, 3000, 1600);   // short, it lays itself out in one row of knobs (0133)
         setSize (1000, 300);
         startTimerHz (30);   // the preview's line moves smoothly
     }
@@ -382,7 +389,8 @@ public:
     // The waveform gives way first in a short panel, so the knobs stay big enough to turn
     // (the UAT's were dots): two fifths, but no less than 90 (the buttons' row and a strip
     // of waveform) and leaving the knobs 170.
-    int waveHeight() const { return jlimit (90, jmax (90, getHeight() * 2 / 5), getHeight() - 170); }
+    // A short panel gives the knobs one row (0133): 80 is enough for them then.
+    int waveHeight() const { return jlimit (70, jmax (70, getHeight() * 2 / 5), getHeight() - (getHeight() < 260 ? 84 : 170)); }
 
     void resized() override
     {
