@@ -89,6 +89,8 @@ public:
     // the window itself (empty and null when it isn't shown here).
     juce::Rectangle<int> pluginArea (Id device) const;
     juce::AudioProcessorEditor* editorOf (Id device) const;
+    // Whether a device's name fits beside its panel's buttons (0133).
+    bool nameFits (Id device) const;
 
 private:
     Controller& c;

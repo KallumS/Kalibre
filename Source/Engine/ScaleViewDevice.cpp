@@ -22,6 +22,13 @@ std::unique_ptr<juce::AudioPluginInstance> makeScaleView()
     return p;
 }
 
+void startScaleViewOn (juce::AudioProcessor& p, int root, int scale)
+{
+    if (auto* hosted = dynamic_cast<HostedProcessor*> (&p))
+        if (auto* view = dynamic_cast<ScaleViewProcessor*> (&hosted->inner()))
+            if (view->getRootIndex() < 0) view->setScale (root, scale);
+}
+
 PluginRef scaleViewRef()
 {
     PluginRef r;

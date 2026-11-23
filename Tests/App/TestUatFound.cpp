@@ -14,6 +14,10 @@
 #include "DrumMachine.h"
 #include "PatternEditors.h"
 #include "DrumPadsDevice.h"
+#include "DeviceRack.h"
+#include "JsfxDevice.h"
+#include "NoteSplitter.h"
+#include "MorphProcessor.h"
 
 using namespace kal;
 using namespace juce;
@@ -329,6 +333,38 @@ TEST ("drum pads: in a short lower zone every one of the sixteen pads shown is w
             }
         CHECK (tiles >= 16);
         inst->editorBeingDeleted (ed.get());
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("device rack: every device's name shows over its panel: X/Y Morph, ScaleView, the Note Splitter, and one switched off (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Chords");
+        c.focusTrack = t;
+        Id ids[4] {};
+        c.apply ("Add", [&] (Project& p)
+        {
+            ids[0] = edit::addDevice (p, t, scaleViewRef(), DeviceRole::MidiFx);
+            ids[1] = edit::addDevice (p, t, noteSplitterRef(), DeviceRole::MidiFx);
+            ids[2] = edit::addDevice (p, t, morphRef(), DeviceRole::Instrument);
+        });
+        const Id t2 = edit::addTrack (c.project, TrackKind::Track, "Off");
+        c.apply ("Add", [&] (Project& p) { ids[3] = edit::addDevice (p, t2, synthRef(), DeviceRole::Instrument); p.device (ids[3])->active = false; });
+        DeviceRack rack (c);
+        rack.setSize (1400, 300);
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        for (int i = 0; i < 3; ++i) CHECK (rack.nameFits (ids[i]));
+        c.focusTrack = t2;
+        c.sendChangeMessage();
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        CHECK (rack.nameFits (ids[3]));
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

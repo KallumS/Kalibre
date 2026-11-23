@@ -1,4 +1,5 @@
 #include "Engine.h"
+#include "JsfxDevice.h"
 
 #include "Edit.h"
 #include "AudioFiles.h"
@@ -661,6 +662,9 @@ Engine::Node::Ptr Engine::nodeForDevice (const Device& d, Id version, String& er
             instance->setStateInformation (m.getData(), (int) m.getSize());
         }
     }
+    // A ScaleView new to the song shows the song's scale (the UAT: "No scale selected", 0133).
+    else if (d.plugin.format == "Kalibre" && d.plugin.identifier == scaleViewRef().identifier)
+        startScaleViewOn (*instance, songRoot, songScale);
     enableSidechain (*instance);
     // An instrument with more outputs than two has them all switched on (decision 0040).
     if (d.role == DeviceRole::Instrument)
@@ -676,6 +680,8 @@ Engine::Node::Ptr Engine::nodeForDevice (const Device& d, Id version, String& er
 
 void Engine::sync (const Project& project, Id live, const File& folder)
 {
+    songRoot = project.scale.root;
+    songScale = project.scale.scale;
     using Kind = AudioProcessorGraph::UpdateKind;
     liveTrack = live;
     tempoCopy = project.tempo;

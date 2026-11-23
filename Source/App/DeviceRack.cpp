@@ -184,9 +184,22 @@ public:
     }
 
     // The width this panel takes at a height: the plug-in as shown, fitted.
+    // The buttons along the top, and the device's name beside them: a panel
+    // is at least that wide (the UAT: X/Y Morph's name was "...", one switched
+    // off had none, 0133).
+    int headerNeeds()
+    {
+        int w = theme::px (12) + presets.idealWidth (theme::smallControl) + 3 + ab.idealWidth (theme::smallControl) + 6
+              + (match.isVisible() ? match.idealWidth (theme::smallControl) + 3 : 0)
+              + theme::px (30) * 3 + 3 * 4 + random.idealWidth (theme::smallControl) + theme::px (26);
+        const auto* d = device();
+        if (d) w += theme::px (14) + roundToInt (GlyphArrangement::getStringWidth (theme::font (theme::bodyPoints, true), String (d->plugin.name))) + 2;
+        return w;
+    }
+
     int widthFor (int height)
     {
-        const int least = theme::px (330);
+        const int least = jmax (theme::px (330), headerNeeds());
         if (! editor || natural.isEmpty()) return least;
         return jmax (least, fitInto (boxFor (height)).shownWidth() + 4);
     }
@@ -908,6 +921,16 @@ juce::Rectangle<int> DeviceRack::pluginArea (Id device) const
                      p->getY() + p->body.getY() + (p->body.getHeight() - p->fitted.shownHeight()) / 2 + viewport.getY(),
                      p->fitted.shownWidth(), p->fitted.shownHeight() };
     return {};
+}
+
+bool DeviceRack::nameFits (Id device) const
+{
+    for (auto* p : panels)
+        if (p->id == device)
+            if (const auto* d = c.project.device (device))
+                return GlyphArrangement::getStringWidth (theme::font (theme::bodyPoints, true), String (d->plugin.name))
+                       <= (float) (p->presets.getX() - theme::px (14));
+    return false;
 }
 
 juce::AudioProcessorEditor* DeviceRack::editorOf (Id device) const
