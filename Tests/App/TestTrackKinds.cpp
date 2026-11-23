@@ -346,6 +346,27 @@ TEST ("recording: the take grows on the armed track as it's recorded, from where
     CHECK (c.recordingTake().first < 0);
 }
 
+TEST ("meters: playing, the Master's fader has a level to show, as each track's does (UAT: its strip showed none)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    FakeDevice device;
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Click");
+    edit::addClip (c.project, t, audioClip (clickFile (0.25), 0, PPQ * 4));
+    c.refresh();
+    startLive (engine, device, c.project);
+    c.refresh();
+    const Id master = c.project.master.id;
+    CHECK (engine.fader (master) != nullptr);
+    engine.play();
+    playLive (engine, 0.5);
+    engine.stop();
+    if (auto* f = engine.fader (t)) CHECK (std::max (f->takePeak (0), f->takePeak (1)) > 0.1f);
+    if (auto* f = engine.fader (master)) CHECK (std::max (f->takePeak (0), f->takePeak (1)) > 0.1f);
+}
+
 TEST ("recording MIDI: a track armed for MIDI records what's played in, not its own clips playing (UAT 23 November)")
 {
     // The UAT: armed for MIDI with nothing played, recording laid copies of

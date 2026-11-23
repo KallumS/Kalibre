@@ -41,6 +41,9 @@ public:
     ~Mixer() override;
     void paint (juce::Graphics&) override;
     void resized() override;
+    // Where a track's strip can be seen in the mixer: clipped to the scrolling
+    // part when it's in it (tests: the master's is always all there, the UAT).
+    juce::Rectangle<int> stripShown (Id) const;
 
 private:
     Controller& c;

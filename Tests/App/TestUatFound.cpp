@@ -22,6 +22,7 @@
 #include "PianoRoll.h"
 #include "NotationView.h"
 #include "Arrange.h"
+#include "Mixer.h"
 
 using namespace kal;
 using namespace juce;
@@ -810,6 +811,29 @@ TEST ("export: the message line counts up while the mix is written, so Kalibre i
         CHECK (said);
         CHECK (c.message.startsWith ("Exported"));
         out.deleteFile();
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("mixer: with more tracks than fit, the Master's strip is all there, meter and all, beside the loudness (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        for (int i = 0; i < 12; ++i) edit::addTrack (c.project, TrackKind::Track, "Track " + std::to_string (i + 1));
+        c.refresh();
+        Mixer mixer (c);
+        mixer.setSize (1100, 300);
+        mixer.resized();
+        const auto master = mixer.stripShown (c.project.master.id);
+        CHECK_EQ (master.getWidth(), theme::px (84));
+        CHECK (master.getRight() <= mixer.getWidth() - theme::px (220));
+        // A track's strip, scrolled out of sight at the far end: not all there.
+        CHECK (mixer.stripShown (c.project.tracks.back().id).getWidth() < theme::px (84));
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
