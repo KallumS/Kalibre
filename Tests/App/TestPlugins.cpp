@@ -177,7 +177,15 @@ TEST ("plug-ins: one that crashes, hangs or holds nothing is turned off with its
     CHECK (summary.contains ("hang"));
     const auto blocked = pm.blocked();
     CHECK_EQ (fakeBlocked (pm), size_t (3));
-    if (auto* b = find (blocked, "fake:crash")) { CHECK (b->reason == PluginManager::Reason::Crashed); CHECK (b->detail.contains ("signal 6")); }
+    if (auto* b = find (blocked, "fake:crash")) { CHECK (b->reason == PluginManager::Reason::Crashed);
+       #if JUCE_WINDOWS
+        // abort() on Windows ends the process with an exception code: "it stopped itself (0xC0000409)".
+        CHECK (b->detail.contains ("0xC") || b->detail.contains ("0x8"));
+       #else
+        CHECK (b->detail.contains ("signal 6"));
+       #endif
+        if (! b->detail.contains ("signal 6")) std::printf ("    crash detail: %s\n", b->detail.toRawUTF8());
+    }
     else CHECK (false);
     if (auto* b = find (blocked, "fake:hang")) CHECK (b->reason == PluginManager::Reason::TookTooLong);
     else CHECK (false);
