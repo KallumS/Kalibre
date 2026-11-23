@@ -253,7 +253,9 @@ TEST ("drums: right-clicking a pad's name opens its menu, as right-clicking the 
                                 MouseInputSource::defaultPressure, 0, 0, 0, 0, name, name, Time::getCurrentTime(), { 5.0f, 5.0f },
                                 Time::getCurrentTime(), 1, false);
             static_cast<Component*> (name)->mouseDown (e);
-            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            // The menu comes up asynchronously: a loaded Mac runner can take a while.
+            for (int i = 0; i < 40 && Component::getCurrentlyModalComponent() == nullptr; ++i)
+                MessageManager::getInstance()->runDispatchLoopUntil (25);
             CHECK (Component::getCurrentlyModalComponent() != nullptr);
             PopupMenu::dismissAllActiveMenus();
             MessageManager::getInstance()->runDispatchLoopUntil (50);
@@ -500,13 +502,22 @@ TEST ("ReaImGui tools: Good Idea in the rack fills its panel's height, its New I
         for (auto& d : pluginmenu::ownDevices()) if (d.name == "Good Idea") goodIdea = d.ref;
         Id dev = 0;
         c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, goodIdea, DeviceRole::MidiFx); });
+        // On the screen: on the Mac a plug-in's panel waits for a window to be in.
+        Component host;
+        host.setSize (1400, 600);
         DeviceRack rack (c);
-        rack.setSize (1400, 600);
-        MessageManager::getInstance()->runDispatchLoopUntil (100);
+        host.addAndMakeVisible (rack);
+        rack.setBounds (0, 0, 1400, 600);
+        host.addToDesktop (0);
+        host.setVisible (true);
+        for (int i = 0; i < 40 && rack.editorOf (dev) == nullptr; ++i)
+            MessageManager::getInstance()->runDispatchLoopUntil (25);
         rack.resized();
         auto* ed = rack.editorOf (dev);
         CHECK (ed != nullptr);
         if (ed) CHECK (rack.pluginArea (dev).getHeight() >= 600 - theme::px (30) - 40);
+        host.removeFromDesktop();
+        host.removeChildComponent (&rack);
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

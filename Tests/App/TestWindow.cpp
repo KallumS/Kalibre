@@ -765,7 +765,9 @@ TEST ("window: Space plays even when a button holds the keyboard focus, as one d
             // Reached with Tab, the button is the keyboard's: Space presses it.
             static_cast<Component*> (devices)->focusGained (Component::focusChangedByTabKey);
             w.getPeer()->handleKeyPress (KeyPress (KeyPress::spaceKey));
-            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            // The click is posted: a loaded Mac runner can take a while to deliver it.
+            for (int i = 0; i < 40 && c.zoneTab != ZoneTab::Devices; ++i)
+                MessageManager::getInstance()->runDispatchLoopUntil (25);
             CHECK (c.zoneTab == ZoneTab::Devices);
             CHECK (! c.engine.isPlaying());
         }
