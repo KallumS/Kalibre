@@ -671,9 +671,54 @@ String PianoRoll::laneName() const
     }
 }
 
+void PianoRoll::clearLane()
+{
+    if (laneKind < 0 || ! c.clip()) return;
+    const int kind = laneKind;
+    const Id cid = c.selectedClip;
+    c.apply ("Clear Lane", [=] (Project& p)
+    {
+        auto* cl = p.clip (cid);
+        if (! cl) return;
+        if (kind >= 200)
+        {
+            // Only this lane's part of each point goes back to neutral; the
+            // points left with nothing in them go.
+            const NoteExpression neutral;
+            for (auto& n : cl->midi.notes)
+            {
+                auto& ex = n.expression;
+                for (auto& x : ex)
+                {
+                    if (kind == 200) x.bend = neutral.bend;
+                    else if (kind == 201) x.pressure = neutral.pressure;
+                    else x.timbre = neutral.timbre;
+                }
+                ex.erase (std::remove_if (ex.begin(), ex.end(), [&] (const NoteExpression& x)
+                {
+                    return x.bend == neutral.bend && x.pressure == neutral.pressure && x.timbre == neutral.timbre;
+                }), ex.end());
+            }
+            return;
+        }
+        const auto type = kind == 128 ? EventType::PitchBend : kind == 129 ? EventType::ChannelPressure : EventType::Controller;
+        auto& evs = cl->midi.events;
+        evs.erase (std::remove_if (evs.begin(), evs.end(), [=] (const MidiEvent& e)
+        {
+            return e.type == type && (type != EventType::Controller || e.number == kind);
+        }), evs.end());
+    });
+    repaint();
+}
+
 void PianoRoll::laneMenu()
 {
     PopupMenu m;
+    if (laneKind >= 0)
+    {
+        m.addItem ("Clear Lane", [this] { clearLane(); });
+        m.addSeparator();
+    }
     // Each note's own (decision 0061), then the controllers.
     noteopt::addTo (m, laneKind < 0 ? noteKind() : (noteopt::Kind) -1, [this] (noteopt::Kind k) { laneKind = -1 - (int) k; repaint(); }, false, true);
     m.addSeparator();

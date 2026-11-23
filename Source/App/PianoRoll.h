@@ -60,6 +60,9 @@ public:
 
     // Shows a lane under the notes, as its menu does (the renders).
     void showLane (int kind) { laneKind = kind; repaint(); }
+    // Takes every value from the lane shown (a controller, pitch bend, pressure
+    // or a note's expression), one undo step; its menu's Clear Lane (the UAT).
+    void clearLane();
 
 private:
     Controller& c;

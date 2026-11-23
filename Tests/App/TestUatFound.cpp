@@ -19,6 +19,7 @@
 #include "JsfxDevice.h"
 #include "NoteSplitter.h"
 #include "MorphProcessor.h"
+#include "PianoRoll.h"
 
 using namespace kal;
 using namespace juce;
@@ -537,4 +538,35 @@ TEST ("editor bar: at 1110 points wide (1440 with the browser open) every button
         CHECK (shown >= 15);
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+TEST ("piano roll: the lane under the notes, set to Pitch Bend, can be cleared from its menu, one undo step, other lanes kept (UAT)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Lead");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    auto event = [] (Tick at, EventType type, int number, int value)
+    {
+        MidiEvent e;
+        e.tick = at; e.type = type; e.number = number; e.value = value;
+        return e;
+    };
+    auto& evs = c.project.clip (clip)->midi.events;
+    evs.push_back (event (0, EventType::PitchBend, 128, 12000));
+    evs.push_back (event (PPQ, EventType::PitchBend, 128, 4000));
+    evs.push_back (event (PPQ, EventType::Controller, 1, 90));
+    c.refresh();
+    c.selectClip (clip);
+    PianoRoll roll (c);
+    roll.setSize (1000, 600);
+    roll.showLane (128);
+    const auto steps = c.history.size();
+    roll.clearLane();
+    const auto& now = c.project.clip (clip)->midi.events;
+    CHECK_EQ (now.size(), size_t (1));
+    CHECK (now.front().type == EventType::Controller);
+    CHECK_EQ (c.history.size(), steps + 1);
 }
