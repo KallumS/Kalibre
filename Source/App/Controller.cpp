@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "TransientQuestion.h"
 #include "DrumMachine.h"
 #include "DrumPadsDevice.h"
 #include "BuiltinInstruments.h"
@@ -1420,7 +1421,7 @@ bool Controller::importFile (const File& original, Id trackId, Tick at, std::fun
         if (! hits.empty()) pieces = edit::splitAtSource (p, made, hits).size();
     });
     if (splitAtTransients) say (pieces < 2 ? String ("No hits were found in it: it's one clip.")
-                                           : "Split into " + String ((int) pieces) + " clips, one for each hit.", false, true);
+                                           : "Split into " + clipsForHits ((int) pieces, (int) hits.size()) + ".", false, true);
     return true;
 }
 

@@ -5,6 +5,7 @@
 */
 
 #include "Controller.h"
+#include "TransientQuestion.h"
 #include "AudioFiles.h"
 
 #include "AudioTools.h"
@@ -125,7 +126,7 @@ int Controller::splitAtTransients (Id clipId, double sensitivity)
     if (! hits.empty())
         apply ("Split at Transients", [clipId, hits, &made] (Project& p) { made = edit::splitAtSource (p, clipId, hits).size(); });
     if (made < 2) { say ("No hits were found in the clip to split it at."); return (int) made; }
-    say ("Split into " + String ((int) made) + " clips, one for each hit.", false, true);
+    say ("Split into " + clipsForHits ((int) made, (int) hits.size()) + ".", false, true);
     return (int) made;
 }
 

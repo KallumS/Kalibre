@@ -51,6 +51,22 @@ TEST ("audio tools: hits are found within a few milliseconds")
         CHECK (std::abs (found[k] - at[k]) < (int) (rate * 0.006));
 }
 
+TEST ("audio tools: a hit right at the start is a hit, as Split at Transients' first clip is (UAT)")
+{
+    const double rate = 48000;
+    std::vector<float> a ((size_t) rate, 0.0f);
+    for (int start : { 0, 24000 })
+        for (int i = 0; i < 4000; ++i)
+            a[(size_t) (start + i)] = (float) (0.8 * std::exp (-i / 800.0) * std::sin (tau * 200 * i / rate));
+    const float* ch[] { a.data() };
+    for (double s : { 0.0, 0.5, 1.0 })
+    {
+        const auto found = transients (ch, 1, (int) a.size(), rate, s);
+        CHECK_EQ (found.size(), size_t (2));
+        if (! found.empty()) CHECK_EQ (found.front(), 0);
+    }
+}
+
 TEST ("audio tools: Split at Transients' Sensitivity: higher finds more hits (the quiet ones too), lower only the strongest; the same as transients at each")
 {
     const double rate = 48000;
