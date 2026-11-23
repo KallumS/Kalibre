@@ -49,8 +49,8 @@ connect Claude: the User Guide, [AI agents (MCP)](USER-GUIDE.md#ai-agents-mcp).
 | `remove_notes` | Notes by id, or `all`. |
 | `edit_clip` | Move (`start_beat`, `track`), trim (`length_beats`), rename, mute. |
 | `delete_clip`, `duplicate_clip` | |
-| `clip_action` | `reverse`, `invert`, `split_at_transients` (audio), `quantise` (`grid_beats`), `transpose` (`semitones`), `split` (`beat`). |
-| `import_audio` | An audio or MIDI file onto a track at a beat; `split_at_transients` for a clip a hit. |
+| `clip_action` | `reverse`, `invert`, `split_at_transients` (audio; `sensitivity` 0 to 1, higher finds more, else the musician's last choice, 0130), `quantise` (`grid_beats`), `transpose` (`semitones`), `split` (`beat`). |
+| `import_audio` | An audio or MIDI file onto a track at a beat; `split_at_transients` for a clip a hit, at `sensitivity` (0130). |
 | `transport` | `play`, `stop`, `record`, `go_to_start`, `locate` (`beat`). |
 | `set_tempo` | BPM, for the whole song or `from_beat` on. |
 | `set_loop` | The loop range in beats, on or off. |

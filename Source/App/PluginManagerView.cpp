@@ -13,7 +13,7 @@ String formatName (const String& f) { return f == "AudioUnit" ? String ("AU") : 
 
 String kindOf (const PluginManager& pm, const PluginDescription& d)
 {
-    const char* role[] { "MIDI Effect", "Instrument", "Effect" };
+    const char* role[] { "MIDI Effect", "Instrument", "Audio Effect" };
     String k = role[(int) pm.roleOf (d)];
     // An instrument that sends MIDI is listed with the MIDI effects too (0069).
     if (pm.roleOf (d) == DeviceRole::Instrument && pm.sendsMidi (d)) k << ", Sends MIDI";
@@ -38,7 +38,13 @@ PluginManagerView::PluginManagerView (Controller& ctrl) : c (ctrl)
     search.setTextToShowWhenEmpty ("Search by name, maker or format", theme::textSecondary);
     search.onTextChange = [this] { refresh(); };
     addAndMakeVisible (search);
-    for (auto* b : { &scanNew, &scanAgain, &turnOff, &turnOn, &reveal, &onlyOff, &report }) addAndMakeVisible (b);
+    for (auto* b : { &scanNew, &scanAgain, &turnOff, &turnOn, &reveal, &onlyOff, &report, &allKinds, &midiKind, &instrumentKind, &effectKind }) addAndMakeVisible (b);
+    for (auto [b, kind] : { std::pair<theme::HouseButton*, std::optional<DeviceRole>> { &allKinds, std::nullopt }, { &midiKind, DeviceRole::MidiFx },
+                            { &instrumentKind, DeviceRole::Instrument }, { &effectKind, DeviceRole::AudioFx } })
+    {
+        b->setClickingTogglesState (false);
+        b->onClick = [this, kind = kind] { showKind = kind; refresh(); };
+    }
 
     scanNew.onClick = [this]
     {
@@ -121,13 +127,13 @@ void PluginManagerView::refresh()
     auto& pm = c.engine.plugins();
     std::vector<Row> all;
     for (auto& d : pm.known().getTypes())
-        all.push_back ({ d.name, d.manufacturerName, formatName (d.pluginFormatName), kindOf (pm, d), d.fileOrIdentifier, true, {}, {}, d });
+        all.push_back ({ d.name, d.manufacturerName, formatName (d.pluginFormatName), kindOf (pm, d), d.fileOrIdentifier, true, {}, {}, d, pm.roleOf (d), pm.sendsMidi (d) });
     for (auto& b : pm.blocked())
     {
         if (! b.types.empty())
         {
             for (auto& d : b.types)
-                all.push_back ({ d.name, d.manufacturerName, formatName (d.pluginFormatName), kindOf (pm, d), b.file, false, b.reason, b.detail, d });
+                all.push_back ({ d.name, d.manufacturerName, formatName (d.pluginFormatName), kindOf (pm, d), b.file, false, b.reason, b.detail, d, pm.roleOf (d), pm.sendsMidi (d) });
             continue;
         }
         // A file's name, or what an Audio Unit's identifier says it is.
@@ -146,6 +152,8 @@ void PluginManagerView::refresh()
     for (auto& r : all)
     {
         if (onlyOff.getToggleState() && r.on) continue;
+        // One kind: an instrument that sends MIDI is a MIDI effect too (0069).
+        if (showKind && ! (r.role == showKind || (*showKind == DeviceRole::MidiFx && r.role == DeviceRole::Instrument && r.sendsMidi))) continue;
         if (text.isNotEmpty() && ! (r.name.containsIgnoreCase (text) || r.maker.containsIgnoreCase (text)
                                     || r.format.containsIgnoreCase (text) || r.file.containsIgnoreCase (text))) continue;
         rows.push_back (r);
@@ -169,6 +177,10 @@ void PluginManagerView::refresh()
         return sortUp ? d < 0 : d > 0;
     });
 
+    allKinds.setToggleState (! showKind, dontSendNotification);
+    midiKind.setToggleState (showKind == DeviceRole::MidiFx, dontSendNotification);
+    instrumentKind.setToggleState (showKind == DeviceRole::Instrument, dontSendNotification);
+    effectKind.setToggleState (showKind == DeviceRole::AudioFx, dontSendNotification);
     list.updateContent();
     SparseSet<int> sel;
     for (int i = 0; i < (int) rows.size(); ++i)
@@ -368,8 +380,13 @@ void PluginManagerView::resized()
     place (turnOn);
     place (reveal);
     bar.removeFromLeft (theme::px (8));
-    place (onlyOff);
     place (report);
+    // The second row: which kind, the turned off, the search.
+    r.removeFromTop (theme::px (4));
+    bar = r.removeFromTop (theme::px (24));
+    for (auto* b : { &allKinds, &midiKind, &instrumentKind, &effectKind }) place (*b);
+    bar.removeFromLeft (theme::px (8));
+    place (onlyOff);
     search.setBounds (bar.withWidth (jmin (bar.getWidth(), theme::px (260))));
     r.removeFromTop (theme::px (4));
     infoArea = r.removeFromTop (theme::px (30));

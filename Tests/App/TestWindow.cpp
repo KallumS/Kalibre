@@ -635,3 +635,50 @@ TEST ("browser: a preset's Load on a New Track puts its plug-in on a new track w
     }
     f.deleteFile();
 }
+
+TEST ("window: Space plays even when a button holds the keyboard focus, as one does after clicking in a plug-in's own view on the Mac; only a button reached with Tab takes it (the musician's report: Space switched to Devices)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        edit::addTrack (c.project, TrackKind::Track, "Drums");
+        c.refresh();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        w.addToDesktop (0);
+        w.setVisible (true);
+        c.zoneTab = ZoneTab::Editor;
+        c.viewChanged();
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        // The lower zone's Devices tab, given the focus as the window gives it back (not by Tab).
+        Button* devices = nullptr;
+        std::function<void (Component&)> find = [&] (Component& comp)
+        {
+            if (auto* b = dynamic_cast<Button*> (&comp); b && b->getButtonText() == "Devices") devices = b;
+            for (auto* ch : comp.getChildren()) find (*ch);
+        };
+        find (w);
+        CHECK (devices != nullptr);
+        if (devices && w.getPeer())
+        {
+            devices->grabKeyboardFocus();
+            CHECK (devices->hasKeyboardFocus (false));
+            w.getPeer()->handleKeyPress (KeyPress (KeyPress::spaceKey));
+            CHECK (c.engine.isPlaying());               // Space played
+            CHECK (c.zoneTab == ZoneTab::Editor);       // and didn't press Devices
+            c.stop();
+            // Reached with Tab, the button is the keyboard's: Space presses it.
+            static_cast<Component*> (devices)->focusGained (Component::focusChangedByTabKey);
+            w.getPeer()->handleKeyPress (KeyPress (KeyPress::spaceKey));
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            CHECK (c.zoneTab == ZoneTab::Devices);
+            CHECK (! c.engine.isPlaying());
+        }
+        w.removeFromDesktop();
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

@@ -130,3 +130,5 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0126. The Multiband device](0126-the-multiband-device.md)
 - [0127. Stereo Split](0127-stereo-split.md)
 - [0128. Drum Pads: 128 pads of samples and plug-ins, sixteen shown](0128-drum-pads.md)
+- [0130. Split at Transients asks how sensitive](0130-split-at-transients-sensitivity.md)
+- [0131. Every list of plug-ins in three parts](0131-plug-in-lists-in-three-parts.md)

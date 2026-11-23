@@ -103,6 +103,7 @@ void Controller::stripSilence (Id clipId, double thresholdDb)
 
 std::vector<double> Controller::hitsIn (Id clipId, double sensitivity)
 {
+    if (sensitivity < 0) sensitivity = transientSensitivity;
     const auto* cl = project.clip (clipId);
     if (! cl || cl->isMidi()) return {};
     AudioBuffer<float> buf;
@@ -132,7 +133,7 @@ void Controller::quantiseAudio (Id clipId, double strength)
 {
     const auto* cl = project.clip (clipId);
     if (! cl || cl->isMidi()) return;
-    const auto hits = hitsIn (clipId, 0.5);
+    const auto hits = hitsIn (clipId);
     if (hits.empty()) { say ("No hits were found in the clip."); return; }
     const Tick g = grid;
     apply ("Quantise Audio", [clipId, hits, g, strength] (Project& p)

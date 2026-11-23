@@ -527,9 +527,9 @@ std::vector<Id> keepSourceSpans (Project& p, Id clipId, const std::vector<std::p
     return ids;
 }
 
-std::vector<Id> splitAtSource (Project& p, Id clipId, const std::vector<double>& hits)
+std::set<Tick> cutsAtSource (const Project& p, Id clipId, const std::vector<double>& hits)
 {
-    auto* c = p.clip (clipId);
+    const auto* c = p.clip (clipId);
     if (! c || c->locked || c->isMidi() || c->loopLength > 0 || c->audio.reversed) return {};
     const Tick contentStart = c->start - c->offset;
     const Tick edge = std::max<Tick> (1, p.tempo.tickAt (p.tempo.secondsAt (c->start) + 0.01) - c->start);
@@ -539,6 +539,14 @@ std::vector<Id> splitAtSource (Project& p, Id clipId, const std::vector<double>&
         const Tick at = contentStart + audiotools::tickForSource (c->audio, h, p.tempo, contentStart);
         if (at > c->start + edge && at < c->end() - edge) cuts.insert (at);
     }
+    return cuts;
+}
+
+std::vector<Id> splitAtSource (Project& p, Id clipId, const std::vector<double>& hits)
+{
+    auto* c = p.clip (clipId);
+    if (! c || c->locked || c->isMidi() || c->loopLength > 0 || c->audio.reversed) return {};
+    const auto cuts = cutsAtSource (p, clipId, hits);
     std::vector<Id> ids { clipId };
     // From the last cut back, so the clip keeps its id and is always the piece cut.
     for (auto it = cuts.rbegin(); it != cuts.rend(); ++it)

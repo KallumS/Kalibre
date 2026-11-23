@@ -607,6 +607,68 @@ TEST ("sounds: a sample put on the timeline split at transients is a clip for ea
     CHECK_EQ (c.project.track (t)->clips().size(), (size_t) 4);
 }
 
+#include "TransientQuestion.h"
+
+TEST ("split at transients: a Sensitivity, said with how many clips it makes as it moves: higher finds the quiet hits too; the choice is kept (0130)")
+{
+    // Loud hits at 0 and 1 s, quiet ones (about -54 dB) at 0.5 and 1.5 s.
+    const auto dir = libraryFolder ("sensitivity");
+    const auto f = dir.getChildFile ("Loud and Quiet.wav");
+    {
+        f.deleteFile();
+        AudioBuffer<float> b (1, 96000);
+        b.clear();
+        for (auto [start, level] : { std::pair { 0, 0.8f }, { 24000, 0.002f }, { 48000, 0.8f }, { 72000, 0.002f } })
+            for (int i = 0; i < 4000; ++i)
+                b.setSample (0, start + i, level * std::exp (-i / 800.0f) * std::sin (6.2831853f * 200.0f * i / 48000.0f));
+        WavAudioFormat wav;
+        std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+        auto w = wav.createWriterFor (os, AudioFormatWriterOptions().withSampleRate (48000).withNumChannels (1).withBitsPerSample (24));
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    }
+    Library lib (dir);
+    auto& c = lib.c;
+    const double kept = c.transientSensitivity;
+    c.apply ("Track", [] (Project& p) { edit::addTrack (p, TrackKind::Track, "Drums"); });
+    const Id t = c.project.tracks.back().id;
+    CHECK (c.importFile (f, t, 0));
+    const Id one = c.project.track (t)->clips().front().id;
+    CHECK_EQ (c.splitAtTransients (one, 0.0), 2);    // only the loud
+    c.undo();
+    CHECK_EQ (c.splitAtTransients (one, 1.0), 4);    // the quiet too
+    c.undo();
+    CHECK (c.importSplit (f, t, PPQ * 16, 0.0));
+    CHECK_EQ (c.project.track (t)->clips().size(), (size_t) 3);   // the whole one, and two from the import
+    c.undo();
+
+    // The question: the count as the slider moves; Split splits at what's chosen, and keeps it.
+    Component host;
+    host.setSize (1000, 700);
+    ui::setHost (&host);
+    askTransients (c, "Split at Transients", { { one, {} } }, [&c, one] (double s) { c.splitAtTransients (one, s); });
+    AlertWindow* asked = nullptr;
+    for (auto* ch : host.getChildren()) if (auto* a = dynamic_cast<AlertWindow*> (ch)) asked = a;
+    CHECK (asked != nullptr);
+    Slider* slider = nullptr;
+    std::function<void (Component&)> find = [&] (Component& comp) { for (auto* ch : comp.getChildren()) { if (auto* s = dynamic_cast<Slider*> (ch)) slider = s; else find (*ch); } };
+    if (asked) find (*asked);
+    CHECK (slider != nullptr);
+    if (asked && slider)
+    {
+        auto* panel = slider->getParentComponent();
+        slider->setValue (0.0, sendNotificationSync);
+        CHECK_EQ (panel->getDescription(), String ("Makes 2 clips, one for each hit."));
+        slider->setValue (100.0, sendNotificationSync);
+        CHECK_EQ (panel->getDescription(), String ("Makes 4 clips, one for each hit."));
+        asked->exitModalState (1);
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        CHECK_EQ (c.project.track (t)->clips().size(), (size_t) 4);
+        CHECK_EQ (c.transientSensitivity, 1.0);
+    }
+    ui::setHost (nullptr);
+    c.setTransientSensitivity (kept);
+}
+
 TEST ("sounds: looked through once as Kalibre opens, not again on its own: a file saved meanwhile waits for Look Again (the musician's choice)")
 {
     const auto dir = makeSounds ("comeback");

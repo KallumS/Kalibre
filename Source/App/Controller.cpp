@@ -116,6 +116,8 @@ Controller::Controller (Engine& e) : engine (e)
         }
     };
     if (auto loaded = loadSettings (studioFile().loadFileAsString().toStdString())) studio = *loaded;
+    if (auto* o = JSON::parse (editingFile().loadFileAsString()).getDynamicObject())
+        if (o->hasProperty ("transientSensitivity")) transientSensitivity = jlimit (0.0, 1.0, (double) o->getProperty ("transientSensitivity"));
     engine.syncDevices.configure (studio);
     engine.onDevicePluginChanged = [this] { dirty = true; };
     MorphProcessor::choosePlugin = nullptr;
@@ -990,6 +992,19 @@ File Controller::projectFolder() const
                                : File::getSpecialLocation (File::userMusicDirectory).getChildFile ("Kalibre");
 }
 
+File Controller::editingFile() const
+{
+    return scriptsFolder().getParentDirectory().getChildFile ("Editing.json");
+}
+
+void Controller::setTransientSensitivity (double s)
+{
+    transientSensitivity = jlimit (0.0, 1.0, s);
+    auto* o = new DynamicObject();
+    o->setProperty ("transientSensitivity", transientSensitivity);
+    editingFile().replaceWithText (JSON::toString (var (o)));
+}
+
 File Controller::studioFile() const
 {
     return scriptsFolder().getParentDirectory().getChildFile ("Studio.json");
@@ -1225,8 +1240,9 @@ double Controller::tempoOfAudioFile (const File& f)
 }
 
 bool Controller::importFile (const File& original, Id trackId, Tick at, std::function<Id (Project&)> makeTrack, const String& label,
-                             bool splitAtTransients)
+                             bool splitAtTransients, double sensitivity)
 {
+    if (sensitivity < 0) sensitivity = transientSensitivity;
     auto f = original;
     const auto ext = f.getFileExtension().toLowerCase();
     if (ext == ".mid" || ext == ".midi")
@@ -1294,7 +1310,7 @@ bool Controller::importFile (const File& original, Id trackId, Tick at, std::fun
         AudioBuffer<float> buf;
         double rate = 0;
         if (readAudio (original, buf, rate))
-            for (int s : audiotools::transients (buf.getArrayOfReadPointers(), buf.getNumChannels(), buf.getNumSamples(), rate, 0.5))
+            for (int s : audiotools::transients (buf.getArrayOfReadPointers(), buf.getNumChannels(), buf.getNumSamples(), rate, sensitivity))
                 hits.push_back (s / rate);
     }
     // Kept as a 32-bit float WAV, copied into the song's Audio folder if it isn't one (decision 0079).

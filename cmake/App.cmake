@@ -154,6 +154,7 @@ endif()
 add_library(KalibreApp STATIC
     Source/Engine/ClapFormat.cpp
     Source/Engine/PluginManager.cpp
+    Source/Engine/PluginMenu.cpp
     Source/Engine/TrackProcessors.cpp
     Source/Engine/MorphProcessor.cpp
     Source/Engine/ContainerProcessor.cpp
@@ -187,6 +188,7 @@ add_library(KalibreApp STATIC
     Source/App/Controller.cpp
     Source/App/ReaperScripts.cpp
     Source/App/AudioEditing.cpp
+    Source/App/TransientQuestion.cpp
     Source/App/Presets.cpp
     Source/App/ProjectFiles.cpp
     Source/App/NoteFixing.cpp

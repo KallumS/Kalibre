@@ -51,6 +51,30 @@ TEST ("audio tools: hits are found within a few milliseconds")
         CHECK (std::abs (found[k] - at[k]) < (int) (rate * 0.006));
 }
 
+TEST ("audio tools: Split at Transients' Sensitivity: higher finds more hits (the quiet ones too), lower only the strongest; the same as transients at each")
+{
+    const double rate = 48000;
+    std::vector<float> a ((size_t) rate * 3, 0.0f);
+    // Loud hits, then quiet ones (about -54 dB).
+    const std::vector<std::pair<int, double>> at { { 4800, 0.8 }, { 30000, 0.8 }, { 60000, 0.002 }, { 90000, 0.002 }, { 120000, 0.8 } };
+    for (auto [start, level] : at)
+        for (int i = 0; i < 4000; ++i)
+            a[(size_t) (start + i)] = (float) (level * std::exp (-i / 800.0) * std::sin (tau * 200 * i / rate));
+    const float* ch[] { a.data() };
+    const auto candidates = hitCandidates (ch, 1, (int) a.size(), rate);
+    const auto few = hitsAt (candidates, 0.0, rate), many = hitsAt (candidates, 1.0, rate);
+    CHECK_EQ (few.size(), (size_t) 3);    // the loud three
+    CHECK_EQ (many.size(), (size_t) 5);   // the quiet two too
+    size_t last = 0;
+    for (double s = 0.0; s <= 1.0001; s += 0.1)
+    {
+        const auto hits = hitsAt (candidates, s, rate);
+        CHECK (hits.size() >= last);   // never fewer as it's raised
+        last = hits.size();
+        CHECK (hits == transients (ch, 1, (int) a.size(), rate, s));
+    }
+}
+
 TEST ("audio tools: audio quantise moves a late hit onto the beat, pinning the ends")
 {
     TempoMap tempo;   // 120 BPM: a quarter note is half a second
