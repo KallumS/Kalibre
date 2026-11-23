@@ -724,3 +724,34 @@ TEST ("frozen tracks: the header says Frozen, and stops saying it when unfrozen 
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("ruler: a marker's name at a bar line is written after the bar's number, not over it (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        edit::addTrack (c.project, TrackKind::Track, "Keys");
+        Marker mk;
+        mk.id = 99;
+        mk.name = "B section";
+        mk.tick = c.project.tempo.barStart (12);
+        c.project.markers.push_back (mk);
+        c.refresh();
+        Arrange arrange (c);
+        arrange.setSize (1200, 500);
+        arrange.resized();
+        arrange.timeline.startTick = 0;
+        arrange.timeline.pixelsPerTick = 120.0 / (PPQ * 4);
+        const auto number = arrange.barNumberArea (12);
+        const auto name = arrange.markerNameArea (mk);
+        CHECK (! number.isEmpty());
+        CHECK (! name.isEmpty());
+        CHECK (! name.intersects (number));
+        CHECK (name.getX() < number.getRight() + theme::px (16));   // still beside its flag
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

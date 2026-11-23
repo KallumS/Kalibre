@@ -681,7 +681,7 @@ void Arrange::drawRuler (Graphics& g, Rectangle<int> r)
             g.fillRect (x, (float) r.getY() + theme::px (4), 1.0f, (float) theme::px (16));
             g.setColour (theme::text);
             g.setFont (theme::font (theme::smallPoints));
-            g.drawText (String (bar + 1), (int) x + 4, r.getY() + theme::px (2), 40, theme::px (16), Justification::centredLeft, false);
+            g.drawText (String (bar + 1), barNumberArea (bar).withY (r.getY() + theme::px (2)), Justification::centredLeft, false);
         }
         if (bar == 0 || tempo.meterAtBar (bar - 1).numerator != m.numerator || tempo.meterAtBar (bar - 1).denominator != m.denominator)
             if (bar > 0 || tempo.meters().size() > 1)
@@ -699,11 +699,40 @@ void Arrange::drawRuler (Graphics& g, Rectangle<int> r)
         p.addTriangle (x, (float) r.getY() + theme::px (20), x + 6, (float) r.getY() + theme::px (14), x, (float) r.getY() + theme::px (8));
         g.fillPath (p);
         g.setColour (theme::text);
-        g.drawText (String (mk.name), (int) x + 8, r.getY() + theme::px (8), 120, theme::px (14), Justification::centredLeft, true);
+        g.drawText (String (mk.name), markerNameArea (mk).withY (r.getY() + theme::px (8)), Justification::centredLeft, true);
     }
     g.restoreState();
     g.setColour (theme::rule);
     g.fillRect (r.getX(), r.getBottom() - 1, r.getWidth(), 1);
+}
+
+Rectangle<int> Arrange::barNumberArea (int bar) const
+{
+    const auto& tempo = c.project.tempo;
+    const auto& m = tempo.meterAtBar (bar);
+    const float barWidth = (float) (m.barTicks() * timeline.pixelsPerTick);
+    const int every = barWidth < 24 ? 8 : barWidth < 48 ? 4 : barWidth < 80 ? 2 : 1;
+    if (bar < 0 || bar % every != 0) return {};
+    int x = (int) xOf (tempo.barStart (bar)) + 4;
+    // A marker's flag on the bar line: the number after it.
+    for (auto& mk : c.project.markers)
+        if (const float fx = xOf (mk.tick); fx > (float) x - 8 && fx < (float) x + 4) x = jmax (x, (int) fx + 9);
+    const int w = GlyphArrangement::getStringWidthInt (theme::font (theme::smallPoints), String (bar + 1)) + 2;
+    return { x, theme::px (2), w, theme::px (16) };
+}
+
+Rectangle<int> Arrange::markerNameArea (const Marker& mk) const
+{
+    int x = (int) xOf (mk.tick) + 8;
+    // The bar number it would cover, if any: the name goes after it, and
+    // stops short of the next one.
+    const int bar = c.project.tempo.barAt (mk.tick);
+    if (const auto n = barNumberArea (bar); ! n.isEmpty() && n.getRight() > x && n.getX() < x + theme::px (8))
+        x = n.getRight() + theme::px (4);
+    int w = jmin (theme::px (120), GlyphArrangement::getStringWidthInt (theme::font (theme::smallPoints), String (mk.name)) + 4);
+    if (const auto next = barNumberArea (bar + 1); ! next.isEmpty() && next.getX() < x + w)
+        w = jmax (theme::px (24), next.getX() - x - 2);
+    return { x, theme::px (8), w, theme::px (14) };
 }
 
 int Arrange::sectionLaneHeight() const { return c.showSectionLane ? theme::px (20) : 0; }

@@ -119,6 +119,11 @@ public:
     void zoomToFit();
     void reorder (Id track, int y);   // a header was dragged here
 
+    // Where the ruler writes a bar's number (empty when it skips that bar at
+    // this zoom), and a marker's name: after the number when they'd meet (the UAT).
+    juce::Rectangle<int> barNumberArea (int bar) const;
+    juce::Rectangle<int> markerNameArea (const Marker&) const;
+
 private:
     Controller& c;
     std::unique_ptr<juce::FileChooser> chooser;   // Import Audio Here, Split at Transients (0095)
