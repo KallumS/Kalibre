@@ -734,3 +734,13 @@ TEST ("sounds: Sync switched while a sound plays changes it at once, carrying on
     CHECK (stepAfter > 0);
     CHECK (std::abs (stepAfter - stepBefore * 0.5) < stepBefore * 0.15);
 }
+
+TEST ("sounds: once the folders are looked through, the message line says what was found, not still 'Looking through' (UAT 23 November)")
+{
+    const auto dir = makeSounds ("found");
+    Library lib (dir);
+    lib.c.say ("Looking through the folder for sounds: they appear in the browser's Sounds tab as they're found.");
+    lib.view.sayWhatWasFound();
+    CHECK (! lib.c.message.startsWith ("Looking through"));
+    CHECK (lib.c.message.contains ("5 sounds"));
+}

@@ -689,9 +689,20 @@ String LibraryView::status() const
     return String (total) + " sounds in " + folders;
 }
 
+void LibraryView::sayWhatWasFound()
+{
+    // The first look through the folders said so in the message line: once
+    // it's done, what was found (the UAT: it still said "Looking through", 0133).
+    if (scan->scanning() || scan->openingIndex() || ! c.message.startsWith ("Looking through")) return;
+    int total = 0;
+    for (auto& [p, it] : scan->index().items) if (it.readable) ++total;
+    c.say ("Found " + String (total) + (total == 1 ? " sound" : " sounds") + ": they're in the browser's Sounds tab.");
+}
+
 void LibraryView::timerCallback()
 {
     const auto now = status();
+    sayWhatWasFound();
     if (now != lastStatus) { lastStatus = now; repaint(); }
     if (preview->progress() >= 0 || preview->isPlaying()) strip->repaint();
 }

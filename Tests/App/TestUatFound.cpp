@@ -7,6 +7,9 @@
 #include "PluginManager.h"
 #include "Theme.h"
 #include "BuiltinInstruments.h"
+#include "AgentTools.h"
+#include "Keys.h"
+#include "MainComponent.h"
 
 using namespace kal;
 using namespace juce;
@@ -73,4 +76,51 @@ TEST ("last touched: switching to B and back, loading a preset or a state, isn't
     c.undo();
     MessageManager::getInstance()->runDispatchLoopUntil (20);
     CHECK_EQ (c.lastTouched.param, cutoff);
+}
+
+TEST ("keys: Home and End are named as the Mac names them, not 'home' and 'end'; forward Delete isn't shown as Delete (UAT)")
+{
+    Keys k;
+    k.add ("a", "Stop and Go to the Start", KeyPress (KeyPress::homeKey), [] {});
+    k.add ("b", "Go to the End", KeyPress (KeyPress::endKey), [] {});
+    k.add ("c", "Delete", KeyPress (KeyPress::backspaceKey), [] {});
+    k.add ("d", "Delete (Forward)", KeyPress (KeyPress::deleteKey), [] {});
+    CHECK (k.textFor ("a") != "home" && k.textFor ("a").isNotEmpty());
+    CHECK (k.textFor ("b") != "end" && k.textFor ("b").isNotEmpty());
+    CHECK (k.textFor ("a").substring (0, 1) != "h");
+    CHECK (k.textFor ("d") != k.textFor ("c"));
+}
+
+TEST ("agents: one note added is 'Added 1 note', not '1 notes' (UAT)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Lead");
+    const Id clip = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    c.refresh();
+    auto server = makeAgentServer (c);
+    const auto reply = server->handle ("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"add_notes\",\"arguments\":{\"clip\":"
+                                       + std::to_string (clip) + ",\"notes\":[{\"pitch\":60,\"start_beat\":0,\"length_beats\":1}]}}}");
+    CHECK (reply.find ("Added 1 note:") != std::string::npos);
+}
+
+TEST ("top bar: with tempo changes its label 'Tempo (changes)' fits its box, not 'Tempo (chan' (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        CHECK (w.topBar().tempoLabelFits());
+        c.apply ("Tempo", [] (Project& p) { p.tempo.setTempoAt (PPQ * 32, 90.0); });
+        MessageManager::getInstance()->runDispatchLoopUntil (100);
+        CHECK (w.topBar().tempoLabelFits());
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

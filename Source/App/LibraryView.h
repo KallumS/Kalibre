@@ -53,6 +53,8 @@ public:
 
     // Asks for folders and adds them (a chooser, then `then`).
     void chooseFolders (std::function<void()> then = {});
+    // Once the folders are looked through, the message line says what was found (0133).
+    void sayWhatWasFound();
     // The first time Kalibre opens: which folders to look in (asked once).
     void askOnFirstRun (std::function<void()> chose);
     std::function<void()> onEditFolders;         // opens the Library Folders window

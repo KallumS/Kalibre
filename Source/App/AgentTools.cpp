@@ -470,7 +470,7 @@ void addAgentTools (mcp::Server& server, Controller& c)
         {
             for (auto& n : notes) ids.push_back (edit::addNote (p, clip, n));
         });
-        return Reply::ok ("Added " + std::to_string (ids.size()) + " notes: ids " + json (ids).dump() + ".");
+        return Reply::ok ("Added " + std::to_string (ids.size()) + (ids.size() == 1 ? " note: id " : " notes: ids ") + json (ids).dump() + ".");
     });
 
     tool ("remove_notes", "Removes notes from a MIDI clip: those listed by id, or every note when `all` is true.",
