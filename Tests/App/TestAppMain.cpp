@@ -13,6 +13,7 @@ void installTestFormats();   // TestPlugins.cpp
 #if JUCE_WINDOWS
 void installTestCrashPrinter();   // TestCrashWin.cpp: how and where, if the tests end early (0129)
 void testsFinished();
+void testStarting (const char*);
 #endif
 
 int main (int argc, char** argv)
@@ -39,6 +40,9 @@ int main (int argc, char** argv)
     {
         if (argc > 1 && std::strstr (t.name, argv[1]) == nullptr) continue;
         check::current() = t.name;
+       #if JUCE_WINDOWS
+        testStarting (t.name);   // a watchdog: a test that hangs says where (0129)
+       #endif
         // Each test named as it starts, so a crash in CI's log says where it was.
         std::printf ("- %s\n", t.name);
         std::fflush (stdout);

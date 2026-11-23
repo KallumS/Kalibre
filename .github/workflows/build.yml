@@ -118,6 +118,7 @@ jobs:
       - name: Core tests
         run: .\build\KalibreTests.exe
       - name: App tests
+        timeout-minutes: 25
         run: .\build\KalibreAppTests_artefacts\Release\KalibreAppTests.exe
       - name: Package
         shell: pwsh
