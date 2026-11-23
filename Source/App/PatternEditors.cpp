@@ -840,9 +840,12 @@ void EuclidEditor::resized()
         auto r = area.removeFromTop (rowH);
         rp->drum->setBounds (r.removeFromLeft (theme::px (110)).withSizeKeepingCentre (theme::px (110), theme::px (28)));
         r.removeFromLeft (theme::px (8));
-        r.removeFromLeft (r.getHeight() + theme::px (8));   // the circle
+        // The circle as wide as a row, whatever is left of this one, so every row's
+        // dials line up (the UAT: the last row's sat to the left, 0133).
+        r.removeFromLeft (rowH + theme::px (8));
+        // Each dial with its name over it: Steps, Hits, Rotate.
         for (auto* k : { rp->stepsKnob.get(), rp->pulsesKnob.get(), rp->rotationKnob.get() })
-            k->setBounds (r.removeFromLeft (theme::px (64)));
+            k->setBounds (r.removeFromLeft (theme::px (64)).withTrimmedTop (theme::px (16)));
     }
 }
 
@@ -865,7 +868,12 @@ void EuclidEditor::paint (Graphics& g)
         ++row;
         auto r = area.removeFromTop (rowH);
         r.removeFromLeft (theme::px (118));
-        auto circle = r.removeFromLeft (r.getHeight()).toFloat().reduced (6.0f);
+        auto circle = r.removeFromLeft (rowH).withHeight (rowH).toFloat().reduced (6.0f);
+        // The dials' names, over each (the UAT: they had none, 0133).
+        g.setColour (theme::textSecondary);
+        g.setFont (theme::font (theme::smallPoints));
+        for (auto* k : { rp->stepsKnob.get(), rp->pulsesKnob.get(), rp->rotationKnob.get() })
+            if (k) g.drawText (k->getTitle(), k->getX(), k->getY() - theme::px (16), k->getWidth(), theme::px (16), Justification::centred, false);
         const auto hits = patterns::euclid (rp->steps, rp->pulses, rp->rotation);
         const auto centre = circle.getCentre();
         const float radius = circle.getWidth() * 0.5f;

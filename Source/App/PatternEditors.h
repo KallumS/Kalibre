@@ -129,7 +129,8 @@ class EuclidEditor : public juce::Component, private juce::ChangeListener, priva
 public:
     explicit EuclidEditor (Controller&);
     ~EuclidEditor() override;
-    int preferredHeight() const { return theme::px (48) + (int) rows.size() * theme::px (90); }
+    // The top line, its gaps and the margins (60), then a row each: the last row whole (0133).
+    int preferredHeight() const { return theme::px (60) + (int) rows.size() * theme::px (90); }
     void paint (juce::Graphics&) override;
     void resized() override;
 

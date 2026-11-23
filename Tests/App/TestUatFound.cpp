@@ -12,6 +12,7 @@
 #include "MainComponent.h"
 #include "PluginMenu.h"
 #include "DrumMachine.h"
+#include "PatternEditors.h"
 
 using namespace kal;
 using namespace juce;
@@ -274,4 +275,33 @@ TEST ("drums: the pattern dragged to the timeline keeps its swing and gate, so t
     if (! clip) return;
     CHECK (std::abs (clip->drumsFeel.swing - 0.3) < 1.0e-9);
     CHECK (std::abs (clip->drumsFeel.gate - 0.5) < 1.0e-9);
+}
+
+TEST ("euclidean: every row's dials line up and fit, each named (Steps, Hits, Rotate) (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        EuclidEditor euclid (c);
+        euclid.setSize (1100, euclid.preferredHeight());
+        std::vector<Slider*> dials;
+        for (auto* ch : euclid.getChildren())
+            if (auto* s = dynamic_cast<Slider*> (ch)) dials.push_back (s);
+        CHECK (dials.size() >= 6);
+        std::set<int> xs;
+        for (auto* d : dials)
+        {
+            xs.insert (d->getX());
+            CHECK (euclid.getLocalBounds().contains (d->getBounds()));
+            CHECK (d->getHeight() == dials.front()->getHeight());
+            CHECK (d->getTitle() == "Steps" || d->getTitle() == "Hits" || d->getTitle() == "Rotate");
+            CHECK (d->getY() >= theme::px (16));   // room for its name over it
+        }
+        CHECK_EQ (xs.size(), size_t (3));   // three columns, every row the same
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
