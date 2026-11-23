@@ -20,7 +20,7 @@
 | `Core/Loudness.*` | BS.1770 / R128 loudness, true peak, correlation (0033). |
 | `Core/Sync.*`, `ControlSettings.*` | MIDI clock, MTC, clock following; the studio's settings (0034). |
 | `Core/Mackie.*` | The Mackie Control protocol (0035). |
-| `Core/AudioTools.*` | Peaks, silence, transients (as candidates a sensitivity chooses from, for the Sampler's slices), audio quantise markers, sample edits, FFT, YIN pitch; a sample's tempo and note (0036, 0044, 0095). |
+| `Core/AudioTools.*` | Peaks, silence, transients (as candidates a sensitivity chooses from, for the Sampler's slices and Split at Transients' question, 0130), audio quantise markers, sample edits, FFT, YIN pitch; a sample's tempo and note (0036, 0044, 0095). |
 | `Core/Song.*` | Time edits, sections, ripple, linked clips, track groups (0037; the clip launcher taken out, 0098). |
 | `Core/Surround.*` | Speaker gains for quad, 5.1 and 7.1 (0040). |
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
@@ -50,6 +50,7 @@
 | `Engine/Engine.*` | The audio graph built from the project, plug-in instances kept across changes, the transport and loop, rendering (0016). |
 | `Engine/TrackProcessors.*` | Each track's Source (clips, live input, recording, automation, modulators), Fader and Sends; the metronome. |
 | `Engine/ClapFormat.*`, `ClapGuiMac.mm` | Hosting CLAP (0021). |
+| `Engine/PluginMenu.*` | Every list of plug-ins to choose from: MIDI Effects, Instruments, Audio Effects, each by maker (0131). |
 | `Engine/PluginManager.*` | Scanning (each plug-in in a helper: Kalibre run with `--kalibre-scan`; on Windows through `HelperProcessWin.cpp`, 0129), turning plug-ins off and on, and making them (0047). The helper's `controls` mode reads every control for the Random Settings Report (0104). |
 | `Engine/MorphProcessor.*` | The X/Y morph (0018), and the latency and gain devices the tests use. |
 | `Engine/ContainerProcessor.*` | The Container: plug-ins in a row, each on a band, the mid or the sides (0055). |

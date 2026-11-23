@@ -6,6 +6,7 @@
 #include "../Tests/App/Demo.h"
 #include "BuiltinInstruments.h"
 #include "DrumMachine.h"
+#include "TransientQuestion.h"
 #include "DrumPadsDevice.h"
 #include "ContainerProcessor.h"
 #include "Comp.h"
@@ -223,6 +224,21 @@ int main (int argc, char** argv)
             shoot ("44-question-at-the-top");
             q->exitModalState (0);
             MessageManager::getInstance()->runDispatchLoopUntil (50);
+        }
+        // Split at Transients' question (decision 0130): its Sensitivity, and how many clips it makes.
+        {
+            Id vocalClip = 0;
+            for (auto& t : c.project.tracks)
+                if (t.name == "Vocal")
+                    for (auto& cl : t.clips()) if (! cl.isMidi() && vocalClip == 0) vocalClip = cl.id;
+            if (vocalClip != 0)
+            {
+                askTransients (c, "Split at Transients", { { vocalClip, {} } }, [] (double) {});
+                MessageManager::getInstance()->runDispatchLoopUntil (50);
+                shoot ("51-split-at-transients");
+                if (auto* m = Component::getCurrentlyModalComponent()) m->exitModalState (0);
+                MessageManager::getInstance()->runDispatchLoopUntil (50);
+            }
         }
         window.showBrowser (Browser::Tab::Presets);
         c.zoneTab = ZoneTab::Mixer;

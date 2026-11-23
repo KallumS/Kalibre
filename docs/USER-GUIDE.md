@@ -76,7 +76,9 @@ double-click **Kalibre.exe** ([On Windows](#on-windows)).
    Kalibre.
 6. **Write some notes.** Double-click the track's lane for a one-bar MIDI
    clip, press **E** for the Editor, and click in the piano roll to add notes.
-7. **Play.** Space plays and stops; Return goes back to the start.
+7. **Play.** Space plays and stops; Return goes back to the start. They do
+   wherever you clicked last, a plug-in's window too; only a button you
+   moved to with Tab takes Space as a press.
 8. **Save.** ⌘S. A song is a `.kalibre` file in its own folder, with its
    audio in an **Audio** folder beside it.
 
@@ -402,6 +404,17 @@ inside folders. A folded folder shows where its tracks have clips.
   **Import Audio Here, Split at Transients…** (a sample as a clip for each of
   its hits, side by side, one undo step), **Paste Here**.
 
+**Splitting at transients** (a clip's Split at Transients…, Import Audio
+Here, Split at Transients…, the Sounds tab's Put on the Chosen Track, Split
+at Transients…) asks how readily a hit is found: **Sensitivity**. Higher
+finds more hits, the quiet ones too; lower, only the strongest. As you drag
+it, it says how many clips it will make. **Split** splits; your choice is
+kept for next time, and the Sample Editor's hit marks and Quantise Audio to
+the Grid follow it. (Kalibre Sampler's Slices have their own, **Slice
+Sensitivity**.)
+
+![Split at Transients: Sensitivity, and how many clips it makes](guide/split-at-transients.png)
+
 ### Editing clips with the mouse
 
 | Do | To |
@@ -463,7 +476,7 @@ For audio clips, also:
 | **Strip Silence** | One clip for each stretch with sound in it. |
 | **Quantise Audio to the Grid** | Every hit moved onto the grid with warp markers. |
 | **Edit Samples** | Opens the sample editor ([Section 13](#13-audio-editing)). |
-| **Split at Transients** | A clip for each hit: the clip cut just before every drum hit or note it holds, the pieces side by side, so it plays the same. Then move, mute or delete hits one by one. Not on a looped or reversed clip. |
+| **Split at Transients…** | Asks how sensitive (above), then a clip for each hit: the clip cut just before every drum hit or note it holds, the pieces side by side, so it plays the same. Then move, mute or delete hits one by one. Not on a looped or reversed clip. |
 | **Fade In and Out (10 ms)** | |
 | **Offline Effects** | Plug-ins rendered into the clip: **Add** one, **Edit Their Settings**, **Render**, or go **Back to the Original**. |
 
@@ -748,6 +761,15 @@ zone: the rack is outlined while you drag, and the plug-in goes between the
 ones either side of where you let go (MIDI effects still come first, then
 instruments, then audio effects). With no track chosen, a new track is made
 for it.
+
+Every list of plug-ins to choose from is in the same three parts, **MIDI
+Effects**, **Instruments** and **Audio Effects**, each under its heading and
+by maker: + Add and its **Kalibre** menu, the browser's Plug-ins tab, a
+clip's offline effects, the Container's, Multiband's and Stereo Split's
+plug-ins, X/Y Morph's corners, and a drum pad's **Play It with a Plug-in**.
+A place that only takes one kind (a drum pad: instruments) lists only that
+one. An instrument that also sends MIDI (Riffer, Scaler) is under MIDI
+Effects too.
 
 **Random**, under **+ Add**, replaces the chosen track's devices with ones
 chosen by chance (**Shift-click** adds them to the devices it has instead), as
@@ -1370,7 +1392,7 @@ it changes.
 | Right-click > **New Track with Kalibre Synth** | A MIDI file: a new track with Kalibre Synth and the notes at the cursor. |
 | Right-click > **New Track with the Sample** | The sample as a clip on a new track, at the cursor. |
 | Right-click > **Put on the Chosen Track at the Cursor** | |
-| Right-click > **Put on the Chosen Track, Split at Transients** | A sample as a clip for each of its hits, side by side at the cursor. |
+| Right-click > **Put on the Chosen Track, Split at Transients…** | Asks how sensitive, then the sample as a clip for each of its hits, side by side at the cursor. |
 | Right-click > **Play** | Hear it, whether Auto-Play is on or not. |
 | Right-click > **Add to Favourites**, **Show in Finder** | |
 
@@ -1388,6 +1410,7 @@ or show it in the Finder.
 | Control | Does |
 | --- | --- |
 | Search, sort | By name, maker, kind or format. |
+| **All Kinds**, **MIDI Effects**, **Instruments**, **Audio Effects** | Every plug-in, or one kind (an instrument that sends MIDI shows under MIDI Effects too). |
 | **Scan for New Plug-ins** | Plug-ins installed since the last scan, each opened in a helper. |
 | **Scan Again** | The chosen ones again, as if new: for one that crashed and has been updated since. |
 | **Turn Off** | Leave them out of the browser and the menus, and never load them. |

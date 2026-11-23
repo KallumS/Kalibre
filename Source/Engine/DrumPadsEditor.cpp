@@ -5,6 +5,7 @@
 
 #include "Editors.h"
 #include "PluginManager.h"
+#include "PluginMenu.h"
 #include "Theme.h"
 
 namespace kal
@@ -251,12 +252,9 @@ public:
 
     PopupMenu pluginMenu (int pad)
     {
-        PopupMenu synths;
-        for (auto& d : proc.pluginManager().known().getTypes())
-            if (d.isInstrument && d.pluginFormatName != "Kalibre")
-                synths.addItem (d.name + "  (" + d.manufacturerName + ")", [this, pad, ref = PluginManager::refFor (d)] { setPlugin (pad, ref); });
-        if (synths.getNumItems() == 0) synths.addItem ("No Instruments Scanned Yet", false, false, [] {});
-        return synths;
+        // Instruments, under their heading, by maker (0131).
+        return pluginmenu::make (proc.pluginManager(), { DeviceRole::Instrument },
+                                 [this, pad] (const PluginDescription& d, DeviceRole) { setPlugin (pad, PluginManager::refFor (d)); });
     }
 
     PopupMenu chokeMenu (int pad)

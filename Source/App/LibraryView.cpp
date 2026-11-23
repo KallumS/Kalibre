@@ -1,4 +1,5 @@
 #include "LibraryView.h"
+#include "TransientQuestion.h"
 
 #include "BuiltinInstruments.h"
 #include "Edit.h"
@@ -550,10 +551,12 @@ void LibraryView::itemMenu (int row)
     }
     m.addItem ("Put on the Chosen Track at the Cursor", focus != nullptr && focus->holdsClips(), false, [this, path] { putAtCursor (path); });
     if (! library::isMidiExtension (library::extensionOf (path)))
-        m.addItem ("Put on the Chosen Track, Split at Transients", focus != nullptr && focus->holdsClips(), false, [this, path]
+        m.addItem (u8 ("Put on the Chosen Track, Split at Transients\xe2\x80\xa6"), focus != nullptr && focus->holdsClips(), false, [this, path]
         {
             preview->stop();
-            c.importSplit (File (path), c.focusTrack, c.cursor);
+            const Id track = c.focusTrack;
+            const Tick at = c.cursor;
+            askTransients (c, "Split at Transients", { { 0, File (path) } }, [this, path, track, at] (double s) { c.importSplit (File (path), track, at, s); });
         });
     m.addItem ("Play", [this, row] { hear (row, true); });
     m.addSeparator();

@@ -1,4 +1,6 @@
 #include "Arrange.h"
+#include "PluginMenu.h"
+#include "TransientQuestion.h"
 #include "ToolPicker.h"
 
 #include "Song.h"
@@ -1867,9 +1869,12 @@ void Arrange::clipMenu (Id id)
                 });
             });
         if (audio)
-            m.addItem ("Split at Transients", clip->loopLength == 0 && ! clip->audio.reversed, false, [this, chosen]
+            m.addItem (ui::u8 ("Split at Transients\xe2\x80\xa6"), clip->loopLength == 0 && ! clip->audio.reversed, false, [this, chosen]
             {
-                for (auto cid : chosen) c.splitAtTransients (cid);
+                // How sensitive, with how many clips it makes (0130).
+                std::vector<TransientSource> sources;
+                for (auto cid : chosen) sources.push_back ({ cid, {} });
+                askTransients (c, "Split at Transients", sources, [this, chosen] (double s) { for (auto cid : chosen) c.splitAtTransients (cid, s); });
             });
     }
     m.addItem ("Mute", true, clip->muted, [this, id] { c.apply ("Mute Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->muted = ! cl->muted; }); });
@@ -1946,22 +1951,20 @@ void Arrange::clipMenu (Id id)
         m.addItem ("Fade In and Out (10 ms)", [this, id] { c.apply ("Fades", [id] (Project& p) { if (auto* cl = p.clip (id)) { cl->audio.fadeIn = 0.01; cl->audio.fadeOut = 0.01; } }); });
 
         // Offline effects (decision 0026).
-        for (auto& d : c.engine.plugins().known().getTypes())
-            if (! d.isInstrument)
-                offline.addItem (d.name + " (" + d.pluginFormatName + ")", [this, id, d]
+        // Audio effects only, under their heading, by maker (0131).
+        offline = pluginmenu::make (c.engine.plugins(), { DeviceRole::AudioFx }, [this, id] (const PluginDescription& d, DeviceRole)
+        {
+            c.apply ("Offline Effect", [id, d] (Project& p)
+            {
+                if (auto* cl = p.clip (id))
                 {
-                    c.apply ("Offline Effect", [id, d] (Project& p)
-                    {
-                        if (auto* cl = p.clip (id))
-                        {
-                            Device dev;
-                            dev.id = p.newId();
-                            dev.plugin = PluginManager::refFor (d);
-                            cl->offlineFx.chain.push_back (dev);
-                        }
-                    });
-                });
-        if (offline.getNumItems() == 0) offline.addItem ("Scan for plug-ins first (" + String (platform::inSettings ("Plug-in Manager")) + ")", false, false, [] {});
+                    Device dev;
+                    dev.id = p.newId();
+                    dev.plugin = PluginManager::refFor (d);
+                    cl->offlineFx.chain.push_back (dev);
+                }
+            });
+        });
         PopupMenu fxMenu;
         fxMenu.addSubMenu ("Add", offline);
         for (size_t i = 0; i < clip->offlineFx.chain.size(); ++i)
@@ -2066,7 +2069,9 @@ void Arrange::laneMenu (const Row& row, Point<int> at)
                                                      "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.m4a;*.caf");
             chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles, [this, id, tick] (const FileChooser& fc)
             {
-                if (fc.getResult().existsAsFile()) c.importSplit (fc.getResult(), id, tick);
+                const auto f = fc.getResult();
+                if (f.existsAsFile())   // how sensitive, with how many clips it makes (0130)
+                    askTransients (c, "Import, Split at Transients", { { 0, f } }, [this, f, id, tick] (double s) { c.importSplit (f, id, tick, s); });
             });
         });
     }

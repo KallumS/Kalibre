@@ -1,4 +1,5 @@
 #include "DeviceRack.h"
+#include "PluginMenu.h"
 #include "DrumMachine.h"
 #include "DrumPadsDevice.h"
 #include "NoteSplitterEditor.h"
@@ -724,11 +725,10 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     };
     MorphProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
-        PopupMenu m;
-        for (auto& d : c.engine.plugins().known().getTypes())
-            m.addItem (d.name + " (" + d.pluginFormatName + ")", [chosen, d] { chosen (PluginManager::refFor (d)); });
-        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (" + String (platform::inSettings ("Plug-in Manager")) + ")", false, false, [] {});
-        m.showMenuAsync (PopupMenu::Options());
+        // A corner plays an instrument or an effect: both, each under its heading (0131).
+        pluginmenu::make (c.engine.plugins(), { DeviceRole::Instrument, DeviceRole::AudioFx },
+                          [chosen] (const PluginDescription& d, DeviceRole) { chosen (PluginManager::refFor (d)); })
+            .showMenuAsync (PopupMenu::Options());
     };
     // The Multiband's bands and Stereo Split's parts take audio effects too (0126, 0127): the same menu.
     SplitProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
@@ -738,15 +738,9 @@ DeviceRack::DeviceRack (Controller& ctrl) : c (ctrl)
     // The Container takes audio effects (decision 0055).
     ContainerProcessor::choosePlugin = [this] (std::function<void (const PluginRef&)> chosen)
     {
-        PopupMenu m;
-        std::map<String, PopupMenu> byMaker;
-        for (auto& d : c.engine.plugins().known().getTypes())
-            if (c.engine.plugins().roleOf (d) == DeviceRole::AudioFx)
-                byMaker[d.manufacturerName.isEmpty() ? String ("Other") : d.manufacturerName]
-                    .addItem (d.name + "  (" + d.pluginFormatName + ")", [chosen, d] { chosen (PluginManager::refFor (d)); });
-        for (auto& [maker, sub] : byMaker) m.addSubMenu (maker, sub);
-        if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (" + String (platform::inSettings ("Plug-in Manager")) + ")", false, false, [] {});
-        m.showMenuAsync (PopupMenu::Options());
+        pluginmenu::make (c.engine.plugins(), { DeviceRole::AudioFx },
+                          [chosen] (const PluginDescription& d, DeviceRole) { chosen (PluginManager::refFor (d)); })
+            .showMenuAsync (PopupMenu::Options());
     };
     NoteSplitterProcessor::makeEditor = [this] (NoteSplitterProcessor& p) -> AudioProcessorEditor* { return new NoteSplitterEditor (p, c); };
     c.addChangeListener (this);
@@ -828,33 +822,36 @@ void DeviceRack::addMenu (Controller& c, Id track, Component* target)
     for (auto& [maker, menu] : byMaker[0]) midi.addSubMenu (maker, menu);
     for (auto& [maker, menu] : byMaker[1]) instruments.addSubMenu (maker, menu);
     for (auto& [maker, menu] : byMaker[2]) effects.addSubMenu (maker, menu);
-    kalibre.addItem ("Kalibre Synth", [&c, track] { c.addBuiltIn (track, synthRef(), DeviceRole::Instrument); });
-    kalibre.addItem ("Kalibre Sampler", [&c, track] { c.addBuiltIn (track, samplerRef(), DeviceRole::Instrument); });
-    kalibre.addItem ("Kalibre Drums (a Kit of Samples and Plug-ins, with Steps)", [&c, track] { c.addBuiltIn (track, drumsRef(), DeviceRole::Instrument); });
-    kalibre.addItem ("Drum Pads (128 Pads of Samples and Plug-ins)", [&c, track] { c.addBuiltIn (track, drumPadsRef(), DeviceRole::Instrument); });
-    kalibre.addItem ("Trombolese (a Trombone Crossed with an Oboe)", [&c, track] { c.addBuiltIn (track, tromboleseRef(), DeviceRole::Instrument); });
-    kalibre.addItem ("Hardware Insert (Outboard Gear)", [&c, track] { c.addBuiltIn (track, hardwareInsertRef(), DeviceRole::AudioFx); });
-    kalibre.addSeparator();
-    kalibre.addItem ("X/Y Morph as an Instrument (Samples or Instruments)", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::Instrument); });
-    kalibre.addItem ("X/Y Morph as an Effect", [&c, track] { c.addBuiltIn (track, morphRef(), DeviceRole::AudioFx); });
-    kalibre.addSeparator();
-    kalibre.addItem ("Container (Plug-ins on a Band, the Mid or the Sides)", [&c, track] { c.addBuiltIn (track, containerRef(), DeviceRole::AudioFx); });
-    kalibre.addItem ("Multiband (2 to 4 Bands, Plug-ins on Each)", [&c, track] { c.addBuiltIn (track, multibandRef(), DeviceRole::AudioFx); });
-    kalibre.addItem ("Stereo Split (Left, Middle, Right or Middle and Sides, Plug-ins on Each)", [&c, track] { c.addBuiltIn (track, stereoSplitRef(), DeviceRole::AudioFx); });
-    kalibre.addItem ("Note Splitter (a Chord's Notes to Several Tracks)  (MIDI Effect)", [&c, track] { c.addBuiltIn (track, noteSplitterRef(), DeviceRole::MidiFx); });
-    // The family's JSFX, built in (decision 0066), with Kalibre's own devices (0069).
-    kalibre.addSeparator();
-    for (auto& s : jsfxDevices())
+    // Kalibre's own, in the same three parts (0131).
+    PopupMenu ownMidi, ownInstruments, ownEffects;
+    auto own = [&c, track] (PopupMenu& in, const String& name, PluginRef ref, DeviceRole role)
     {
-        const char* kinds[] { "MIDI Effect", "Instrument", "Effect" };
-        kalibre.addItem (String (s.name) + "  (" + kinds[(int) s.role] + ")", [&c, track, &s] { c.addBuiltIn (track, jsfxRef (s), s.role); });
-    }
-    kalibre.addItem ("Instant Virtual Instrument  (Instrument)", [&c, track] { c.addBuiltIn (track, instantVirtualInstrumentRef(), DeviceRole::Instrument); });
+        in.addItem (name, [&c, track, ref, role] { c.addBuiltIn (track, ref, role); });
+    };
+    own (ownInstruments, "Kalibre Synth", synthRef(), DeviceRole::Instrument);
+    own (ownInstruments, "Kalibre Sampler", samplerRef(), DeviceRole::Instrument);
+    own (ownInstruments, "Kalibre Drums (a Kit of Samples and Plug-ins, with Steps)", drumsRef(), DeviceRole::Instrument);
+    own (ownInstruments, "Drum Pads (128 Pads of Samples and Plug-ins)", drumPadsRef(), DeviceRole::Instrument);
+    own (ownInstruments, "Trombolese (a Trombone Crossed with an Oboe)", tromboleseRef(), DeviceRole::Instrument);
+    own (ownInstruments, "X/Y Morph (Samples or Instruments)", morphRef(), DeviceRole::Instrument);
+    own (ownInstruments, "Instant Virtual Instrument", instantVirtualInstrumentRef(), DeviceRole::Instrument);
+    own (ownEffects, "Hardware Insert (Outboard Gear)", hardwareInsertRef(), DeviceRole::AudioFx);
+    own (ownEffects, "X/Y Morph (Effects)", morphRef(), DeviceRole::AudioFx);
+    own (ownEffects, "Container (Plug-ins on a Band, the Mid or the Sides)", containerRef(), DeviceRole::AudioFx);
+    own (ownEffects, "Multiband (2 to 4 Bands, Plug-ins on Each)", multibandRef(), DeviceRole::AudioFx);
+    own (ownEffects, "Stereo Split (Left, Middle, Right or Middle and Sides, Plug-ins on Each)", stereoSplitRef(), DeviceRole::AudioFx);
+    own (ownMidi, "Note Splitter (a Chord's Notes to Several Tracks)", noteSplitterRef(), DeviceRole::MidiFx);
     // ScaleView reads what's played: before the instrument, where the notes are (decision 0093).
-    kalibre.addItem ("ScaleView  (MIDI Effect)", [&c, track] { c.addBuiltIn (track, scaleViewRef(), DeviceRole::MidiFx); });
-    // The family's ReaImGui tools, built in (decision 0068).
-    for (auto& s : luaTools())
-        kalibre.addItem (String (s.name) + "  (MIDI Effect)", [&c, track, &s] { c.addBuiltIn (track, luaToolRef (s), DeviceRole::MidiFx); });
+    own (ownMidi, "ScaleView", scaleViewRef(), DeviceRole::MidiFx);
+    // The family's JSFX (decision 0066) and ReaImGui tools (0068), built in, each in its part.
+    for (auto& s : jsfxDevices())
+        own (s.role == DeviceRole::MidiFx ? ownMidi : s.role == DeviceRole::Instrument ? ownInstruments : ownEffects, s.name, jsfxRef (s), s.role);
+    for (auto& s : luaTools()) own (ownMidi, s.name, luaToolRef (s), DeviceRole::MidiFx);
+    for (auto [part, items] : { std::pair { DeviceRole::MidiFx, &ownMidi }, { DeviceRole::Instrument, &ownInstruments }, { DeviceRole::AudioFx, &ownEffects } })
+    {
+        kalibre.addSectionHeader (pluginmenu::heading (part));
+        for (PopupMenu::MenuItemIterator it (*items); it.next();) kalibre.addItem (it.getItem());
+    }
     PopupMenu m;
     m.addSubMenu ("MIDI Effects", midi, midi.getNumItems() > 0);
     m.addSubMenu ("Instruments", instruments, instruments.getNumItems() > 0);

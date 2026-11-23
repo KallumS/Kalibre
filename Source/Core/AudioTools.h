@@ -56,6 +56,9 @@ std::vector<HitCandidate> hitCandidates (const float* const* channels, int numCh
 int hitGapFrames (double rate);
 // Whether a candidate is a hit at `sensitivity`, given the frame of the last one taken.
 bool isHit (const HitCandidate&, double sensitivity, int lastFrame, int gapFrames);
+// The hits among candidates at a sensitivity, as `transients` finds them: quick to ask
+// again and again, so a slider can show how many as it moves (Split at Transients' Sensitivity).
+std::vector<int> hitsAt (const std::vector<HitCandidate>&, double sensitivity, double rate);
 
 //==============================================================================
 // Where a moment of the file plays, in ticks from the clip's content start,

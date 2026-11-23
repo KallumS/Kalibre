@@ -15,6 +15,8 @@
 #include "Controller.h"
 #include "Theme.h"
 
+#include <optional>
+
 namespace kal
 {
 
@@ -35,6 +37,8 @@ public:
         PluginManager::Reason reason = PluginManager::Reason::Crashed;
         juce::String detail;
         juce::PluginDescription desc;   // empty for a file turned off before it was read
+        std::optional<DeviceRole> role; // unknown for a file turned off before it was read
+        bool sendsMidi = false;
     };
     const std::vector<Row>& shownRows() const { return rows; }
 
@@ -50,6 +54,12 @@ private:
     theme::HouseButton report { "Random Settings Report...", "Write every control of every plug-in to a file on your Desktop, each marked as one a plug-in's Random "
                                                              "changes or leaves alone, and why. Each plug-in is opened in a helper, so this takes a few minutes." };
     theme::HouseButton onlyOff { "Only Turned Off", "Show only the plug-ins that are turned off.", true };
+    // The list in three parts, or all of it (0131).
+    theme::HouseButton allKinds { "All Kinds", "Every plug-in.", true };
+    theme::HouseButton midiKind { "MIDI Effects", "Only MIDI effects, and the instruments that send MIDI.", true };
+    theme::HouseButton instrumentKind { "Instruments", "Only instruments.", true };
+    theme::HouseButton effectKind { "Audio Effects", "Only audio effects.", true };
+    std::optional<DeviceRole> showKind;
 
     std::vector<Row> rows;
     int sortColumn = 0;

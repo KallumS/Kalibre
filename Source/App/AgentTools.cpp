@@ -540,7 +540,8 @@ void addAgentTools (mcp::Server& server, Controller& c)
           object ({ { "clip", integer ("The clip's id.") },
                     { "action", oneOf ("What to do.", { "reverse", "invert", "split_at_transients", "quantise", "transpose", "split" }) },
                     { "grid_beats", number ("quantise: the grid, in beats (0.25 is a sixteenth).") },
-                    { "semitones", integer ("transpose: how far, up or down.") }, { "beat", number ("split: where, in beats from the song's start.") } },
+                    { "semitones", integer ("transpose: how far, up or down.") }, { "beat", number ("split: where, in beats from the song's start.") },
+                    { "sensitivity", number ("split_at_transients: 0 to 1, higher finds more hits (the quiet ones too). The musician's last choice when left out.") } },
                   { "clip", "action" }), [&c] (const json& a)
     {
         const Id clip = idOf (a, "clip");
@@ -554,7 +555,7 @@ void addAgentTools (mcp::Server& server, Controller& c)
         else if (action == "split_at_transients")
         {
             if (cl->isMidi()) return Reply::fail ("Split at transients is for audio clips.");
-            const int made = c.splitAtTransients (clip);
+            const int made = c.splitAtTransients (clip, a.contains ("sensitivity") ? jlimit (0.0, 1.0, numberOr (a, "sensitivity", 0.5)) : -1.0);
             return made > 1 ? Reply::ok ("Split into " + std::to_string (made) + " clips.") : Reply::fail ("No hits were found to split at.");
         }
         else if (action == "quantise")
@@ -585,14 +586,17 @@ void addAgentTools (mcp::Server& server, Controller& c)
                           "With split_at_transients, an audio file comes in as a clip for each hit.",
           object ({ { "file", text ("The file's full path.") }, { "track", idOrName ("The track; a new one when left out and none is chosen.") },
                     { "start_beat", number ("Where, in beats from the song's start. The cursor when left out.") },
-                    { "split_at_transients", flag ("A clip for each hit (audio).") } }, { "file" }), [&c] (const json& a)
+                    { "split_at_transients", flag ("A clip for each hit (audio).") },
+                    { "sensitivity", number ("With split_at_transients: 0 to 1, higher finds more hits. The musician's last choice when left out.") } },
+                  { "file" }), [&c] (const json& a)
     {
         const File f (String (textOr (a, "file")));
         if (! f.existsAsFile()) return Reply::fail ("There's no file at " + f.getFullPathName().toStdString() + ".");
         const auto* t = findTrack (c, a);
         const Id track = t ? t->id : 0;
         const Tick at = a.contains ("start_beat") ? std::max<Tick> (0, ticksOf (numberOr (a, "start_beat", 0))) : c.cursor;
-        const bool ok = flagOr (a, "split_at_transients", false) ? c.importSplit (f, track, at) : c.importFile (f, track, at);
+        const double sensitivity = a.contains ("sensitivity") ? jlimit (0.0, 1.0, numberOr (a, "sensitivity", 0.5)) : -1.0;
+        const bool ok = flagOr (a, "split_at_transients", false) ? c.importSplit (f, track, at, sensitivity) : c.importFile (f, track, at);
         return ok ? Reply::ok ("Imported " + f.getFileName().toStdString() + ".") : Reply::fail (c.message.toStdString());
     });
 

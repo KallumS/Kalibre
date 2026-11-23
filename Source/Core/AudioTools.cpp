@@ -134,14 +134,19 @@ std::vector<HitCandidate> hitCandidates (const float* const* ch, int numChannels
     return out;
 }
 
-std::vector<int> transients (const float* const* ch, int numChannels, int numSamples, double rate, double sensitivity)
+std::vector<int> hitsAt (const std::vector<HitCandidate>& candidates, double sensitivity, double rate)
 {
     const int gap = hitGapFrames (rate);
     std::vector<int> out;
     int last = -gap - 1;
-    for (const auto& h : hitCandidates (ch, numChannels, numSamples, rate))
+    for (const auto& h : candidates)
         if (isHit (h, sensitivity, last, gap)) { out.push_back (h.at); last = h.frame; }
     return out;
+}
+
+std::vector<int> transients (const float* const* ch, int numChannels, int numSamples, double rate, double sensitivity)
+{
+    return hitsAt (hitCandidates (ch, numChannels, numSamples, rate), sensitivity, rate);
 }
 
 //==============================================================================

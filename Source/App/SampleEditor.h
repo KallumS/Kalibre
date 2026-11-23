@@ -51,6 +51,7 @@ private:
 
     Id loadedClip = 0;
     std::string loadedFile;
+    double loadedSensitivity = -1;   // the hits marked were found at this (0130)
     juce::AudioBuffer<float> audio;
     double rate = 48000;
     std::vector<float> peaks;      // two a pixel column, at the last width

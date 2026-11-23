@@ -5,6 +5,7 @@
 #include "Editors.h"
 #include "Ideas.h"
 #include "PluginManager.h"
+#include "PluginMenu.h"
 #include "Theme.h"
 
 namespace kal
@@ -237,12 +238,9 @@ public:
             chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
                                   [sp = SafePointer<PadRow> (this)] (const FileChooser& fc) { if (sp && fc.getResult().existsAsFile()) sp->setSample (fc.getResult().getFullPathName()); });
         });
-        PopupMenu synths;
-        const auto types = proc.pluginManager().known().getTypes();
-        for (auto& d : types)
-            if (d.isInstrument && d.pluginFormatName != "Kalibre")
-                synths.addItem (d.name + "  (" + d.manufacturerName + ")", [this, ref = PluginManager::refFor (d)] { setPlugin (ref); });
-        m.addSubMenu ("Play It with a Plug-in", synths, synths.getNumItems() > 0);
+        // Instruments, under their heading, by maker (0131).
+        m.addSubMenu ("Play It with a Plug-in", pluginmenu::make (proc.pluginManager(), { DeviceRole::Instrument },
+                                                                  [this] (const PluginDescription& d, DeviceRole) { setPlugin (PluginManager::refFor (d)); }));
         if (pad.hasPlugin())
         {
             m.addItem ("Show Its Plug-in", [this] { show (i); });
