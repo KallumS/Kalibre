@@ -31,8 +31,6 @@ PluginManagerView::PluginManagerView (Controller& ctrl) : c (ctrl)
     list.setRowHeight (theme::px (24));
     list.setMultipleSelectionEnabled (true);
     list.setTitle ("Plug-ins");
-    list.setColour (ListBox::backgroundColourId, theme::sunken);
-    list.setColour (ListBox::outlineColourId, theme::rule);
     addAndMakeVisible (list);
     search.setTitle ("Search plug-ins");
     search.setTextToShowWhenEmpty ("Search by name, maker or format", theme::textSecondary);

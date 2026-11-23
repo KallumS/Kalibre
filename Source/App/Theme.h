@@ -12,11 +12,18 @@
 
     Text is at least 7:1 on what it sits on. Red is for marking (the record
     button, clipping) and never for words, which take warnText.
+
+    Themes (View > Themes, decision 0132): the colours below are the first
+    theme's; choosing another sets every one of them, the window's look with
+    them, and everything is drawn again. Each theme keeps the same roles and
+    the same contrast (every word 7:1); its greys lean towards its own hue.
 */
 
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+
+#include <vector>
 
 namespace kal::ui
 {
@@ -36,49 +43,72 @@ namespace kal::theme
 using juce::Colour;
 
 // The four that carry it.
-inline const Colour accent  { 0xffFFF200 };
-inline const Colour control { 0xffA9AFBA };
-inline const Colour ground  { 0xff23272E };
-inline const Colour ink     { 0xff14171C };
+inline Colour accent  { 0xffFFF200 };
+inline Colour control { 0xffA9AFBA };
+inline Colour ground  { 0xff23272E };
+inline Colour ink     { 0xff14171C };
 
-inline const Colour controlHover { 0xffC0C6CF };
-inline const Colour controlHeld  { 0xff8F96A2 };
-inline const Colour accentHover  { 0xffFFF42E };
-inline const Colour accentHeld   { 0xffD1C600 };
+inline Colour controlHover { 0xffC0C6CF };
+inline Colour controlHeld  { 0xff8F96A2 };
+inline Colour accentHover  { 0xffFFF42E };
+inline Colour accentHeld   { 0xffD1C600 };
 
 // A track armed (decision 0064): for audio, red, as every DAW has it; for
 // MIDI, blue. Light enough that the button's dark ink reads at 7:1 (7.6, 8.2).
-inline const Colour armAudio { 0xffFF8577 };
-inline const Colour armMidi  { 0xff7DB4E6 };
+inline Colour armAudio { 0xffFF8577 };
+inline Colour armMidi  { 0xff7DB4E6 };
 
 // The ramp.
-inline const Colour roll        { 0xff111419 };   // piano roll and arrangement ground
-inline const Colour sunken      { 0xff1A1D23 };   // frames, lanes, the lower zone's ground
-inline const Colour lane        { 0xff1E2228 };   // beat lines, alternate rows
-inline const Colour frameHover  { 0xff22262D };
-inline const Colour raised      { 0xff2A2F37 };   // menus, tooltips, panels raised off the window
-inline const Colour rule        { 0xff3A404A };   // separators, bar lines
-inline const Colour scrollGrab  { 0xff6D7581 };
-inline const Colour edge        { 0xff8A919C };   // edges of things to see and grab: 4.7:1
-inline const Colour playhead    { 0xffF2F4F7 };
+inline Colour roll        { 0xff111419 };   // piano roll and arrangement ground
+inline Colour sunken      { 0xff1A1D23 };   // frames, lanes, the lower zone's ground
+inline Colour lane        { 0xff1E2228 };   // beat lines, alternate rows
+inline Colour frameHover  { 0xff22262D };
+inline Colour raised      { 0xff2A2F37 };   // menus, tooltips, panels raised off the window
+inline Colour rule        { 0xff3A404A };   // separators, bar lines
+inline Colour scrollGrab  { 0xff6D7581 };
+inline Colour edge        { 0xff8A919C };   // edges of things to see and grab: 4.7:1
+inline Colour playhead    { 0xffF2F4F7 };
 
 // Words.
-inline const Colour text          { 0xffDDE1E7 };   // body text, 11.4:1 on the ground
-inline const Colour textSecondary { 0xffB0B6C0 };   // 7.4:1 on the ground
-inline const Colour textOnRaised  { 0xffBFC5CE };   // secondary words on menus: 7.8:1
-inline const Colour warnText      { 0xffFF9E96 };   // 7.6:1; never the accent's hue
-inline const Colour focusRing     { 0xffF2F4F7 };   // near white, never the accent
+inline Colour text          { 0xffDDE1E7 };   // body text, 11.4:1 on the ground
+inline Colour textSecondary { 0xffB0B6C0 };   // 7.4:1 on the ground
+inline Colour textOnRaised  { 0xffBFC5CE };   // secondary words on menus: 7.8:1
+inline Colour warnText      { 0xffFF9E96 };   // 7.6:1; never the accent's hue
+inline Colour focusRing     { 0xffF2F4F7 };   // near white, never the accent
 
 // Marks, never words.
-inline const Colour warn   { 0xffD2483F };          // record, clipping
-inline const Colour meterGreen { 0xff7FD29A };      // a meter below -6 dB
-inline const Colour meterAmber { 0xffF2C46D };      // -6 to 0 dB
+inline Colour warn   { 0xffD2483F };          // record, clipping
+inline Colour meterGreen { 0xff7FD29A };      // a meter below -6 dB
+inline Colour meterAmber { 0xffF2C46D };      // -6 to 0 dB
 
 // The piano roll's rows: in-scale rows lighter, the root's row lighter still.
-inline const Colour rowWhite   { 0xff181B21 };
-inline const Colour rowBlack   { 0xff14171C };
-inline const Colour rowInScale { 0xff1F2A2E };   // a cool teal wash: ScaleView's highlight, darkened for a ground
-inline const Colour rowRoot    { 0xff24343A };
+inline Colour rowWhite   { 0xff181B21 };
+inline Colour rowBlack   { 0xff14171C };
+inline Colour rowInScale { 0xff1F2A2E };   // a cool teal wash: ScaleView's highlight, darkened for a ground
+inline Colour rowRoot    { 0xff24343A };
+
+//==============================================================================
+// Themes (decision 0132): every colour above, set together.
+struct Palette
+{
+    const char* name;
+    Colour accent, control, ground, ink, controlHover, controlHeld, accentHover, accentHeld, armAudio, armMidi,
+           roll, sunken, lane, frameHover, raised, rule, scrollGrab, edge, playhead,
+           text, textSecondary, textOnRaised, warnText, focusRing, warn, meterGreen, meterAmber,
+           rowWhite, rowBlack, rowInScale, rowRoot;
+    bool light = false;   // dark words on a light ground
+};
+const std::vector<Palette>& palettes();
+int currentPalette();
+// Sets every colour, the window's look, and draws everything again. Not kept: the window keeps it.
+void usePalette (int index);
+// A track or section colour as a fill that `text` reads on at 7:1: `depth` of its brightness in dark
+// themes, as far toward the ground in light ones (lower: further from the colour itself).
+Colour underWords (Colour, float depth = 0.5f, Colour words = text);
+// Laid over what's out of reach (outside a clip): it dims, darker in dark themes, greyer in light ones.
+Colour veil();
+// A colour faded by `depth` (1: itself): toward black in dark themes, toward the ground in light ones.
+Colour fade (Colour, float depth);
 
 // Track colours offered (all R < G < B except the warm ones, which are content).
 inline const juce::Array<Colour>& trackColours()
@@ -122,6 +152,7 @@ class LookAndFeel : public juce::LookAndFeel_V4
 {
 public:
     LookAndFeel();
+    void useThemeColours();   // the theme's colours for everything JUCE draws (0132)
 
     juce::Font getTextButtonFont (juce::TextButton&, int) override;
     int getTextButtonWidthToFitText (juce::TextButton&, int buttonHeight) override;

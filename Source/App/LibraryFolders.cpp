@@ -9,8 +9,6 @@ LibraryFoldersView::LibraryFoldersView (LibraryView& v) : library (v)
     setTitle ("Library Folders");
     list.setModel (this);
     list.setRowHeight (theme::px (30));
-    list.setColour (ListBox::backgroundColourId, theme::sunken);
-    list.setColour (ListBox::outlineColourId, theme::rule);
     list.setOutlineThickness (1);
     list.setTitle ("Folders");
     addAndMakeVisible (list);

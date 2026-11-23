@@ -7,6 +7,13 @@ whatever is switched on. Every value lives in `Source/App/Theme.h`, named by
 role; nothing else in the code writes a colour. Change one there, change it
 here too.
 
+This is the first theme, Midnight Yellow. **View > Themes** has ten more
+(decision 0132), each made in `Theme.cpp` from a hue, how strongly the greys
+lean to it, an accent and warning words, on the same ramp of lightness
+(inverted for the white one, Porcelain), with every word moved until it reads
+at 7:1. In those, the greys lean to the theme's hue instead of blue. Words on
+a track's colour go on `theme::underWords` so they read in every theme.
+
 ## The four that carry it
 
 | | value | what it is |

@@ -503,6 +503,11 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             for (int s : { 100, 125, 150, 200 })
                 sizes.addItem (item (String (s) + "%", [this, s] { setTextSize ((float) s / 100.0f); }, s == 100 ? k ("actualSize") : String(), true, roundToInt (theme::scale() * 100) == s));
             m.addSubMenu ("Text Size", sizes);
+            // Themes (0132): the window's colours, every one of them.
+            PopupMenu themes;
+            for (int i = 0; i < (int) theme::palettes().size(); ++i)
+                themes.addItem (item (theme::palettes()[(size_t) i].name, [this, i] { setTheme (i); }, {}, true, theme::currentPalette() == i));
+            m.addSubMenu ("Themes", themes);
             break;
         }
         case 6:   // Scripts

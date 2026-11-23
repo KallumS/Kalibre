@@ -1,4 +1,6 @@
 #include "Check.h"
+
+#include <set>
 #include "Demo.h"
 #include "MainComponent.h"
 #include "MainWindow.h"
@@ -27,6 +29,95 @@ TEST ("window: every grey leans blue (R < G < B)")
     for (auto c : { theme::control, theme::ground, theme::ink, theme::roll, theme::sunken, theme::lane, theme::raised,
                     theme::rule, theme::edge, theme::text, theme::textSecondary, theme::controlHover, theme::controlHeld })
         CHECK (c.getRed() <= c.getGreen() && c.getGreen() <= c.getBlue() && c.getRed() < c.getBlue());
+}
+
+TEST ("themes: about ten, each with every word 7:1 on what it sits on, buttons' ink 7:1, edges 3:1; the first is the house colours, unchanged (0132)")
+{
+    const auto& all = theme::palettes();
+    CHECK (all.size() >= 9 && all.size() <= 12);
+    CHECK_EQ (String (all[0].name), String ("Midnight Yellow"));
+    CHECK (all[0].accent == Colour (0xffFFF200) && all[0].ground == Colour (0xff23272E) && all[0].text == Colour (0xffDDE1E7));
+    std::set<String> names;
+    int light = 0;
+    for (int i = 0; i < (int) all.size(); ++i)
+    {
+        const auto& p = all[(size_t) i];
+        names.insert (p.name);
+        light += p.light ? 1 : 0;
+        const String n (p.name);
+        auto ok = [&n] (bool b, const char* what) { if (! b) std::printf ("    %s: %s\n", n.toRawUTF8(), what); CHECK (b); };
+        ok (theme::contrast (p.text, p.ground) >= 7.0, "text on ground");
+        ok (theme::contrast (p.text, p.roll) >= 7.0, "text on roll");
+        ok (theme::contrast (p.text, p.sunken) >= 7.0, "text on sunken");
+        ok (theme::contrast (p.textSecondary, p.ground) >= 7.0, "secondary on ground");
+        ok (theme::contrast (p.textSecondary, p.sunken) >= 7.0, "secondary on sunken");
+        ok (theme::contrast (p.textOnRaised, p.raised) >= 7.0, "secondary on raised");
+        ok (theme::contrast (p.warnText, p.ground) >= 7.0, "warning words");
+        ok (theme::contrast (p.ink, p.control) >= 7.0, "ink on a button");
+        ok (theme::contrast (p.ink, p.accent) >= 7.0, "ink on a button that's on");
+        ok (theme::contrast (p.ink, p.armAudio) >= 7.0 && theme::contrast (p.ink, p.armMidi) >= 7.0, "ink on armed");
+        ok (theme::contrast (p.ink, p.controlHeld) >= 4.5, "ink on a held button");
+        ok (theme::contrast (p.edge, p.ground) >= 3.0, "edges");
+        ok (theme::contrast (p.scrollGrab, p.sunken) >= 3.0, "scroll bars");
+        // Never the warning words' hue for "on" (red never for words, 0023).
+        ok (std::abs (p.accent.getHue() - p.warnText.getHue()) > 0.04f || p.warnText.getSaturation() < 0.2f, "accent and warning apart");
+    }
+    CHECK_EQ (names.size(), all.size());   // each named once
+    CHECK (light >= 1);                    // a light one among them
+}
+
+TEST ("themes: names on a section, a clip or a note read at 7:1 in every theme, light ones too (0132)")
+{
+    for (int i = 0; i < (int) theme::palettes().size(); ++i)
+    {
+        theme::usePalette (i);
+        for (auto col : theme::trackColours())
+            for (float depth : { 0.35f, 0.5f, 0.55f, 0.6f, 1.0f })
+            {
+                CHECK (theme::contrast (theme::text, theme::underWords (col, depth)) >= 7.0);
+                CHECK (theme::contrast (theme::ink, theme::underWords (col, depth, theme::ink)) >= 7.0);
+            }
+    }
+    theme::usePalette (0);
+}
+
+TEST ("themes: View > Themes sets every colour and the window's look, and draws it again; kept for next time (0132)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        MainComponent w (c);
+        w.setSize (1200, 800);
+        const auto light = [] { for (int i = 0; i < (int) theme::palettes().size(); ++i) if (theme::palettes()[(size_t) i].light) return i; return 0; }();
+        w.setTheme (light);
+        CHECK_EQ (theme::currentPalette(), light);
+        CHECK (theme::ground == theme::palettes()[(size_t) light].ground);
+        CHECK (theme::text == theme::palettes()[(size_t) light].text);
+        CHECK (look.findColour (ResizableWindow::backgroundColourId) == theme::ground);
+        CHECK (look.findColour (PopupMenu::backgroundColourId) == theme::raised);
+        CHECK (theme::luminance (theme::ground) > theme::luminance (theme::text));   // dark words on a light ground
+        // The View menu lists them, the one in use ticked.
+        const auto view = w.getMenuForIndex (5, "View");
+        PopupMenu::MenuItemIterator it (view);
+        const PopupMenu* themes = nullptr;
+        while (it.next()) if (it.getItem().text == "Themes") themes = it.getItem().subMenu.get();
+        CHECK (themes != nullptr);
+        if (themes)
+        {
+            int count = 0, ticked = -1;
+            for (PopupMenu::MenuItemIterator t (*themes); t.next(); ++count) if (t.getItem().isTicked) ticked = count;
+            CHECK_EQ (count, (int) theme::palettes().size());
+            CHECK_EQ (ticked, light);
+        }
+        w.setTheme (0);
+        CHECK (theme::ground == Colour (0xff23272E));
+        CHECK (look.findColour (ResizableWindow::backgroundColourId) == Colour (0xff23272E));
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
 
 TEST ("window: lays out at its smallest and at 200% text without anything off the edge")

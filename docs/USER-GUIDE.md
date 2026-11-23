@@ -136,6 +136,17 @@ their buttons, clips, notes and the Plug-in Manager's list:
 
 ![The window at 200% text, with the tempo lane shown](guide/text-200.png)
 
+### Themes
+
+**View > Themes** changes every colour in the window at once: Midnight
+Yellow (the one Kalibre starts with), Violet Lime, Crimson Night, Obsidian
+(nearly black), Porcelain (white, with dark words), Cobalt Flare, Emerald
+Glow, Ember Gold, Frostbite, Copper Tide and Plum Gold. The one chosen is
+ticked and kept for next time. Track colours stay as they are, and every word
+stays easy to read in all of them.
+
+![Every theme: the arrangement and the piano roll in each](guide/themes.png)
+
 ### Workspaces
 
 **View > Workspaces > Save This Layout as a Workspace…** remembers the
@@ -1688,6 +1699,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | Zoom to Fit | F |
 | Workspaces ▸ | |
 | Text Size ▸ | ⌘0 for 100% |
+| Themes ▸ | |
 
 ### Scripts
 
