@@ -672,3 +672,18 @@ TEST ("MIDI files: a four-bar file put at beat 3 is a four-bar clip, not stretch
         CHECK_EQ (clips.front().length, PPQ * 16);
     }
 }
+
+TEST ("articulation lane: its names read at 7:1 on every articulation's colour, mint too, in every theme (UAT)")
+{
+    for (int i = 0; i < (int) theme::palettes().size(); ++i)
+    {
+        theme::usePalette (i);
+        for (std::uint32_t colour : { 0xff7FC8B6u, 0xffE3C26Fu, 0xffB892D9u, 0xff6FA8DCu, 0u })
+        {
+            Articulation a;
+            a.colour = colour;
+            CHECK (theme::contrast (PianoRoll::articulationFill (a), theme::text) >= 7.0);
+        }
+    }
+    theme::usePalette (0);
+}

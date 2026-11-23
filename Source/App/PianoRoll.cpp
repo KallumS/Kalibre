@@ -396,7 +396,7 @@ void PianoRoll::paint (Graphics& g)
                 if (n.articulation < 0 || ! map || n.articulation >= (int) map->articulations.size()) continue;
                 const auto& art = map->articulations[(size_t) n.articulation];
                 auto r = Rectangle<float> (xOf (n.start), (float) aa.getY() + 2, jmax (16.0f, xOf (n.end()) - xOf (n.start) - 1), (float) aa.getHeight() - 4);
-                g.setColour (art.colour ? Colour (art.colour) : theme::raised);
+                g.setColour (articulationFill (art));
                 g.fillRoundedRectangle (r, 3.0f);
                 g.setColour (theme::text);
                 g.drawFittedText (String (art.name), r.toNearestInt().reduced (3, 0), Justification::centredLeft, 1, 0.6f);
@@ -669,6 +669,11 @@ String PianoRoll::laneName() const
         case 202: return "Note Slide (MPE)";
         default:  return "CC " + String (laneKind);
     }
+}
+
+Colour PianoRoll::articulationFill (const Articulation& art)
+{
+    return art.colour ? theme::underWords (Colour (art.colour)) : theme::raised;
 }
 
 void PianoRoll::clearLane()
