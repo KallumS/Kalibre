@@ -551,6 +551,16 @@ public:
         shape.setButtonText (m->kind == ModKind::Lfo ? String (shapes[(int) m->shape])
                            : m->kind == ModKind::Wavetable ? String ("Table") : String ("Source"));
         shape.setVisible (m->kind == ModKind::Lfo || m->kind == ModKind::Wavetable || m->kind == ModKind::EnvelopeFollower);
+        // Each knob named for what it is on this kind, over it (the UAT: four
+        // numbers, their names only in tooltips, 0133).
+        const bool cycle = m->kind == ModKind::Lfo || m->kind == ModKind::Wavetable;
+        const bool follow = m->kind == ModKind::EnvelopeFollower;
+        const String names[] { cycle ? "Rate" : "Attack", cycle ? "Phase" : follow ? "Release" : "Decay",
+                               cycle ? "Both Ways" : follow ? "Gain" : "Sustain", "Amount" };
+        Slider* knobs[] { &a, &b, &s3, &amount };
+        for (int i = 0; i < 4; ++i) { knobs[i]->setTitle (names[i]); knobs[i]->setTooltip (names[i]); }
+        // The shape is drawn from the modulator: drawn again when it changes.
+        repaint();
     }
 
     void push()
@@ -666,6 +676,10 @@ public:
         }
         g.setColour (theme::control);
         g.strokePath (p, PathStrokeType (1.5f));
+        g.setColour (theme::textSecondary);
+        g.setFont (theme::font (theme::smallPoints));
+        for (auto* k : { &a, &b, &s3, &amount })
+            g.drawText (k->getTitle(), k->getX(), k->getY() - theme::px (14), k->getWidth(), theme::px (14), Justification::centred, false);
     }
 
     void resized() override
@@ -676,6 +690,7 @@ public:
         r.removeFromTop (theme::px (14) + theme::px (34) + 2);
         shape.setBounds (r.removeFromTop (theme::px (22)).reduced (0, 1));
         const int w = r.getWidth() / 4;
+        r.removeFromTop (theme::px (14));   // the knobs' names
         for (auto* k : { &a, &b, &s3, &amount }) k->setBounds (r.removeFromLeft (w));
     }
 

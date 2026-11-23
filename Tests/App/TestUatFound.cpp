@@ -368,3 +368,43 @@ TEST ("device rack: every device's name shows over its panel: X/Y Morph, ScaleVi
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("modulators: an LFO's knobs are named Rate, Phase, Both Ways and Amount, over each (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Bass");
+        const Id dev = edit::addDevice (c.project, t, synthRef(), DeviceRole::Instrument);
+        c.focusTrack = t;
+        c.refresh();
+        auto* inst = engine.instance (dev);
+        CHECK (inst != nullptr);
+        if (! inst) return;
+        auto* p = inst->getParameters()[0];
+        p->beginChangeGesture();
+        p->setValueNotifyingHost (0.4f);
+        p->endChangeGesture();
+        MessageManager::getInstance()->runDispatchLoopUntil (20);
+        c.modulateLastTouched (ModKind::Lfo);
+        DeviceRack rack (c);
+        rack.setSize (1400, 300);
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+        StringArray titles;
+        std::function<void (Component&)> find = [&] (Component& in)
+        {
+            for (auto* ch : in.getChildren())
+            {
+                if (auto* s = dynamic_cast<Slider*> (ch)) titles.add (s->getTitle());
+                find (*ch);
+            }
+        };
+        find (rack);
+        for (auto* name : { "Rate", "Phase", "Both Ways", "Amount" }) CHECK (titles.contains (name));
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
