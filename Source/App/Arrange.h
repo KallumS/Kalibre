@@ -228,6 +228,7 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
     float lastPlayheadX = -1;
+    int chordSounding = -1;   // the chord lane's lit chord: the whole lane drawn again when it changes (the UAT)
     void scrollBarMoved (juce::ScrollBar*, double) override;
 };
 

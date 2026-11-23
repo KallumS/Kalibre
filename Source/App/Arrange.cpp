@@ -573,6 +573,7 @@ void Arrange::changeListenerCallback (ChangeBroadcaster*)
     {
         chordsFor = stamp;
         chords = harmony::chordsAlong (c.project, 0, c.project.endTick(), true);   // only the clips asked for (0071)
+        chordSounding = -1;   // found again on the next refresh
     }
     layoutRows();
     repaint();
@@ -595,6 +596,23 @@ void Arrange::timerCallback()
             layoutRows();
             repaint();
             return;
+        }
+    }
+    // The chord lane's lit chord: drawn again whole when another sounds, not
+    // only in the strips the playhead passes (the UAT: it was in pieces).
+    if (c.showChordLane)
+    {
+        int now = -1;
+        if (c.engine.isPlaying())
+        {
+            const Tick t = c.playhead();
+            for (size_t i = 0; i < chords.size(); ++i)
+                if (! chords[i].name.empty() && t >= chords[i].start && t < chords[i].end) { now = (int) i; break; }
+        }
+        if (now != chordSounding)
+        {
+            chordSounding = now;
+            repaint (0, theme::px (36) + sectionLaneHeight(), getWidth(), theme::px (24));
         }
     }
     // Every refresh of the screen, at its place between ticks and blocks (0121).
@@ -807,12 +825,12 @@ void Arrange::drawChordLane (Graphics& g, Rectangle<int> r)
     g.drawText ("Chords", r.withWidth (headerWidth()).reduced (8, 0), Justification::centredLeft, false);
     g.saveState();
     g.reduceClipRegion (r.withLeft (laneArea().getX()));
-    const Tick now = c.playhead();
-    for (auto& ch : chords)
+    for (size_t i = 0; i < chords.size(); ++i)
     {
+        const auto& ch = chords[i];
         if (ch.name.empty()) continue;
         auto box = Rectangle<float> (xOf (ch.start), (float) r.getY() + 3, jmax (2.0f, xOf (ch.end) - xOf (ch.start) - 2.0f), (float) r.getHeight() - 6);
-        const bool sounding = now >= ch.start && now < ch.end && c.engine.isPlaying();
+        const bool sounding = (int) i == chordSounding;
         g.setColour (sounding ? theme::accent : theme::raised);
         g.fillRoundedRectangle (box, 3.0f);
         g.setColour (sounding ? theme::ink : theme::text);
