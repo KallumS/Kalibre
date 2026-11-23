@@ -77,6 +77,9 @@ public:
     void resized() override;
     int preferredHeight() const;
     void mouseDown (const juce::MouseEvent&) override;
+    // The message line drawn now, not when the message thread is next free:
+    // while it's busy writing an export (the UAT).
+    void showNow();
 
     // What can be hidden, by the names the right-click menu uses.
     static const juce::StringArray& hideable();

@@ -774,3 +774,42 @@ TEST ("themes: choosing one says so without an Undo beside it, which would undo 
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("export: the message line counts up while the mix is written, so Kalibre isn't seen frozen (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        edit::addTrack (c.project, TrackKind::Track, "One");
+        c.refresh();
+        MainComponent w (c);
+        w.setSize (1440, 900);
+        std::vector<float> seen;
+        bool said = false;
+        const auto shown = c.onExportProgress;
+        CHECK (shown != nullptr);
+        c.onExportProgress = [&] (float p)
+        {
+            if (shown) shown (p);
+            seen.push_back (p);
+            said = said || c.message.contains ("%");
+        };
+        Engine::RenderOptions o;
+        o.start = 0;
+        o.end = 4.0;
+        o.tail = 0;
+        const auto out = File::getSpecialLocation (File::tempDirectory).getChildFile ("kalibre-progress.wav");
+        CHECK (c.exportAudio (out, o, false));
+        CHECK (seen.size() >= 2);
+        CHECK (std::is_sorted (seen.begin(), seen.end()));
+        CHECK (! seen.empty() && seen.back() > 0.9f);
+        CHECK (said);
+        CHECK (c.message.startsWith ("Exported"));
+        out.deleteFile();
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

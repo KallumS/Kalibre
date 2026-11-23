@@ -27,6 +27,15 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
     ui::setHost (this);
     ui::setQuestionsBelow (&top);
     ui::placeFilePanelsAtTop();   // Open and Save near the top, over plug-ins' windows
+    // An export counts up in the message line as it's written (the UAT).
+    c.onExportProgress = [this, shownPercent = -1] (float p) mutable
+    {
+        const int percent = jlimit (0, 100, (int) (p * 100.0f));
+        if (percent == shownPercent) return;
+        shownPercent = percent == 100 ? -1 : percent;
+        c.say ("Exporting" + String (ui::u8 ("\xe2\x80\xa6 ")) + String (percent) + "%");
+        top.showNow();
+    };
     // The top bar's timer (0091): the mouse moving or clicking in any of Kalibre's
     // windows is someone there; over another app, it isn't.
     Desktop::getInstance().addGlobalMouseListener (&activity);
@@ -641,7 +650,11 @@ void MainComponent::exportAudioTo (bool stems, double loudnessTarget, bool ringO
         if (o.format == "flac") o.bitDepth = 24;
         o.loudnessTarget = loudnessTarget;
         c.say ("Exporting" + String (ui::u8 ("\xe2\x80\xa6")));
-        c.exportAudio (f, o, stems);
+        // After the save panel has gone and the message shows, not inside its callback.
+        MessageManager::callAsync ([safe = Component::SafePointer<MainComponent> (this), f, o, stems]
+        {
+            if (safe) safe->c.exportAudio (f, o, stems);
+        });
     });
 }
 

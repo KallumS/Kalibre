@@ -159,6 +159,13 @@ int TopBar::preferredHeight() const
     return rows * theme::px (48) + lineHeight();
 }
 
+void TopBar::showNow()
+{
+    update();
+    repaint();
+    if (auto* peer = getPeer()) peer->performAnyPendingRepaintsNow();
+}
+
 void TopBar::mouseDown (const MouseEvent& e)
 {
     if (e.mods.isPopupMenu()) { showMenu(); return; }

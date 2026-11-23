@@ -1483,8 +1483,20 @@ bool Controller::exportAudio (const File& f, const Engine::RenderOptions& given,
     storeDeviceStates();
     String error;
     bool ok = true;
+    // How far it's got, said as it goes (the UAT): over every file, for stems.
+    int files = 1, file = 0;
+    if (stems)
+        files = jmax (1, (int) std::count_if (project.tracks.begin(), project.tracks.end(), [this] (const Track& t)
+        {
+            return ! (t.isFolder() && ! project.childrenOf (t.id).empty());
+        }));
+    auto progress = [this, &file, files] (float p)
+    {
+        if (onExportProgress) onExportProgress (((float) file + jlimit (0.0f, 1.0f, p)) / (float) files);
+        return true;
+    };
     if (! stems)
-        ok = engine.render (project, projectFolder(), f, options, {}, error);
+        ok = engine.render (project, projectFolder(), f, options, progress, error);
     else
     {
         // A file per track, each soloed in turn.
@@ -1496,7 +1508,8 @@ bool Controller::exportAudio (const File& f, const Engine::RenderOptions& given,
             const auto out = f.getParentDirectory().getChildFile (f.getFileNameWithoutExtension() + " - "
                                                                   + String (t.name).replaceCharacters ("/\\:", "---"))
                                 .withFileExtension (f.getFileExtension());
-            ok = engine.render (copy, projectFolder(), out, options, {}, error) && ok;
+            ok = engine.render (copy, projectFolder(), out, options, progress, error) && ok;
+            ++file;
         }
     }
     syncEngine();
