@@ -478,3 +478,29 @@ TEST ("sampler: an Off/On knob (Loop) switches with a short drag, not two hundre
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("ReaImGui tools: Good Idea in the rack fills its panel's height, its New Idea and Insert in reach (UAT)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = Project();
+        const Id t = edit::addTrack (c.project, TrackKind::Track, "Ideas");
+        c.focusTrack = t;
+        PluginRef goodIdea;
+        for (auto& d : pluginmenu::ownDevices()) if (d.name == "Good Idea") goodIdea = d.ref;
+        Id dev = 0;
+        c.apply ("Add", [&] (Project& p) { dev = edit::addDevice (p, t, goodIdea, DeviceRole::MidiFx); });
+        DeviceRack rack (c);
+        rack.setSize (1400, 600);
+        MessageManager::getInstance()->runDispatchLoopUntil (100);
+        rack.resized();
+        auto* ed = rack.editorOf (dev);
+        CHECK (ed != nullptr);
+        if (ed) CHECK (rack.pluginArea (dev).getHeight() >= 600 - theme::px (30) - 40);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

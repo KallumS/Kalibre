@@ -241,6 +241,11 @@ public:
             const float s = jmin ((float) box.getWidth() / (float) natural.getWidth(), (float) box.getHeight() / (float) natural.getHeight());
             Rectangle<int> want (0, 0, jmax (1, roundToInt ((float) natural.getWidth() * s)), jmax (1, roundToInt ((float) natural.getHeight() * s)));
             if (ours) want = { 0, 0, jmin (natural.getWidth(), box.getWidth() - rack.sideWidth()), jmin (box.getHeight(), natural.getHeight()) };
+            // The family's ReaImGui tools scroll what they show: the panel's whole
+            // height, and their usual width (the UAT: Good Idea a 400 x 300 box,
+            // New Idea and Insert out of reach, 0133).
+            if (ours && d->plugin.identifier.rfind ("tool:", 0) == 0)
+                want = { 0, 0, jmin (jmax (natural.getWidth(), 860), box.getWidth() - rack.sideWidth()), box.getHeight() };
             if (auto* k = editor->getConstrainer())
                 k->checkBounds (want, editor->getBounds(), Rectangle<int> (0, 0, 100000, 100000), false, false, true, true);
             editor->setBounds (want);
