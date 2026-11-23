@@ -74,48 +74,50 @@ there was no time left to drive them by hand).
 | 21 | A MIDI clip's menu had no Transpose, though the guide said so | Added |
 | 15 | The guide said to right-click a CC lane for its menu; it's the lane's name | Guide corrected |
 
-**To ask you about:**
+**Asked, and answered:**
 
-| # | Found | Why it's a question |
+| # | Found | Your answer |
 | --- | --- | --- |
-| 48 | Clicking an empty part of a lane chose the track, and Delete then **deleted the whole track** | Built so on purpose; the guide now says it. Should Delete only ever remove notes, clips and ranges, with tracks deleted from their menu? |
-| 10, 31 | No slot that takes a plug-in offers **Kalibre's own devices**: drum pads, Offline Effects, Container, Multiband, Stereo Split say "Scan for plug-ins first" | On your Mac they list your plug-ins; would you like Kalibre's own (Synth, Sampler, Reverberator…) there too? |
-| 36 | Scrolling over the mixer turns the fader or knob under the pointer | Usual in DAWs, but easy to do by accident with a trackpad |
-| 49 | Shift-Random added tracks named Drums, Bass, Chords beside the song's own; its drums got the Sampler, not Kalibre Drums | Names and choices by chance: change? |
-| 18 | Steps' Random on the Bass wrote A4 to F4, ignoring the octave the bass plays in | A suggestion |
+| 48 | Clicking an empty part of a lane chose the track, and Delete then deleted the whole track | Keep it: Delete deletes the chosen tracks, as the guide says |
+| 10, 31 | No slot that takes a plug-in offered Kalibre's own devices | Yes: every slot now lists Kalibre's own of its kind (0134) |
+| 36 | Scrolling over the mixer turns the fader or knob under the pointer | Keep it |
 
-**Not fixed yet** (smaller, or needing more than this session had):
+Suggestions, not asked: 49 (Shift-Random's track names, and the Sampler
+where Kalibre Drums would do), 18 (Steps' Random ignores the octave the bass
+plays in).
 
-| # | Found |
-| --- | --- |
-| 1 | A Studio window tooltip cut off at its right edge |
-| 5 | "Theme: Porcelain." shows Undo, which would undo the Scale |
-| 6 | Kalibre Drums: right-clicking a pad's name button shows nothing; its sound label beside it has the menu |
-| 7 | Kalibre Drums' Swing isn't carried into the clip dragged to the timeline (to check) |
-| 8 | Euclidean: the dials have no names (Steps, Hits, Rotate); the last row's sit a little left |
-| 9 | Drum Pads at the zone's starting height: the bottom row (Kick, Rim, Snare, Clap) is cut off |
-| 11, 23, 44 | Devices with no name in the rack: one switched off, ScaleView, Note Splitter, X/Y Morph ("…"); ScaleView doesn't take the song's scale |
-| 13 | The LFO's four knobs have names only in their tooltips; its picture stays a sine after choosing Triangle until the song is opened again |
-| 14 | At 1440 wide with the browser open, the editor bar's CC Lanes… and Auto are pushed off its right edge |
-| 16 | The lane under the notes, set to Pitch Bend, can't be cleared there (only Undo) |
-| 17 | Notation: a bar drawn in a tenth of the staff's width; after Humanise, 64th rests and tied fragments |
-| 19 | Steps: a double-click to tie seems to make extra undo steps |
-| 20 | A 4-bar MIDI file put at beat 3 became a 17-beat clip (its end stretched to the bar line), so copies land off the bar |
-| 24, 25 | Instrument Creator and the Sampler squeezed unreadable in a short lower zone |
-| 26 | The Sampler's Loop knob needs a 200 px drag to switch |
-| 29 | The articulation lane's white words on mint: to measure |
-| 30 | Split at Transients says 16 clips where the sample editor says 15 hits |
-| 32 | A frozen track looks the same as before |
-| 35 | The Master strip showed no meter while playing (to check on the Mac) |
-| 37 | Nothing grows on the armed track while recording |
-| 38 | The chord lane's playing chord drawn in broken pieces |
-| 43 | Soloing a return empties the chord lane |
-| 45 | Good Idea and the other ReaImGui tools: the script's window a 400×300 box, not filling its panel or window |
-| 46 | (Debug build) three ReaImGui tools in the rack kept the message thread drawing; Kalibre answered nothing else for minutes. To watch on the Mac |
-| 51 | During Export the Mix the save panel stays frozen, with no progress shown |
-| 53 | A marker's name written over the bar number on the ruler |
+**Fixed later the same day** ([decision 0134](../../decisions/0134-the-uats-smaller-findings.md)), each with a test that failed first:
 
-Not faults: 33 (Ctrl+Q on Linux only), 34 (True Peak is written in the
+| # | Found | Done |
+| --- | --- | --- |
+| 5 | "Theme: Porcelain." showed Undo, which would undo the Scale | No Undo beside it |
+| 6 | Kalibre Drums: right-clicking a pad's name showed nothing | Its menu opens |
+| 7 | Kalibre Drums' Swing wasn't carried into the clip dragged to the timeline | Swing and Gate go with it |
+| 8 | Euclidean: the dials had no names; the last row's sat left | Steps, Hits, Rotate over each; in line |
+| 9 | Drum Pads in a short zone: the bottom row cut off | All sixteen show |
+| 11, 23, 44 | Devices with no name in the rack (switched off, ScaleView, Note Splitter, X/Y Morph); ScaleView didn't take the song's scale | Panels wide enough for their names; ScaleView starts on the song's scale |
+| 13 | The LFO's knobs had names only in tooltips; its picture stayed a sine | Named over each; drawn again when the shape changes |
+| 14 | At 1440 wide with the browser open, CC Lanes… and Auto were pushed off the editor bar | The tools go on a second row |
+| 16 | The lane under the notes couldn't be cleared there | Its menu has Clear Lane |
+| 17 | Notation: a bar in a tenth of the staff; Humanise made 1/32 rests and tied fragments | Bars fill the staff; notes read on the nearest 1/32 or triplet |
+| 19 | Steps: a double-click to tie made three undo steps | One |
+| 20 | A 4-bar MIDI file put at beat 3 became 17 beats long | 16: whole bars from where it's put |
+| 24, 25, 26 | The Sampler and Instrument Creator squeezed in a short zone; Loop needed a 200-point drag | One row of knobs when short; a short drag switches Off/On |
+| 29 | The articulation lane's words on its mint colour | The colour deepened to 7:1 under the words, in every theme |
+| 30 | Split at Transients made 16 clips where the Sample Editor showed 15 hits | A hit at the very start is counted; the message says clips and hits |
+| 32 | A frozen track looked as before | "Frozen" under its name |
+| 35 | The Master strip showed no meter while playing | Its level was there; its strip had scrolled past the end. Master and Cue now stay in sight |
+| 37 | Nothing grew on the armed track while recording | The take grows, in the arm's colour |
+| 38 | The chord lane's playing chord drawn in pieces | Drawn whole |
+| 43 | Soloing a return emptied the chord lane | It doesn't |
+| 45 | Good Idea and the ReaImGui tools in a 400×300 box | They fill their panel |
+| 46 | (Debug) three ReaImGui tools kept Kalibre busy drawing | They draw only while on screen, and slower after a slow frame. Still to watch on the Mac |
+| 51 | Export: the save panel stayed frozen, no progress | The panel goes, then the message line counts up |
+| 53 | A marker's name over the bar number | After it |
+
+Not faults: 1 (the Studio window's tooltip, cut off on the virtual screen,
+which has no window manager: the main window drew over it; "Share Start and
+Stop" had no tooltip and now has one), 33 (Ctrl+Q on Linux only), 34 (True Peak is written in the
 salmon kept for warning words, not red).
 
 ## Pictures

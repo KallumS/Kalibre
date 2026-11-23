@@ -319,7 +319,7 @@ One menu for everything going in and out, each choice ticked:
 | **Automation** | The track's mode: Off, Read, Touch, Latch, Write or Trim ([Section 12](#12-automation-and-modulation)). |
 | **Articulation Map** | Which articulation map the track's notes use ([Section 15](#16-orchestral-tools)). |
 | **Group** | Tracks in a group move together: volume, pan, mute, solo and arm. |
-| **Freeze / Unfreeze** | Freeze renders the track quietly, without reloading anything else, and unloads its plug-ins, keeping their settings. Unfreeze deletes the render and loads them back as they were. |
+| **Freeze / Unfreeze** | Freeze renders the track quietly, without reloading anything else, and unloads its plug-ins, keeping their settings. Unfreeze deletes the render and loads them back as they were. A frozen track says **Frozen** under its name. |
 | **Lock** | Its clips can't be moved or edited. |
 | **Duplicate**, **Delete** | |
 
@@ -358,7 +358,9 @@ inside folders. A folded folder shows where its tracks have clips.
 
 - **Double-click** an empty part of a track's lane: a new one-bar MIDI clip.
 - **Drag files** in from the Finder or the browser's Sounds tab: audio and
-  MIDI files go where you drop them. Several files go on new tracks.
+  MIDI files go where you drop them. Several files go on new tracks. A MIDI
+  clip is whole bars long counted from where it goes (a four-bar file on
+  beat 3 is four bars), so its copies land on the beat too.
 - **File > Import Audio or MIDI…** (⌘I): onto the chosen track, at the
   cursor.
 - Right-click an empty lane: **New MIDI Clip Here**, **Capture MIDI Here**,
@@ -372,7 +374,10 @@ finds more hits, the quiet ones too; lower, only the strongest. As you drag
 it, it says how many clips it will make. **Split** splits; your choice is
 kept for next time, and the Sample Editor's hit marks and Quantise Audio to
 the Grid follow it. (Kalibre Sampler's Slices have their own, **Slice
-Sensitivity**.)
+Sensitivity**.) A sound already playing at the very start counts as a hit.
+When the first hit comes after the start, what comes before it is a clip of
+its own, and the message says so: "4 clips: one for each of the 3 hits, and
+one for what comes before the first".
 
 ![Split at Transients: Sensitivity, and how many clips it makes](guide/split-at-transients.png)
 
@@ -543,6 +548,10 @@ clip**: the piano roll shows every note; the others show their own.
 | **Legato** | Lengthen the chosen notes up to the next one. |
 | **Step Input** | Write notes from a MIDI keyboard (below). |
 | **Select ▾** | Choose notes by what they are (below). |
+
+When the window is too narrow for everything on one row (a 1440-point
+screen with the browser open), the grid, Snap, Quantise and the tools after
+them go on a second row under the editors' names.
 | **CC Lanes…** | Which controller lanes are shown under the notes. |
 | **Auto** | Draw the CC lanes as AutoCC would play these notes ([Section 15](#16-orchestral-tools)). |
 
@@ -596,6 +605,10 @@ Notes**, **Split the Chosen Notes at the Cursor**, **Transpose** (up or down
 | **Random Timing** | How many milliseconds early or late it may play, chosen afresh each time. |
 | **Note Delay** | How many milliseconds later (or earlier, below the middle) the note plays, on top of its track's and articulation's delays. |
 | **Articulation Map** | The track's map ([Section 15](#16-orchestral-tools)). |
+
+Set to a controller, pitch bend, pressure or a note's MPE bend, pressure or
+slide, the same menu has **Clear Lane** at the top: everything drawn in that
+lane goes, as one undo step. Right-drag along it to clear only part.
 
 Chance, random velocity and random timing are chosen afresh every time a note
 plays, in exports too.
@@ -674,7 +687,7 @@ One note a step. Height is pitch; the bar inside is velocity.
 | Click a step | Turn it on (starting on the step before's pitch, so lines draw quickly). Click again to turn it off. |
 | Drag up or down | Its pitch (in the scale, when it's shaded). |
 | **⌥ Option**-drag | Its velocity (or what **Velocity ▾** chooses). |
-| Double-click | Tie it to the next step. |
+| Double-click | Tie it to the next step (one undo step). |
 | Right-click | Turn it off. |
 | **Swing**, **Gate** | Every second step played late; how long each note sounds. |
 | **Random** | A new tune from Good Idea in the song's key. |
@@ -692,7 +705,10 @@ name to choose its drum. **Random** rolls new rhythms for every drum.
 
 ![Notation](guide/notation.png)
 
-The notes on a staff, spelt for the song's key.
+The notes on a staff, spelt for the song's key. Up to four bars fill the
+staff's width. Notes played in, or humanised, a little off the grid are shown
+where they were meant: each start and end on the nearest 1/32 or 1/16
+triplet, so no tiny rests or tied scraps. The notes themselves aren't moved.
 
 | Do | To |
 | --- | --- |
@@ -730,7 +746,12 @@ by maker: + Add and its **Kalibre** menu, the browser's Plug-ins tab, a
 clip's offline effects, the Container's, Multiband's and Stereo Split's
 plug-ins, X/Y Morph's corners, and a drum pad's **Play It with a Plug-in**.
 A place that only takes one kind (a drum pad: instruments) lists only that
-one. An instrument that also sends MIDI (Riffer, Scaler) is under MIDI
+one. Every one of these slots also lists Kalibre's own devices of its kind,
+under **Kalibre: Instruments** or **Kalibre: Audio Effects** (the Synth, the
+Sampler, Reverberator and the rest), so they work before you've scanned
+anything; the devices that hold plug-ins themselves (the Container,
+Multiband, Stereo Split, X/Y Morph, Drum Pads, Kalibre Drums) and Hardware
+Insert aren't offered there. An instrument that also sends MIDI (Riffer, Scaler) is under MIDI
 Effects too.
 
 **Random**, under **+ Add**, replaces the chosen track's devices with ones
@@ -1067,7 +1088,9 @@ Each strip, top to bottom:
 | Meters | Peak and RMS, beside the fader. |
 | **CPU** | The track's share of the load. |
 
-The **Loudness** panel beside the master: Momentary, Short-term and
+The tracks scroll; the **Master** strip, and the Cue track's after it, stay
+in sight at the right however many tracks there are. The **Loudness** panel
+beside the master: Momentary, Short-term and
 Integrated loudness (LUFS), Range, True Peak and Correlation. **Reset**
 starts measuring again.
 
@@ -1100,7 +1123,8 @@ Press **R** (or ● Record). Recording adds clips; it never removes what's
 there. **Loop** on: one take each time round. **Punch** on: only inside the
 punch range (**Transport > Set the Punch Range to the Loop**). **Count-in**
 plays a bar of clicks first; the take starts where you started recording,
-after them. The **Metronome** (**Click**) has an accent and
+after them. While it records, the take grows on each armed track, from where
+recording started to the playhead (red for audio, blue for MIDI). The **Metronome** (**Click**) has an accent and
 subdivisions (Transport > Metronome Clicks: beats, or beats in 2, 3 or 4).
 
 Everything Kalibre records is 32-bit float WAV.
@@ -1489,6 +1513,8 @@ Exports cover the loop range when the loop is on, otherwise the whole song.
 | **Export a DAWproject…** | For Bitwig, Studio One, Cubase and others. |
 | **Export Several at Once…** | Tick what you want (The Mix as WAV, The Mix as MP3, Every Track as WAV, The MIDI, The Mix at -14 LUFS, and the two below) and choose a folder. |
 | **Export Final Cut XML…** | The audio clips, for Final Cut, Resolve, Premiere or Logic. |
+
+While a file is written, the message line counts up ("Exporting… 42%").
 
 An export in 16 or 24 bits, or MP3, whose mix goes past full scale is cut
 off there: the message line says so, and by how much. Turn the master down,
