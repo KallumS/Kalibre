@@ -23,8 +23,20 @@ grow and shrink with it.
   **Plug-in Manager** shows them all and files any one by hand.
 - **Crash reports** that name the plug-in that was playing, and **backups**
   of the song every 15 minutes.
+- **Every list of plug-ins in three parts**, MIDI Effects, Instruments and
+  Audio Effects, each by maker; and every slot that takes a plug-in (a drum
+  pad, the Container, Multiband, Stereo Split, X/Y Morph, offline effects)
+  offers **Kalibre's own devices** too, so they work before anything's
+  scanned.
 - **The Container**: up to eight plug-ins in a row, each on its own band,
-  the mid or the sides, with on, solo, volume and pan.
+  the mid or the sides, with on, solo, volume and pan. **Multiband**: the
+  sound in 2 to 4 bands, crossovers dragged on a picture of it, plug-ins on
+  each band. **Stereo Split**: left, middle and right (or middle and sides),
+  plug-ins on each part.
+- **Kalibre Drums**, a kit with its own steps, swing and random beats; and
+  **Drum Pads**, 128 pads of samples or plug-ins, sixteen shown, with choke
+  groups, volume, pan, mute and solo on each. Drag a sound from the browser
+  onto a pad; **Random Samples** finds a drum of the right kind for each.
 - **Audio and MIDI on the same track.** Folders inside folders that sum their
   tracks and take plug-ins of their own. Returns and sends. Each track's
   inputs and outputs on its **I/O** button.
@@ -120,8 +132,8 @@ grow and shrink with it.
 - **Warping**: repitch, granular or spectral, from the loop's tempo or warp
   markers. **Offline effects** on single clips.
 - **ARA** plug-ins like Melodyne read the track's audio clips directly.
-- **Takes and comping**: every pass of a loop is a take; drag across a take
-  to use it there. **Crossfades** wherever audio overlaps.
+- **Takes and comping**: every pass of a loop is a take, growing on the
+  track as it records; drag across a take to use it there. **Crossfades** wherever audio overlaps.
 - **Sidechains** from any track into a plug-in. **MIDI learn** for any knob.
 - **Loudness meters** (LUFS, true peak, range) and export at -14 LUFS.
 - **Sync**: MIDI clock and timecode out, clock and timecode in, Machine
@@ -137,8 +149,9 @@ grow and shrink with it.
   was, each proved by a cancellation test. Constant-power panning, 0 dB in
   the middle; every automation lane sample accurate; **Consolidate** for audio
   clips.
-- **Audio tools**: normalise, strip silence, quantise audio to the grid, a
-  sample editor with a spectrogram, **snap to zero crossings**.
+- **Audio tools**: normalise, strip silence, quantise audio to the grid,
+  **Split at Transients** with a Sensitivity that says how many clips it
+  makes, a sample editor with a spectrogram, **snap to zero crossings**.
 - **Sections** you move (Shift-drag one to any bar) and duplicate with all their music, ripple editing, **alias clips** (edit one, every copy follows),
   and track groups.
 - **Kalibre Synth and Sampler**, **presets** and **A/B** for every plug-in,
@@ -148,12 +161,29 @@ grow and shrink with it.
   CPU for each track.
 - **Files**: templates, collect and save, relink, archives, MP3 with the
   song's details, several exports at once, Final Cut XML; a **video** track.
-- **Every key changeable**, and saved **workspaces**.
+- **Every key changeable**, and saved **workspaces**. **Eleven themes**
+  (View > Themes), every word readable in each.
+- **Song versions 1 and 2**: two takes on the whole song, side by side in the
+  top bar; the one not playing has its plug-ins unloaded.
+- **Humanise**: each note a little different by chance, in time and
+  velocity, as one undo step.
 - **Lua scripts**, as in REAPER, and **AI agents** (Claude and others, through MCP) that can make tracks, add plug-ins and write clips with you ([docs/AGENTS.md](docs/AGENTS.md)).
 - Menus in the Mac's menu bar; the house colours; Apple's guidelines.
+- **Tested by making music in it**: besides about 530 automated tests, every
+  device and every part of Kalibre was used to make a song in the real app
+  ([the full UAT](docs/uat/2026-11-23/README.md)), and everything it found
+  fixed or answered.
 
 ![The mixer: versions 1 to 4, Mono on every strip, the Cue track after the master](docs/mixer-versions-and-cue.png)
 ![The Container](docs/container.png)
+![Multiband: four bands, plug-ins on two](docs/guide/multiband.png)
+![Stereo Split: Left, Middle, Right](docs/guide/stereo-split.png)
+![Kalibre Drums](docs/guide/kalibre-drums.png)
+![Drum Pads: sixteen pads of 128](docs/guide/drum-pads.png)
+![Split at Transients: Sensitivity, and how many clips it makes](docs/guide/split-at-transients.png)
+![Song versions 1 and 2](docs/guide/song-versions.png)
+![The Sounds tab's Drums: each sound's kind](docs/guide/sounds-drums.png)
+![View > Themes: eleven palettes](docs/guide/themes.png)
 ![The Plug-in Manager](docs/plugin-manager.png)
 ![The Articulation Manager: Cubase, Logic and Reaticulate maps imported, two articulations given delays](docs/articulation-manager.png)
 ![The Note Splitter: a chord's notes to Violins I, Violins II and Violas](docs/note-splitter.png)
