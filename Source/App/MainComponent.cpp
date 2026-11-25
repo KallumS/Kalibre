@@ -519,8 +519,17 @@ void MainComponent::registerKeys()
     keys.add ("browser", "Show or Hide the Browser", K ('b', cmd, 0), [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); });
     keys.add ("capture", "Capture MIDI", K ('r', cmd | shift, 0), [this] { c.captureMidi(); });
     keys.add ("learn", "MIDI Learn", K ('l', cmd, 0), [this] { c.learnLastTouched(); });
-    keys.add ("bigger", "Bigger Text", K ('=', cmd, 0), [this] { setTextSize (jmin (2.0f, theme::scale() + 0.25f)); });
-    keys.add ("smaller", "Smaller Text", K ('-', cmd, 0), [this] { setTextSize (jmax (1.0f, theme::scale() - 0.25f)); });
+    // The next of View > Text Size's choices along, either way.
+    auto nextSize = [] (int way)
+    {
+        const auto& sizes = theme::textSizes();
+        const int now = roundToInt (theme::scale() * 100.0f);
+        if (way > 0) { for (int s : sizes) if (s > now) return (float) s / 100.0f; }
+        else for (auto it = sizes.rbegin(); it != sizes.rend(); ++it) if (*it < now) return (float) *it / 100.0f;
+        return theme::scale();
+    };
+    keys.add ("bigger", "Bigger Text", K ('=', cmd, 0), [this, nextSize] { setTextSize (nextSize (1)); });
+    keys.add ("smaller", "Smaller Text", K ('-', cmd, 0), [this, nextSize] { setTextSize (nextSize (-1)); });
     keys.add ("actualSize", "Text at 100%", K ('0', cmd, 0), [this] { setTextSize (1.0f); });
     keys.add ("import", "Import Audio or MIDI", K ('i', cmd, 0), [this] { importFiles(); });
     keys.add ("exportMix", "Export the Mix", K ('e', cmd | shift, 0), [this] { exportAudio (false); });

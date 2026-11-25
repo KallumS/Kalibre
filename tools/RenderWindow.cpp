@@ -973,6 +973,11 @@ int main (int argc, char** argv)
         c.selectClip (c.project.tracks[5].clips().front().id);
         c.refresh();
         shoot ("8-text-200");
+        // The smaller sizes too (the musician's ask): more of the song in the window.
+        window.setTextSize (0.75f);
+        shoot ("8-text-75");
+        window.setTextSize (0.5f);
+        shoot ("8-text-50");
         window.setTextSize (1.0f);   // and not left at 200% for the app's next run
         // The Random button's song (decision 0101), from Kalibre's own instruments.
         c.randomSong ({}, 4242);

@@ -108,7 +108,8 @@ public:
 
     Timeline timeline;
     float xOfTick (Tick t) const { return xOf (t); }   // where a moment is, across the arrangement
-    int headerWidth() const { return theme::px (220); }
+    // The track headers: at small text sizes no narrower than 150 points, so names still fit beside the buttons.
+    int headerWidth() const { return juce::jmax (150, theme::px (220)); }
     int rulerHeight() const;
     int sectionLaneHeight() const;
     void drawSectionLane (juce::Graphics&, juce::Rectangle<int>);

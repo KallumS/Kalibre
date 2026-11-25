@@ -507,7 +507,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             if (remove.getNumItems() > 0) spaces.addSubMenu ("Delete a Workspace", remove);
             m.addSubMenu ("Workspaces", spaces);
             PopupMenu sizes;
-            for (int s : { 100, 125, 150, 200 })
+            for (int s : theme::textSizes())
                 sizes.addItem (item (String (s) + "%", [this, s] { setTextSize ((float) s / 100.0f); }, s == 100 ? k ("actualSize") : String(), true, roundToInt (theme::scale() * 100) == s));
             m.addSubMenu ("Text Size", sizes);
             // Themes (0132): the window's colours, every one of them.

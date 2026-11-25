@@ -131,10 +131,14 @@ their buttons, clips, notes and the Plug-in Manager's list:
 
 ### Text size
 
-**View > Text Size** (100%, 125%, 150%, 200%), or ⌘= bigger, ⌘- smaller,
-⌘0 back to 100%. Everything grows with it.
+**View > Text Size**: 50%, 75%, 90%, 100%, 110%, 125%, 150% or 200%. ⌘=
+goes to the next size bigger, ⌘- the next smaller, ⌘0 back to 100%.
+Everything grows or shrinks with it: below 100% more of the song fits in the
+window. The track names keep room enough to read, however small.
 
 ![The window at 200% text, with the tempo lane shown](guide/text-200.png)
+![The window at 75% text](guide/text-75.png)
+![The window at 50% text: more of the song in the window](guide/text-50.png)
 
 ### Themes
 
@@ -1765,7 +1769,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | Follow Playback | |
 | Zoom to Fit | F |
 | Workspaces ▸ | |
-| Text Size ▸ | ⌘0 for 100% |
+| Text Size ▸ (50% to 200%) | ⌘0 for 100%, ⌘= bigger, ⌘- smaller |
 | Themes ▸ | |
 
 ### Scripts
