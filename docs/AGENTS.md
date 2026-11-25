@@ -27,6 +27,9 @@ connect Claude: the User Guide, [AI agents (MCP)](USER-GUIDE.md#ai-agents-mcp).
   devices** by id. `get_song` lists them all; call it first.
 - **Pitches** are MIDI numbers: 60 is middle C (C4, as Kalibre names it everywhere).
 - Every change is **one undo step** ("Agent: …") and said in the message line.
+- Everything an agent changes is in the song's **activity log** (0135) as
+  "AI agent", apart from what the musician did by hand: each tool that
+  changes something by its name, and each undo step it makes.
   A failure comes back as the tool's error (`isError`), saying what to do.
 
 ## The tools

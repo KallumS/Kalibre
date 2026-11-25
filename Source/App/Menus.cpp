@@ -148,6 +148,13 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
                 });
             }));
             m.addItem (item (ui::u8 ("Song Details\xe2\x80\xa6"), [this] { songDetails(); }));
+            // What's done in the song, written beside it on each save (0135).
+            m.addItem (item ("Keep an Activity Log", [this]
+            {
+                c.setKeepActivityLog (! c.keepActivityLog);
+                c.say (c.keepActivityLog ? String ("An activity log is kept beside each song: everything done in it, written when it's saved.")
+                                         : String ("No activity log is kept from now on. Choose Keep an Activity Log again to start it."), false, false, false);
+            }, {}, true, c.keepActivityLog));
             m.addSeparator();
             m.addItem (item (ui::u8 ("Import Audio or MIDI\xe2\x80\xa6"), [this] { importFiles(); }, k ("import")));
             m.addItem (item (ui::u8 ("Import MusicXML\xe2\x80\xa6"), [this]
@@ -500,7 +507,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             if (remove.getNumItems() > 0) spaces.addSubMenu ("Delete a Workspace", remove);
             m.addSubMenu ("Workspaces", spaces);
             PopupMenu sizes;
-            for (int s : { 100, 125, 150, 200 })
+            for (int s : theme::textSizes())
                 sizes.addItem (item (String (s) + "%", [this, s] { setTextSize ((float) s / 100.0f); }, s == 100 ? k ("actualSize") : String(), true, roundToInt (theme::scale() * 100) == s));
             m.addSubMenu ("Text Size", sizes);
             // Themes (0132): the window's colours, every one of them.

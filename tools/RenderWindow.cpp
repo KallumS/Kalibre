@@ -26,6 +26,47 @@
 using namespace juce;
 using namespace kal;
 
+namespace
+{
+// A sound card that's only a clock: the renderer drives it a block at a time,
+// so pictures that need Kalibre playing (the step being played) can be taken.
+struct RenderDevice : public AudioIODevice
+{
+    RenderDevice() : AudioIODevice ("Render", "Render") {}
+    StringArray getOutputChannelNames() override { return { "L", "R" }; }
+    StringArray getInputChannelNames() override { return {}; }
+    Array<double> getAvailableSampleRates() override { return { 48000.0 }; }
+    Array<int> getAvailableBufferSizes() override { return { 512 }; }
+    int getDefaultBufferSize() override { return 512; }
+    String open (const BigInteger&, const BigInteger&, double, int) override { return {}; }
+    void close() override {}
+    bool isOpen() override { return true; }
+    void start (AudioIODeviceCallback*) override {}
+    void stop() override {}
+    bool isPlaying() override { return true; }
+    String getLastError() override { return {}; }
+    int getCurrentBufferSizeSamples() override { return 512; }
+    double getCurrentSampleRate() override { return 48000.0; }
+    int getCurrentBitDepth() override { return 32; }
+    BigInteger getActiveOutputChannels() const override { return 3; }
+    BigInteger getActiveInputChannels() const override { return 0; }
+    int getOutputLatencyInSamples() override { return 0; }
+    int getInputLatencyInSamples() override { return 0; }
+};
+
+void playFor (Engine& e, double seconds)
+{
+    const int n = 512, blocks = (int) std::ceil (seconds * 48000 / n);
+    AudioBuffer<float> block (2, n);
+    for (int b = 0; b < blocks; ++b)
+    {
+        block.clear();
+        float* outs[] { block.getWritePointer (0), block.getWritePointer (1) };
+        e.audioDeviceIOCallbackWithContext (nullptr, 0, outs, 2, n, {});
+    }
+}
+} // namespace
+
 int main (int argc, char** argv)
 {
     ScopedJuceInitialiser_GUI gui;
@@ -139,6 +180,19 @@ int main (int argc, char** argv)
             png.writeImageToStream (image, s);
             std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
         };
+        // A part of the window, for the homepage's smaller pictures.
+        auto shootArea = [&] (const String& name, Rectangle<int> area)
+        {
+            window.resized();
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            auto image = window.createComponentSnapshot (area.getIntersection (window.getLocalBounds()), true, scale);
+            PNGImageFormat png;
+            const auto f = out.getChildFile (name + ".png");
+            f.deleteFile();
+            FileOutputStream s (f);
+            png.writeImageToStream (image, s);
+            std::printf ("wrote %s\n", f.getFullPathName().toRawUTF8());
+        };
         c.zoneTab = ZoneTab::Devices;
         c.viewChanged();
         shoot ("1-devices");
@@ -176,14 +230,87 @@ int main (int argc, char** argv)
         }
         window.setTheme (0);
         shoot ("2-piano-roll");
-        c.selectClip (c.project.tracks[4].clips().front().id);
+        // The message line saying what's chosen: a note in the Keys' chords.
+        c.dismiss();
+        if (const auto* kc = c.project.clip (keysClip); kc && ! kc->midi.notes.empty()) c.selectedNotes = { kc->midi.notes.front().id };
+        c.viewChanged();
+        // The homepage's: the top bar and the message line, with each track's I/O; the
+        // top bar's timer; the arm button four ways.
+        shootArea ("53-top-bar-and-io", { 0, 0, window.getWidth(), 423 });
+        shootArea ("54-top-bar-timer", { 0, 0, window.getWidth(), 120 });
+        {
+            const ArmFor ways[] { ArmFor::Audio, ArmFor::Midi, ArmFor::Both, ArmFor::MidiInput };
+            std::vector<Id> armed;
+            for (auto& t : c.project.tracks)
+                if (t.holdsClips() && armed.size() < 4) armed.push_back (t.id);
+            for (size_t i = 0; i < armed.size(); ++i) { auto* t = c.project.track (armed[i]); t->armed = true; t->armFor = ways[i]; }
+            c.refresh();
+            window.resized();
+            MessageManager::getInstance()->runDispatchLoopUntil (50);
+            Rectangle<int> headers;
+            std::function<void (Component&)> find = [&] (Component& comp)
+            {
+                for (auto* ch : comp.getChildren())
+                {
+                    if (auto* h = dynamic_cast<TrackHeader*> (ch); h && h->isVisible()
+                        && std::find (armed.begin(), armed.end(), h->id) != armed.end())
+                        headers = headers.isEmpty() ? window.getLocalArea (h, h->getLocalBounds()) : headers.getUnion (window.getLocalArea (h, h->getLocalBounds()));
+                    find (*ch);
+                }
+            };
+            find (window);
+            if (! headers.isEmpty()) shootArea ("55-arm-four-ways", headers.expanded (4));
+            for (auto id : armed) c.project.track (id)->armed = false;
+            c.refresh();
+        }
+        c.selectedNotes.clear();
+        // The step sequencer's: a bass line written in steps, a bar after the song, on the Bass.
+        Id stepsClip = 0;
+        for (auto& t : c.project.tracks)
+            if (t.name == "Bass")
+            {
+                stepsClip = edit::addMidiClip (c.project, t.id, PPQ * 16, PPQ * 4);
+                const int line[16] { 45, 0, 45, 57, 0, 45, 52, 0, 43, 0, 43, 55, 0, 48, 50, 52 };
+                for (int i = 0; i < 16; ++i)
+                    if (line[i] > 0)
+                    {
+                        Note n;
+                        n.start = (PPQ / 4) * i;
+                        n.length = PPQ / 8;
+                        n.pitch = line[i];
+                        n.velocity = 70 + (i % 4 == 0 ? 40 : 0);
+                        n.from = NoteFrom::Steps;
+                        edit::addNote (c.project, stepsClip, n);
+                    }
+                c.refresh();
+            }
+        const Id drumsClip = c.project.tracks[4].clips().front().id;
         for (auto kind : { EditorKind::Drums, EditorKind::Steps, EditorKind::Euclid })
         {
+            c.selectClip (kind == EditorKind::Steps && stepsClip ? stepsClip : drumsClip);
             c.editor = kind;
             c.zoneTab = ZoneTab::Editor;
             c.viewChanged();
             shoot (kind == EditorKind::Drums ? "3-drums" : kind == EditorKind::Steps ? "4-steps" : "5-euclidean");
+            if (kind == EditorKind::Steps)
+            {
+                // Playing: the step being played lit, as the homepage shows it.
+                RenderDevice device;
+                c.engine.audioDeviceAboutToStart (&device);
+                MessageManager::getInstance()->runDispatchLoopUntil (20);
+                c.refresh();
+                c.cursor = c.project.clip (c.selectedClip)->start;
+                c.play();
+                playFor (c.engine, 1.2);
+                window.repaint();
+                shoot ("56-steps-playing");
+                c.stop();
+                c.engine.audioDeviceStopped();
+                c.refresh();
+            }
         }
+        // The bass line in steps goes again: the pictures after are of the demo song as it was.
+        if (stepsClip) { edit::removeClips (c.project, { stepsClip }); c.refresh(); }
         c.selectClip (c.project.tracks[5].clips().front().id);
         c.editor = EditorKind::Notation;
         c.viewChanged();
@@ -973,6 +1100,11 @@ int main (int argc, char** argv)
         c.selectClip (c.project.tracks[5].clips().front().id);
         c.refresh();
         shoot ("8-text-200");
+        // The smaller sizes too (the musician's ask): more of the song in the window.
+        window.setTextSize (0.75f);
+        shoot ("8-text-75");
+        window.setTextSize (0.5f);
+        shoot ("8-text-50");
         window.setTextSize (1.0f);   // and not left at 200% for the app's next run
         // The Random button's song (decision 0101), from Kalibre's own instruments.
         c.randomSong ({}, 4242);

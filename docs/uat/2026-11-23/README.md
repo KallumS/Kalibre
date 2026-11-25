@@ -82,9 +82,12 @@ there was no time left to drive them by hand).
 | 10, 31 | No slot that takes a plug-in offered Kalibre's own devices | Yes: every slot now lists Kalibre's own of its kind (0134) |
 | 36 | Scrolling over the mixer turns the fader or knob under the pointer | Keep it |
 
-Suggestions, not asked: 49 (Shift-Random's track names, and the Sampler
-where Kalibre Drums would do), 18 (Steps' Random ignores the octave the bass
-plays in).
+Two suggestions, asked later and answered yes (0134 amended): 49
+(Shift-Random's tracks now never share a name with the song's, "Drums 2", and
+its drums are Kalibre Drums with a hit of each kind from your sounds) and 18
+(Steps' Random now writes its tune in the octave the track already plays).
+Finding 46 (several ReaImGui tools at once) is to watch on the Mac; the
+UAT's "Not tried here" list is for the musician to try there.
 
 **Fixed later the same day** ([decision 0134](../../decisions/0134-the-uats-smaller-findings.md)), each with a test that failed first:
 

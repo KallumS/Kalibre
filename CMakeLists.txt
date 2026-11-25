@@ -66,6 +66,7 @@ add_library(KalibreCore STATIC
     Source/Core/Capture.cpp
     Source/Core/ProjectFile.cpp
     Source/Core/Notation.cpp
+    Source/Core/ActivityLog.cpp
     Source/Core/MusicXml.cpp
     Source/Core/Xml.cpp
     Source/Core/Comp.cpp
@@ -112,6 +113,7 @@ if(KALIBRE_BUILD_TESTS)
     add_executable(KalibreTests
         Tests/TestMain.cpp
         Tests/TestTempo.cpp
+        Tests/TestActivityLog.cpp
         Tests/TestEdit.cpp
         Tests/TestRoll.cpp
         Tests/TestPatterns.cpp

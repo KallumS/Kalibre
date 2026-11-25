@@ -775,3 +775,68 @@ TEST ("window: Space plays even when a button holds the keyboard focus, as one d
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("window: View > Text Size offers 50%, 75%, 90%, 100%, 110%, 125%, 150% and 200%; each is used, laid out with nothing off the edge; Bigger and Smaller step through them (the musician's ask)")
+{
+    theme::LookAndFeel look;
+    LookAndFeel::setDefaultLookAndFeel (&look);
+    {
+        PluginManager plugins;
+        Engine engine (plugins);
+        Controller c (engine);
+        c.project = demo::song();
+        c.refresh();
+        MainComponent w (c);
+        // The View menu's Text Size lists them in order.
+        const auto names = w.getMenuBarNames();
+        StringArray sizes;
+        for (int i = 0; i < names.size(); ++i)
+            if (names[i] == "View")
+            {
+                const auto view = w.getMenuForIndex (i, names[i]);   // kept: the iterator holds on to it
+                for (PopupMenu::MenuItemIterator it (view); it.next();)
+                    if (it.getItem().text == "Text Size" && it.getItem().subMenu)
+                        for (PopupMenu::MenuItemIterator s (*it.getItem().subMenu); s.next();) sizes.add (s.getItem().text);
+            }
+        CHECK_EQ (sizes.joinIntoString (" "), String ("50% 75% 90% 100% 110% 125% 150% 200%"));
+
+        for (float scale : { 0.5f, 0.75f, 0.9f, 1.1f })
+            for (auto size : { Rectangle<int> (900, 560), Rectangle<int> (1440, 900) })
+            {
+                w.setTextSize (scale);
+                CHECK (std::abs (theme::scale() - scale) < 0.001f);
+                w.setBounds (size);
+                std::function<void (Component&)> walk = [&] (Component& comp)
+                {
+                    for (auto* child : comp.getChildren())
+                    {
+                        if (! child->isVisible()) continue;
+                        if (dynamic_cast<Button*> (child) != nullptr)
+                        {
+                            const auto b = child->getBounds();
+                            if (b.getRight() > comp.getWidth() + 1)
+                                std::printf ("  off the edge: %s in %s at %dx%d, %.0f%%\n", child->getTitle().toRawUTF8(),
+                                             comp.getTitle().toRawUTF8(), size.getWidth(), size.getHeight(), scale * 100);
+                            CHECK (b.getRight() <= comp.getWidth() + 1);
+                            CHECK (b.getHeight() >= roundToInt (18 * scale));
+                        }
+                        if (dynamic_cast<Viewport*> (child) == nullptr) walk (*child);
+                    }
+                };
+                walk (w);
+            }
+        // Bigger and Smaller (Command-= and Command--) go to the next size along.
+        auto press = [&c] (const String& id) { for (auto& k : c.keys.all()) if (k.id == id && k.run) k.run(); };
+        w.setTextSize (1.0f);
+        press ("bigger");
+        CHECK (std::abs (theme::scale() - 1.1f) < 0.001f);
+        press ("smaller");
+        press ("smaller");
+        CHECK (std::abs (theme::scale() - 0.9f) < 0.001f);
+        w.setTextSize (0.5f);
+        press ("smaller");
+        CHECK (std::abs (theme::scale() - 0.5f) < 0.001f);   // the smallest stays
+        w.setTextSize (1.0f);
+    }
+    LookAndFeel::setDefaultLookAndFeel (nullptr);
+}

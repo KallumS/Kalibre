@@ -187,13 +187,21 @@ bool change (Controller& c, const String& what, std::function<void (Project&)> f
 void addAgentTools (mcp::Server& server, Controller& c)
 {
     using namespace mcp;
-    auto tool = [&server] (std::string name, std::string description, json schema, std::function<Reply (const json&)> run, bool readOnly = false)
+    auto tool = [&server, &c] (std::string name, std::string description, json schema, std::function<Reply (const json&)> run, bool readOnly = false)
     {
         Tool t;
         t.name = std::move (name);
         t.description = std::move (description);
         t.inputSchema = std::move (schema);
-        t.run = std::move (run);
+        // What an agent does is marked so in the activity log (0135).
+        // A tool that changes something is a line of its own, though it may be
+        // no undo step (set_plugin_parameter, transport).
+        t.run = [&c, run = std::move (run), name = t.name, readOnly] (const json& a)
+        {
+            if (! readOnly) c.logActivity (activity::Kind::Agent, "Used " + String (name));
+            const ScopedValueSetter<bool> marked (c.agentActing, true);
+            return run (a);
+        };
         t.readOnly = readOnly;
         server.add (std::move (t));
     };

@@ -180,7 +180,7 @@ void usePalette (int index)
             comp->repaint();
         }
 }
-void setScale (float s) { textScale = jlimit (1.0f, 2.0f, s); }
+void setScale (float s) { textScale = jlimit (textSizes().front() / 100.0f, textSizes().back() / 100.0f, s); }
 
 double luminance (Colour c)
 {

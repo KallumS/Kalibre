@@ -883,3 +883,31 @@ TEST ("ReaImGui tools: a script's window not on screen runs no frames, so tools 
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("steps: Random on a bass track writes its tune down where the bass plays, not in octave 4 (UAT)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.project = Project();
+    const Id t = edit::addTrack (c.project, TrackKind::Track, "Bass");
+    const Id played = edit::addMidiClip (c.project, t, 0, PPQ * 4);
+    for (int p : { 33, 36, 40, 31, 33, 28 }) edit::addNote (c.project, played, { 0, 0, PPQ / 2, p, 100 });
+    const Id fresh = edit::addMidiClip (c.project, t, PPQ * 4, PPQ * 4);
+    c.grid = PPQ / 4;
+    c.refresh();
+    c.selectClip (fresh);
+    StepSequencer steps (c);
+    steps.setSize (900, 400);
+    for (auto* ch : steps.getChildren())
+        if (auto* b = dynamic_cast<Button*> (ch); b && b->getButtonText() == "Random") b->triggerClick();
+    MessageManager::getInstance()->runDispatchLoopUntil (50);
+    std::vector<int> pitches;
+    for (auto& n : c.project.clip (fresh)->midi.notes) if (n.from == NoteFrom::Steps) pitches.push_back (n.pitch);
+    CHECK (! pitches.empty());
+    if (! pitches.empty())
+    {
+        std::sort (pitches.begin(), pitches.end());
+        CHECK (std::abs (pitches[pitches.size() / 2] - 33) <= 6);
+    }
+}
