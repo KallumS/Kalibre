@@ -98,6 +98,7 @@ PC (Kalibre isn't signed yet): **More info > Run anyway**.
 | Return (go to the start) | **Enter** |
 | Delete (⌫) | **Backspace**, or **Delete** |
 | The **Kalibre** menu (Audio and MIDI Settings, Plug-in Manager, Library Folders) | **File > Settings** |
+| Kalibre > About Kalibre (the version) | **Help > About Kalibre** |
 | Kalibre > Quit (⌘Q) | **File > Exit** (Alt+F4) |
 | Menus in the Mac's menu bar | Menus along the top of Kalibre's window |
 | Show in Finder | **Show in File Explorer** |
@@ -1698,6 +1699,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 
 | Item | Key | Does |
 | --- | --- | --- |
+| About Kalibre | | Kalibre's version (1.0.0 and on). What changed in each is in `docs/CHANGES.md`. |
 | Audio and MIDI Settings… | ⌘, | The browser's Audio tab. |
 | Plug-in Manager… | | [Section 14](#the-plug-in-manager). |
 | Library Folders… | | The folders the Sounds tab looks in ([Section 14](#the-sounds-tab)). |

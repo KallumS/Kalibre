@@ -46,9 +46,27 @@ StringArray MainComponent::getMenuBarNames()
     return { "File", "Edit", "Track", "Transport", "Automation", "View", "Scripts", "Help" };
 }
 
+void MainComponent::showAbout()
+{
+    auto* w = new AlertWindow ("Kalibre", aboutText(), MessageBoxIconType::NoIcon);
+    w->addButton ("OK", 1, KeyPress (KeyPress::returnKey));
+    ui::present (w, ModalCallbackFunction::create ([] (int) {}), true);
+}
+
+String MainComponent::aboutText()
+{
+    return "Version " + String (KALIBRE_VERSION) + "\n\nA DAW made to be exactly right for one musician. "
+           "What changed in each version is in docs/CHANGES.md, in Kalibre's repository.";
+}
+
 PopupMenu MainComponent::appMenu()
 {
     PopupMenu m;
+   #if ! JUCE_WINDOWS
+    // First in the Kalibre menu, as on every Mac app; on Windows it's Help's (0136).
+    m.addItem (item ("About Kalibre", [] { showAbout(); }));
+    m.addSeparator();
+   #endif
     m.addItem (item (ui::u8 ("Audio and MIDI Settings\xe2\x80\xa6"), [this]
     {
         browserShown = true;
@@ -551,6 +569,10 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         }
         case 7:   // Help
         {
+           #if JUCE_WINDOWS
+            m.addItem (item ("About Kalibre", [] { showAbout(); }));   // where Windows programs keep it (0136)
+            m.addSeparator();
+           #endif
             m.addItem (item (ui::u8 ("Keys\xe2\x80\xa6"), [this] { showKeys(); }));
             m.addItem (item ("Show Crash Reports", []
             {

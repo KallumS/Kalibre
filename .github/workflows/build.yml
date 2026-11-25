@@ -1,6 +1,6 @@
 # Builds Kalibre for Apple silicon Macs (a .dmg to download from the run's
 # Artifacts) and for Windows (a .zip, decision 0129), and runs the tests on
-# Linux, macOS and Windows. Pushing a tag that starts with "v" (v0.1.0) also
+# Linux, macOS and Windows. Pushing a tag that starts with "v" (v1.0.0) also
 # publishes a GitHub Release with both attached.
 
 name: Build
