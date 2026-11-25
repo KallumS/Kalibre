@@ -234,7 +234,8 @@ song: try a different arrangement, mix or sound, and switch back and forth.
 ### The Random button
 
 **Shift-click Random** to keep this song and add random tracks to it, in its
-key and at its tempo, as one undo step.
+key and at its tempo, as one undo step. A track it adds never takes a name
+the song already has: beside your **Drums** it's **Drums 2**.
 
 **Random** (also **File > New Random Song**) makes a new song by chance, to
 start from. If the song you have has changes, it asks to save it first.
@@ -247,8 +248,11 @@ Then:
 - **A random instrument on each**: your scanned plug-ins (all of them but those
   turned off in the Plug-in Manager, and ones that measure rather than sound:
   analysers, meters, tuners), Kalibre Synth, Trombolese,
-  Reese Basser, or Kalibre Sampler playing one of your sounds. Drums go to an
-  instrument that plays drums when you have one (by its name).
+  Reese Basser, or Kalibre Sampler playing one of your sounds. The drums are
+  **Kalibre Drums**, each pad given a drum hit of its kind from your Sounds
+  folders (a kick for the kick, a snare for the snare), played by the drum
+  clip; with no drum hits in your folders, they go to an instrument that
+  plays drums (by its name).
 - **Loops from your sounds** (the Sounds tab's folders), now and then: ones
   whose tempo is known, stretched to the song's.
 - **Effects by chance**: none, one or two a track, 8 at most in all, and now
@@ -259,7 +263,7 @@ Then:
 The message line says what it made ("6 tracks at 103 BPM in A Mixolydian, A
 E A D E A"). Press Space to hear it; click Random again for another. Like
 File > New, it's a new song: there's nothing to undo back to (that's why it
-asks to save first).
+asks to save first). Its activity log starts by saying it's a random song.
 
 ![A random song: six tracks, mixed](guide/random-song.png)
 
@@ -694,7 +698,7 @@ One note a step. Height is pitch; the bar inside is velocity.
 | Double-click | Tie it to the next step (one undo step). |
 | Right-click | Turn it off. |
 | **Swing**, **Gate** | Every second step played late; how long each note sounds. |
-| **Random** | A new tune from Good Idea in the song's key. |
+| **Random** | A new tune from Good Idea in the song's key, moved by whole octaves to where the track's other notes are: on a bass, down with the bass. |
 
 ### Euclidean
 
