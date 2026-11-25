@@ -1,7 +1,8 @@
 # Kalibre
 
-A DAW for Apple silicon Macs (JUCE 9, C++20), everything in one window; on
-the Windows branch, for Windows PCs too (0129).
+A DAW for Apple silicon Macs and Windows PCs (JUCE 9, C++20), everything in
+one window. One branch, `main`, holds both (0137): what's only one system's
+is behind `JUCE_MAC` or `JUCE_WINDOWS`, and CI builds and tests both.
 Built for one musician, who is not a developer: explain in plain words, show
 renders of what changed, and make sure every change reaches them as the CI's
 `.dmg` (Actions > Build > Kalibre-macOS), and on Windows its `.zip`
@@ -45,7 +46,7 @@ xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreRender
   `CMakeLists.txt`; 1.0.0 from 25 November, the musician's main DAW): the last
   number for a fix, the middle for something new, the first for a change to
   how songs are kept or Kalibre is used. Add its line to `docs/CHANGES.md`.
-  The `Windows` branch's version follows when it's merged.
+  Mac and Windows share it: one branch, one version (0137).
 
 - **No JUCE in `Source/Core`.**
 - **The audio thread doesn't allocate or lock**: data goes through `Swap`.
