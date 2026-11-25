@@ -212,15 +212,19 @@ What's done and what isn't, feature by feature: **[docs/FEATURES.md](docs/FEATUR
 
 ## Get it
 
-**Version 1.0.0.** Every change raises the version; what changed in each is
-in [docs/CHANGES.md](docs/CHANGES.md), and Kalibre > About Kalibre says
-which you have.
+**Version 1.1.0.** Every change raises the version; what changed in each is
+in [docs/CHANGES.md](docs/CHANGES.md), and About Kalibre says which you have.
 
-Every push is built for Apple silicon by GitHub Actions: open the latest
-**Build** run under the repository's **Actions** tab and download
-**Kalibre-macOS**. Open the `.dmg`, drag Kalibre into Applications, and the
-first time right-click it and choose **Open**. Then **Kalibre > Plug-in
-Manager…** and **Scan for New Plug-ins**.
+**Download it from [Releases](https://github.com/KallumS/Kalibre/releases)**:
+**Kalibre-macOS.dmg** for an Apple silicon Mac, **Kalibre-Windows.zip** for a
+Windows PC. Between releases, every push is built too: the latest **Build**
+run under **Actions** has both as Artifacts.
+
+On the Mac, open the `.dmg`, drag Kalibre into Applications, and the first
+time right-click it and choose **Open**. On Windows, unzip it, keep
+**Kalibre.exe** and its **Scripts** folder together, and double-click
+Kalibre.exe. Then **Plug-in Manager…** (Kalibre menu on the Mac, File >
+Settings on Windows) and **Scan for New Plug-ins**.
 
 Or build it on your Mac: double-click `build-mac.command` (needs Xcode's
 Command Line Tools and CMake).

@@ -46,7 +46,12 @@ xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreRender
   `CMakeLists.txt`; 1.0.0 from 25 November, the musician's main DAW): the last
   number for a fix, the middle for something new, the first for a change to
   how songs are kept or Kalibre is used. Add its line to `docs/CHANGES.md`.
-  Mac and Windows share it: one branch, one version (0137).
+  Mac and Windows share it: one branch, one version (0137). Docs alone
+  don't raise it (they change no Kalibre anyone runs).
+- **A release** is a tag `v<version>` on `main` (`v1.1.0`): CI builds it and
+  attaches Kalibre-macOS.dmg and Kalibre-Windows.zip to the release. This
+  session's GitHub access can't push tags, so the musician makes the release
+  (Releases > Draft a new release, tag `v…`, target `main`).
 
 - **No JUCE in `Source/Core`.**
 - **The audio thread doesn't allocate or lock**: data goes through `Swap`.
