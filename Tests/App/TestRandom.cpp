@@ -5,6 +5,9 @@
 #include "MainComponent.h"
 #include "TopBar.h"
 #include "Theme.h"
+#include "DrumMachine.h"
+
+#include <set>
 
 using namespace kal;
 using namespace juce;
@@ -564,4 +567,45 @@ TEST ("random: Shift-click on the top bar's Random adds random tracks to this so
     // A click: a whole new song, this one let go of.
     CHECK (c.randomSong (none, 8));
     CHECK (c.project.track (mine) == nullptr || c.project.track (mine)->name != "Mine");
+}
+
+TEST ("random: Shift-Random's tracks never share a name with the song's own (Drums 2), and its drums are Kalibre Drums with a sound on its pads (the musician's answer to the UAT)")
+{
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    c.newProject();
+    for (const char* name : { "Drums", "Bass", "Chords", "Lead" }) c.addTrack (TrackKind::Track, name);
+    const auto dir = soundsFolder();
+    const double pi = MathConstants<double>::pi;
+    library::Index index;
+    for (const char* name : { "Kick.wav", "Snare.wav", "Closed Hat.wav", "Clap.wav" })
+    {
+        const auto f = writeSound (dir, name, 0.3, [pi] (double t) { return (float) (0.7 * std::exp (-t * 30) * std::sin (2 * pi * 90 * t)); });
+        library::Item it;
+        it.path = f.getFullPathName().toStdString();
+        it.seconds = 0.3;
+        it.sampleRate = 44100;
+        it.channels = 1;
+        index.items[it.path] = it;
+    }
+    CHECK (c.randomSong (index, 11, true));
+    std::set<std::string> names;
+    bool clash = false;
+    for (auto& t : c.project.tracks) clash |= ! names.insert (t.name).second;
+    CHECK (! clash);
+    bool sawKit = false;
+    for (auto& t : c.project.tracks)
+        for (auto& d : t.devices)
+            if (d.plugin.identifier == drumsRef().identifier)
+            {
+                sawKit = true;
+                auto* dm = dynamic_cast<DrumMachine*> (engine.instance (d.id));
+                CHECK (dm != nullptr);
+                int sounded = 0;
+                if (dm) for (auto& pad : dm->kit().pads) sounded += ! pad.sample.empty();
+                CHECK (sounded >= 3);
+                if (dm) CHECK (! dm->kit().playsPattern);   // the clip plays it, not its own steps
+            }
+    CHECK (sawKit);
 }

@@ -270,3 +270,37 @@ TEST ("random settings: names from the musician's own plug-ins (the Random Setti
         CHECK (why.empty());
     }
 }
+
+TEST ("random song: the drums are Kalibre Drums when there are drum hits to give its pads; it's named so the app fills them (the musician's answer to the UAT)")
+{
+    auto cat = catalogue (true);
+    auto kit = choice ("Kalibre Drums", DeviceRole::Instrument, true);
+    kit.kit = true;
+    cat.instruments.push_back (kit);
+    Sample kick;
+    kick.path = "/s/Kick.wav"; kick.name = "Kick"; kick.seconds = 0.4; kick.drums = true;
+    cat.samples.push_back (kick);
+    for (unsigned seed = 1; seed <= 20; ++seed)
+    {
+        Options o;
+        o.seed = seed;
+        const auto r = make (cat, o);
+        for (auto& t : r.project.tracks)
+            if (t.name == "Drums" && ! t.clips().empty() && t.clips().front().isMidi())
+                for (auto& d : t.devices)
+                    if (d.role == DeviceRole::Instrument)
+                    {
+                        CHECK_EQ (d.plugin.name, std::string ("Kalibre Drums"));
+                        bool listed = false;
+                        for (auto id : r.drumKits) listed |= id == d.id;
+                        CHECK (listed);
+                    }
+    }
+    // With no drum hits, it isn't chosen: an empty kit would be silent.
+    const auto none = catalogue (false);
+    auto withKit = none;
+    withKit.instruments.push_back (kit);
+    Options o;
+    o.seed = 3;
+    CHECK (make (withKit, o).drumKits.empty());
+}
