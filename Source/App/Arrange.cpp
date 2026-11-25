@@ -1868,7 +1868,7 @@ void Arrange::clipMenu (Id id)
             m.addItem (chosen.size() > 1 ? "Create Alias Clips" : "Create Alias Clip", [this, chosen]
             {
                 c.apply ("Create Alias Clip", [chosen] (Project& p) { song::makeAlias (p, chosen); });
-                c.say ("An alias clip: duplicate it (Command-D, or Option-drag) and an edit to the notes of any copy is made to them all.", false, true);
+                c.say ("An alias clip: duplicate it (" + ui::commandKey ("D") + ", or " + ui::optionClick ("drag") + ") and an edit to the notes of any copy is made to them all.", false, true);
             });
         else
             m.addItem ("Make Independent", [this, chosen]

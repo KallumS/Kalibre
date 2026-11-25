@@ -100,7 +100,7 @@ struct Browser::PluginList : public ListBoxModel
         m.addItem ("Add to the Chosen Track", c.project.track (c.focusTrack) != nullptr, false, [this, d] { addToChosen (d); });
         m.addSeparator();
         const auto file = Controller::pluginFile (d);
-        m.addItem ("Show in Finder", file.exists(), false, [file] { file.revealToUser(); });
+        m.addItem (ui::words().showInFiles, file.exists(), false, [file] { file.revealToUser(); });
         m.showMenuAsync (PopupMenu::Options());
     }
 
@@ -166,11 +166,11 @@ struct Browser::PresetList : public ListBoxModel
         m.addItem ("Load", [this, en] { c.loadPreset (en.device, en.file); });
         m.addItem ("Load on a New Track", [this, en] { c.presetOnNewTrack (en.device, en.file); });
         m.addSeparator();
-        m.addItem ("Show in Finder", [en] { en.file.revealToUser(); });
+        m.addItem (ui::words().showInFiles, [en] { en.file.revealToUser(); });
         m.addItem (ui::u8 ("Delete\xe2\x80\xa6"), [this, en]
         {
             auto* w = new AlertWindow ("Delete the preset " + en.file.getFileNameWithoutExtension().quoted() + "?",
-                                       "It goes to the Trash.", MessageBoxIconType::NoIcon);
+                                       "It goes to " + String (ui::words().trash) + ".", MessageBoxIconType::NoIcon);
             w->addButton ("Delete", 1, KeyPress (KeyPress::returnKey));
             w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
             ui::present (w, ModalCallbackFunction::create ([this, en] (int r)

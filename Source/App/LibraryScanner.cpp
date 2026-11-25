@@ -248,7 +248,10 @@ void LibraryScanner::run()
         for (const auto& e : RangedDirectoryIterator (dir, true, pattern, File::findFiles, File::FollowSymlinks::noCycles))
         {
             if (threadShouldExit()) return;
-            if (e.isHidden()) continue;
+            // Hidden: by the system, or (as on the Mac and Linux) named with a dot first, as Windows
+            // doesn't hide those (a Mac's "._" files copied to a Windows drive).
+            const auto rel = e.getFile().getRelativePathFrom (dir);
+            if (e.isHidden() || rel.startsWithChar ('.') || rel.contains ("/.") || rel.contains ("\\.")) continue;
             files[e.getFile().getFullPathName().toStdString()] = { e.getFileSize(), e.getModificationTime().toMilliseconds() };
             found = (int) files.size();
         }

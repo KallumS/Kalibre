@@ -56,6 +56,10 @@ file(GLOB SHINE_SOURCES ${shine_SOURCE_DIR}/src/lib/*.c)
 add_library(KalibreShine STATIC ${SHINE_SOURCES})
 target_include_directories(KalibreShine PUBLIC ${shine_SOURCE_DIR}/src/lib)
 set_target_properties(KalibreShine PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+    # GCC's __attribute__, which MSVC hasn't, made nothing (0129); /D can't define a macro with an argument.
+    target_compile_options(KalibreShine PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/cmake/NoGccAttributes.h)
+endif()
 
 # ysfx (Apache-2.0): the JSFX engine (REAPER's EEL2) with its graphics, for the
 # family's JSFX built in as devices (decision 0066). Its engine only: not its
@@ -134,7 +138,13 @@ target_include_directories(KalibreImGui PUBLIC ${imgui_SOURCE_DIR} ${CMAKE_CURRE
 target_compile_definitions(KalibreImGui PUBLIC IMGUI_USER_CONFIG="ToolImConfig.h")
 set_target_properties(KalibreImGui PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" ${APPLE})
+# On the Mac and Windows (decision 0129): JUCE hosts ARA through VST3 there too.
+if(APPLE OR WIN32)
+    set(KALIBRE_ARA_DEFAULT ON)
+else()
+    set(KALIBRE_ARA_DEFAULT OFF)
+endif()
+option(KALIBRE_ARA "Host ARA plug-ins (Melodyne and others)" ${KALIBRE_ARA_DEFAULT})
 if(KALIBRE_ARA)
     FetchContent_Declare(ara_sdk
         GIT_REPOSITORY https://github.com/Celemony/ARA_SDK.git
@@ -252,8 +262,17 @@ if(APPLE)
     target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm Source/App/PluginClipMac.mm Source/App/FilePanelsMac.mm)
     target_link_libraries(KalibreApp PRIVATE "-framework CoreMIDI")
     target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab (decision 0046)
+elseif(WIN32)
+    # Windows (decision 0129): the scanner's helper, CLAP windows and crash reports of its own.
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiRtp.cpp Source/Engine/NetworkMidiDnsWin.cpp Source/App/PluginClipWin.cpp
+                                      Source/App/FilePanelsOther.cpp Source/Engine/HelperProcessWin.cpp Source/Engine/ClapGuiWin.cpp
+                                      Source/App/CrashReportsWin.cpp)
+    target_link_libraries(KalibreApp PRIVATE dnsapi)   # the network MIDI session announced (0129)
+    target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab's picture, through DirectShow (0129)
+    # A video's sound (AAC in an .mp4) read through Windows Media, as the Mac reads it through Core Audio.
+    target_compile_definitions(KalibreApp PUBLIC JUCE_USE_WINDOWS_MEDIA_FORMAT=1)
 else()
-    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiOther.cpp Source/App/PluginClipOther.cpp Source/App/FilePanelsOther.cpp)
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiRtp.cpp Source/App/PluginClipOther.cpp Source/App/FilePanelsOther.cpp)
 endif()
 
 target_include_directories(KalibreApp PUBLIC
@@ -308,6 +327,9 @@ juce_add_gui_app(Kalibre
     PLIST_TO_MERGE "<plist><dict><key>LSMinimumSystemVersion</key><string>12.0</string><key>NSHighResolutionCapable</key><true/></dict></plist>")
 
 target_sources(Kalibre PRIVATE Source/App/Main.cpp)
+if(WIN32)
+    target_sources(Kalibre PRIVATE Source/App/MainWin.cpp)   # a windowed program starts at WinMain (0129)
+endif()
 target_compile_definitions(Kalibre PRIVATE
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:Kalibre,JUCE_PRODUCT_NAME>"
     JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:Kalibre,JUCE_VERSION>")
@@ -323,9 +345,13 @@ if(KALIBRE_BUILD_TESTS)
     juce_add_console_app(KalibreAppTests PRODUCT_NAME "Kalibre App Tests")
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp Tests/App/TestBattlePass.cpp
     Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp Tests/App/TestTools.cpp Tests/App/TestFamilyDevices.cpp
-    Tests/App/TestNeutral.cpp Tests/App/TestLibrary.cpp Tests/App/TestAgents.cpp Tests/App/TestRandom.cpp Tests/App/TestDrums.cpp Tests/App/TestDrumPads.cpp
+    Tests/App/TestNeutral.cpp Tests/App/TestLibrary.cpp Tests/App/TestAgents.cpp Tests/App/TestRandom.cpp Tests/App/TestDrums.cpp Tests/App/TestDrumPads.cpp Tests/App/TestNetworkMidi.cpp
     Tests/App/TestUatFound.cpp Tests/App/TestActivityLog.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
+    if(WIN32)
+        target_sources(KalibreAppTests PRIVATE Tests/App/TestCrashWin.cpp)
+        target_link_libraries(KalibreAppTests PRIVATE dbghelp)
+    endif()
     target_compile_definitions(KalibreAppTests PRIVATE JUCE_STANDALONE_APPLICATION=1 KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(KalibreAppTests PRIVATE KalibreApp juce::juce_recommended_config_flags)
     add_test(NAME App COMMAND KalibreAppTests)

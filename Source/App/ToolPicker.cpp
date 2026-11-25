@@ -218,7 +218,7 @@ void ToolBox::paint (Graphics& g)
     if (! info.modes.empty())
     {
         const auto& mode = info.modes[(size_t) state.modeOf (tool)];
-        help = String (mode.name) + ": " + mode.help;
+        help = String (mode.name) + ": " + String (mode.help);
         if (tool == state.tool) help << " Click it again for its other modes.";
         else if (hovered >= 0) help = String (info.help) + " Right-click for its modes.";
     }

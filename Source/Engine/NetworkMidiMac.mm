@@ -24,3 +24,15 @@ juce::String sessionName()
     return juce::String::fromUTF8 ([session.networkName UTF8String]);
 }
 } // namespace kal::networkmidi
+
+// The Mac's session is a system port: nothing of Kalibre's own (decision 0129).
+namespace kal::networkmidi
+{
+bool ownPort() { return false; }
+juce::String portName() { return {}; }
+int peers() { return 0; }
+int port() { return 0; }
+void setReceiver (std::function<void (const juce::MidiMessage&)>) {}
+void sendAt (const juce::MidiMessage&, double) {}
+bool setEnabledOn (bool on, int) { return setEnabled (on); }
+} // namespace kal::networkmidi

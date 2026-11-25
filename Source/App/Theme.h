@@ -25,8 +25,16 @@
 
 #include <vector>
 
+#include "Platform.h"
+
 namespace kal::ui
 {
+// The words of the system Kalibre runs on (decision 0129): Option-click or
+// Alt+click, the Finder or File Explorer, this Mac or this PC.
+inline const platform::Words& words() { return platform::words(); }
+inline juce::String optionClick (const char* what = "click") { return juce::String (platform::optionClick (what)); }
+inline juce::String commandKey (const char* what) { return juce::String (platform::commandKey (what)); }
+
 // Text beyond ASCII (the ellipsis, dashes, key symbols) goes through here, so
 // juce::String reads it as UTF-8.
 inline juce::String u8 (const char* utf8) { return juce::String::fromUTF8 (utf8); }

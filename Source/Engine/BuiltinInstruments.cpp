@@ -332,7 +332,7 @@ public:
         if (data.getNumSamples() == 0)
         {
             g.setColour (theme::textSecondary);
-            g.drawFittedText ("Drop a sample here, from the browser or the Finder, or click Load Sample or Random Sample.", w, Justification::centred, 2);
+            g.drawFittedText ("Drop a sample here, from the browser or " + String (ui::words().fileManager) + ", or click Load Sample or Random Sample.", w, Justification::centred, 2);
             return;
         }
         const int n = data.getNumSamples();

@@ -1,9 +1,11 @@
 # Kalibre
 
-A DAW for Apple silicon Macs (JUCE 9, C++20), everything in one window.
+A DAW for Apple silicon Macs (JUCE 9, C++20), everything in one window; on
+the Windows branch, for Windows PCs too (0129).
 Built for one musician, who is not a developer: explain in plain words, show
 renders of what changed, and make sure every change reaches them as the CI's
-`.dmg` (Actions > Build > Kalibre-macOS).
+`.dmg` (Actions > Build > Kalibre-macOS), and on Windows its `.zip`
+(Kalibre-Windows).
 
 ## Where the reasons are
 
@@ -15,6 +17,7 @@ renders of what changed, and make sure every change reaches them as the CI's
 - [`docs/sessions/`](docs/sessions/): one log per working session.
 - [`docs/uat/`](docs/uat/): user acceptance tests, songs made in the real app, with its pictures (0109).
 - [`docs/UPDATING-ENGINES.md`](docs/UPDATING-ENGINES.md): bringing the family's engines up to date (`tools/update_engines.py`).
+- [`docs/CHANGES.md`](docs/CHANGES.md): what changed in each version; a line for every change (the version goes up each time).
 - [`docs/AGENTS.md`](docs/AGENTS.md): what AI agents can do in Kalibre through MCP (0099); add a tool there when you add one.
 
 Write to all of them when something changes.
@@ -38,6 +41,12 @@ xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreRender
 
 ## Rules
 
+- **Every change raises the version** (`project(Kalibre VERSION …)` in
+  `CMakeLists.txt`; 1.0.0 from 25 November, the musician's main DAW): the last
+  number for a fix, the middle for something new, the first for a change to
+  how songs are kept or Kalibre is used. Add its line to `docs/CHANGES.md`.
+  The `Windows` branch's version follows when it's merged.
+
 - **No JUCE in `Source/Core`.**
 - **The audio thread doesn't allocate or lock**: data goes through `Swap`.
 - **Where signals meet, sum at 64 bits** (0081); what should leave sound untouched is proved by a cancellation test (`Tests/App/TestNeutral.cpp`). Don't change a test to make Kalibre pass it.
@@ -48,4 +57,5 @@ xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreRender
 - **Nothing important at the bottom of the window** but the transport, which the musician asked for there (0095); messages in the message line, at the top, which stays until dismissed.
 - **No extra windows for the music** (0002): ask with `ui::present`, show in the lower zone or the browser. Settings and preferences may have a window of their own (0002 amended, e.g. the Plug-in Manager, 0047).
 - **The piano roll's mouse rules are the user's** (0009): don't change them without asking.
+- **Keys and places on screen through `ui::words()`** (0129): Option-click is Alt+click on Windows, the Finder File Explorer.
 - Words on screen follow Apple's writing guidelines: Title Case on buttons and menus, an ellipsis when more input follows, "click", no "we".

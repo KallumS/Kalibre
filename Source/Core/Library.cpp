@@ -86,9 +86,12 @@ void order (std::vector<std::string>& paths, const Settings& s, const Index& ind
     });
 }
 
+// Folders are parted by '/', and on Windows by '\\' too (0129).
+bool isSlash (char c) { return c == '/' || c == '\\'; }
+
 std::string trimSlash (std::string s)
 {
-    while (s.size() > 1 && s.back() == '/') s.pop_back();
+    while (s.size() > 1 && isSlash (s.back())) s.pop_back();
     return s;
 }
 
@@ -112,16 +115,16 @@ std::string extensionOf (const std::string& path)
 std::string nameOf (const std::string& path)
 {
     const auto p = trimSlash (path);
-    const auto slash = p.find_last_of ('/');
+    const auto slash = p.find_last_of ("/\\");
     return slash == std::string::npos ? p : p.substr (slash + 1);
 }
 
 std::string parentOf (const std::string& path)
 {
     const auto p = trimSlash (path);
-    const auto slash = p.find_last_of ('/');
+    const auto slash = p.find_last_of ("/\\");
     if (slash == std::string::npos) return {};
-    return slash == 0 ? std::string ("/") : p.substr (0, slash);
+    return slash == 0 ? p.substr (0, 1) : p.substr (0, slash);
 }
 
 bool isInside (const std::string& path, const std::string& folder)
@@ -129,7 +132,7 @@ bool isInside (const std::string& path, const std::string& folder)
     const auto f = trimSlash (folder);
     if (f.empty() || path.size() <= f.size()) return false;
     if (path.compare (0, f.size(), f) != 0) return false;
-    return f == "/" || path[f.size()] == '/';
+    return f == "/" || f == "\\" || isSlash (path[f.size()]);
 }
 
 double tempoFromName (const std::string& name)

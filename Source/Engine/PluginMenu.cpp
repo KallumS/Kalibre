@@ -1,5 +1,6 @@
 #include "PluginMenu.h"
 
+#include "Platform.h"
 #include "PluginManager.h"
 #include "BuiltinInstruments.h"
 #include "ContainerProcessor.h"
@@ -51,7 +52,7 @@ PopupMenu make (PluginManager& pm, std::initializer_list<DeviceRole> kinds, std:
         m.addSectionHeader (heading (role));
         for (auto& [maker, sub] : byMaker[(int) role]) m.addSubMenu (maker, sub);
     }
-    if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (Kalibre > Plug-in Manager)", false, false, [] {});
+    if (m.getNumItems() == 0) m.addItem ("Scan for plug-ins first (" + String (platform::inSettings ("Plug-in Manager")) + ")", false, false, [] {});
     return m;
 }
 

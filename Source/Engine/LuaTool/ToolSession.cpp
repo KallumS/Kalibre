@@ -1,6 +1,7 @@
 #include "ToolSession.h"
 #include "ToolProcessor.h"
 #include "EmbeddedLua.h"
+#include "Theme.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -23,8 +24,10 @@ static const embedded::File* findFile (const String& name)
     return nullptr;
 }
 
-const embedded::File* resource (const String& path)
+const embedded::File* resource (const String& asked)
 {
+    // Windows' separator too: Lua's package.config gives "\\" there, and scripts build paths with it (0129).
+    const auto path = asked.replaceCharacter ('\\', '/');
     if (! path.startsWith (String (EMBEDDED) + "/")) return nullptr;
     const auto inside = path.fromFirstOccurrenceOf ("/", false, false);   // tools/<tool>/x.lua
     if (auto* f = findFile (inside)) return f;
@@ -136,11 +139,13 @@ static int r_setext (lua_State* L)
     return 0;
 }
 
+// REAPER's message box, asked inside the main window (0002), never waiting for the click (0129).
 static int r_mb (lua_State* L)
 {
-    AlertWindow::showMessageBoxAsync (MessageBoxIconType::InfoIcon,
-                                      String::fromUTF8 (luaL_optstring (L, 2, self (L)->processor.spec.name)),
-                                      String::fromUTF8 (luaL_checkstring (L, 1)));
+    auto* w = new AlertWindow (String::fromUTF8 (luaL_optstring (L, 2, self (L)->processor.spec.name)),
+                               String::fromUTF8 (luaL_checkstring (L, 1)), MessageBoxIconType::NoIcon);
+    w->addButton ("OK", 1, KeyPress (KeyPress::returnKey));
+    ui::present (w, nullptr, true);
     lua_pushinteger (L, 1);
     return 1;
 }

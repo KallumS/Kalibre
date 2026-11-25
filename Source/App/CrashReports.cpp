@@ -5,14 +5,17 @@
 #include <csignal>
 #include <cstring>
 #include <ctime>
-#include <execinfo.h>
-#include <fcntl.h>
-#include <unistd.h>
+#if ! JUCE_WINDOWS   // Windows' handler is in CrashReportsWin.cpp (decision 0129)
+ #include <execinfo.h>
+ #include <fcntl.h>
+ #include <unistd.h>
+#endif
 
 namespace kal::crash
 {
 using namespace juce;
 
+#if ! JUCE_WINDOWS
 namespace
 {
 char reportFolder[2048] {};
@@ -90,6 +93,8 @@ void handler (int sig, siginfo_t*, void*)
 }
 } // namespace
 
+#endif
+
 File folder()
 {
     return File::getSpecialLocation (File::userApplicationDataDirectory)
@@ -99,6 +104,7 @@ File folder()
            .getChildFile ("Kalibre").getChildFile ("Crash Reports");
 }
 
+#if ! JUCE_WINDOWS
 void install (const File& f, const String& version)
 {
     f.createDirectory();
@@ -118,6 +124,8 @@ void install (const File& f, const String& version)
         ::sigaction (sig, &sa, nullptr);
 }
 
+#endif
+
 Array<File> since (const File& f, Time t)
 {
     Array<File> out;
@@ -132,7 +140,7 @@ String summary (const File& report)
     StringArray lines;
     report.readLines (lines);
     if (lines.isEmpty()) return {};
-    String what = lines[0].fromFirstOccurrenceOf ("quit unexpectedly: ", false, false).upToLastOccurrenceOf (" (signal", false, false);
+    String what = lines[0].fromFirstOccurrenceOf ("quit unexpectedly: ", false, false).upToLastOccurrenceOf (" (signal", false, false).upToLastOccurrenceOf (" (exception", false, false);
     if (what.isEmpty()) what = lines[0];
     what = what.trimCharactersAtEnd (".");
     if (lines.size() > 1 && lines[1].startsWith ("In the plug-in: "))

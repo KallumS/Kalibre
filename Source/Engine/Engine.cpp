@@ -1,4 +1,5 @@
 #include "Engine.h"
+#include "NetworkMidi.h"
 #include "JsfxDevice.h"
 
 #include "Edit.h"
@@ -19,6 +20,8 @@ using IOProc = AudioProcessorGraph::AudioGraphIOProcessor;
 Engine::Engine (PluginManager& pm) : pluginManager (pm)
 {
     syncInput = [this] (const String& device, const MidiMessage& m) { syncDevices.input (device, m); };
+    // Kalibre's own network MIDI session (off the Mac, 0129): played in as a port of its own.
+    networkmidi::setReceiver ([this] (const MidiMessage& m) { incoming (networkmidi::portId, m); });
     graph.setPlayHead (this);
     // The hardware insert shares the interface's bus: one at a time (decision 0078).
     graph.runsAlone = [] (AudioProcessor& p)
@@ -44,6 +47,7 @@ Engine::Engine (PluginManager& pm) : pluginManager (pm)
 Engine::~Engine()
 {
     graph.onRebuilt = nullptr;   // nothing to line up while it goes (0096)
+    networkmidi::setReceiver (nullptr);
     stopTimer();
     deviceManager.removeAudioCallback (this);
     deviceManager.removeMidiInputDeviceCallback ({}, this);
@@ -278,9 +282,13 @@ void Engine::setMappings (std::vector<MidiMapping> maps)
 
 void Engine::handleIncomingMidiMessage (MidiInput* source, const MidiMessage& m)
 {
+    incoming (source ? source->getIdentifier() : String(), m);
+}
+
+void Engine::incoming (const String& from, const MidiMessage& m)
+{
     if (m.isActiveSense()) return;
     if (m.isNoteOn()) notesPlayedIn.fetch_add (1, std::memory_order_relaxed);
-    const String from = source ? source->getIdentifier() : String();
     // A control surface's own port (decision 0034).
     if (surfaceInput && surfaceInput (from, m)) return;
     // Sync from another device (decision 0033).

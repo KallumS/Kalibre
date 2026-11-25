@@ -22,7 +22,15 @@ class ProxyParameter : public HostedAudioProcessorParameter, private AudioProces
 {
 public:
     explicit ProxyParameter (AudioProcessorParameter& p) : target (p) { target.addListener (this); }
-    ~ProxyParameter() override { target.removeListener (this); }
+    ~ProxyParameter() override { detach(); }
+    // Let go of the plug-in's parameter while it's still there: the host's parameters
+    // outlive the plug-in (they go with the AudioProcessor base, after its members),
+    // so they mustn't reach into it then (Windows crashed there, 0129).
+    void detach()
+    {
+        if (attached) target.removeListener (this);
+        attached = false;
+    }
 
     float getValue() const override { return target.getValue(); }
     // As a plug-in format's wrapper does: set, then tell its listeners (its own
@@ -52,6 +60,7 @@ public:
 
 private:
     AudioProcessorParameter& target;
+    bool attached = true;
     bool forwarding = false;
 
     void parameterValueChanged (int, float v) override { if (! forwarding) sendValueChangedMessageToListeners (v); }
@@ -108,7 +117,13 @@ HostedProcessor::HostedProcessor (std::unique_ptr<AudioProcessor> p, PluginDescr
     setLatencySamples (processor->getLatencySamples());
 }
 
-HostedProcessor::~HostedProcessor() = default;   // its window is closed before it goes (decision 0056)
+// Its window is closed before it goes (decision 0056). Its parameters let go of the
+// plug-in's before the plug-in goes: they're deleted after it, with the base class.
+HostedProcessor::~HostedProcessor()
+{
+    for (auto* param : getParameters())
+        if (auto* proxy = dynamic_cast<ProxyParameter*> (param)) proxy->detach();
+}
 
 void HostedProcessor::prepareToPlay (double rate, int block)
 {

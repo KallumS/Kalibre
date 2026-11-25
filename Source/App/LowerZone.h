@@ -45,7 +45,7 @@ private:
     theme::HouseButton euclidTab { "Euclidean", "Rhythms spread evenly over a number of steps." };
     theme::HouseButton notationTab { "Notation", "The notes on a staff." };
     theme::HouseButton gridButton { "1/16", "The grid: what notes and clips snap to, and how long a new note is." };
-    theme::HouseButton snapButton { "Snap", "Snap to the grid. Hold Command while dragging to move freely.", true };
+    theme::HouseButton snapButton { "Snap", "Snap to the grid. Hold " + juce::String (ui::words().command) + " while dragging to move freely.", true };
     theme::HouseButton quantise { "Quantise", "Move the chosen notes (or all of them) onto the grid. (Q)" };
     theme::HouseButton legato { "Legato", "Lengthen the chosen notes up to the next one." };
     theme::HouseButton stepButton { "Step Input", "Hold keys on a MIDI keyboard, press 1 to 8 for the length (9 dotted, 0 triplet), let go: they're written at the cursor.", true };

@@ -560,7 +560,7 @@ void LibraryView::itemMenu (int row)
     m.addSeparator();
     const bool fav = s.favourites.count (path) > 0;
     m.addItem (fav ? "Remove from Favourites" : "Add to Favourites", [this, path] { toggleFavourite (path); });
-    m.addItem (u8 ("Show in Finder"), [path] { File (path).revealToUser(); });
+    m.addItem (ui::words().showInFiles, [path] { File (path).revealToUser(); });
     m.showMenuAsync (PopupMenu::Options());
 }
 
@@ -571,7 +571,7 @@ void LibraryView::folderMenu (int row)
     const bool fav = s.favourites.count (path) > 0;
     m.addItem (fav ? "Remove from Favourites" : "Add to Favourites", [this, path] { toggleFavourite (path); });
     m.addItem (rows[(size_t) row].open ? "Close" : "Open", [this, row] { toggleOpen (row); });
-    m.addItem ("Show in Finder", [path] { File (path).revealToUser(); });
+    m.addItem (ui::words().showInFiles, [path] { File (path).revealToUser(); });
     m.showMenuAsync (PopupMenu::Options());
 }
 
@@ -661,7 +661,7 @@ void LibraryView::askOnFirstRun (std::function<void()> chose)
     if (s.asked || ! s.folders.empty()) return;
     auto* w = new AlertWindow ("Where are your samples and MIDI files?",
                                "Kalibre lists the sounds in the folders you choose, in the browser's Sounds tab, to hear and drag into songs. "
-                               "Only those folders are looked through. You can change them any time from the Kalibre menu, under Library Folders.",
+                               "Only those folders are looked through. You can change them any time from " + String (ui::words().settingsMenu) + ", under Library Folders.",
                                MessageBoxIconType::NoIcon);
     w->addButton (u8 ("Choose Folders\xe2\x80\xa6"), 1, KeyPress (KeyPress::returnKey));
     w->addButton ("Not Now", 0, KeyPress (KeyPress::escapeKey));

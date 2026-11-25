@@ -101,8 +101,8 @@ bool Controller::fixNoteTimingsAndVolume (Id clipId, const NoteFixOptions& o)
             // An instrument keeps the last value it was sent: these set every note's level alike.
             const Tick at = std::max<Tick> (0, c->offset);
             for (int ch : channels)
-                for (auto [number, value] : { std::pair { 1, 80 }, { 7, 100 }, { 11, 127 } })
-                    c->midi.events.push_back ({ at, EventType::Controller, ch, number, value });
+                for (const auto& cc : { std::pair { 1, 80 }, { 7, 100 }, { 11, 127 } })   // not bound by name: MSVC wants those captured
+                    c->midi.events.push_back ({ at, EventType::Controller, ch, cc.first, cc.second });
             std::stable_sort (c->midi.events.begin(), c->midi.events.end(), [] (const MidiEvent& x, const MidiEvent& y) { return x.tick < y.tick; });
         };
         if (! renderTrackAudio (trackId, { clipId }, from, last + 0.1, 1.5, render, error, true, even ? std::function<void (Project&)> (evenOut) : nullptr))

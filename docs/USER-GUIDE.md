@@ -2,14 +2,16 @@
 
 Everything Kalibre does, where to find it, and every key and click.
 
-Kalibre is a music program for Apple silicon Macs. Everything happens in one
+Kalibre is a music program for Apple silicon Macs, and for Windows PCs
+([On Windows](#on-windows)). Everything happens in one
 window: your tracks at the top, and under them the **lower zone**, where your
 plug-ins, editors and mixer sit side by side. Only settings (the Plug-in
 Manager, the Articulation Manager) get windows of their own.
 
 > On the Mac, menus are in the menu bar at the top of the screen. Key commands
 > are written as on the Mac: ⌘ is Command, ⇧ Shift, ⌥ Option, ⌃ Control.
-> Every key can be changed: **Help > Keys**.
+> Every key can be changed: **Help > Keys**. On Windows, read ⌘ as Ctrl and
+> ⌥ as Alt: [On Windows](#on-windows) has every difference.
 
 **Contents**
 
@@ -48,6 +50,9 @@ Manager, the Articulation Manager) get windows of their own.
 3. The first time, **right-click Kalibre > Open** (it isn't signed with an
    Apple Developer ID yet). After that it opens normally.
 
+On Windows: download **Kalibre-Windows** from the same run, unzip it, and
+double-click **Kalibre.exe** ([On Windows](#on-windows)).
+
 ### The first few minutes
 
 1. **Choose your audio interface.** Kalibre > Audio and MIDI Settings… (⌘,)
@@ -76,6 +81,57 @@ Manager, the Articulation Manager) get windows of their own.
    moved to with Tab takes Space as a press.
 8. **Save.** ⌘S. A song is a `.kalibre` file in its own folder, with its
    audio in an **Audio** folder beside it.
+
+### On Windows
+
+Kalibre on Windows is the same program, with Windows' keys and words
+(decision 0129). Download **Kalibre-Windows** from a build's Artifacts, unzip
+it anywhere, keep **Kalibre.exe** and its **Scripts** folder together, and
+double-click Kalibre.exe. The first time, Windows may say it protected your
+PC (Kalibre isn't signed yet): **More info > Run anyway**.
+
+| On the Mac | On Windows |
+| --- | --- |
+| ⌘ (Command), as in ⌘S, ⌘Z | **Ctrl**, as in Ctrl+S, Ctrl+Z |
+| ⌥ (Option), as in Option-click, Option-drag | **Alt**, as in Alt+click, Alt+drag |
+| ⇧⌘Z Redo | **Ctrl+Shift+Z**, or Windows' own **Ctrl+Y** |
+| Return (go to the start) | **Enter** |
+| Delete (⌫) | **Backspace**, or **Delete** |
+| The **Kalibre** menu (Audio and MIDI Settings, Plug-in Manager, Library Folders) | **File > Settings** |
+| Kalibre > About Kalibre (the version) | **Help > About Kalibre** |
+| Kalibre > Quit (⌘Q) | **File > Exit** (Alt+F4) |
+| Menus in the Mac's menu bar | Menus along the top of Kalibre's window |
+| Show in Finder | **Show in File Explorer** |
+| The Trash | **The Recycle Bin** |
+| Control-right-click for the toolbox | **Ctrl+right-click** |
+| AU, VST3 and CLAP plug-ins | **VST3 and CLAP** (AU is the Mac's alone); ARA (Melodyne) through VST3 |
+| The Mac's network MIDI session | **Kalibre's own**, the same to an iPad or a Mac |
+
+Every tip, menu and message in Kalibre says Windows' words on Windows, and
+Help > Keys lists every key as Windows writes it.
+
+- **Video**: the Video tab shows the picture, drawn by Windows; a video's
+  AAC sound is read through Windows Media. A film Windows itself can't play
+  (Windows Media Player can't) shows no picture here either.
+- **Melodyne and other ARA plug-ins** work as on the Mac (their VST3).
+- **Network MIDI**: File > Studio > **Network MIDI** starts Kalibre's own
+  session, called "Kalibre on" and your PC's name. On a Mac, open Audio MIDI
+  Setup > Window > Show MIDI Studio > Network: it's listed under Directory;
+  choose it and click **Connect**. On an iPad, connect from the app's network
+  MIDI. What they play comes in; for them to follow Kalibre's clock, tick
+  **Network Session (Kalibre)** under Send Clock To. The Studio window says
+  how many are connected. If it isn't listed, add it by your PC's address
+  and port 5004.
+- **Plug-in windows in the rack** are cut to their panel, as on the Mac.
+  Windows can't shrink another program's window as the Mac does, so a VST3
+  that can draw itself smaller (most new ones) is asked to; one that can't
+  shows the part that fits. Its own window (the ⧉ button) shows it all.
+- **Text size**: **Ctrl+=** bigger, **Ctrl+-** smaller, **Ctrl+0** back to
+  100%, through the same sizes from 50% to 200%.
+- **The activity log** is written beside the song as on the Mac, "<Song>
+  Activity Log.txt", in Notepad's plain text; its times are the PC's clock
+  and time zone. File > Keep an Activity Log turns it off, as on the Mac.
+- Your settings, scripts and crash reports are in `%APPDATA%\Kalibre`.
 
 ---
 
@@ -1643,6 +1699,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 
 | Item | Key | Does |
 | --- | --- | --- |
+| About Kalibre | | Kalibre's version (1.0.0 and on). What changed in each is in `docs/CHANGES.md`. |
 | Audio and MIDI Settings… | ⌘, | The browser's Audio tab. |
 | Plug-in Manager… | | [Section 14](#the-plug-in-manager). |
 | Library Folders… | | The folders the Sounds tab looks in ([Section 14](#the-sounds-tab)). |

@@ -41,7 +41,7 @@ public:
 
 private:
     Controller& c;
-    theme::HouseButton pluginsTab { "Plug-ins", "Every plug-in found on this Mac." };
+    theme::HouseButton pluginsTab { "Plug-ins", "Every plug-in found on this " + juce::String (ui::words().computer) + "." };
     theme::HouseButton filesTab { "Sounds", "Samples and MIDI files from your folders, to hear and drag into the song." };
     theme::HouseButton audioTab { "Audio", "The audio interface, sample rate and buffer size." };
     theme::HouseButton presetsTab { "Presets", "Saved presets for the chosen track's plug-ins." };
@@ -56,7 +56,7 @@ private:
     std::unique_ptr<LibraryView> sounds;
     std::unique_ptr<juce::AudioDeviceSelectorComponent> audio;
     // Every performance core, or the audio thread alone (decision 0078).
-    theme::HouseButton cores { "Use Every Core", "Play the tracks on all the Mac's performance cores at once, not one after another. "
+    theme::HouseButton cores { "Use Every Core", "Play the tracks on all the " + juce::String (ui::words().computer) + "'s performance cores at once, not one after another. "
                                                   "Off: everything on one core, as before.", true };
     juce::ListBox pluginBox;
     Tab tab = Tab::Plugins;

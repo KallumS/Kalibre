@@ -378,11 +378,14 @@ static int r_hasext (lua_State* L)
     return 1;
 }
 
+// REAPER's message box, asked as Kalibre asks (inside the main window, 0002): never
+// waiting for the click, which on Windows JUCE's own box did, so a script stopped there.
 static int r_message (lua_State* L)
 {
-    AlertWindow::showMessageBoxAsync (MessageBoxIconType::InfoIcon,
-                                      String::fromUTF8 (luaL_optstring (L, 2, self (L)->processor.spec.name)),
-                                      String::fromUTF8 (luaL_checkstring (L, 1)));
+    auto* w = new AlertWindow (String::fromUTF8 (luaL_optstring (L, 2, self (L)->processor.spec.name)),
+                               String::fromUTF8 (luaL_checkstring (L, 1)), MessageBoxIconType::NoIcon);
+    w->addButton ("OK", 1, KeyPress (KeyPress::returnKey));
+    ui::present (w, nullptr, true);
     lua_pushinteger (L, 1);
     return 1;
 }

@@ -26,7 +26,7 @@ ArticulationManagerView::ArticulationManagerView (Controller& ctrl) : c (ctrl)
     addAndMakeVisible (delayLabel);
     delayField.setInputRestrictions (6, "-0123456789.");
     delayField.setTooltip ("The chosen articulations' delay in milliseconds: how much later they play (negative: earlier), "
-                           "for a library whose notes speak late. Kept in the library and in this song. Press Return to set it.");
+                           "for a library whose notes speak late. Kept in the library and in this song. Press " + String (ui::words().returnKey) + " to set it.");
     delayField.setTitle ("Delay of the chosen articulations, in milliseconds");
     delayField.setJustification (Justification::centredRight);
     delayField.onReturnKey = [this] { applyDelay(); };

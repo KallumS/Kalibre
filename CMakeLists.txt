@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
+cmake_policy(SET CMP0091 NEW)   # CMAKE_MSVC_RUNTIME_LIBRARY
 
-project(Kalibre VERSION 0.1.0 LANGUAGES C CXX)
+project(Kalibre VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,6 +12,17 @@ if(APPLE)
     # the plug-in SDKs all support for hosting.
     set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version")
     set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Apple silicon")
+endif()
+
+if(MSVC)
+    # The C++ runtime inside Kalibre.exe, so nothing else needs installing on Windows.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    # Windows (decision 0129): sources are UTF-8, some files are big;
+    # Windows' min and max macros kept out of std::min and std::max.
+    add_compile_options(/utf-8 /bigobj /Zc:__cplusplus /Zi)
+    # Function names for crash reports and the tests' report (a .pdb beside each program), optimised as before.
+    add_link_options(/DEBUG /OPT:REF /OPT:ICF)
+    add_compile_definitions(NOMINMAX _CRT_SECURE_NO_WARNINGS _USE_MATH_DEFINES)
 endif()
 
 option(KALIBRE_BUILD_APP   "Build the app (downloads JUCE and the plug-in SDKs)" ON)
@@ -98,6 +110,7 @@ add_library(KalibreCore STATIC
     Source/Core/RandomSong.cpp
     Source/Core/DrumKit.cpp
     Source/Core/DrumPads.cpp
+    Source/Core/RtpMidi.cpp
     Source/Core/DrumSounds.cpp
     ${EMBEDDED_LUA_CPP}
     Source/Script/LuaHost.cpp)
@@ -152,7 +165,9 @@ if(KALIBRE_BUILD_TESTS)
         Tests/TestRandomSong.cpp
         Tests/TestDrumKit.cpp
         Tests/TestDrumPads.cpp
-        Tests/TestDrumSounds.cpp)
+        Tests/TestDrumSounds.cpp
+        Tests/TestPlatform.cpp
+        Tests/TestRtpMidi.cpp)
     target_link_libraries(KalibreTests PRIVATE KalibreCore)
     target_compile_definitions(KalibreTests PRIVATE KALIBRE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME Core COMMAND KalibreTests)

@@ -29,6 +29,7 @@ private:
     juce::ToggleButton sendClock { "Clock and Song Position" }, sendMtc { "Timecode (MTC)" };
     juce::ComboBox mtcRate, follow, mackieIn, mackieOut, followMtc, huiIn, huiOut;
     juce::ToggleButton sendMmc { "Machine Control (MMC)" }, followMmc { "Obey Machine Control" }, networkMidi { "Network MIDI" };
+    bool networkMidiListed = false;   // Kalibre's own session's port in the lists (0129)
     juce::ToggleButton link { "Ableton Link" }, linkStartStop { "Share Start and Stop" };
     juce::ToggleButton oscOn { "OSC" };
     juce::TextEditor oscPort, replyHost, replyPort;

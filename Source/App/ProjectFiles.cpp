@@ -196,6 +196,11 @@ bool Controller::importXml (const File& f)
                 {
                     auto path = URL::removeEscapeChars (url->getAllSubText().trim().fromFirstOccurrenceOf ("file://", false, true));
                     if (path.startsWith ("localhost")) path = path.fromFirstOccurrenceOf ("localhost", false, false);
+                    // file:///C:/Media/a.wav is C:\Media\a.wav on Windows (0129).
+                    if (path.length() > 2 && path[0] == '/' && path[2] == ':') path = path.substring (1);
+                   #if JUCE_WINDOWS
+                    path = path.replaceCharacter ('/', '\\');
+                   #endif
                     filePaths[id] = path;
                 }
                 const auto path = filePaths[id];
@@ -608,7 +613,7 @@ bool Controller::importDawProject (const File& f)
     cursor = 0;
     syncEngine();
     String msg = "Opened " + f.getFileName() + " as a new song (save it to keep it).";
-    if (unmatched > 0) msg << " " << unmatched << (unmatched == 1 ? " plug-in isn't" : " plug-ins aren't") << " on this Mac.";
+    if (unmatched > 0) msg << " " << unmatched << (unmatched == 1 ? " plug-in isn't" : " plug-ins aren't") << " on this " << ui::words().computer << ".";
     if (! r.leftOut.empty())
     {
         StringArray left;

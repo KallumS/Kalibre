@@ -1,6 +1,6 @@
 # Kalibre
 
-A DAW for Apple silicon Macs, made to be exactly right for one musician, and
+A DAW for Apple silicon Macs, and Windows PCs (0129), made to be exactly right for one musician, and
 so maybe for others. Everything happens in one window: the plug-ins you use
 sit side by side under your tracks, their own windows inside Kalibre's, and
 grow and shrink with it.
@@ -211,6 +211,10 @@ What's done and what isn't, feature by feature: **[docs/FEATURES.md](docs/FEATUR
 **ARA** (Melodyne) is built in, but hasn't been tried with Melodyne on a Mac yet.
 
 ## Get it
+
+**Version 1.0.0.** Every change raises the version; what changed in each is
+in [docs/CHANGES.md](docs/CHANGES.md), and Kalibre > About Kalibre says
+which you have.
 
 Every push is built for Apple silicon by GitHub Actions: open the latest
 **Build** run under the repository's **Actions** tab and download

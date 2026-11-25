@@ -62,6 +62,14 @@ TEST ("library: paths, extensions and what's inside what")
     CHECK (! isInside ("/Music/Kick.wav", "/M"));
     CHECK (isMidiExtension (".MID"));
     CHECK (! isMidiExtension (".wav"));
+    // Windows' paths: a backslash between folders (Kalibre on Windows, 0129).
+    CHECK_EQ (nameOf ("C:\\Music\\Drums\\Kick.WAV"), std::string ("Kick.WAV"));
+    CHECK_EQ (extensionOf ("C:\\Music\\Drums\\Kick.WAV"), std::string (".wav"));
+    CHECK_EQ (parentOf ("C:\\Music\\Drums\\Kick.wav"), std::string ("C:\\Music\\Drums"));
+    CHECK_EQ (parentOf ("C:/Music/Kick.wav"), std::string ("C:/Music"));
+    CHECK (isInside ("C:\\Music\\Drums\\Kick.wav", "C:\\Music"));
+    CHECK (isInside ("C:\\Music\\Drums\\Kick.wav", "C:\\Music\\"));
+    CHECK (! isInside ("C:\\Musical\\Kick.wav", "C:\\Music"));
 }
 
 TEST ("library: in folders, a chosen folder opens to its folders then its items; empty and unreadable ones aren't shown")

@@ -17,7 +17,7 @@ void VideoView::visibilityChanged()
     else
     {
         stopTimer();
-       #if JUCE_MAC
+       #if KALIBRE_VIDEO
         if (video) video->stop();
        #endif
     }
@@ -27,7 +27,7 @@ void VideoView::load()
 {
     if (c.project.video.file == loaded) return;
     loaded = c.project.video.file;
-   #if JUCE_MAC
+   #if KALIBRE_VIDEO
     video.reset();
     if (loaded.empty()) { repaint(); return; }
     video = std::make_unique<VideoComponent> (false);
@@ -43,7 +43,7 @@ void VideoView::load()
 void VideoView::timerCallback()
 {
     load();
-   #if JUCE_MAC
+   #if KALIBRE_VIDEO
     if (! video || ! video->isVideoOpen()) return;
     // Where the picture should be: the song's time less where the film starts.
     const double offset = c.project.tempo.secondsAt (c.project.video.start);
@@ -68,8 +68,8 @@ void VideoView::paint (Graphics& g)
     g.fillAll (theme::roll);
     String note;
     if (c.project.video.file.empty()) note = "No video yet: File > Import Video.";
-   #if ! JUCE_MAC
-    else note = "The video plays in Kalibre on the Mac.";
+   #if ! KALIBRE_VIDEO
+    else note = "The video's picture is shown on the Mac and Windows; here only its sound plays.";
    #endif
     if (note.isNotEmpty())
     {
@@ -81,7 +81,7 @@ void VideoView::paint (Graphics& g)
 
 void VideoView::resized()
 {
-   #if JUCE_MAC
+   #if KALIBRE_VIDEO
     if (video)
     {
         // The film's own shape, as big as fits.
