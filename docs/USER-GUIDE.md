@@ -44,14 +44,17 @@ Manager, the Articulation Manager) get windows of their own.
 
 ### Installing
 
-1. On GitHub, open **Actions > Build**, choose the newest run with a green
-   tick, and download **Kalibre-macOS** from its Artifacts.
+1. On GitHub, open **[Releases](https://github.com/KallumS/Kalibre/releases)**
+   and download **Kalibre-macOS.dmg** from the newest one. (Between
+   releases, the newest green **Actions > Build** run has **Kalibre-macOS**
+   among its Artifacts.)
 2. Open the `.dmg` and drag **Kalibre** onto **Applications**.
 3. The first time, **right-click Kalibre > Open** (it isn't signed with an
    Apple Developer ID yet). After that it opens normally.
 
-On Windows: download **Kalibre-Windows** from the same run, unzip it, and
-double-click **Kalibre.exe** ([On Windows](#on-windows)).
+On Windows: download **Kalibre-Windows.zip** from the same release, unzip
+it, keep **Kalibre.exe** and its **Scripts** folder together, and
+double-click Kalibre.exe ([On Windows](#on-windows)).
 
 ### The first few minutes
 

@@ -19,8 +19,9 @@ build every system from it. The musician chose to keep it.
 - CI builds and tests both from every push: the Mac's .dmg (Kalibre-macOS)
   and Windows' .zip (Kalibre-Windows).
 - One version for both (0136); this is 1.1.0.
-- The `Windows` branch isn't needed any more; it's left as it is until the
-  musician says to delete it.
+- The `Windows` branch isn't needed any more: wholly in `main`, the musician
+  deletes it (25 November).
+- A release is a tag `v<version>` on `main`; CI attaches both apps to it.
 
 ## Consequences
 
