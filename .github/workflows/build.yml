@@ -1,6 +1,6 @@
 # Builds Kalibre for Apple silicon Macs (a .dmg to download from the run's
 # Artifacts) and runs the tests on Linux and macOS. Pushing a tag that starts
-# with "v" (v0.1.0) also publishes a GitHub Release with the .dmg attached.
+# with "v" (v1.0.0) also publishes a GitHub Release with the .dmg attached.
 
 name: Build
 

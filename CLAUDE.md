@@ -15,6 +15,7 @@ renders of what changed, and make sure every change reaches them as the CI's
 - [`docs/sessions/`](docs/sessions/): one log per working session.
 - [`docs/uat/`](docs/uat/): user acceptance tests, songs made in the real app, with its pictures (0109).
 - [`docs/UPDATING-ENGINES.md`](docs/UPDATING-ENGINES.md): bringing the family's engines up to date (`tools/update_engines.py`).
+- [`docs/CHANGES.md`](docs/CHANGES.md): what changed in each version; a line for every change (the version goes up each time).
 - [`docs/AGENTS.md`](docs/AGENTS.md): what AI agents can do in Kalibre through MCP (0099); add a tool there when you add one.
 
 Write to all of them when something changes.
@@ -37,6 +38,12 @@ xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreRender
 - When fixing a bug, have a test fail first. Commit and push early.
 
 ## Rules
+
+- **Every change raises the version** (`project(Kalibre VERSION …)` in
+  `CMakeLists.txt`; 1.0.0 from 25 November, the musician's main DAW): the last
+  number for a fix, the middle for something new, the first for a change to
+  how songs are kept or Kalibre is used. Add its line to `docs/CHANGES.md`.
+  The `Windows` branch's version follows when it's merged.
 
 - **No JUCE in `Source/Core`.**
 - **The audio thread doesn't allocate or lock**: data goes through `Swap`.

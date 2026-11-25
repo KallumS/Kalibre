@@ -1643,6 +1643,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 
 | Item | Key | Does |
 | --- | --- | --- |
+| About Kalibre | | Kalibre's version (1.0.0 and on). What changed in each is in `docs/CHANGES.md`. |
 | Audio and MIDI Settings… | ⌘, | The browser's Audio tab. |
 | Plug-in Manager… | | [Section 14](#the-plug-in-manager). |
 | Library Folders… | | The folders the Sounds tab looks in ([Section 14](#the-sounds-tab)). |

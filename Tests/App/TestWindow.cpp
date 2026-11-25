@@ -840,3 +840,17 @@ TEST ("window: View > Text Size offers 50%, 75%, 90%, 100%, 110%, 125%, 150% and
     }
     LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
+
+TEST ("window: Kalibre is version 1 (the musician's main DAW from 25 November); About Kalibre, first in the Kalibre menu, says which")
+{
+    CHECK (String (KALIBRE_VERSION).startsWith ("1."));
+    PluginManager plugins;
+    Engine engine (plugins);
+    Controller c (engine);
+    MainComponent w (c);
+    const auto app = w.appMenu();
+    PopupMenu::MenuItemIterator it (app);
+    CHECK (it.next());
+    CHECK_EQ (it.getItem().text, String ("About Kalibre"));
+    CHECK (MainComponent::aboutText().contains ("Version " + String (KALIBRE_VERSION)));
+}

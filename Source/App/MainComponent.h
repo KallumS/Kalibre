@@ -74,6 +74,8 @@ public:
     juce::PopupMenu getMenuForIndex (int, const juce::String&) override;
     void menuItemSelected (int, int) override {}
     juce::PopupMenu appMenu();
+    // About Kalibre: its version (1.0.0 and on; every change goes up, docs/CHANGES.md).
+    static juce::String aboutText();
 
     // Asks before throwing away unsaved work; `then` runs if it's fine to go on.
     void checkSaved (std::function<void()> then);

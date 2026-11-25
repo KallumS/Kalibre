@@ -212,6 +212,10 @@ What's done and what isn't, feature by feature: **[docs/FEATURES.md](docs/FEATUR
 
 ## Get it
 
+**Version 1.0.0.** Every change raises the version; what changed in each is
+in [docs/CHANGES.md](docs/CHANGES.md), and Kalibre > About Kalibre says
+which you have.
+
 Every push is built for Apple silicon by GitHub Actions: open the latest
 **Build** run under the repository's **Actions** tab and download
 **Kalibre-macOS**. Open the `.dmg`, drag Kalibre into Applications, and the
