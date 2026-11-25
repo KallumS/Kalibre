@@ -179,6 +179,11 @@ void pastePoints (AutomationLane&, const std::vector<AutoPoint>&, Tick at, Tick 
 class History
 {
 public:
+    // Told of each step as it's done, undone or redone, by its name: the
+    // activity log (0135).
+    enum class Step { Done, Undone, Redone };
+    std::function<void (Step, const std::string& label)> onStep;
+
     void push (const Project& before, std::string label);
     bool canUndo() const { return ! undoStack.empty(); }
     bool canRedo() const { return ! redoStack.empty(); }

@@ -22,6 +22,7 @@ Every feature asked for, then the list of basic DAW features
 | Chords | Yes | The top bar's Chord is what's played on a MIDI keyboard; the chord lane shows clips' chords after right-click > Detect Chords (several clips at once); tested (0071) |
 | Loop to clips | Yes | Right-click clips > Set the Loop to the Clip(s); tested (0071) |
 | Articulation Manager | Yes | File > Articulation Manager…: import Cubase expression maps, Logic articulation sets and Reaticulate banks into a library; use one on a track; the piano roll's Velocity ▾ > Articulation Map chooses too; each articulation's delay set there (Delay field), kept in the library; tested (0072, 0082) |
+| Activity log | Yes | Everything done in a song (each undo step by name, an AI agent's marked apart, Undo, Redo, play, stop, record, the message line) written beside it as "<Song> Activity Log.txt" on each save, only ever added to; Save As takes it along; File > Keep an Activity Log turns it off, kept between songs; tested (0135) |
 | Crash reports and backups | Yes, to see on the Mac | A crash writes a report (what, the plug-in playing, the stack), told of on the next start, Help > Show Crash Reports; a backup every 15 minutes while it has changed, File > Open a Backup, the newest 48 kept; tested (0073) |
 | Alias clips | Yes | Right-click clips > Create Alias Clip: its duplicates are edited together; a chain on each; Make Independent; tested (0074) |
 | I/O on track headers | Yes | The I/O button beside M, S, R: audio and MIDI in, channel, MPE, monitoring, out, sends; tested (0074) |

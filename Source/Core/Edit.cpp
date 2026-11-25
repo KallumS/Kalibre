@@ -1077,6 +1077,7 @@ void pastePoints (AutomationLane& lane, const std::vector<AutoPoint>& points, Ti
 //==============================================================================
 void History::push (const Project& before, std::string label)
 {
+    if (onStep) onStep (Step::Done, label);
     undoStack.push_back ({ before, std::move (label) });
     if (undoStack.size() > limit) undoStack.erase (undoStack.begin());
     redoStack.clear();
@@ -1085,6 +1086,7 @@ void History::push (const Project& before, std::string label)
 bool History::undo (Project& current)
 {
     if (undoStack.empty()) return false;
+    if (onStep) onStep (Step::Undone, undoStack.back().label);
     redoStack.push_back ({ current, undoStack.back().label });
     current = std::move (undoStack.back().project);
     undoStack.pop_back();
@@ -1094,6 +1096,7 @@ bool History::undo (Project& current)
 bool History::redo (Project& current)
 {
     if (redoStack.empty()) return false;
+    if (onStep) onStep (Step::Redone, redoStack.back().label);
     undoStack.push_back ({ current, redoStack.back().label });
     current = std::move (redoStack.back().project);
     redoStack.pop_back();

@@ -118,7 +118,18 @@ Controller::Controller (Engine& e) : engine (e)
     };
     if (auto loaded = loadSettings (studioFile().loadFileAsString().toStdString())) studio = *loaded;
     if (auto* o = JSON::parse (editingFile().loadFileAsString()).getDynamicObject())
+    {
         if (o->hasProperty ("transientSensitivity")) transientSensitivity = jlimit (0.0, 1.0, (double) o->getProperty ("transientSensitivity"));
+        if (o->hasProperty ("activityLog")) keepActivityLog = (bool) o->getProperty ("activityLog");
+    }
+    // Every undo step goes in the activity log, by its name (0135).
+    history.onStep = [this] (edit::History::Step step, const std::string& label)
+    {
+        using S = edit::History::Step;
+        logActivity (step == S::Undone ? activity::Kind::Undo : step == S::Redone ? activity::Kind::Redo
+                     : agentActing ? activity::Kind::Agent : activity::Kind::Edit,
+                     String (label));
+    };
     engine.syncDevices.configure (studio);
     engine.onDevicePluginChanged = [this] { dirty = true; };
     MorphProcessor::choosePlugin = nullptr;
@@ -352,10 +363,11 @@ bool Controller::redo()
     return true;
 }
 
-void Controller::say (const String& m, bool warning, bool canUndo)
+void Controller::say (const String& m, bool warning, bool canUndo, bool logged)
 {
     // What a refused command would have said next doesn't cover the refusal (0088).
     if (refusedAt != 0 && Time::getMillisecondCounter() - refusedAt < 250) return;
+    if (logged) logActivity (activity::Kind::Message, m);
     message = m;
     messageIsWarning = warning;
     messageCanUndo = canUndo;
@@ -676,6 +688,7 @@ void Controller::togglePlay() { if (engine.isPlaying()) stop(); else play(); }
 void Controller::play()
 {
     if (engine.isPlaying()) return;
+    logActivity (activity::Kind::Play, "Played from bar " + String (project.tempo.barAt (cursor) + 1));
     engine.locate (project.tempo.secondsAt (cursor));
     engine.play();
     if (onTransportChanged) onTransportChanged();
@@ -686,6 +699,7 @@ void Controller::stop()
 {
     finishWriting();   // Latch and Write hold until playing stops
     const bool wasPlaying = engine.isPlaying();
+    if (wasPlaying) logActivity (activity::Kind::Stop, "Stopped at bar " + String (project.tempo.barAt (playhead()) + 1));
     engine.stop();
     if (wasRecording) finishRecording();
     // Stopping twice goes back to the start.
@@ -782,6 +796,11 @@ void Controller::record()
     Tick from = cursor;
     if (project.punch.on) from = project.punch.start;
     recordFromSeconds = project.tempo.secondsAt (from);
+    {
+        StringArray names;
+        for (auto id : armed) if (const auto* t = project.track (id)) names.add (String (t->name));
+        logActivity (activity::Kind::Record, "Recording on " + names.joinIntoString (", ") + " from bar " + String (project.tempo.barAt (from) + 1));
+    }
     const auto folder = recordingsFolder();
     for (auto id : armed)
     {
@@ -1053,6 +1072,8 @@ void Controller::newProject()
     history.clear();
     file = File();
     dirty = false;
+    activityLog.clear();
+    logActivity (activity::Kind::New, "A new song, in Kalibre " + String (KALIBRE_VERSION));
     const Id t = edit::addTrack (project, TrackKind::Track, "Track 1");
     focusTrack = t;
     selectedTracks = { t };
@@ -1077,8 +1098,14 @@ File Controller::editingFile() const
 void Controller::setTransientSensitivity (double s)
 {
     transientSensitivity = jlimit (0.0, 1.0, s);
+    storeEditingChoices();
+}
+
+void Controller::storeEditingChoices()
+{
     auto* o = new DynamicObject();
     o->setProperty ("transientSensitivity", transientSensitivity);
+    o->setProperty ("activityLog", keepActivityLog);
     editingFile().replaceWithText (JSON::toString (var (o)));
 }
 
@@ -1208,6 +1235,8 @@ bool Controller::open (const File& f)
     history.clear();
     file = f;
     dirty = false;
+    activityLog.clear();
+    logActivity (activity::Kind::Open, "Opened " + f.getFileNameWithoutExtension() + " in Kalibre " + String (KALIBRE_VERSION));
     focusTrack = project.tracks.empty() ? 0 : project.tracks.front().id;
     selectedTracks.clear();
     if (focusTrack) selectedTracks.push_back (focusTrack);
@@ -1215,7 +1244,7 @@ bool Controller::open (const File& f)
     selectedNotes.clear();
     cursor = 0;
     syncEngine();
-    say ("Opened " + f.getFileNameWithoutExtension() + ".");
+    say ("Opened " + f.getFileNameWithoutExtension() + ".", false, false, false);
     // Files that have moved since (decision 0041).
     if (const auto missing = missingFiles(); ! missing.empty())
         say ("Opened " + f.getFileNameWithoutExtension() + ". " + String ((int) missing.size()) + (missing.size() == 1 ? " audio file is" : " audio files are")
@@ -1261,14 +1290,53 @@ bool Controller::save()
         return false;
     }
     dirty = false;
-    say ("Saved " + file.getFileNameWithoutExtension() + ".");
+    // The activity log, beside it: what's been done since the last save (0135).
+    if (keepActivityLog)
+    {
+        const int secs = (int) project.workSeconds;
+        logActivity (activity::Kind::Save, "Saved " + file.getFileNameWithoutExtension() + " (music made in it for "
+                     + String (secs / 3600) + ":" + String ((secs / 60) % 60).paddedLeft ('0', 2) + ":" + String (secs % 60).paddedLeft ('0', 2) + " in all)");
+        const auto log = activityLogFile();
+        if (! log.existsAsFile())
+            log.replaceWithText (String (activity::heading (file.getFileNameWithoutExtension().toStdString(), KALIBRE_VERSION,
+                                                            ("UTC" + [] { const auto o = Time::getCurrentTime().getUTCOffsetString (true); return o == "Z" ? String ("+00:00") : o; }()).toStdString())));
+        if (! log.appendText (String (activityLog.take())))
+            say ("Saved " + file.getFileNameWithoutExtension() + ", but its activity log couldn't be written beside it.", true, false, false);
+    }
+    else activityLog.clear();
+    say ("Saved " + file.getFileNameWithoutExtension() + ".", false, false, false);
     return true;
 }
 
 bool Controller::saveAs (const File& f)
 {
+    // The log so far goes with the song to its new name.
+    const auto before = activityLogFile();
     file = f.withFileExtension (".kalibre");
+    const auto after = activityLogFile();
+    if (keepActivityLog && before.existsAsFile() && before != after && ! after.existsAsFile()) before.copyFileTo (after);
     return save();
+}
+
+File Controller::activityLogFile() const
+{
+    if (! file.getFullPathName().endsWith (".kalibre")) return {};
+    return file.getSiblingFile (file.getFileNameWithoutExtension() + " Activity Log.txt");
+}
+
+void Controller::logActivity (activity::Kind kind, const String& what)
+{
+    if (! keepActivityLog || what.isEmpty()) return;
+    activityLog.add (Time::getCurrentTime().formatted ("%Y-%m-%d %H:%M:%S").toStdString(), kind, what.toStdString());
+}
+
+void Controller::setKeepActivityLog (bool on)
+{
+    if (on == keepActivityLog) return;
+    keepActivityLog = on;
+    if (on) logActivity (activity::Kind::Log, "Switched on again: nothing was kept while it was off.");
+    else activityLog.clear();
+    storeEditingChoices();
 }
 
 // A device's sound printed into the song (Transient Shuffler's Print, 0094):

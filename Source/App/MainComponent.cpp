@@ -33,7 +33,7 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
         const int percent = jlimit (0, 100, (int) (p * 100.0f));
         if (percent == shownPercent) return;
         shownPercent = percent == 100 ? -1 : percent;
-        c.say ("Exporting" + String (ui::u8 ("\xe2\x80\xa6 ")) + String (percent) + "%");
+        c.say ("Exporting" + String (ui::u8 ("\xe2\x80\xa6 ")) + String (percent) + "%", false, false, false);   // not a line each in the activity log
         top.showNow();
     };
     // The top bar's timer (0091): the mouse moving or clicking in any of Kalibre's

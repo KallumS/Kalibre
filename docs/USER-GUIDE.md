@@ -1479,6 +1479,40 @@ AutoCC would play these notes.
 - **Templates**: **File > Save as Template…** (**Tracks and Plug-ins**, or
   **With the Music Too**); **File > New from Template** starts from one.
 
+### The activity log
+
+Some record labels ask for evidence that a song was made by hand, not by an
+AI song generator. Kalibre keeps a log of everything done in the song and
+writes it beside the song, as **"<Song> Activity Log.txt"**, each time you
+save. It's on unless you turn it off: **File > Keep an Activity Log** (a tick
+shows it's on; choose it again to turn it on or off). The choice is kept for
+every song.
+
+Each line is when (the date and time) and what:
+
+| Word | Is |
+| --- | --- |
+| **New**, **Open** | The song started or opened, and the Kalibre version. |
+| **Edit** | A change you made, by the name Undo gives it: Add Note, Move Clips, Mix, Change Cutoff… |
+| **AI agent** | A change an AI agent made (Section 21): kept apart from yours. |
+| **Undo**, **Redo** | What was undone or done again. |
+| **Play**, **Stop**, **Record** | Playing from a bar, stopping, and recording on which tracks. |
+| **Message** | What the message line said: exports, recordings, imports. |
+| **Save** | Saved, and how long music has been made in the song in all (the top bar's timer). |
+| **Log** | The log turned on again after being off: nothing was kept in between. |
+
+```
+2026-11-25 14:02:11  Edit      Add Note
+2026-11-25 14:02:15  Play      Played from bar 5
+2026-11-25 14:02:31  Stop      Stopped at bar 9
+2026-11-25 14:03:02  Save      Saved My Song (music made in it for 2:14:09 in all)
+```
+
+Saving only adds the lines since the last save; nothing already in the file
+is changed. **Save As…** to a new name takes the log so far with it. What's
+done after the last save, if Kalibre quits without saving, isn't written. An
+autosave or a backup doesn't write it either; only a save does.
+
 ### Files and folders
 
 - **Collect All Files and Save**: copies every file the song uses into its
@@ -1626,6 +1660,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | Relink Missing Files… | |
 | Archive the Project… | |
 | Song Details… | |
+| Keep an Activity Log | |
 | Import Audio or MIDI… | ⌘I |
 | Import MusicXML… | |
 | Open a DAWproject… | |
