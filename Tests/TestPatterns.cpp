@@ -322,3 +322,15 @@ TEST ("looped clips: Loop Its Content on a clip split from another loops what it
     CHECK_EQ (windowOf (plain).from, Tick (PPQ));
     CHECK_EQ (windowOf (plain).length, Tick (PPQ * 2));
 }
+
+TEST ("patterns: a new tune is moved by whole octaves to sit where the track already plays; with nothing to go by, it stays (the UAT: a bass's Random in octave 4)")
+{
+    const std::vector<int> tune { 69, 67, 65, 64, 69 };            // A4 to E4
+    const std::vector<int> bass { 33, 36, 40, 31, 33, 28 };        // the bass, around A1
+    const int shift = patterns::octavesToward (tune, bass);
+    CHECK_EQ (shift % 12, 0);
+    CHECK_EQ (shift, -36);                                         // A4 to A1
+    CHECK_EQ (patterns::octavesToward (tune, {}), 0);
+    CHECK_EQ (patterns::octavesToward ({}, bass), 0);
+    CHECK_EQ (patterns::octavesToward ({ 60, 64, 67 }, { 62, 65 }), 0);   // already there
+}

@@ -346,7 +346,7 @@ if(KALIBRE_BUILD_TESTS)
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp Tests/App/TestBattlePass.cpp
     Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp Tests/App/TestTools.cpp Tests/App/TestFamilyDevices.cpp
     Tests/App/TestNeutral.cpp Tests/App/TestLibrary.cpp Tests/App/TestAgents.cpp Tests/App/TestRandom.cpp Tests/App/TestDrums.cpp Tests/App/TestDrumPads.cpp Tests/App/TestNetworkMidi.cpp
-    Tests/App/TestUatFound.cpp)
+    Tests/App/TestUatFound.cpp Tests/App/TestActivityLog.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     if(WIN32)
         target_sources(KalibreAppTests PRIVATE Tests/App/TestCrashWin.cpp)

@@ -119,10 +119,16 @@ Result make (const Catalogue& cat, const Options& opt)
     for (auto e : extras) if ((int) parts.size() < want) parts.push_back (e);
 
     // Instruments: drums to one that plays drums; the rest any but those.
-    std::vector<Choice> tonal, drumKits;
-    for (auto& c : cat.instruments) (c.drums ? drumKits : tonal).push_back (c);
     std::vector<Sample> drumHits, tonalHits;
     for (auto& s : cat.samples) if (! isLoop (s) && s.seconds > 0.02 && s.seconds < 8) (s.drums ? drumHits : tonalHits).push_back (s);
+    // Kalibre Drums plays the drums when there are drum hits for its pads (an empty kit is silent).
+    std::vector<Choice> tonal, drumKits;
+    const Choice* ownKit = nullptr;
+    for (auto& c : cat.instruments)
+    {
+        if (c.kit) { if (! drumHits.empty()) ownKit = &c; continue; }
+        (c.drums ? drumKits : tonal).push_back (c);
+    }
 
     int effectsLeft = opt.maxEffects, midiFxLeft = opt.maxMidiEffects;
     std::vector<Sample> loopsLeft = loops;
@@ -176,7 +182,7 @@ Result make (const Catalogue& cat, const Options& opt)
             std::vector<Choice> usable;   // kept while `inst` may point into it
             if (part == Part::Drums)
             {
-                inst = pick (drumKits, rng);
+                inst = ownKit ? ownKit : pick (drumKits, rng);
                 if (! inst)
                     for (auto& c : tonal) if (c.wantsSample && ! drumHits.empty()) { inst = &c; break; }
             }
@@ -192,6 +198,7 @@ Result make (const Catalogue& cat, const Options& opt)
             if (inst)
             {
                 const Id d = addDevice (*inst, DeviceRole::Instrument);
+                if (inst->kit) r.drumKits.push_back (d);
                 if (inst->wantsSample)
                 {
                     const auto& from = part == Part::Drums && ! drumHits.empty() ? drumHits : tonalHits;

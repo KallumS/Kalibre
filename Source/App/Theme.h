@@ -145,6 +145,8 @@ double luminance (Colour);
 double contrast (Colour, Colour);
 
 float scale();                 // the Text Size, 1.0 = 100%
+// View > Text Size's choices, in percent, smallest first (50% to 200%).
+inline const std::vector<int>& textSizes() { static const std::vector<int> s { 50, 75, 90, 100, 110, 125, 150, 200 }; return s; }
 void setScale (float);
 inline int px (int points) { return juce::roundToInt ((float) points * scale()); }
 

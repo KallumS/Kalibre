@@ -893,7 +893,10 @@ void Arrange::drawTempoLane (Graphics& g, Rectangle<int> r)
         const float x = xOf (tp.tick);
         g.fillEllipse (x - 3.5f, yOf (tp.bpm) - 3.5f, 7.0f, 7.0f);
         g.setColour (theme::text);
-        g.drawText (String (tp.bpm, 1), (int) x + 6, (int) yOf (tp.bpm) - 14, 60, 12, Justification::centredLeft, false);
+        // Kept inside the lane: at small text sizes the top value was cut off.
+        g.setFont (theme::font (theme::smallPoints));
+        const int labelH = theme::px (12);
+        g.drawText (String (tp.bpm, 1), (int) x + 6, jmax (r.getY(), (int) yOf (tp.bpm) - labelH - 2), 60, labelH, Justification::centredLeft, false);
         g.setColour (theme::control);
     }
     g.restoreState();

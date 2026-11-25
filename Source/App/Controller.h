@@ -15,6 +15,7 @@
 #include "RandomSong.h"
 #include "DrumKit.h"
 #include "Edit.h"
+#include "ActivityLog.h"
 #include "AutoCc.h"
 #include "Engine.h"
 #include "ControlSettings.h"
@@ -141,7 +142,18 @@ public:
     juce::String message;
     bool messageIsWarning = false;
     bool messageCanUndo = false;
-    void say (const juce::String&, bool warning = false, bool canUndo = false);
+    // `logged`: written in the activity log too (an export's progress isn't, 0135).
+    void say (const juce::String&, bool warning = false, bool canUndo = false, bool logged = true);
+
+    // The activity log (decision 0135): what's done in the song, written beside
+    // it as "<Song> Activity Log.txt" each time it's saved. On unless turned
+    // off (File > Keep an Activity Log); kept between songs.
+    activity::Log activityLog;
+    bool keepActivityLog = true;
+    bool agentActing = false;   // an AI agent's tool is running: its edits are marked so
+    void setKeepActivityLog (bool);
+    juce::File activityLogFile() const;   // beside the song; none before it's saved
+    void logActivity (activity::Kind, const juce::String&);
     // Looks for plug-ins installed since the last scan, the progress in the
     // message line (decision 0047); `files` scans just those again.
     void scanPlugins (std::vector<std::pair<juce::String, juce::String>> files = {});
@@ -462,6 +474,7 @@ public:
     // The studio's sync and control surface settings (decisions 0034, 0035).
     ControlSettings studio;
     juce::File studioFile() const;
+    void storeEditingChoices();   // the sensitivity and the activity log's switch
     juce::File editingFile() const;   // editing choices kept between songs (the transients' sensitivity)
     void setStudio (const ControlSettings&);
     std::function<void()> onStudioChanged;   // the surfaces reconfigure

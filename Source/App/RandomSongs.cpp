@@ -6,6 +6,8 @@
 #include "BuiltinInstruments.h"
 #include "Edit.h"
 #include "JsfxDevice.h"
+#include "DrumMachine.h"
+#include "DrumKit.h"
 #include "RandomSong.h"
 #include "Theme.h"
 
@@ -70,6 +72,12 @@ randomsong::Catalogue Controller::randomCatalogue (const library::Index& sounds)
     cat.instruments.push_back (own ("Kalibre Synth", synthRef(), DeviceRole::Instrument));
     cat.instruments.push_back (own ("Kalibre Sampler", samplerRef(), DeviceRole::Instrument, true));
     cat.instruments.push_back (own ("Trombolese", tromboleseRef(), DeviceRole::Instrument));
+    // Kalibre Drums for the drums, its pads given drum hits from the sounds (the musician's answer to the UAT).
+    {
+        auto kit = own ("Kalibre Drums", drumsRef(), DeviceRole::Instrument);
+        kit.drums = kit.kit = true;
+        cat.instruments.push_back (kit);
+    }
     for (auto& s : jsfxDevices())
     {
         const String id (s.id);
@@ -213,6 +221,21 @@ bool Controller::randomSong (const library::Index& sounds, unsigned seed, bool a
             sampler.getStateInformation (state);
             d->state = state.toBase64Encoding().toStdString();
         }
+    // Each Kalibre Drums with a drum hit of its kind on each pad; the drums clip plays it, not its own steps.
+    for (auto id : made.drumKits)
+        if (auto* d = p.device (id))
+        {
+            DrumMachine kit (engine.plugins());
+            auto k = drumkit::standard();
+            k.playsPattern = false;
+            const auto chosen = drumkit::randomSamples (k, sounds, seed);
+            for (size_t i = 0; i < k.pads.size() && i < chosen.size(); ++i)
+                if (! chosen[i].empty()) k.pads[i].sample = chosen[i];
+            kit.setKit (k);
+            MemoryBlock state;
+            kit.getStateInformation (state);
+            d->state = state.toBase64Encoding().toStdString();
+        }
     // The house colours, a track each.
     auto& colours = theme::trackColours();
     const size_t had = addTo ? project.tracks.size() : 0;
@@ -223,6 +246,16 @@ bool Controller::randomSong (const library::Index& sounds, unsigned seed, bool a
     {
         std::set<Id> added;
         for (auto& t : p.tracks) for (auto& d : t.devices) added.insert (d.id);
+        // Never the name of a track the song has already: "Drums 2" beside its Drums (the UAT).
+        std::set<std::string> taken;
+        for (auto& t : project.tracks) taken.insert (t.name);
+        for (auto& t : p.tracks)
+        {
+            std::string name = t.name;
+            for (int n = 2; taken.count (name); ++n) name = t.name + " " + std::to_string (n);
+            t.name = name;
+            taken.insert (name);
+        }
         const Id first = p.tracks.front().id;
         const bool ok = apply ("Random Tracks", [&] (Project& song)
         {
@@ -247,6 +280,9 @@ bool Controller::randomSong (const library::Index& sounds, unsigned seed, bool a
     project = std::move (p);
     beginWorkClock();
     history.clear();
+    // The activity log says it began by chance, with what was made (0135).
+    activityLog.clear();
+    logActivity (activity::Kind::New, "A new random song (the Random button), in Kalibre " + String (KALIBRE_VERSION) + ": " + String (made.summary));
     file = File();
     dirty = true;
     focusTrack = project.tracks.front().id;

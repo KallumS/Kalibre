@@ -34,6 +34,7 @@ struct Choice
     DeviceRole role = DeviceRole::Instrument;
     bool drums = false;          // an instrument that plays a drum kit
     bool wantsSample = false;    // Kalibre Sampler: given one of the musician's sounds to play
+    bool kit = false;            // Kalibre Drums: chosen for the drums when there are drum hits for its pads
 };
 
 struct Sample
@@ -71,6 +72,8 @@ struct Result
     Project project;
     // Each Kalibre Sampler, and the sound to load into it.
     std::vector<std::pair<Id, std::string>> samplerSamples;
+    // Each Kalibre Drums, to give its pads drum sounds of their kinds (the musician's answer to the UAT).
+    std::vector<Id> drumKits;
     std::string summary;         // "6 tracks at 112 BPM in E Minor (Natural)"
     std::vector<std::string> parts;   // a line a track: "Bass: Kalibre Synth, Reverberator"
 };

@@ -78,3 +78,20 @@ it. "Share Start and Stop" had no tip; it has.
   `notation::shown`.
 - A script tool's editor does nothing off screen; anything that needs a
   tool's frame without a window calls `ToolSession::frame` itself.
+
+## Amended (25 November): the two suggestions, answered yes
+
+- **Shift-Random's tracks** (49): a track it adds never takes a name the song
+  has (Drums 2 beside Drums). Its drums, and the Random button's, are
+  Kalibre Drums when the Sounds folders have drum hits: a kit with a hit of
+  its kind on each pad (`drumkit::randomSamples`), its own steps off, played
+  by the drum clip (`randomsong::Choice::kit`, `Result::drumKits`). With no
+  drum hits it's as before: an instrument that plays drums.
+- **Steps' Random** (18): Good Idea's tune is moved by whole octaves so its
+  middle sits nearest the middle of the track's other notes
+  (`patterns::octavesToward`).
+- The homepage's five hand-made pictures (the top bar and I/O, its timer,
+  arming four ways, the step sequencer playing) are now made by
+  KalibreRender, the last through a stand-in sound card it drives block by
+  block; the guide's Steps picture has a bass line in steps.
+

@@ -490,8 +490,20 @@ void StepSequencer::random()
     const int bars = jlimit (1, 4, (int) (seq.stepTicks * (Tick) seq.steps.size() / jmax<Tick> (1, meter.barTicks())));
     const auto idea = ideas::motif (c.project.scale, bars, meter.numerator, meter.denominator, newSeed());
     if (! idea.error.empty()) { c.say ("Good Idea's engine failed: " + String (idea.error), true); return; }
+    // Moved by whole octaves to where the track already plays: a bass's tune stays
+    // down with the bass (the UAT). Its other notes, not the steps about to be replaced.
+    std::vector<int> tune, track;
+    for (auto& n : idea.notes) tune.push_back (n.pitch);
+    Track* owner = nullptr;
+    c.project.clip (clip->id, &owner);
+    if (owner)
+        for (auto& cl : owner->clips())
+            if (cl.isMidi())
+                for (auto& n : cl.midi.notes)
+                    if (! (cl.id == clip->id && n.from == NoteFrom::Steps)) track.push_back (n.pitch);
+    const int shift = patterns::octavesToward (tune, track);
     MidiData made;
-    for (auto n : idea.notes) { n.from = NoteFrom::Steps; made.notes.push_back (n); }
+    for (auto n : idea.notes) { n.from = NoteFrom::Steps; n.pitch = jlimit (0, 127, n.pitch + shift); made.notes.push_back (n); }
     const auto stepTicks = seq.stepTicks;
     seq = patterns::readSteps (made, stepTicks, (int) seq.steps.size(), 0, NoteFrom::Steps);
     write ("Random Steps");

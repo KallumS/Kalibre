@@ -125,6 +125,11 @@ Help > Keys lists every key as Windows writes it.
   Windows can't shrink another program's window as the Mac does, so a VST3
   that can draw itself smaller (most new ones) is asked to; one that can't
   shows the part that fits. Its own window (the ⧉ button) shows it all.
+- **Text size**: **Ctrl+=** bigger, **Ctrl+-** smaller, **Ctrl+0** back to
+  100%, through the same sizes from 50% to 200%.
+- **The activity log** is written beside the song as on the Mac, "<Song>
+  Activity Log.txt", in Notepad's plain text; its times are the PC's clock
+  and time zone. File > Keep an Activity Log turns it off, as on the Mac.
 - Your settings, scripts and crash reports are in `%APPDATA%\Kalibre`.
 
 ---
@@ -181,10 +186,14 @@ their buttons, clips, notes and the Plug-in Manager's list:
 
 ### Text size
 
-**View > Text Size** (100%, 125%, 150%, 200%), or ⌘= bigger, ⌘- smaller,
-⌘0 back to 100%. Everything grows with it.
+**View > Text Size**: 50%, 75%, 90%, 100%, 110%, 125%, 150% or 200%. ⌘=
+goes to the next size bigger, ⌘- the next smaller, ⌘0 back to 100%.
+Everything grows or shrinks with it: below 100% more of the song fits in the
+window. The track names keep room enough to read, however small.
 
 ![The window at 200% text, with the tempo lane shown](guide/text-200.png)
+![The window at 75% text](guide/text-75.png)
+![The window at 50% text: more of the song in the window](guide/text-50.png)
 
 ### Themes
 
@@ -280,7 +289,8 @@ song: try a different arrangement, mix or sound, and switch back and forth.
 ### The Random button
 
 **Shift-click Random** to keep this song and add random tracks to it, in its
-key and at its tempo, as one undo step.
+key and at its tempo, as one undo step. A track it adds never takes a name
+the song already has: beside your **Drums** it's **Drums 2**.
 
 **Random** (also **File > New Random Song**) makes a new song by chance, to
 start from. If the song you have has changes, it asks to save it first.
@@ -293,8 +303,11 @@ Then:
 - **A random instrument on each**: your scanned plug-ins (all of them but those
   turned off in the Plug-in Manager, and ones that measure rather than sound:
   analysers, meters, tuners), Kalibre Synth, Trombolese,
-  Reese Basser, or Kalibre Sampler playing one of your sounds. Drums go to an
-  instrument that plays drums when you have one (by its name).
+  Reese Basser, or Kalibre Sampler playing one of your sounds. The drums are
+  **Kalibre Drums**, each pad given a drum hit of its kind from your Sounds
+  folders (a kick for the kick, a snare for the snare), played by the drum
+  clip; with no drum hits in your folders, they go to an instrument that
+  plays drums (by its name).
 - **Loops from your sounds** (the Sounds tab's folders), now and then: ones
   whose tempo is known, stretched to the song's.
 - **Effects by chance**: none, one or two a track, 8 at most in all, and now
@@ -305,7 +318,7 @@ Then:
 The message line says what it made ("6 tracks at 103 BPM in A Mixolydian, A
 E A D E A"). Press Space to hear it; click Random again for another. Like
 File > New, it's a new song: there's nothing to undo back to (that's why it
-asks to save first).
+asks to save first). Its activity log starts by saying it's a random song.
 
 ![A random song: six tracks, mixed](guide/random-song.png)
 
@@ -740,7 +753,7 @@ One note a step. Height is pitch; the bar inside is velocity.
 | Double-click | Tie it to the next step (one undo step). |
 | Right-click | Turn it off. |
 | **Swing**, **Gate** | Every second step played late; how long each note sounds. |
-| **Random** | A new tune from Good Idea in the song's key. |
+| **Random** | A new tune from Good Idea in the song's key, moved by whole octaves to where the track's other notes are: on a bass, down with the bass. |
 
 ### Euclidean
 
@@ -1529,6 +1542,40 @@ AutoCC would play these notes.
 - **Templates**: **File > Save as Template…** (**Tracks and Plug-ins**, or
   **With the Music Too**); **File > New from Template** starts from one.
 
+### The activity log
+
+Some record labels ask for evidence that a song was made by hand, not by an
+AI song generator. Kalibre keeps a log of everything done in the song and
+writes it beside the song, as **"<Song> Activity Log.txt"**, each time you
+save. It's on unless you turn it off: **File > Keep an Activity Log** (a tick
+shows it's on; choose it again to turn it on or off). The choice is kept for
+every song.
+
+Each line is when (the date and time) and what:
+
+| Word | Is |
+| --- | --- |
+| **New**, **Open** | The song started or opened, and the Kalibre version. |
+| **Edit** | A change you made, by the name Undo gives it: Add Note, Move Clips, Mix, Change Cutoff… |
+| **AI agent** | A change an AI agent made (Section 21): kept apart from yours. |
+| **Undo**, **Redo** | What was undone or done again. |
+| **Play**, **Stop**, **Record** | Playing from a bar, stopping, and recording on which tracks. |
+| **Message** | What the message line said: exports, recordings, imports. |
+| **Save** | Saved, and how long music has been made in the song in all (the top bar's timer). |
+| **Log** | The log turned on again after being off: nothing was kept in between. |
+
+```
+2026-11-25 14:02:11  Edit      Add Note
+2026-11-25 14:02:15  Play      Played from bar 5
+2026-11-25 14:02:31  Stop      Stopped at bar 9
+2026-11-25 14:03:02  Save      Saved My Song (music made in it for 2:14:09 in all)
+```
+
+Saving only adds the lines since the last save; nothing already in the file
+is changed. **Save As…** to a new name takes the log so far with it. What's
+done after the last save, if Kalibre quits without saving, isn't written. An
+autosave or a backup doesn't write it either; only a save does.
+
 ### Files and folders
 
 - **Collect All Files and Save**: copies every file the song uses into its
@@ -1676,6 +1723,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | Relink Missing Files… | |
 | Archive the Project… | |
 | Song Details… | |
+| Keep an Activity Log | |
 | Import Audio or MIDI… | ⌘I |
 | Import MusicXML… | |
 | Open a DAWproject… | |
@@ -1780,7 +1828,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | Follow Playback | |
 | Zoom to Fit | F |
 | Workspaces ▸ | |
-| Text Size ▸ | ⌘0 for 100% |
+| Text Size ▸ (50% to 200%) | ⌘0 for 100%, ⌘= bigger, ⌘- smaller |
 | Themes ▸ | |
 
 ### Scripts
