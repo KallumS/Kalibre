@@ -107,4 +107,10 @@ struct StepSequence
 StepSequence readSteps (const MidiData&, Tick stepTicks, int count, Tick from, NoteFrom who);
 void writeSteps (MidiData&, const StepSequence&, Tick from, Tick length, unsigned& nextId, NoteFrom who);
 
+// How far to move a new tune, in whole octaves (a multiple of 12, up or
+// down), so its middle sits nearest the middle of what the track already
+// plays: Steps' Random on a bass stays down where the bass is (the UAT).
+// 0 with nothing to go by.
+int octavesToward (const std::vector<int>& tune, const std::vector<int>& track);
+
 } // namespace kal::patterns

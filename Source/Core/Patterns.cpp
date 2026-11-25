@@ -304,4 +304,19 @@ void writeSteps (MidiData& m, const StepSequence& s, Tick from, Tick length, uns
     edit::sortNotes (m);
 }
 
+int octavesToward (const std::vector<int>& tune, const std::vector<int>& track)
+{
+    if (tune.empty() || track.empty()) return 0;
+    auto middle = [] (std::vector<int> v)
+    {
+        std::sort (v.begin(), v.end());
+        return v[v.size() / 2];
+    };
+    const int from = middle (tune), to = middle (track);
+    int best = 0;
+    for (int shift = -60; shift <= 60; shift += 12)
+        if (std::abs (from + shift - to) < std::abs (from + best - to)) best = shift;
+    return best;
+}
+
 } // namespace kal::patterns
