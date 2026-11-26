@@ -7,6 +7,12 @@ that alters how songs are kept or how Kalibre is used (2.0.0). Each
 version's line says what changed, in plain words; the decision records
 (`docs/decisions/`) say why.
 
+## 1.3.2 (26 November 2026)
+
+- Fixed: on Windows and Linux, Kalibre's network MIDI session said yes to a
+  computer joining before it counted it, so for a moment the Studio window
+  could say nobody was connected (found by a test on Windows).
+
 ## 1.3.1 (26 November 2026)
 
 - Fixed: Kalibre could quit unexpectedly while taking plug-ins' pictures on
