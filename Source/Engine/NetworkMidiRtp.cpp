@@ -151,6 +151,13 @@ private:
         socket.write (to, toPort, b.data(), (int) b.size());
     }
 
+    void countPeers()
+    {
+        int connected = 0;
+        for (auto& p : peerList) connected += p.dataPort != 0 ? 1 : 0;
+        peerCount = connected;
+    }
+
     void handle (bool onData, const rtpmidi::Bytes& b, const String& from, int fromPort)
     {
         auto& socket = onData ? *data : *control;
@@ -161,15 +168,18 @@ private:
                 case rtpmidi::Command::Invitation:
                 {
                     // Anyone on the network may join, as the Mac's session lets them.
+                    // Counted before it's answered: one that asks straight after the
+                    // answer finds itself connected (a test on Windows CI found otherwise).
+                    auto& p = peerFor (s->ssrc);
+                    p.address = from;
+                    (onData ? p.dataPort : p.controlPort) = fromPort;
+                    countPeers();
                     rtpmidi::Session ok;
                     ok.command = rtpmidi::Command::Accepted;
                     ok.token = s->token;
                     ok.ssrc = ssrc;
                     ok.name = name.toStdString();
                     reply (socket, ok, from, fromPort);
-                    auto& p = peerFor (s->ssrc);
-                    p.address = from;
-                    (onData ? p.dataPort : p.controlPort) = fromPort;
                     break;
                 }
                 case rtpmidi::Command::End:
@@ -180,9 +190,7 @@ private:
                     break;
                 default: break;
             }
-            int connected = 0;
-            for (auto& p : peerList) connected += p.dataPort != 0 ? 1 : 0;
-            peerCount = connected;
+            countPeers();
             return;
         }
         if (! onData) return;
