@@ -98,7 +98,7 @@
 | `App/PluginManagerView.*` | The Plug-in Manager and its window (0047); File As (0069); Take Pictures (0138). |
 | `App/PluginPictures.*` | Plug-ins' pictures for the browser (0138): kept in Kalibre's library by maker and name, read from the screen (`PluginPicturesMac.mm`, `PluginPicturesWin.cpp`, `PluginPicturesLinux.cpp`), and `Taker`, which opens, photographs and closes each plug-in in turn. |
 | `App/ArticulationManagerView.*` | The Articulation Manager and its window (0072). |
-| `App/CrashReports.*` | The crash handler and its reports (0073); on Windows `CrashReportsWin.cpp` (0129). |
+| `App/CrashReports.*` | The crash handler and its reports (0073); on Windows `CrashReportsWin.cpp` (0129); a run that ended unexpectedly noticed, and macOS's own report brought in (0140). |
 | `App/BattlePass.*` | DAW Battle Pass (0111): its script, unchanged in `Engines/tools/daw-battle-pass/`, run as a Lua tool that's never a device, with `reaper` answered from the song; unseen until the timer is clicked seven times (`SecretClicks`). |
 | `App/Keys.*`, `KeysPanel.*` | Every key as a named command the user can change (0045), in the Keys window. |
 | `App/Theme.*` | Colours, sizes, the look (docs/COLOUR.md, docs/apple-hig-review.md); the themes, each a palette that sets every colour (0132). |
@@ -199,5 +199,7 @@ performance core, each as soon as what feeds it is done (0078).
 - The family's scripts in `Engines/` are copied unchanged: what Kalibre needs differently goes in its own stand-ins (`Engines/tools/sb_place.lua`, `mc_place.lua`, `gi_place.lua`) or the host, and a fix to a script goes to its repo first.
 - EEL2's names ignore case: `P_ST` and `p_st` are one variable (0093). `tools/update_engines.py` looks for two spellings in a JSFX.
 - A new JSFX isn't run through `@serialize` until a song gives it a state, as in REAPER; ysfx's `file_avail` there is mended to count what's left (cmake/App.cmake).
+- A plug-in is never deleted in the message that closed its window, anywhere, the picture-taker too (`pictures::Taker::letGo`, 2 s): on the Mac the window's last pieces are released when that message ends, and crashed when the plug-in had gone with them (0140).
+- Kalibre's crash handler can be replaced by a plug-in's: `Running.txt` (`crash::markRunning`, `markQuit`) tells the next start a run ended unexpectedly, and `crash::bringInSystemReport` brings in macOS's report when Kalibre wrote none (0140).
 - A plug-in's picture is read from the screen, never drawn by Kalibre (its window is a native view Kalibre doesn't draw): `pictures::grab`, with the window in front and the plug-in given time to draw (0138). The browser's list has rows of one height: a picture spans the rows after its plug-in, and anything that reads a row goes through the plug-in's own (`ownerOf`).
 - On the Mac's disk names ignore case too: no two files may differ only by case (`Core/Toolbox.h` and `App/ToolPicker.h`, once `ToolBox.h`, 0092).

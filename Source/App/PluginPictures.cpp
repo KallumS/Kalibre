@@ -191,12 +191,19 @@ namespace
 {
 File marker() { return folder().getChildFile ("Taking.txt"); }
 File skippedFile() { return folder().getChildFile ("Skipped.txt"); }
+String& lastCrashName()
+{
+    static String n;
+    return n;
+}
 
 // The plug-in being photographed when Kalibre last closed is left out from now on.
 void noteLastCrash()
 {
     if (! marker().existsAsFile()) return;
-    const auto id = marker().loadFileAsString().trim();
+    const auto id = StringArray::fromLines (marker().loadFileAsString())[0].trim();
+    // Its name, for the message line as Kalibre starts.
+    lastCrashName() = StringArray::fromLines (marker().loadFileAsString())[1].trim();
     marker().deleteFile();
     if (id.isEmpty()) return;
     auto all = StringArray::fromLines (skippedFile().loadFileAsString());
@@ -214,19 +221,49 @@ StringArray Taker::skipped()
     return all;
 }
 
+String Taker::closedKalibre()
+{
+    noteLastCrash();
+    auto n = lastCrashName();
+    lastCrashName() = {};
+    return n;
+}
+
 Taker::Taker (PluginManager& pm, double sampleRate) : plugins (pm), rate (sampleRate > 0 ? sampleRate : 48000.0) {}
 
 Taker::~Taker()
 {
     stopTimer();
-    if (current) { if (current->window) editors::retire (std::move (current->window), 0); current.reset(); }
+    if (current)
+    {
+        if (current->window) { current->window->empty(); editors::retire (std::move (current->window), 0); }
+        letGo (std::move (current->instance));
+        current.reset();
+    }
+    // Kalibre is closing, or the Plug-in Manager with it: what's left goes now.
+    leaving.clear();
     marker().deleteFile();
+}
+
+void Taker::letGo (std::unique_ptr<AudioPluginInstance> p)
+{
+    if (p == nullptr) return;
+    p->releaseResources();
+    leaving.push_back ({ std::move (p), Time::getMillisecondCounter() + (uint32) letGoAfterMs });
+}
+
+void Taker::letGoOfOld (bool all)
+{
+    const auto now = Time::getMillisecondCounter();
+    leaving.erase (std::remove_if (leaving.begin(), leaving.end(), [&] (const Leaving& l) { return all || (int32) (now - l.at) >= 0; }),
+                   leaving.end());
 }
 
 void Taker::start (std::vector<PluginDescription> list, Progress progress, std::function<void (const Summary&)> finished)
 {
     if (busy()) return;
     folder().createDirectory();
+    noteLastCrash();
     queue = std::move (list);
     total = (int) queue.size();
     done = 0;
@@ -244,6 +281,7 @@ void Taker::stop()
     if (current)
     {
         if (current->window) { current->window->empty(); editors::retire (std::move (current->window), 0); }
+        letGo (std::move (current->instance));
         current.reset();
         marker().deleteFile();
     }
@@ -252,9 +290,15 @@ void Taker::stop()
 
 void Taker::timerCallback()
 {
-    stopTimer();
-    if (stage == Stage::Shoot) shoot();
-    else next();
+    // Plug-ins whose time has come are let go of here, in a message of their own.
+    letGoOfOld (false);
+    switch (stage)
+    {
+        case Stage::Shoot: stopTimer(); shoot(); break;
+        case Stage::Close: stopTimer(); close(); break;
+        case Stage::Next:  stopTimer(); next(); break;
+        case Stage::Idle:  if (leaving.empty()) stopTimer(); break;
+    }
 }
 
 void Taker::next()
@@ -274,7 +318,7 @@ void Taker::next()
         return;
     }
     // Noted before it's opened: if it takes Kalibre down, it's left out next time.
-    marker().replaceWithText (desc.createIdentifierString());
+    marker().replaceWithText (desc.createIdentifierString() + "\n" + desc.name + "\n");
     current = std::make_unique<Current>();
     current->desc = desc;
     String error;
@@ -292,7 +336,7 @@ void Taker::next()
     if (! current->instance->hasEditor())
     {
         ++summary.noWindow;
-        current->instance->releaseResources();
+        letGo (std::move (current->instance));
         current.reset();
         marker().deleteFile();
         startTimer (10);
@@ -319,18 +363,28 @@ void Taker::shoot()
             summary.problems.add (current->desc.name + ": its window showed nothing Kalibre could read");
         }
     }
-    // The window goes before the plug-in (0056); the window itself a little later (0115).
+    // The plug-in's window closes now, in a message of its own (0056); the window
+    // itself a little later (0115); the plug-in later still (letGo).
     current->window->empty();
     editors::retire (std::move (current->window), 1000);
-    current->instance->releaseResources();
+    stage = Stage::Close;
+    startTimer (250);
+}
+
+void Taker::close()
+{
+    if (current) letGo (std::move (current->instance));
     current.reset();
     marker().deleteFile();
-    startTimer (250);
+    stage = Stage::Next;
+    startTimer (50);
 }
 
 void Taker::finish (bool stopped)
 {
+    stage = Stage::Idle;
     stopTimer();
+    if (! leaving.empty()) startTimer (250);   // still to be let go of
     summary.stopped = stopped;
     auto f = onFinished;
     onFinished = nullptr;

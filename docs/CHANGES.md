@@ -7,6 +7,15 @@ that alters how songs are kept or how Kalibre is used (2.0.0). Each
 version's line says what changed, in plain words; the decision records
 (`docs/decisions/`) say why.
 
+## 1.3.1 (26 November 2026)
+
+- Fixed: Kalibre could quit unexpectedly while taking plug-ins' pictures on
+  the Mac. Each plug-in is now let go of two seconds after its window has
+  closed, as everywhere else in Kalibre (0140).
+- When a plug-in has put its own crash handling in Kalibre's place, so
+  Kalibre wrote no crash report, the next start brings in macOS's report
+  instead, and says which plug-in's picture was being taken.
+
 ## 1.3.0 (26 November 2026)
 
 - Kalibre for Linux (0139): **Kalibre-Linux.tar.gz** beside the Mac's and

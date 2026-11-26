@@ -35,8 +35,22 @@ struct FakeKnob : public AudioPluginInstance::HostedParameter
     float value = 0.5f;
 };
 
+} // namespace
+
+// When a Painter's window and the Painter itself were deleted, and in which
+// message (0138: a plug-in let go of with its window crashed the Mac).
+juce::uint32 painterWindowGone = 0, painterGone = 0;
+int painterWindowGoneIn = -1, painterGoneIn = -1;
+int messageNumber = 0;   // counted by the tests as they turn the message loop
+
+namespace
+{
 struct FakeInstance : public AudioPluginInstance
 {
+    ~FakeInstance() override
+    {
+        if (desc.name == "Painter") { painterGone = juce::Time::getMillisecondCounter(); painterGoneIn = messageNumber; }
+    }
     FakeInstance (PluginDescription d, int outs)
         : AudioPluginInstance (BusesProperties().withOutput ("Out", outs == 2 ? AudioChannelSet::stereo() : AudioChannelSet::disabled(), outs == 2)),
           desc (std::move (d))
@@ -59,6 +73,7 @@ struct FakeInstance : public AudioPluginInstance
     struct PainterEditor : public AudioProcessorEditor
     {
         explicit PainterEditor (AudioProcessor& p) : AudioProcessorEditor (p) { setSize (320, 200); }
+        ~PainterEditor() override { painterWindowGone = juce::Time::getMillisecondCounter(); painterWindowGoneIn = messageNumber; }
         void paint (Graphics& g) override
         {
             g.fillAll (Colour (0xff2a7fd4));

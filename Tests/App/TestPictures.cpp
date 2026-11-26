@@ -14,6 +14,9 @@
 using namespace juce;
 using namespace kal;
 
+extern juce::uint32 painterWindowGone, painterGone;   // TestPlugins.cpp
+extern int painterWindowGoneIn, painterGoneIn, messageNumber;
+
 namespace
 {
 File pictureFolder()
@@ -63,7 +66,11 @@ void runFor (int ms, std::function<bool()> until = {})
 {
     const auto end = Time::getMillisecondCounter() + (uint32) ms;
     while (Time::getMillisecondCounter() < end && ! (until && until()))
+    {
+        // Each turn of the loop a message of its own, numbered, so a test can tell whether two things happened in one.
+        MessageManager::callAsync ([] { ++messageNumber; });
         MessageManager::getInstance()->runDispatchLoopUntil (20);
+    }
 }
 
 // Near enough: a picture read back from the screen may be a shade off.
@@ -140,6 +147,13 @@ TEST ("pictures: Take Pictures opens each plug-in in a window, photographs it, c
             CHECK (near (img.getPixelAt (img.getWidth() / 2, img.getHeight() / 2), Colour (0xfff0e0a0)));
         }
         CHECK (! pictures::fileFor (riffer).existsAsFile());
+        // The plug-in is let go of well after its window, never in the same message: on the Mac
+        // the window's last pieces are let go of after the message, and crashed when the
+        // plug-in had gone with them (the musician's Mac, 26 November).
+        runFor (3000, [&] { return painterGone != 0; });
+        CHECK (painterWindowGone != 0 && painterGone != 0);
+        CHECK (painterGoneIn > painterWindowGoneIn);
+        CHECK ((juce::int32) (painterGone - painterWindowGone) >= 1500);
         // Nothing left noted as having closed Kalibre.
         CHECK (pictures::Taker::skipped().isEmpty());
 
@@ -269,4 +283,59 @@ TEST ("browser: a heading folds its plug-ins away and back; while searching, eve
     }
     pictures::setFolder ({});
     LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+#include "CrashReports.h"
+
+TEST ("crash reports: a run that ended without quitting and wrote no report brings in macOS's own; quitting leaves nothing to find (0140)")
+{
+    const auto base = File::getSpecialLocation (File::tempDirectory).getChildFile ("KalibreTests").getChildFile ("SystemReports");
+    base.deleteRecursively();
+    const auto reports = base.getChildFile ("Crash Reports"), system = base.getChildFile ("DiagnosticReports");
+    system.createDirectory();
+
+    // A first start finds nothing; a quit clears the mark, so the next start finds nothing either.
+    CHECK (! crash::markRunning (reports).has_value());
+    crash::markQuit (reports);
+    CHECK (! crash::markRunning (reports).has_value());
+    // Then it ends without quitting: the next start knows, and since when.
+    const auto started = crash::markRunning (reports);
+    CHECK (started.has_value());
+
+    // macOS's report of it, as the musician's Mac wrote it (an .ips: a line about it, then the report).
+    Thread::sleep (1100);   // newer than the start, by the file's clock
+    system.getChildFile ("Kalibre-2026-11-26-111219.ips").replaceWithText (
+        "{\"app_name\":\"Kalibre\",\"app_version\":\"1.3.0\",\"name\":\"Kalibre\"}\n"
+        "{\"procName\":\"Kalibre\",\"exception\":{\"type\":\"EXC_BAD_ACCESS\",\"signal\":\"SIGSEGV\",\"subtype\":\"KERN_INVALID_ADDRESS at 0x0\"},"
+        "\"faultingThread\":0,\"threads\":[{\"triggered\":true,\"frames\":[{\"imageIndex\":0,\"symbol\":\"objc_msgSend\"},"
+        "{\"imageIndex\":1,\"symbol\":\"objc_autoreleasePoolPop\"},{\"imageIndex\":2,\"symbol\":\"juce::MessageQueue::runLoopCallback()\"}]}],"
+        "\"usedImages\":[{\"name\":\"libobjcMsgSend.dylib\"},{\"name\":\"libobjc.A.dylib\"},{\"name\":\"Kalibre\"}]}\n");
+    // One older than the start isn't this crash.
+    auto old = system.getChildFile ("Kalibre-2026-11-20-090000.ips");
+    old.replaceWithText ("{}\n{}");
+    old.setLastModificationTime (Time::getCurrentTime() - RelativeTime::days (6));
+
+    const auto report = crash::bringInSystemReport (reports, system, *started - RelativeTime::seconds (1), "1.3.1");
+    CHECK (report.existsAsFile());
+    CHECK (reports.getChildFile ("Kalibre-2026-11-26-111219.ips").existsAsFile());   // macOS's, beside it
+    CHECK (! reports.getChildFile ("Kalibre-2026-11-20-090000.ips").existsAsFile());
+    // Told on the next start as any crash is: in Kalibre's words, the version that crashed.
+    CHECK (crash::since (reports, Time()).contains (report));
+    CHECK_EQ (crash::summary (report), String ("a bad memory access"));
+    const auto text = report.loadFileAsString();
+    CHECK (text.startsWith ("Kalibre 1.3.0 quit unexpectedly"));
+    CHECK (text.contains ("objc_autoreleasePoolPop  (libobjc.A.dylib)"));
+    // Nothing since: nothing brought in.
+    CHECK (crash::bringInSystemReport (reports, system, Time::getCurrentTime() + RelativeTime::minutes (1), "1.3.1") == File());
+    base.deleteRecursively();
+}
+
+TEST ("pictures: the plug-in being photographed when Kalibre closed is named once, as Kalibre starts (0140)")
+{
+    pictureFolder();
+    pictures::folder().getChildFile ("Taking.txt").replaceWithText ("VST3-Active Equalizer-1-2\nActive Equalizer\n");
+    CHECK_EQ (pictures::Taker::closedKalibre(), String ("Active Equalizer"));
+    CHECK (pictures::Taker::closedKalibre().isEmpty());   // once
+    CHECK (pictures::Taker::skipped().contains ("VST3-Active Equalizer-1-2"));
+    pictures::setFolder ({});
 }

@@ -138,7 +138,8 @@ void PluginManagerView::startPictures (std::vector<PluginDescription> list)
         if (files.addIfNotAlreadyThere (pictures::fileFor (d).getFullPathName())) todo.push_back (d);
     double rate = 48000.0;
     if (auto* dev = c.engine.devices().getCurrentAudioDevice()) rate = dev->getCurrentSampleRate();
-    taker = std::make_unique<pictures::Taker> (c.engine.plugins(), rate);
+    // Kept from one run to the next: the plug-ins it's still to let go of go when their time comes.
+    if (taker == nullptr) taker = std::make_unique<pictures::Taker> (c.engine.plugins(), rate);
     SafePointer<PluginManagerView> safe (this);
     taker->start (std::move (todo),
         [safe] (int done, int total, const String& name)
