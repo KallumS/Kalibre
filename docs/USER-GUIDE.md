@@ -494,16 +494,33 @@ one for what comes before the first".
 
 ### Editing clips with the mouse
 
+Clips work as in Ableton Live (decision 0141): the **name bar** along a
+clip's top moves it; lower in the clip, a drag marks a stretch of time.
+
+![A clip's name bar, the darker strip with its name: drag it to move the clip](guide/clip-name-bar.png)
+
 | Do | To |
 | --- | --- |
 | Click | Choose it (Shift, Option and Command as in [Choosing things](#choosing-things)). |
-| Drag its middle | Move it, onto the grid; to another track too. With several chosen, they all move as far, one undo step. |
-| **⌥ Option**-drag | Copy it (all the chosen ones). |
+| Drag its **name bar** | Move it, onto the grid; to another track too. With several chosen, they all move as far, one undo step. |
+| Drag **lower in it** | Mark a time range, from where you pressed to where you let go, across every track you drag over (as the Range tool does). **Delete** clears what's in it. The pointer is an I-beam there. |
+| **⌥ Option**-drag | Copy it (all the chosen ones), from anywhere on it. |
 | **⌘ Command** while dragging | Move it freely, off the grid. |
 | Drag its left or right edge | Trim it. |
 | **⇧ Shift**-drag anywhere on it | Resize it from the nearer edge: grab its right half to move its end, its left half to move its start, without aiming for the edge. A Shift-click alone still chooses. |
 | Drag a fade handle | The small handles at the top corners of an audio clip: fade in and fade out. Where two audio clips overlap they crossfade, equal power. |
 | Drag a warp marker | Move that moment of the audio ([Warping](#warping)). |
+
+In the empty part of a track:
+
+| Do | To |
+| --- | --- |
+| Click | Put the cursor there, and choose the track. |
+| Drag from the **top half** | A box: every clip it touches is chosen, on every track it crosses. **Shift** or **⌘ Command** adds them to the clips already chosen. The pointer is a crosshair there. |
+| Drag from the **bottom half** | A time range, as dragging lower in a clip. |
+
+To join clips: choose them (drag a box over them, or Shift-click each), then
+right-click one and choose **Join** (or press ⌘J).
 
 ### Editing clips with keys
 
@@ -511,6 +528,7 @@ one for what comes before the first".
 | --- | --- |
 | ⌘D | Duplicate the chosen clips, just after themselves. |
 | ⌘E | Split at the cursor. |
+| ⌘J | Join the chosen clips. |
 | ⌫ or Delete | Delete them. With **Edit > Ripple Editing** on, the later clips on the track move back to close the gap. |
 
 ### The clip menu (right-click a clip)
@@ -519,6 +537,7 @@ For every clip:
 
 | Item | Does |
 | --- | --- |
+| **Join** (⌘J) | The chosen clips on each track become one clip there, one undo step, on as many tracks as you chose clips on. MIDI clips' notes stay where they played, the gaps silent. Pieces of one recording (split, or trimmed apart) are put back together as they were; other audio clips become a new file, normalised, the clip's gain making up for it, so it sounds as before. A MIDI clip and an audio clip can't become one, nor can a locked clip. (This was Consolidate the Chosen Clips.) |
 | **Split at Cursor** | |
 | **Duplicate** | |
 | **Create Alias Clip** | Duplicates of an alias clip (⌘D or Option-drag) share their notes or audio: edit one, every copy changes. They wear a chain at the top right. **Make Independent** breaks the link; **Duplicate as Alias** makes a linked copy straight away. |
@@ -529,7 +548,6 @@ For every clip:
 | **Invert (Upside Down)** | MIDI: the notes flipped, its highest note made its lowest and the rest mirrored between. Audio, **Invert (Polarity, Upside Down)**: the waveform flipped, which sounds the same alone but cancels against a copy. Ticked while on. |
 | **Humanise** | MIDI: each note a little different, by chance: its velocity up to 10% softer or harder, its start up to 10% of the editors' grid earlier or later (at 1/16, a fortieth of a beat); lengths kept. One undo step; again for another roll. |
 | **Mute**, **Lock** | |
-| **Consolidate the Chosen Clips** | Several clips on a track into one. Audio becomes a new file, normalised, the clip's gain making up for it. |
 
 Reverse and Invert work on every chosen clip at once.
 
@@ -1842,7 +1860,7 @@ Every tool an agent is given, and what it does: [AGENTS.md](AGENTS.md).
 | Join the Chosen Notes | | |
 | Split the Chosen Notes at the Cursor | | |
 | Transpose ▸ | | Up 12, 7, 1; Down 1, 7, 12. |
-| Consolidate the Chosen Clips | | |
+| Join | ⌘J | The chosen clips on each track into one. |
 | Ripple Editing | | Deleting a clip pulls the later clips on its track back. |
 | Insert Bars at the Cursor… | | |
 | Delete the Loop Range's Bars | | |
@@ -1968,6 +1986,7 @@ the Mac says ⌘.*
 | Delete (forward) | Delete |
 | ⌘D | Duplicate |
 | ⌘E | Split at the Cursor |
+| ⌘J | Join the Chosen Clips |
 | ⌘A | Choose Every Note |
 | Q | Quantise |
 | Esc | Let Go of the Choice |

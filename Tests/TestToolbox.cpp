@@ -130,6 +130,48 @@ TEST ("toolbox: Glue joins MIDI clips into one, and a split recording back as it
     CHECK (p.clip (m));
 }
 
+TEST ("join: chosen clips on a track glued into one without a new file; left as they were when they can't be (0141)")
+{
+    Project p;
+    const Id t = edit::addTrack (p, TrackKind::Track, "Keys");
+    const Id a = edit::addMidiClip (p, t, 0, PPQ * 4);
+    const Id b = edit::addMidiClip (p, t, PPQ * 8, PPQ * 4);
+    const Id c = edit::addMidiClip (p, t, PPQ * 16, PPQ * 4);
+    for (auto [id, pitch] : { std::pair { a, 60 }, { b, 62 }, { c, 64 } }) edit::addNote (p, id, { 0, 0, PPQ, pitch });
+    // Three, chosen in any order: one clip from the first's start to the last's end, every note where it played.
+    const Id one = glueAll (p, { c, a, b });
+    CHECK (one != 0);
+    CHECK_EQ (p.track (t)->clips().size(), size_t (1));
+    if (const auto* j = p.clip (one))
+    {
+        CHECK_EQ (j->start, Tick (0));
+        CHECK_EQ (j->end(), PPQ * 20);
+        CHECK_EQ (j->midi.notes.size(), size_t (3));
+    }
+
+    // A split recording, its three pieces back as one: no new file.
+    const Id v = edit::addTrack (p, TrackKind::Track, "Vocal");
+    const Id whole = edit::addClip (p, v, audioClip (0, PPQ * 12));
+    const Clip before = *p.clip (whole);
+    const Id piece2 = edit::splitClip (p, whole, PPQ * 4, 0.0001);
+    const Id piece3 = edit::splitClip (p, piece2, PPQ * 8, 0.0001);
+    CHECK (piece2 != 0 && piece3 != 0);
+    CHECK_EQ (glueAll (p, { whole, piece2, piece3 }), whole);
+    CHECK (*p.clip (whole) == before);
+
+    // Two recordings: they need a new file, so nothing changes here.
+    auto other = audioClip (PPQ * 12, PPQ * 4);
+    other.audio.file = "other.wav";
+    const Id o = edit::addClip (p, v, other);
+    const Project untouched = p;
+    CHECK_EQ (glueAll (p, { whole, o }), Id (0));
+    CHECK (p == untouched);
+    // Clips on two tracks, or one alone: not here (Join takes each track's).
+    CHECK_EQ (glueAll (p, { one, whole }), Id (0));
+    CHECK_EQ (glueAll (p, { one }), Id (0));
+    CHECK (p == untouched);
+}
+
 TEST ("toolbox: Glue joins a note to the next of its pitch")
 {
     Project p;

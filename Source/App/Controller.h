@@ -343,6 +343,10 @@ public:
     // Clips on one track into one (decision 0081): MIDI clips' notes into one clip;
     // audio clips into a new file, normalised, the clip's gain making up for it.
     void consolidate (const std::set<Id>& clips);
+    // Join (decision 0141): the chosen clips on each track become one clip, one undo step.
+    // MIDI clips merged; pieces of one recording put back together; other audio rendered
+    // into a new file (as Consolidate). Says what it did, and what it couldn't.
+    void join (const std::set<Id>& clips);
     // The track alone through its own plug-ins at unity (its clips, or just `onlyClips`), from
     // `start` to `end` seconds and `tail` more, into a 32-bit float WAV. Nothing else is unloaded.
     bool renderTrackAudio (Id track, const std::set<Id>& onlyClips, double start, double end, double tail,

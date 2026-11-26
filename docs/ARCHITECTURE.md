@@ -161,6 +161,7 @@ performance core, each as soon as what feeds it is done (0078).
 - At most 1000 tracks, checked in `Controller::apply` (0088): a change that
   adds tracks some other way (a script, opening a file) checks too.
 - A gesture is one `Controller::apply` (one undo step). A tool's drag that shows its change as it goes ends in `Controller::applyLive` (0092).
+- In the arrangement with Select (0141): a clip moves by its name bar (`Arrange::nameBarHeight`); lower in a clip, or a lane's bottom half, a drag becomes the Range tool's range (`startRange`); a lane's top half, a box (`clipsInBox`). A press is a drag only once it has moved 3 points. A test that moves a clip drags its name bar.
 - A tool other than Select takes only the left click; right-clicks keep their menus, and Control-right-click is the toolbox's (0092).
 - A track's devices stay MIDI effects, instruments, audio effects (`edit::normaliseChain`).
 - A folder's tracks follow it in `Project::tracks` (`edit::moveTrack`).

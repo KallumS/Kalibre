@@ -212,7 +212,7 @@ What's done and what isn't, feature by feature: **[docs/FEATURES.md](docs/FEATUR
 
 ## Get it
 
-**Version 1.3.2.** Every change raises the version; what changed in each is
+**Version 1.4.0.** Every change raises the version; what changed in each is
 in [docs/CHANGES.md](docs/CHANGES.md), and About Kalibre says which you have.
 
 **Download it from [Releases](https://github.com/KallumS/Kalibre/releases)**:

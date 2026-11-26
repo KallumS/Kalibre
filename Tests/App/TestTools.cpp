@@ -79,6 +79,10 @@ struct ArrangeView
     {
         return { view.headerWidth() + roundToInt (view.timeline.x (t)), view.rulerHeight() + track * theme::px (64) + theme::px (32) };
     }
+    // A clip's name bar, where dragging moves it (0141); the upper and lower halves of a lane.
+    Point<int> bar (Tick t, int track) const { return at (t, track).withY (view.rulerHeight() + track * theme::px (64) + theme::px (9)); }
+    Point<int> upper (Tick t, int track) const { return at (t, track).withY (view.rulerHeight() + track * theme::px (64) + theme::px (14)); }
+    Point<int> lower (Tick t, int track) const { return at (t, track).withY (view.rulerHeight() + track * theme::px (64) + theme::px (50)); }
 };
 } // namespace
 
@@ -335,8 +339,8 @@ TEST ("arrange: Shift-drag anywhere on a clip resizes it from its nearer edge, o
     click (a.view, a.at (PPQ * 8, 0), shift);
     CHECK_EQ (s.c.history.size(), now);
     CHECK_EQ (s.c.project.clip (id)->length, PPQ * 9);
-    // Without Shift, the same drag still moves it.
-    drag (a.view, a.at (PPQ * 8, 0), a.at (PPQ * 9, 0));
+    // Without Shift, dragged by its name bar, it moves (0141).
+    drag (a.view, a.bar (PPQ * 8, 0), a.bar (PPQ * 9, 0));
     CHECK_EQ (s.c.project.clip (id)->start, PPQ * 6);
     CHECK_EQ (s.c.project.clip (id)->length, PPQ * 9);
 }
@@ -359,7 +363,7 @@ TEST ("arrange: dragging one of several chosen clips moves them all as far, one 
     click (a.view, a.at (PPQ * 6, 1), command);
     CHECK_EQ (s.c.selectedClips.size(), (size_t) 3);
     const auto before = s.c.history.size();
-    drag (a.view, a.at (PPQ * 2, 0), a.at (PPQ * 4, 0));   // two beats later
+    drag (a.view, a.bar (PPQ * 2, 0), a.bar (PPQ * 4, 0));   // two beats later, by its name bar (0141)
     CHECK_EQ (s.c.project.clip (first)->start, PPQ * 2);
     CHECK_EQ (s.c.project.clip (second)->start, PPQ * 10);
     CHECK_EQ (s.c.project.clip (third)->start, PPQ * 6);
@@ -367,4 +371,108 @@ TEST ("arrange: dragging one of several chosen clips moves them all as far, one 
     s.c.undo();
     CHECK_EQ (s.c.project.clip (first)->start, (Tick) 0);
     CHECK_EQ (s.c.project.clip (third)->start, PPQ * 4);
+}
+
+TEST ("arrange: a clip moves by its name bar; dragging lower in it, or in a lane's lower half, marks a time range; a click still chooses it (0141)")
+{
+    Song s;
+    ArrangeView a (s.c);
+    s.c.apply ("Clips", [&] (Project& p)
+    {
+        edit::addMidiClip (p, s.one, PPQ * 4, PPQ * 4);
+        edit::addMidiClip (p, s.two, PPQ * 4, PPQ * 4);
+    });
+    const Id clip = s.c.project.track (s.one)->clips().front().id;
+    const auto before = s.c.history.size();
+    // A click lower in the clip chooses it, as before.
+    click (a.view, a.lower (PPQ * 5, 0));
+    CHECK (s.c.selectedClips.count (clip));
+    // Dragged lower in it, across both tracks: a range from beat 5 to 7 on both, nothing moved.
+    drag (a.view, a.lower (PPQ * 5, 0), a.lower (PPQ * 7, 1));
+    CHECK_EQ (s.c.project.clip (clip)->start, PPQ * 4);
+    CHECK_EQ (s.c.history.size(), before);
+    CHECK_EQ (s.c.range.from, PPQ * 5);
+    CHECK_EQ (s.c.range.to, PPQ * 7);
+    CHECK_EQ (s.c.range.tracks.size(), (size_t) 2);
+    // In the lower half of empty space, the same (and backwards).
+    drag (a.view, a.lower (PPQ * 11, 1), a.lower (PPQ * 9, 0));
+    CHECK_EQ (s.c.range.from, PPQ * 9);
+    CHECK_EQ (s.c.range.to, PPQ * 11);
+    CHECK_EQ (s.c.range.tracks.size(), (size_t) 2);
+    // By its name bar, it moves: one undo step.
+    drag (a.view, a.bar (PPQ * 5, 0), a.bar (PPQ * 6, 0));
+    CHECK_EQ (s.c.project.clip (clip)->start, PPQ * 5);
+    CHECK_EQ (s.c.history.size(), before + 1);
+    CHECK (s.c.range.empty());
+    // A click in empty space still puts the cursor there.
+    click (a.view, a.lower (PPQ * 10, 1));
+    CHECK_EQ (s.c.cursor, PPQ * 10);
+}
+
+TEST ("arrange: dragging in a lane's upper half draws a box that chooses every clip it touches; Shift adds to what was chosen (0141)")
+{
+    Song s;
+    ArrangeView a (s.c);
+    s.c.apply ("Clips", [&] (Project& p)
+    {
+        edit::addMidiClip (p, s.one, PPQ * 2, PPQ * 2);
+        edit::addMidiClip (p, s.one, PPQ * 6, PPQ * 2);
+        edit::addMidiClip (p, s.two, PPQ * 4, PPQ * 2);
+        edit::addMidiClip (p, s.two, PPQ * 9, PPQ * 2);
+    });
+    const auto& ones = s.c.project.track (s.one)->clips();
+    const auto& twos = s.c.project.track (s.two)->clips();
+    const Id a1 = ones[0].id, a2 = ones[1].id, b1 = twos[0].id, b2 = twos[1].id;
+    const auto before = s.c.history.size();
+    // From the empty start of track one, down and along to beat 7 on track two.
+    drag (a.view, a.upper (PPQ / 2, 0), a.lower (PPQ * 7, 1));
+    CHECK_EQ (s.c.selectedClips, (std::set<Id> { a1, a2, b1 }));
+    CHECK_EQ (s.c.history.size(), before);           // choosing isn't an edit
+    CHECK (s.c.range.empty());
+    // Shift and another box: the last clip too, the others kept.
+    const ModifierKeys shift (ModifierKeys::leftButtonModifier | ModifierKeys::shiftModifier);
+    drag (a.view, a.upper (PPQ * 8, 1), a.upper (PPQ * 11, 1), shift);
+    CHECK_EQ (s.c.selectedClips, (std::set<Id> { a1, a2, b1, b2 }));
+    // A plain box elsewhere starts again.
+    drag (a.view, a.upper (PPQ * 8, 1), a.upper (PPQ * 11, 1));
+    CHECK_EQ (s.c.selectedClips, (std::set<Id> { b2 }));
+}
+
+TEST ("join: the chosen clips on each track become one clip there, notes where they played, one undo step (0141)")
+{
+    Song s;
+    s.c.apply ("Clips", [&] (Project& p)
+    {
+        const Id x = edit::addMidiClip (p, s.one, 0, PPQ * 4);
+        const Id y = edit::addMidiClip (p, s.one, PPQ * 8, PPQ * 4);
+        const Id z = edit::addMidiClip (p, s.two, PPQ * 4, PPQ * 4);
+        const Id w = edit::addMidiClip (p, s.two, PPQ * 12, PPQ * 4);
+        for (auto id : { x, y, z, w }) edit::addNote (p, id, { 0, 0, PPQ, 60 });
+    });
+    std::set<Id> all;
+    for (auto t : { s.one, s.two }) for (auto& cl : s.c.project.track (t)->clips()) all.insert (cl.id);
+    const auto before = s.c.history.size();
+    s.c.join (all);
+    CHECK_EQ (s.c.history.size(), before + 1);
+    CHECK_EQ (String (s.c.history.undoLabel()), String ("Join"));
+    const auto& ones = s.c.project.track (s.one)->clips();
+    const auto& twos = s.c.project.track (s.two)->clips();
+    CHECK_EQ (ones.size(), (size_t) 1);
+    CHECK_EQ (twos.size(), (size_t) 1);
+    if (ones.size() == 1 && twos.size() == 1)
+    {
+        CHECK_EQ (ones[0].start, (Tick) 0);
+        CHECK_EQ (ones[0].end(), PPQ * 12);
+        CHECK_EQ (ones[0].midi.notes.size(), (size_t) 2);
+        CHECK_EQ (twos[0].start, PPQ * 4);
+        CHECK_EQ (twos[0].end(), PPQ * 16);
+        CHECK_EQ (s.c.selectedClips, (std::set<Id> { ones[0].id, twos[0].id }));
+    }
+    s.c.undo();
+    CHECK_EQ (s.c.project.track (s.one)->clips().size(), (size_t) 2);
+    CHECK_EQ (s.c.project.track (s.two)->clips().size(), (size_t) 2);
+    // One clip alone on its track isn't joined; with nothing else to join, nothing changes.
+    const auto now = s.c.history.size();
+    s.c.join ({ s.c.project.track (s.one)->clips().front().id, s.c.project.track (s.two)->clips().front().id });
+    CHECK_EQ (s.c.history.size(), now);
 }

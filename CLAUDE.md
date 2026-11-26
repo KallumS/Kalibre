@@ -46,7 +46,8 @@ xvfb-run -a -s "-screen 0 1600x1000x24 -extension MIT-SHM" ./build/KalibreRender
 - **Every change raises the version** (`project(Kalibre VERSION …)` in
   `CMakeLists.txt`; 1.0.0 from 25 November, the musician's main DAW): the last
   number for a fix, the middle for something new, the first for a change to
-  how songs are kept or Kalibre is used. Add its line to `docs/CHANGES.md`.
+  how songs are kept or Kalibre is used (a changed mouse gesture is something
+  new: the musician's call, 1.4.0, 0141). Add its line to `docs/CHANGES.md`.
   Mac, Windows and Linux share it: one branch, one version (0137). Docs alone
   don't raise it (they change no Kalibre anyone runs).
 - **A release** is a tag `v<version>` on `main` (`v1.1.0`): CI builds it and

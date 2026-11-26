@@ -7,6 +7,17 @@ that alters how songs are kept or how Kalibre is used (2.0.0). Each
 version's line says what changed, in plain words; the decision records
 (`docs/decisions/`) say why.
 
+## 1.4.0 (26 November 2026)
+
+- In the arrangement, as in Ableton Live: drag a clip by its **name bar**
+  (the darker strip along its top) to move it; drag lower in it to mark a
+  time range. In the empty part of a track, drag from the top half for a
+  box that chooses every clip it touches, or from the bottom half for a
+  time range. A click in empty space still puts the cursor there.
+- **Join** (right-click a clip, Edit > Join, or ⌘J): the chosen clips on
+  each track become one, on several tracks at once, one undo step. It
+  replaces Consolidate the Chosen Clips.
+
 ## 1.3.2 (26 November 2026)
 
 - Fixed: on Windows and Linux, Kalibre's network MIDI session said yes to a
