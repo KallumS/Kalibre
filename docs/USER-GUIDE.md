@@ -56,6 +56,10 @@ On Windows: download **Kalibre-Windows.zip** from the same release, unzip
 it, keep **Kalibre.exe** and its **Scripts** folder together, and
 double-click Kalibre.exe ([On Windows](#on-windows)).
 
+On Linux: download **Kalibre-Linux.tar.gz**, unpack it, and run
+`./install.sh` in the Kalibre folder to put it in your applications menu
+([On Linux](#on-linux)).
+
 ### The first few minutes
 
 1. **Choose your audio interface.** Kalibre > Audio and MIDI Settings… (⌘,)
@@ -135,6 +139,46 @@ Help > Keys lists every key as Windows writes it.
   Activity Log.txt", in Notepad's plain text; its times are the PC's clock
   and time zone. File > Keep an Activity Log turns it off, as on the Mac.
 - Your settings, scripts and crash reports are in `%APPDATA%\Kalibre`.
+
+### On Linux
+
+Kalibre on Linux is the same program again (decision 0139), for 64-bit
+Intel and AMD computers with Ubuntu 22.04 or later, Debian 12, Fedora 37 or
+later, or a Linux of the same age. Download **Kalibre-Linux.tar.gz** from a
+release (or a build's Artifacts, **Kalibre-Linux**), unpack it anywhere
+(`tar xzf Kalibre-Linux.tar.gz`), and in the Kalibre folder run
+`./install.sh`: Kalibre is then in your applications menu and opens
+`.kalibre` songs, and `kalibre` starts it in a terminal. Nothing is written
+outside your home folder; `./install.sh --remove` takes it out of the menu
+again. Or just run `./Kalibre` from the folder.
+
+Its keys and words are Windows' (Ctrl, Alt, Enter, File > Settings, Help >
+About Kalibre), with these of its own:
+
+| On the Mac | On Linux |
+| --- | --- |
+| Kalibre > Quit (⌘Q) | **File > Quit** (Ctrl+Q) |
+| Show in Finder | **Show in File Manager** (Files, Dolphin, Thunar: whichever yours is) |
+| AU, VST3 and CLAP plug-ins | **VST3, LV2, CLAP and LADSPA** |
+| Core Audio | **JACK** (or PipeWire's JACK) for the lowest delay, or **ALSA** |
+| The Mac's network MIDI session | **Kalibre's own**, the same to an iPad or a Mac (not announced: add it on the Mac by the computer's address and port 5004) |
+
+- **Plug-ins** are found in ~/.vst3, /usr/lib/vst3 and /usr/local/lib/vst3
+  (VST3); ~/.lv2, /usr/lib/lv2 and /usr/local/lib/lv2 (LV2); ~/.clap and
+  /usr/lib/clap (CLAP); /usr/lib/ladspa (LADSPA, which has no windows of
+  its own: Kalibre shows its controls).
+- **Plug-in windows in the rack** are cut to their panel: Linux can't
+  shrink a plug-in's window, so in a short zone you see the part that fits.
+  Make the zone taller, or click ⧉ for its own window, to see it all.
+- **Audio**: in the browser's Audio tab choose **JACK** (start JACK first,
+  or install PipeWire's JACK, `pipewire-jack` on Ubuntu) or **ALSA**. MIDI
+  keyboards come through ALSA.
+- **Video**: the Video tab can't show a film's picture on Linux, and a
+  film's own sound (AAC, in an .mp4 or .mov) can't be read: bring its sound
+  in as a WAV instead.
+- **Melodyne and other ARA plug-ins** aren't made for Linux.
+- Your settings, plug-in list, pictures, scripts and crash reports are in
+  `~/.config/Kalibre`.
 
 ---
 

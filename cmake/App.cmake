@@ -274,11 +274,14 @@ elseif(WIN32)
     # A video's sound (AAC in an .mp4) read through Windows Media, as the Mac reads it through Core Audio.
     target_compile_definitions(KalibreApp PUBLIC JUCE_USE_WINDOWS_MEDIA_FORMAT=1)
 else()
-    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiRtp.cpp Source/App/PluginClipOther.cpp Source/App/FilePanelsOther.cpp
+    # Linux (decision 0139): plug-in windows cut to their panel with X's SHAPE,
+    # pictures read from the screen through X11 (0138); LV2 and LADSPA plug-ins
+    # besides VST3 and CLAP; JACK (and PipeWire's JACK) besides ALSA.
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiRtp.cpp Source/App/PluginClipLinux.cpp Source/App/FilePanelsOther.cpp
                                       Source/App/PluginPicturesLinux.cpp)
-    # A plug-in's picture read from the screen through X11 (decision 0138).
     find_package(X11 REQUIRED)
-    target_link_libraries(KalibreApp PRIVATE X11::X11)
+    target_link_libraries(KalibreApp PRIVATE X11::X11 X11::Xext)
+    target_compile_definitions(KalibreApp PUBLIC JUCE_JACK=1)
 endif()
 
 target_include_directories(KalibreApp PUBLIC
@@ -309,8 +312,8 @@ target_compile_definitions(KalibreApp PUBLIC
     JUCE_STRICT_REFCOUNTEDPOINTER=1
     JUCE_PLUGINHOST_VST3=1
     JUCE_PLUGINHOST_AU=1
-    JUCE_PLUGINHOST_LV2=0
-    JUCE_PLUGINHOST_LADSPA=0
+    JUCE_PLUGINHOST_LV2=$<IF:$<PLATFORM_ID:Linux>,1,0>
+    JUCE_PLUGINHOST_LADSPA=$<IF:$<PLATFORM_ID:Linux>,1,0>
     JUCE_PLUGINHOST_ARA=$<IF:$<BOOL:${KALIBRE_ARA}>,1,0>
     JUCE_USE_MP3AUDIOFORMAT=1
     JUCE_USE_FLAC=1

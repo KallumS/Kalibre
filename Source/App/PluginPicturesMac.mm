@@ -11,18 +11,16 @@
 
 namespace kal::pictures
 {
-using namespace juce;
-
 namespace
 {
-Image fromCG (CGImageRef cg)
+juce::Image fromCG (CGImageRef cg)
 {
     if (cg == nullptr) return {};
     const auto w = (int) CGImageGetWidth (cg), h = (int) CGImageGetHeight (cg);
     if (w <= 0 || h <= 0) return {};
-    Image out (Image::ARGB, w, h, true);
+    juce::Image out (juce::Image::ARGB, w, h, true);
     {
-        Image::BitmapData px (out, Image::BitmapData::readWrite);
+        juce::Image::BitmapData px (out, juce::Image::BitmapData::readWrite);
         auto space = CGColorSpaceCreateWithName (kCGColorSpaceSRGB);
         // JUCE's ARGB is premultiplied, blue first in memory.
         auto ctx = CGBitmapContextCreate (px.data, (size_t) w, (size_t) h, 8, (size_t) px.lineStride, space,
@@ -45,7 +43,7 @@ WindowListImage windowListImage()
 }
 } // namespace
 
-Image grabNative (Component& c)
+juce::Image grabNative (juce::Component& c)
 {
     auto* peer = c.getPeer();
     if (peer == nullptr || ! c.isShowing()) return {};
@@ -59,7 +57,7 @@ Image grabNative (Component& c)
     const auto a = top.getLocalArea (&c, c.getLocalBounds());
     const NSRect inView = NSMakeRect (a.getX() * ratio, a.getY() * ratio, a.getWidth() * ratio, a.getHeight() * ratio);
 
-    Image img;
+    juce::Image img;
     if (auto fn = windowListImage())
     {
         // In the screen's coordinates as the window server counts them: from the top left of the main screen.
@@ -67,7 +65,7 @@ Image grabNative (Component& c)
         const CGFloat mainHeight = [[[NSScreen screens] firstObject] frame].size.height;
         const CGRect r = CGRectMake (onScreen.origin.x, mainHeight - onScreen.origin.y - onScreen.size.height, onScreen.size.width, onScreen.size.height);
         if (auto cg = fn (r, kCGWindowListOptionIncludingWindow, (CGWindowID) [window windowNumber],
-                          kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution))
+                          (CGWindowImageOption) (kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution)))
         {
             img = fromCG (cg);
             CGImageRelease (cg);

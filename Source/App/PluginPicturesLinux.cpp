@@ -3,6 +3,7 @@
 // from the screen where the window gave nothing (a window drawn by OpenGL).
 
 #include "PluginPictures.h"
+#include "PluginClip.h"
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -38,8 +39,6 @@ Image fromX (XImage* xi)
     XDestroyImage (xi);
     return out;
 }
-
-int xErrors (Display*, XErrorEvent*) { return 0; }   // a window gone or off the screen: no picture, no exit
 } // namespace
 
 Image grabNative (Component& c)
@@ -49,7 +48,7 @@ Image grabNative (Component& c)
     const auto window = (::Window) (pointer_sized_uint) peer->getNativeHandle();
     Display* d = XOpenDisplay (nullptr);
     if (d == nullptr || window == 0) { if (d) XCloseDisplay (d); return {}; }
-    auto oldHandler = XSetErrorHandler (xErrors);
+    keepXErrorsQuiet();   // a window gone or off the screen: no picture, no exit
 
     Image result;
     XWindowAttributes a {};
@@ -84,7 +83,6 @@ Image grabNative (Component& c)
         }
     }
     XSync (d, False);
-    XSetErrorHandler (oldHandler);
     XCloseDisplay (d);
     return result;
 }

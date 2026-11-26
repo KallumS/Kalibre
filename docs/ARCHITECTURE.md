@@ -26,7 +26,7 @@
 | `Core/ProjectTools.*` | A project's files, relinking, templates, ID3 tags, Final Cut XML (0041). |
 | `Core/Mpe.*` | Note expression and MPE playback (0042). |
 | `Core/RtpMidi.*` | Network MIDI's packets as Apple's session speaks them (RTP-MIDI, AppleMIDI's IN, OK, BY, CK): Kalibre's own session off the Mac, `Engine/NetworkMidiRtp.cpp`, announced on Windows by `NetworkMidiDnsWin.cpp` (0129). |
-| `Core/Platform.h` | The words each system uses: Option-click or Alt+click, the Finder or File Explorer, this Mac or this PC, the Kalibre menu or File > Settings (0129); `ui::words()` in Theme.h. |
+| `Core/Platform.h` | The words each system uses: Option-click or Alt+click, the Finder, File Explorer or the file manager, this Mac, PC or computer, the Kalibre menu or File > Settings (0129, 0139); `ui::words()` in Theme.h; `wordsInstead`, the renderer's Mac words. |
 | `Core/Toolbox.*` | The tools Control-right-click chooses, each area's, their modes; Split into pieces, Glue, clearing a range, Line's shapes, Time Warp (0092). |
 | `Core/Trombolese.*` | Trombolese's voice, ported from its Python (waveguide, reed, geometry), its tables made by its own functions, and each note's partial and slide (0093). |
 | `Core/RandomSong.*` | The Random button's song: parts, instruments, effects and loops chosen by chance, music from Ideas (0101). |
@@ -93,7 +93,7 @@
 | `App/ReaperScripts.*` | The family's REAPER scripts that hand a JSFX its phrase (Midular's importer, MIDI Production Center's loaders), run unchanged with a `reaper` for this song (0093). |
 | `App/NoteOptions.h` | Velocity, note chance, random velocity range and random timing: the menu shared by the piano roll, steps and drums (0061). |
 | `App/CcLanes.*` | The CC lanes under the piano roll and notation (0060). |
-| `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; sideways swipes over the rack (0058). |
+| `App/PluginClip.*` | A plug-in's window clipped to what the rack shows and scaled to fit: a native view on the Mac; window regions on Windows (`PluginClipWin.cpp`, 0129); X's SHAPE on Linux (`PluginClipLinux.cpp`, 0139); sideways swipes over the rack (0058). |
 | `App/NoteSplitterEditor.*` | The Note Splitter's panel: its outputs and their tracks (0083). |
 | `App/PluginManagerView.*` | The Plug-in Manager and its window (0047); File As (0069); Take Pictures (0138). |
 | `App/PluginPictures.*` | Plug-ins' pictures for the browser (0138): kept in Kalibre's library by maker and name, read from the screen (`PluginPicturesMac.mm`, `PluginPicturesWin.cpp`, `PluginPicturesLinux.cpp`), and `Taker`, which opens, photographs and closes each plug-in in turn. |
@@ -107,7 +107,7 @@
 | `tools/export-chat.py` | Writes a session's transcript as the chat backup in `docs/sessions/`; a new part's title and description are its last two arguments. |
 | `Engines/` | The family's engines, JSFX (with their imports and data) and ReaScripts (`tools/`, `scripts/`), copied unchanged from their repositories (`engines.json`, `VENDORED.md`), embedded in the app. `tools/update_engines.py` brings them up to date (docs/UPDATING-ENGINES.md). |
 | `Scripts/` | Example scripts. |
-| `Resources/` | The app icon: `Icon.svg`, and `Icon.png` drawn from it (0048). |
+| `Resources/` | The app icon: `Icon.svg`, and `Icon.png` drawn from it (0048); `linux/`, what Linux's download holds beside the program: `install.sh`, the `.desktop` entry, the icon and the `.kalibre` file type (0139). |
 | `ThirdParty/` | Lua 5.4 (MIT), nlohmann/json (MIT) Instant Virtual Instrument's and ScaleView's source (GPL-3.0, 0067, 0093). JUCE, the CLAP SDK, Signalsmith Stretch, the ARA SDK, Ableton Link, Shine (LGPL, MP3), ysfx (Apache-2.0, 0066) and Dear ImGui (MIT, 0068) are fetched by CMake. |
 
 ## How sound flows

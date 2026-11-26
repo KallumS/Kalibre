@@ -3,6 +3,7 @@
 #include "CrashReports.h"
 #include "MainComponent.h"
 #include "MainWindow.h"
+#include "PluginClip.h"
 #include "McpServer.h"
 #include <iostream>
 
@@ -38,6 +39,9 @@ public:
         controller = std::make_unique<Controller> (*engine);
         window = std::make_unique<MainWindow> (*controller);
         window->content->startBattlePass();   // unseen until its secret (0111)
+       #if JUCE_LINUX
+        keepXErrorsQuiet();   // an X error is noted, never the end of Kalibre (0139)
+       #endif
        #if JUCE_MAC
         window->extraAppMenu = window->content->appMenu();
         MenuBarModel::setMacMainMenu (window->content, &window->extraAppMenu);

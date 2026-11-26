@@ -519,7 +519,9 @@ void MainComponent::registerKeys()
     keys.add ("delete2", "Delete (Forward)", K (K::deleteKey), [this] { c.deleteSelection(); });
     keys.add ("undo", "Undo", K ('z', cmd, 0), [this] { c.undo(); });
     keys.add ("redo", "Redo", K ('z', cmd | shift, 0), [this] { c.redo(); });
-    if (platform::windows) keys.add ("redo2", "Redo (Ctrl+Y)", K ('y', cmd, 0), [this] { c.redo(); });   // Windows' own (0129)
+    // Linux's Quit, as its programs have it (0139); the Mac's is the system's, Windows' Alt+F4.
+    if (platform::linuxOs) keys.add ("quit", "Quit Kalibre", K ('q', cmd, 0), [] { JUCEApplication::getInstance()->systemRequestedQuit(); });
+    if (! platform::macOs) keys.add ("redo2", "Redo (Ctrl+Y)", K ('y', cmd, 0), [this] { c.redo(); });   // Windows' and Linux's own (0129, 0139)
     keys.add ("save", "Save", K ('s', cmd, 0), [this] { saveFile(); });
     keys.add ("saveAs", "Save As", K ('s', cmd | shift, 0), [this] { c.file = File(); saveFile(); });
     keys.add ("open", "Open", K ('o', cmd, 0), [this] { openFile(); });
@@ -818,7 +820,7 @@ void MainComponent::showShortcuts()
 {
     c.say ("Space play/stop " + ui::u8 ("\xc2\xb7") + " R record " + ui::u8 ("\xc2\xb7") + " L loop " + ui::u8 ("\xc2\xb7")
            + " " + ui::words().returnKey + " to start " + ui::u8 ("\xc2\xb7") + " Q quantise " + ui::u8 ("\xc2\xb7") + " D/E/X devices, editor, mixer "
-           + ui::u8 ("\xc2\xb7") + " F fit " + ui::u8 ("\xc2\xb7") + " M/S mute, solo " + ui::u8 ("\xc2\xb7") + " " + (platform::windows ? String ("Ctrl+Shift+R") : String ("Shift-Command-R")) + " capture MIDI");
+           + ui::u8 ("\xc2\xb7") + " F fit " + ui::u8 ("\xc2\xb7") + " M/S mute, solo " + ui::u8 ("\xc2\xb7") + " " + (! platform::macOs ? String ("Ctrl+Shift+R") : String ("Shift-Command-R")) + " capture MIDI");
 }
 
 } // namespace kal

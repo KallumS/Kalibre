@@ -308,6 +308,12 @@ public:
         editor->setTopLeftPosition (0, 0);
         if (size.isEmpty()) size = natural;
         fitted = { size, jmin (1.0f, (float) box.getWidth() / (float) size.getWidth(), (float) box.getHeight() / (float) size.getHeight()) };
+       #if JUCE_LINUX
+        // On Linux a plug-in's own window is an X window, which nothing can scale (0139):
+        // shown at its size, the part that fits (PluginClipLinux cuts it to the panel).
+        // Asking a VST3 to draw smaller, as on Windows, sent one shrinking towards nothing.
+        if (! ours) fitted.scale = 1.0f;
+       #endif
         fittedBox = box;
         return fitted;
     }

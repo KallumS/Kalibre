@@ -70,6 +70,8 @@ void playFor (Engine& e, double seconds)
 
 int main (int argc, char** argv)
 {
+    // The user guide's pictures in the Mac's words, wherever they're drawn (0139).
+    platform::wordsInstead() = &platform::mac;
     ScopedJuceInitialiser_GUI gui;
     theme::LookAndFeel look;
     LookAndFeel::setDefaultLookAndFeel (&look);
