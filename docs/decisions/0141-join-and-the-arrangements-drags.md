@@ -35,8 +35,9 @@ range.
   gain making up for it. A track with one chosen clip is left alone; a MIDI
   clip with an audio one, a locked clip or a frozen track's audio can't be
   joined, and the message line says which and why.
-- The version's first number goes up (2.0.0): how clips are moved, a gesture
-  used all the time, changed.
+- The version is 1.4.0, something new. It was first made 2.0.0, as how clips
+  are moved had changed; the musician chose 1.4.0: a changed gesture isn't a
+  change to how Kalibre is used in the sense the first number keeps for.
 
 ## Consequences
 

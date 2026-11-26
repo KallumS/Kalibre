@@ -7,9 +7,7 @@ that alters how songs are kept or how Kalibre is used (2.0.0). Each
 version's line says what changed, in plain words; the decision records
 (`docs/decisions/`) say why.
 
-## 2.0.0 (26 November 2026)
-
-The first number goes up: how clips are moved changed (0141).
+## 1.4.0 (26 November 2026)
 
 - In the arrangement, as in Ableton Live: drag a clip by its **name bar**
   (the darker strip along its top) to move it; drag lower in it to mark a

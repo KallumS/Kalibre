@@ -843,7 +843,7 @@ TEST ("window: View > Text Size offers 50%, 75%, 90%, 100%, 110%, 125%, 150% and
 
 TEST ("window: Kalibre is version 1 (the musician's main DAW from 25 November); About Kalibre, first in the Kalibre menu, says which")
 {
-    CHECK (String (KALIBRE_VERSION).upToFirstOccurrenceOf (".", false, false).getIntValue() >= 1);   // version 1 or later (2.0.0: 0141)
+    CHECK (String (KALIBRE_VERSION).startsWith ("1."));
     PluginManager plugins;
     Engine engine (plugins);
     Controller c (engine);
