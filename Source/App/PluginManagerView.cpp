@@ -36,7 +36,7 @@ PluginManagerView::PluginManagerView (Controller& ctrl) : c (ctrl)
     search.setTextToShowWhenEmpty ("Search by name, maker or format", theme::textSecondary);
     search.onTextChange = [this] { refresh(); };
     addAndMakeVisible (search);
-    for (auto* b : { &scanNew, &scanAgain, &turnOff, &turnOn, &reveal, &onlyOff, &report, &allKinds, &midiKind, &instrumentKind, &effectKind }) addAndMakeVisible (b);
+    for (auto* b : { &scanNew, &scanAgain, &turnOff, &turnOn, &reveal, &onlyOff, &report, &takePictures, &allKinds, &midiKind, &instrumentKind, &effectKind }) addAndMakeVisible (b);
     for (auto [b, kind] : { std::pair<theme::HouseButton*, std::optional<DeviceRole>> { &allKinds, std::nullopt }, { &midiKind, DeviceRole::MidiFx },
                             { &instrumentKind, DeviceRole::Instrument }, { &effectKind, DeviceRole::AudioFx } })
     {
@@ -98,6 +98,16 @@ PluginManagerView::PluginManagerView (Controller& ctrl) : c (ctrl)
         if (! ch.empty()) File (ch.front()->file).revealToUser();
     };
     onlyOff.onClick = [this] { refresh(); };
+    takePictures.onClick = [this]
+    {
+        if (taker && taker->busy()) { taker->stop(); return; }
+        // Every plug-in that's on and has no picture: one of each, its formats share it.
+        std::vector<PluginDescription> todo;
+        for (auto& d : c.engine.plugins().known().getTypes())
+            if (! pictures::has (d)) todo.push_back (d);
+        if (todo.empty()) { c.say ("Every plug-in has a picture. To take one again, right-click it here and choose Take Its Picture Again."); return; }
+        startPictures (std::move (todo));
+    };
 
     c.engine.plugins().known().addChangeListener (this);
     c.addChangeListener (this);
@@ -106,6 +116,7 @@ PluginManagerView::PluginManagerView (Controller& ctrl) : c (ctrl)
 
 PluginManagerView::~PluginManagerView()
 {
+    taker.reset();
     c.engine.plugins().known().removeChangeListener (this);
     c.removeChangeListener (this);
 }
@@ -115,6 +126,40 @@ void PluginManagerView::changeListenerCallback (ChangeBroadcaster* from)
     if (! isShowing()) return;
     if (from == &c) { updateButtons(); return; }
     refresh();
+}
+
+void PluginManagerView::startPictures (std::vector<PluginDescription> list)
+{
+    if (taker && taker->busy()) return;
+    // One picture each: a plug-in's VST3, AU and CLAP look the same.
+    std::vector<PluginDescription> todo;
+    StringArray files;
+    for (auto& d : list)
+        if (files.addIfNotAlreadyThere (pictures::fileFor (d).getFullPathName())) todo.push_back (d);
+    double rate = 48000.0;
+    if (auto* dev = c.engine.devices().getCurrentAudioDevice()) rate = dev->getCurrentSampleRate();
+    taker = std::make_unique<pictures::Taker> (c.engine.plugins(), rate);
+    SafePointer<PluginManagerView> safe (this);
+    taker->start (std::move (todo),
+        [safe] (int done, int total, const String& name)
+        {
+            if (! safe) return;
+            safe->takingNow = String (done) + " of " + String (total) + ": " + name;
+            safe->updateButtons();
+        },
+        [safe] (const pictures::Taker::Summary& s)
+        {
+            if (! safe) return;
+            safe->takingNow = {};
+            safe->updateButtons();
+            String said = s.stopped ? "Stopped taking pictures. " : String();
+            said << "Took " << (s.taken == 1 ? String ("a picture of 1 plug-in") : "pictures of " + String (s.taken) + " plug-ins")
+                 << (s.taken > 0 ? ": they're in the browser, under each one's name." : String ("."));
+            if (s.noWindow > 0) said << " " << s.noWindow << (s.noWindow == 1 ? " has" : " have") << " no window of its own.";
+            if (! s.problems.isEmpty()) said << " No picture of " << s.problems.joinIntoString ("; ") << ".";
+            safe->c.say (said, s.failed + s.skipped > 0);
+        });
+    updateButtons();
 }
 
 void PluginManagerView::refresh()
@@ -215,6 +260,9 @@ void PluginManagerView::updateButtons()
     turnOn.setEnabled (anyOff && ! busy);
     reveal.setEnabled (ch.size() == 1 && aFile);
     report.setEnabled (! busy && ! c.engine.plugins().readingControls());
+    const bool taking = taker && taker->busy();
+    takePictures.setButtonText (taking ? "Stop Taking Pictures" : "Take Pictures");
+    takePictures.setEnabled (taking || ! busy);
     resized();
     repaint (infoArea);
 }
@@ -273,6 +321,12 @@ void PluginManagerView::showFileAsMenu()
     bool anyByHand = false;
     for (auto& d : ds) anyByHand |= pm.filedByHand (d);
     m.addItem ("As Kalibre Finds It", anyByHand, false, [fileAs] { fileAs (std::nullopt); });
+    // Pictures (0138): taken again, or for the first time, for the chosen ones.
+    m.addSeparator();
+    bool anyPicture = false;
+    for (auto& d : ds) anyPicture |= pictures::has (d);
+    m.addItem (ds.size() == 1 ? (anyPicture ? "Take Its Picture Again" : "Take Its Picture") : (anyPicture ? "Take Their Pictures Again" : "Take Their Pictures"),
+               ! (taker && taker->busy()), false, [this, ds] { startPictures (ds); });
     m.showMenuAsync (PopupMenu::Options().withMousePosition());
 }
 
@@ -334,7 +388,8 @@ void PluginManagerView::paint (Graphics& g)
     auto& pm = c.engine.plugins();
     const auto ch = chosen();
     String info;
-    if (ch.size() == 1)
+    if (takingNow.isNotEmpty()) info = "Taking pictures, " + takingNow + ". Each plug-in opens in a window of its own for a moment.";
+    else if (ch.size() == 1)
     {
         const auto& r = *ch.front();
         info = r.name + ": " + (r.on ? String ("on") : PluginManager::describe (r.reason).toLowerCase())
@@ -379,6 +434,7 @@ void PluginManagerView::resized()
     place (reveal);
     bar.removeFromLeft (theme::px (8));
     place (report);
+    place (takePictures);
     // The second row: which kind, the turned off, the search.
     r.removeFromTop (theme::px (4));
     bar = r.removeFromTop (theme::px (24));

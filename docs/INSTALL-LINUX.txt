@@ -1,0 +1,37 @@
+Kalibre for Linux
+=================
+
+For 64-bit Intel and AMD computers (x86-64) with Ubuntu 22.04 or later,
+Debian 12, Fedora 37 or later, or another Linux of the same age.
+
+1. Unpack Kalibre-Linux.tar.gz anywhere you like, for example in your home
+   folder:  tar xzf Kalibre-Linux.tar.gz
+   Keep Kalibre and the files beside it together.
+2. Open a terminal in the Kalibre folder and run  ./install.sh
+   Kalibre is then in your applications menu (under Sound & Video), and
+   .kalibre songs open with it. Nothing is written outside your home
+   folder. (Or just run ./Kalibre from the folder.)
+3. Choose File > Settings > Plug-in Manager... and click Scan for New
+   Plug-ins. Your VST3, LV2, CLAP and LADSPA plug-ins are found once and
+   remembered: VST3 in ~/.vst3, /usr/lib/vst3 and /usr/local/lib/vst3; LV2
+   in ~/.lv2, /usr/lib/lv2 and /usr/local/lib/lv2; CLAP in ~/.clap and
+   /usr/lib/clap; LADSPA in /usr/lib/ladspa.
+4. Audio and MIDI Settings are under File > Settings, and appear in the
+   browser on the left of the window. Choose JACK for the lowest delay
+   (PipeWire's JACK works too: on Ubuntu, install pipewire-jack), or ALSA.
+
+If it doesn't start, these may be missing (Ubuntu and Debian names):
+   sudo apt install libasound2 libfreetype6 libfontconfig1 libx11-6 libxext6 libxrandr2 libxinerama1 libxcursor1
+For JACK: sudo apt install libjack-jackd2-0 (or pipewire-jack).
+
+Keys: where the Mac's guide says Command, press Ctrl; Option is Alt; Return
+is Enter; Quit is Ctrl+Q. Help > Keys... lists every key as Linux writes it.
+
+If Kalibre ever quits unexpectedly, it says so next time; Help > Show Crash
+Reports has the report, and File > Open a Backup has your song from up to 15
+minutes before.
+
+Your settings, plug-in list, pictures and scripts are in ~/.config/Kalibre.
+Scripts: Scripts > Add the Example Scripts puts a few in the Scripts menu.
+
+To take Kalibre out of the menu: ./install.sh --remove, then delete the folder.

@@ -62,4 +62,11 @@ private:
 // mouseWheelMove sees the swipes.
 std::shared_ptr<void> watchSidewaysSwipes (juce::Component& area, std::function<bool (float)> moved);
 
+#if JUCE_LINUX
+// X's errors (a plug-in's window gone, a size it can't take) noted and passed
+// over: X's own handler ends the program (0139). Set as Kalibre starts, and
+// again before Kalibre's own X calls, in case a plug-in left its own in place.
+void keepXErrorsQuiet();
+#endif
+
 } // namespace kal

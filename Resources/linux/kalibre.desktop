@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Kalibre
+GenericName=Digital Audio Workstation
+Comment=Make music: record, arrange, edit and mix, with your plug-ins
+Exec="KALIBRE_DIR/Kalibre" %f
+Icon=kalibre
+Terminal=false
+Categories=AudioVideo;Audio;Midi;Sequencer;Music;
+MimeType=application/x-kalibre;
+StartupWMClass=Kalibre

@@ -57,6 +57,12 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
         lowerShown = s->getBoolValue ("lowerShown", true);
         browserWidth = s->getIntValue ("browserWidth", defaultBrowserWidth);
         browserShown = s->getBoolValue ("browser", false);
+        {
+            // The Plug-ins tab's headings as they were left, folded or open (0138).
+            const auto shut = s->getValue ("pluginHeadingsShut");
+            browser.setShutHeadings ({ shut.contains ("0"), shut.contains ("1"), shut.contains ("2") });
+            browser.showPictures (s->getBoolValue ("pluginPictures", true));
+        }
         c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
         c.workClock.setAwayMinutes (s->getIntValue ("awayMinutes", 3));
         c.hiddenInTopBar.addTokens (s->getValue ("hiddenInTopBar"), "|", {});
@@ -101,6 +107,13 @@ MainComponent::~MainComponent()
         s->setValue ("lowerShown", lowerShown);
         s->setValue ("browserWidth", browserWidth);
         s->setValue ("browser", browserShown);
+        {
+            String shut;
+            const auto h = browser.shutHeadings();
+            for (int i = 0; i < 3; ++i) if (h[(size_t) i]) shut << i;
+            s->setValue ("pluginHeadingsShut", shut);
+            s->setValue ("pluginPictures", browser.picturesShown());
+        }
         s->setValue ("zeroCrossings", c.zeroCrossings);
         s->setValue ("awayMinutes", (int) std::lround (c.workClock.awayAfter / 60.0));
         s->setValue ("hiddenInTopBar", c.hiddenInTopBar.joinIntoString ("|"));
@@ -506,7 +519,9 @@ void MainComponent::registerKeys()
     keys.add ("delete2", "Delete (Forward)", K (K::deleteKey), [this] { c.deleteSelection(); });
     keys.add ("undo", "Undo", K ('z', cmd, 0), [this] { c.undo(); });
     keys.add ("redo", "Redo", K ('z', cmd | shift, 0), [this] { c.redo(); });
-    if (platform::windows) keys.add ("redo2", "Redo (Ctrl+Y)", K ('y', cmd, 0), [this] { c.redo(); });   // Windows' own (0129)
+    // Linux's Quit, as its programs have it (0139); the Mac's is the system's, Windows' Alt+F4.
+    if (platform::linuxOs) keys.add ("quit", "Quit Kalibre", K ('q', cmd, 0), [] { JUCEApplication::getInstance()->systemRequestedQuit(); });
+    if (! platform::macOs) keys.add ("redo2", "Redo (Ctrl+Y)", K ('y', cmd, 0), [this] { c.redo(); });   // Windows' and Linux's own (0129, 0139)
     keys.add ("save", "Save", K ('s', cmd, 0), [this] { saveFile(); });
     keys.add ("saveAs", "Save As", K ('s', cmd | shift, 0), [this] { c.file = File(); saveFile(); });
     keys.add ("open", "Open", K ('o', cmd, 0), [this] { openFile(); });
@@ -805,7 +820,7 @@ void MainComponent::showShortcuts()
 {
     c.say ("Space play/stop " + ui::u8 ("\xc2\xb7") + " R record " + ui::u8 ("\xc2\xb7") + " L loop " + ui::u8 ("\xc2\xb7")
            + " " + ui::words().returnKey + " to start " + ui::u8 ("\xc2\xb7") + " Q quantise " + ui::u8 ("\xc2\xb7") + " D/E/X devices, editor, mixer "
-           + ui::u8 ("\xc2\xb7") + " F fit " + ui::u8 ("\xc2\xb7") + " M/S mute, solo " + ui::u8 ("\xc2\xb7") + " " + (platform::windows ? String ("Ctrl+Shift+R") : String ("Shift-Command-R")) + " capture MIDI");
+           + ui::u8 ("\xc2\xb7") + " F fit " + ui::u8 ("\xc2\xb7") + " M/S mute, solo " + ui::u8 ("\xc2\xb7") + " " + (! platform::macOs ? String ("Ctrl+Shift+R") : String ("Shift-Command-R")) + " capture MIDI");
 }
 
 } // namespace kal

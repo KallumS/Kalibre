@@ -1,6 +1,6 @@
 # Kalibre
 
-A DAW for Apple silicon Macs, and Windows PCs (0129), made to be exactly right for one musician, and
+A DAW for Apple silicon Macs, Windows PCs (0129) and Linux (0139), made to be exactly right for one musician, and
 so maybe for others. Everything happens in one window: the plug-ins you use
 sit side by side under your tracks, their own windows inside Kalibre's, and
 grow and shrink with it.
@@ -9,7 +9,7 @@ grow and shrink with it.
 
 ## What's in it
 
-- **AU, VST3 and CLAP** plug-ins, hosted side by side, with **plug-in delay
+- **AU, VST3 and CLAP** plug-ins (on Linux VST3, LV2, CLAP and LADSPA), hosted side by side, with **plug-in delay
   compensation** so they stay in time; switch one **off** and it's unloaded
   from memory with its settings kept. Each is **fitted to the rack**, shown
   smaller if it must be, never stretched; swipe sideways with two fingers to
@@ -212,19 +212,22 @@ What's done and what isn't, feature by feature: **[docs/FEATURES.md](docs/FEATUR
 
 ## Get it
 
-**Version 1.1.0.** Every change raises the version; what changed in each is
+**Version 1.3.0.** Every change raises the version; what changed in each is
 in [docs/CHANGES.md](docs/CHANGES.md), and About Kalibre says which you have.
 
 **Download it from [Releases](https://github.com/KallumS/Kalibre/releases)**:
 **Kalibre-macOS.dmg** for an Apple silicon Mac, **Kalibre-Windows.zip** for a
-Windows PC. Between releases, every push is built too: the latest **Build**
-run under **Actions** has both as Artifacts.
+Windows PC, **Kalibre-Linux.tar.gz** for Linux (64-bit, Ubuntu 22.04 or
+later and the like). Between releases, every push is built too: the latest
+**Build** run under **Actions** has all three as Artifacts.
 
 On the Mac, open the `.dmg`, drag Kalibre into Applications, and the first
 time right-click it and choose **Open**. On Windows, unzip it, keep
 **Kalibre.exe** and its **Scripts** folder together, and double-click
-Kalibre.exe. Then **Plug-in Manager…** (Kalibre menu on the Mac, File >
-Settings on Windows) and **Scan for New Plug-ins**.
+Kalibre.exe. On Linux, unpack it and run `./install.sh` in the Kalibre
+folder ([docs/INSTALL-LINUX.txt](docs/INSTALL-LINUX.txt)). Then **Plug-in
+Manager…** (Kalibre menu on the Mac, File > Settings on Windows and Linux)
+and **Scan for New Plug-ins**.
 
 Or build it on your Mac: double-click `build-mac.command` (needs Xcode's
 Command Line Tools and CMake).

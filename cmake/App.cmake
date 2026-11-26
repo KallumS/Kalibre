@@ -206,6 +206,7 @@ add_library(KalibreApp STATIC
     Source/App/OfflineFxView.cpp
     Source/App/MetersView.cpp
     Source/App/PluginManagerView.cpp
+    Source/App/PluginPictures.cpp
     Source/App/ArticulationManagerView.cpp
     Source/App/NoteSplitterEditor.cpp
     Source/App/CrashReports.cpp
@@ -259,20 +260,28 @@ set_source_files_properties(${IVI_SOURCES} Source/Engine/InstantVirtualInstrumen
     COMPILE_DEFINITIONS "JucePlugin_Name=\"Instant Virtual Instrument\"")
 
 if(APPLE)
-    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm Source/App/PluginClipMac.mm Source/App/FilePanelsMac.mm)
+    target_sources(KalibreApp PRIVATE Source/Engine/ClapGuiMac.mm Source/Engine/NetworkMidiMac.mm Source/App/PluginClipMac.mm Source/App/FilePanelsMac.mm
+                                      Source/App/PluginPicturesMac.mm)
     target_link_libraries(KalibreApp PRIVATE "-framework CoreMIDI")
     target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab (decision 0046)
 elseif(WIN32)
     # Windows (decision 0129): the scanner's helper, CLAP windows and crash reports of its own.
     target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiRtp.cpp Source/Engine/NetworkMidiDnsWin.cpp Source/App/PluginClipWin.cpp
                                       Source/App/FilePanelsOther.cpp Source/Engine/HelperProcessWin.cpp Source/Engine/ClapGuiWin.cpp
-                                      Source/App/CrashReportsWin.cpp)
+                                      Source/App/CrashReportsWin.cpp Source/App/PluginPicturesWin.cpp)
     target_link_libraries(KalibreApp PRIVATE dnsapi)   # the network MIDI session announced (0129)
     target_link_libraries(KalibreApp PUBLIC juce::juce_video)   # the Video tab's picture, through DirectShow (0129)
     # A video's sound (AAC in an .mp4) read through Windows Media, as the Mac reads it through Core Audio.
     target_compile_definitions(KalibreApp PUBLIC JUCE_USE_WINDOWS_MEDIA_FORMAT=1)
 else()
-    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiRtp.cpp Source/App/PluginClipOther.cpp Source/App/FilePanelsOther.cpp)
+    # Linux (decision 0139): plug-in windows cut to their panel with X's SHAPE,
+    # pictures read from the screen through X11 (0138); LV2 and LADSPA plug-ins
+    # besides VST3 and CLAP; JACK (and PipeWire's JACK) besides ALSA.
+    target_sources(KalibreApp PRIVATE Source/Engine/NetworkMidiRtp.cpp Source/App/PluginClipLinux.cpp Source/App/FilePanelsOther.cpp
+                                      Source/App/PluginPicturesLinux.cpp)
+    find_package(X11 REQUIRED)
+    target_link_libraries(KalibreApp PRIVATE X11::X11 X11::Xext)
+    target_compile_definitions(KalibreApp PUBLIC JUCE_JACK=1)
 endif()
 
 target_include_directories(KalibreApp PUBLIC
@@ -303,8 +312,8 @@ target_compile_definitions(KalibreApp PUBLIC
     JUCE_STRICT_REFCOUNTEDPOINTER=1
     JUCE_PLUGINHOST_VST3=1
     JUCE_PLUGINHOST_AU=1
-    JUCE_PLUGINHOST_LV2=0
-    JUCE_PLUGINHOST_LADSPA=0
+    JUCE_PLUGINHOST_LV2=$<IF:$<PLATFORM_ID:Linux>,1,0>
+    JUCE_PLUGINHOST_LADSPA=$<IF:$<PLATFORM_ID:Linux>,1,0>
     JUCE_PLUGINHOST_ARA=$<IF:$<BOOL:${KALIBRE_ARA}>,1,0>
     JUCE_USE_MP3AUDIOFORMAT=1
     JUCE_USE_FLAC=1
@@ -346,7 +355,7 @@ if(KALIBRE_BUILD_TESTS)
     target_sources(KalibreAppTests PRIVATE Tests/App/TestAppMain.cpp Tests/App/TestEngine.cpp Tests/App/TestWindow.cpp Tests/App/TestSurfaces.cpp Tests/App/TestBattlePass.cpp
     Tests/App/TestFiles.cpp Tests/App/TestPlugins.cpp Tests/App/TestTrackKinds.cpp Tests/App/TestContainer.cpp Tests/App/TestTools.cpp Tests/App/TestFamilyDevices.cpp
     Tests/App/TestNeutral.cpp Tests/App/TestLibrary.cpp Tests/App/TestAgents.cpp Tests/App/TestRandom.cpp Tests/App/TestDrums.cpp Tests/App/TestDrumPads.cpp Tests/App/TestNetworkMidi.cpp
-    Tests/App/TestUatFound.cpp Tests/App/TestActivityLog.cpp)
+    Tests/App/TestUatFound.cpp Tests/App/TestActivityLog.cpp Tests/App/TestPictures.cpp)
     target_include_directories(KalibreAppTests PRIVATE Tests)
     if(WIN32)
         target_sources(KalibreAppTests PRIVATE Tests/App/TestCrashWin.cpp)

@@ -7,6 +7,23 @@ that alters how songs are kept or how Kalibre is used (2.0.0). Each
 version's line says what changed, in plain words; the decision records
 (`docs/decisions/`) say why.
 
+## 1.3.0 (26 November 2026)
+
+- Kalibre for Linux (0139): **Kalibre-Linux.tar.gz** beside the Mac's and
+  Windows' downloads, with an installer for the applications menu. VST3,
+  LV2, CLAP and LADSPA plug-ins; JACK and ALSA; Linux's keys and words.
+  On the Mac and Windows nothing changes.
+
+## 1.2.0 (26 November 2026)
+
+- Plug-in pictures (0138): each plug-in can have a picture of its window,
+  shown under its name in the browser's Plug-ins tab. The Plug-in Manager's
+  **Take Pictures** opens each plug-in in turn, takes its picture and closes
+  it; the camera button on a plug-in's panel takes a new one. **Pictures**,
+  beside Scan, hides them. Kept in Kalibre's library, Plug-in Pictures.
+- The Plug-ins tab's headings (MIDI Effects, Instruments, Audio Effects)
+  fold away when clicked, and Kalibre remembers which.
+
 ## 1.1.0 (25 November 2026)
 
 - The Mac and Windows versions are one: `main` holds both, and every build

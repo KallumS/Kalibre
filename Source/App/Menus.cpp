@@ -62,8 +62,8 @@ String MainComponent::aboutText()
 PopupMenu MainComponent::appMenu()
 {
     PopupMenu m;
-   #if ! JUCE_WINDOWS
-    // First in the Kalibre menu, as on every Mac app; on Windows it's Help's (0136).
+   #if JUCE_MAC
+    // First in the Kalibre menu, as on every Mac app; on Windows and Linux it's Help's (0136, 0139).
     m.addItem (item ("About Kalibre", [] { showAbout(); }));
     m.addSeparator();
    #endif
@@ -113,7 +113,7 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             }
             if (found.isEmpty()) backups.addItem (item ("No backups yet: one is made every 15 minutes while there are changes", [] {}, {}, false));
             backups.addSeparator();
-            backups.addItem (item (platform::windows ? "Show Backups in File Explorer" : "Show Backups in Finder", [this]
+            backups.addItem (item (String (ui::words().showInFiles).replace ("Show in", "Show Backups in"), [this]
             {
                 auto folder = c.backupsFolder();
                 folder.createDirectory();
@@ -251,8 +251,9 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
             m.addSubMenu ("Settings", appMenu());
             m.addItem (item ("Exit", [] { JUCEApplication::getInstance()->systemRequestedQuit(); }, "Alt+F4"));
            #elif ! JUCE_MAC
+            // Linux (decision 0139): settings in File > Settings too; Quit on Ctrl+Q, as Linux programs have it.
             m.addSeparator();
-            m.addSubMenu ("Kalibre", appMenu());
+            m.addSubMenu ("Settings", appMenu());
             m.addItem (item ("Quit", [] { JUCEApplication::getInstance()->systemRequestedQuit(); }, cmd ("Q")));
            #endif
             break;
@@ -569,8 +570,8 @@ PopupMenu MainComponent::getMenuForIndex (int index, const String&)
         }
         case 7:   // Help
         {
-           #if JUCE_WINDOWS
-            m.addItem (item ("About Kalibre", [] { showAbout(); }));   // where Windows programs keep it (0136)
+           #if ! JUCE_MAC
+            m.addItem (item ("About Kalibre", [] { showAbout(); }));   // where Windows and Linux programs keep it (0136, 0139)
             m.addSeparator();
            #endif
             m.addItem (item (ui::u8 ("Keys\xe2\x80\xa6"), [this] { showKeys(); }));

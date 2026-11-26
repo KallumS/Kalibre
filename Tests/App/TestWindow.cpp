@@ -848,8 +848,8 @@ TEST ("window: Kalibre is version 1 (the musician's main DAW from 25 November); 
     Engine engine (plugins);
     Controller c (engine);
     MainComponent w (c);
-   #if JUCE_WINDOWS
-    const auto app = w.getMenuForIndex (7, "Help");   // Windows keeps it in Help
+   #if ! JUCE_MAC
+    const auto app = w.getMenuForIndex (7, "Help");   // Windows and Linux keep it in Help (0139)
    #else
     const auto app = w.appMenu();
    #endif

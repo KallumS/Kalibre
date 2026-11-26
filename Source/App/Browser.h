@@ -5,7 +5,8 @@
     Presets (decision 0039): the saved presets of the chosen track's
     plug-ins; double-click one to load it.
     Plug-ins: search by name or maker; drag one onto a track, or double-click
-    to add it to the chosen track. Sounds (decision 0094): the samples and
+    to add it to the chosen track; a heading folds its plug-ins away, and a
+    plug-in with a picture (0138) shows it under its name. Sounds (decision 0094): the samples and
     MIDI files in the folders chosen, to hear, keep as favourites, and drag
     onto a track (LibraryView). Audio: the interface, sample rate and buffer size.
     The keys and the studio were tabs here too; they're settings windows of
@@ -19,6 +20,8 @@
 #include "Theme.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
+
+#include <array>
 
 namespace kal
 {
@@ -38,6 +41,14 @@ public:
     Tab shownTab() const { return tab; }
     LibraryView& library() { return *sounds; }
     juce::ListBox& pluginList() { return pluginBox; }   // tests
+    // The Plug-ins tab's headings folded away (0138): MIDI Effects, Instruments,
+    // Audio Effects. Kept between starts (MainComponent).
+    std::array<bool, 3> shutHeadings() const;
+    void setShutHeadings (std::array<bool, 3>);
+    void toggleHeading (int role);
+    // Plug-ins' pictures under their names (0138), or names only. Kept between starts.
+    bool picturesShown() const;
+    void showPictures (bool);
 
 private:
     Controller& c;
@@ -46,6 +57,8 @@ private:
     theme::HouseButton audioTab { "Audio", "The audio interface, sample rate and buffer size." };
     theme::HouseButton presetsTab { "Presets", "Saved presets for the chosen track's plug-ins." };
     theme::HouseButton scan { ui::u8 ("Scan"), "Look for plug-ins installed since the last scan." };
+    theme::HouseButton picturesButton { "Pictures", "Show each plug-in's picture under its name. Off: names only. "
+                                                    "Pictures are taken in the Plug-in Manager, or with the camera button on a plug-in.", true };
     juce::TextEditor search;
 
     struct PluginList;
@@ -61,6 +74,7 @@ private:
     juce::ListBox pluginBox;
     Tab tab = Tab::Plugins;
 
+    void refreshPlugins();
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
 };
 
