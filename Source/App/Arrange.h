@@ -3,10 +3,13 @@
     the tempo lane), the chord lane, every track's header and lane, its
     automation lanes under it, and the playhead.
 
-    Clips: click to choose (a MIDI clip opens in the editor below), drag to
-    move (onto another track too), drag an edge to trim, Option-drag to
-    copy, double-click empty space for a new MIDI clip a bar long. Right-click
-    a clip for what else it can do: split, loop, warp, offline effects.
+    Clips: click to choose (a MIDI clip opens in the editor below), drag by
+    the name bar to move (onto another track too), drag an edge to trim,
+    Option-drag to copy, double-click empty space for a new MIDI clip a bar
+    long. Dragging lower in a clip, or in the lower half of empty space,
+    marks a time range; in the upper half of empty space, a box chooses the
+    clips it touches (decision 0141). Right-click a clip for what else it can
+    do: join, split, loop, warp, offline effects.
 
     Tools (decision 0092): Control-right-click opens the toolbox; a tool
     other than Select takes the left click in the lanes (ArrangeTools.cpp).
@@ -152,7 +155,11 @@ private:
     juce::uint32 chordsFor = 0;
 
     // Dragging.
-    enum class Drag { None, Cursor, Loop, MoveClip, TrimStart, TrimEnd, Point, Tempo, Marker, WarpMarker, Swipe, FadeIn, FadeOut, Section };
+    // ClipBody, LowerHalf and UpperHalf wait to see if the press becomes a drag (decision 0141):
+    // in a clip under its name bar, or the lower half of empty space, a time range; in the upper
+    // half of empty space, a box that chooses the clips it touches.
+    enum class Drag { None, Cursor, Loop, MoveClip, TrimStart, TrimEnd, Point, Tempo, Marker, WarpMarker, Swipe, FadeIn, FadeOut, Section,
+                      ClipBody, LowerHalf, UpperHalf, Box };
     Id dragSection = 0;          // Shift-dragged in the Sections lane (decision 0037)
     Tick sectionTo = 0;          // where it would start, on a bar line
     Drag drag = Drag::None;
@@ -166,6 +173,18 @@ private:
     struct Moving { Id clip; Tick start; Id track; };
     std::vector<Moving> movingTogether() const;
     Id previewTrack = 0;
+    // The box dragged in empty space, and what was chosen before it (kept when Shift or Command adds).
+    juce::Point<int> boxFrom, boxTo;
+    std::set<Id> boxBefore;
+    bool boxAdds = false;
+    void startRange (const juce::MouseEvent&);
+    void boxTo_ (juce::Point<int>);
+public:
+    // Where a clip's name bar ends, down from the top of its row (dragging there moves the clip, 0141).
+    static float nameBarHeight (int rowHeight) { return 2.0f + juce::jmin (16.0f, (float) (rowHeight - 4) * 0.4f); }
+    // The clips a box touches, in the arrangement's coordinates (tests).
+    std::set<Id> clipsInBox (juce::Rectangle<int>) const;
+private:
     int dragPoint = -1;
     Project dragBefore;
     Id dragLane = 0;

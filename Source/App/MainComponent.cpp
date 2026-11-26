@@ -530,6 +530,7 @@ void MainComponent::registerKeys()
     keys.add ("addFolder", "Add Folder", K ('t', cmd | shift, 0), [this] { c.addTrack (TrackKind::Folder); });
     keys.add ("duplicate", "Duplicate", K ('d', cmd, 0), [this] { c.duplicateSelection(); });
     keys.add ("split", "Split at the Cursor", K ('e', cmd, 0), [this] { c.splitAtCursor(); });
+    keys.add ("join", "Join the Chosen Clips", K ('j', cmd, 0), [this] { c.join (c.selectedClips); });   // 0141
     keys.add ("chooseAll", "Choose Every Note", K ('a', cmd, 0), [this] { c.selectAllNotes(); });
     keys.add ("lowerZone", "Show or Hide the Lower Zone", K(), [this] { if (lowerShown) hideLowerZone(); else showLowerZone(); });
     keys.add ("browser", "Show or Hide the Browser", K ('b', cmd, 0), [this] { browserShown = ! browserShown; browser.setVisible (browserShown); resized(); });

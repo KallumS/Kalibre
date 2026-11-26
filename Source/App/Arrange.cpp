@@ -910,6 +910,15 @@ void Arrange::drawClip (Graphics& g, const Track& t, const Clip& clip, Rectangle
     g.setColour (chosen ? theme::accent : col.withMultipliedBrightness (0.9f));
     g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, chosen ? 2.0f : 1.0f);
     auto title = r.removeFromTop (jmin (16.0f, r.getHeight() * 0.4f));
+    // The name bar, a shade deeper: drag it to move the clip (0141).
+    {
+        Graphics::ScopedSaveState keep (g);
+        g.reduceClipRegion (title.toNearestInt());
+        g.setColour (theme::underWords (col, clip.muted ? 0.2f : 0.32f).withAlpha (0.95f));
+        g.fillRoundedRectangle (title.withHeight (title.getHeight() + 6.0f).reduced (1.0f), 3.5f);
+    }
+    g.setColour (col.withAlpha (0.6f));
+    g.fillRect (title.getX() + 1.0f, title.getBottom() - 1.0f, title.getWidth() - 2.0f, 1.0f);
     g.setColour (theme::text);
     g.setFont (theme::font (theme::smallPoints));
     String label (clip.name);
@@ -1246,6 +1255,15 @@ void Arrange::paintOverChildren (Graphics& g)
         g.fillRect (cx, 0.0f, 1.0f, (float) getHeight() - theme::px (12));
     }
     paintTool (g);
+    if (drag == Drag::Box)
+    {
+        // As the piano roll's box (0141).
+        const auto r = Rectangle<int> (boxFrom, boxTo).toFloat().getIntersection (lanes.toFloat());
+        g.setColour (theme::accent.withAlpha (0.15f));
+        g.fillRect (r);
+        g.setColour (theme::accent);
+        g.drawRect (r, 1.0f);
+    }
     if (drag == Drag::Section)
     {
         // The bar it would start on, down every track.
@@ -1316,9 +1334,14 @@ void Arrange::mouseMove (const MouseEvent& e)
     {
         const float edge = (float) theme::px (6);
         const float x0 = xOf (clip->start), x1 = xOf (clip->end());
+        const auto* row = rowAt (e.y);
+        const bool onBar = row && (float) e.y <= (float) (lanes.getY() + row->y - scrollY) + nameBarHeight (row->h);
         if ((float) e.x < x0 + edge || (float) e.x > x1 - edge || e.mods.isShiftDown()) setMouseCursor (MouseCursor::LeftRightResizeCursor);
-        else setMouseCursor (MouseCursor::DraggingHandCursor);
+        else if (onBar || e.mods.isAltDown()) setMouseCursor (MouseCursor::DraggingHandCursor);
+        else setMouseCursor (MouseCursor::IBeamCursor);   // a time range (0141)
     }
+    else if (const auto* row = rowAt (e.y); row && row->isClips())
+        setMouseCursor (e.y < lanes.getY() + row->y - scrollY + row->h / 2 ? MouseCursor::CrosshairCursor : MouseCursor::IBeamCursor);
     else setMouseCursor (MouseCursor::NormalCursor);
 }
 
@@ -1509,24 +1532,90 @@ void Arrange::mouseDown (const MouseEvent& e)
             trimShift = (drag == Drag::TrimStart ? clip->start : clip->end()) - dragOrigin;
             shiftTrim = true;
         }
-        else { drag = Drag::MoveClip; copying = e.mods.isAltDown() && ! e.mods.isShiftDown(); }
+        else if (e.mods.isAltDown() && ! e.mods.isShiftDown()) { drag = Drag::MoveClip; copying = true; }   // Option-drag copies, from anywhere on it
+        // By its name bar, it moves; lower down, a drag marks a time range, as in Ableton (0141).
+        else if ((float) e.y <= (float) (laneArea().getY() + rowAt (e.y)->y - scrollY) + nameBarHeight (rowAt (e.y)->h))
+            drag = Drag::MoveClip;
+        else drag = Drag::ClipBody;
         return;
     }
 
     // Empty lane: choose the track (Shift, Option and Command as on its header), put the cursor here.
+    const bool adds = e.mods.isShiftDown() || e.mods.isAltDown() || e.mods.isCommandDown();
+    boxBefore = c.selectedClips;
+    boxAdds = e.mods.isShiftDown() || e.mods.isCommandDown();
     c.chooseTrack (row->track, e.mods, c.arrangeOrder());
-    if (! (e.mods.isShiftDown() || e.mods.isAltDown() || e.mods.isCommandDown())) c.selectedClips.clear();
+    if (! adds) c.selectedClips.clear();
     if (e.mods.isPopupMenu()) { laneMenu (*row, e.getPosition()); return; }
-    drag = Drag::Cursor;
     c.locate (c.arrangeSnap (tickAt ((float) e.x)));
+    // A drag from here: in the upper half, a box choosing clips; in the lower half, a time range (0141).
+    dragTrack = row->track;
+    drag = e.y < laneArea().getY() + row->y - scrollY + row->h / 2 ? Drag::UpperHalf : Drag::LowerHalf;
+    boxFrom = boxTo = e.getPosition();
+}
+
+// A time range from where the mouse went down, as the Range tool marks one (0141).
+void Arrange::startRange (const MouseEvent& e)
+{
+    const auto* row = rowAt (e.getMouseDownY());
+    if (! row) return;
+    ToolDrag d;
+    d.tool = tools::Tool::Range;
+    d.down = d.at = e.getMouseDownPosition();
+    const Tick at = tickAt ((float) e.getMouseDownX());
+    d.downTick = d.lastTick = e.mods.isCommandDown() ? at : c.arrangeSnap (std::max<Tick> (0, at));
+    d.track = row->track;
+    c.selectedClips.clear();
+    c.range = { { row->track }, d.downTick, d.downTick };
+    toolDrag = d;
+    drag = Drag::None;
+    toolDragTo (e);
+}
+
+std::set<Id> Arrange::clipsInBox (Rectangle<int> box) const
+{
+    std::set<Id> in;
+    const auto lanes = laneArea();
+    for (const auto& row : rows)
+    {
+        if (! row.isClips()) continue;
+        const int top = lanes.getY() + row.y - scrollY + 2, bottom = top + row.h - 4;
+        if (bottom < box.getY() || top > box.getBottom()) continue;
+        const auto* t = c.project.track (row.track);
+        if (! t) continue;
+        for (const auto& clip : t->clips())
+        {
+            const float x0 = xOf (clip.start), x1 = xOf (clip.end());
+            if (x1 >= (float) box.getX() && x0 <= (float) box.getRight()) in.insert (clip.id);
+        }
+    }
+    return in;
+}
+
+// The box follows the pointer: everything it touches is chosen, with what was chosen before when adding.
+void Arrange::boxTo_ (Point<int> to)
+{
+    boxTo = to;
+    auto chosen = boxAdds ? boxBefore : std::set<Id> {};
+    for (auto id : clipsInBox (Rectangle<int> (boxFrom, boxTo))) chosen.insert (id);
+    c.selectedClips = chosen;
+    if (! chosen.empty() && ! chosen.count (c.selectedClip)) c.selectedClip = *chosen.begin();
+    c.viewChanged();
+    repaint();
 }
 
 void Arrange::mouseDrag (const MouseEvent& e)
 {
     if (toolDrag) { toolDragTo (e); return; }
     const Tick at = tickAt ((float) e.x);
+    // A press that waited to see: once the mouse has moved, a time range or a box (0141).
+    const bool moved = e.getDistanceFromDragStart() > 3;
+    if ((drag == Drag::ClipBody || drag == Drag::LowerHalf) && moved) { startRange (e); return; }
+    if (drag == Drag::UpperHalf && moved) drag = Drag::Box;
     switch (drag)
     {
+        case Drag::Box: boxTo_ (e.getPosition()); break;
+        case Drag::ClipBody: case Drag::LowerHalf: case Drag::UpperHalf: break;
         case Drag::Cursor: c.locate (c.arrangeSnap (std::max<Tick> (0, at))); break;
         case Drag::Loop:
         {
@@ -1669,6 +1758,15 @@ std::vector<Arrange::Moving> Arrange::movingTogether() const
 void Arrange::mouseUp (const MouseEvent& e)
 {
     if (toolDrag) { toolUp (e); return; }
+    if (drag == Drag::Box)
+    {
+        drag = Drag::None;
+        const auto n = c.selectedClips.size();
+        if (n > 1) c.say (String ((int) n) + " clips chosen. Right-click one to join them, or for more.");
+        repaint();
+        return;
+    }
+    if (drag == Drag::ClipBody || drag == Drag::LowerHalf || drag == Drag::UpperHalf) { drag = Drag::None; return; }
     if (drag == Drag::Section)
     {
         const Id id = dragSection;
@@ -1856,6 +1954,13 @@ void Arrange::clipMenu (Id id)
     const auto* clip = c.project.clip (id, &owner);
     if (! clip) return;
     PopupMenu m;
+    // Join, first (0141): what Consolidate was, for clips on several tracks too.
+    {
+        PopupMenu::Item join ("Join");
+        join.setEnabled (c.selectedClips.size() > 1).setAction ([this] { c.join (c.selectedClips); });
+        join.shortcutKeyDescription = c.keys.textFor ("join");
+        m.addItem (join);
+    }
     m.addItem ("Split at Cursor", clip->start < c.cursor && clip->end() > c.cursor, false, [this] { c.splitAtCursor(); });
     m.addItem ("Duplicate", [this] { c.duplicateSelection(); });
     // Alias clips (decision 0074): copies that share their notes or audio, marked with a chain.
@@ -1975,7 +2080,6 @@ void Arrange::clipMenu (Id id)
     }
     m.addItem ("Mute", true, clip->muted, [this, id] { c.apply ("Mute Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->muted = ! cl->muted; }); });
     m.addItem ("Lock", true, clip->locked, [this, id] { c.apply ("Lock Clip", [id] (Project& p) { if (auto* cl = p.clip (id)) cl->locked = ! cl->locked; }); });
-    m.addItem ("Consolidate the Chosen Clips", ! c.selectedClips.empty(), false, [this] { c.consolidate (c.selectedClips); });
     if (! clip->isMidi())
     {
         PopupMenu warp, transpose, offline;

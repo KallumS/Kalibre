@@ -158,6 +158,35 @@ Glued glueToNext (Project& p, Id clip)
     return g;
 }
 
+Id glueAll (Project& p, const std::set<Id>& clips)
+{
+    if (clips.size() < 2) return 0;
+    // In time order, on one track.
+    std::vector<const Clip*> order;
+    const Track* track = nullptr;
+    for (auto id : clips)
+    {
+        const Track* owner = nullptr;
+        const auto* c = p.clip (id, &owner);
+        if (! c || (track && owner != track)) return 0;
+        track = owner;
+        order.push_back (c);
+    }
+    std::sort (order.begin(), order.end(), [] (const Clip* a, const Clip* b) { return a->start < b->start; });
+    std::vector<Id> ids;
+    for (auto* c : order) ids.push_back (c->id);
+    Project trial = p;
+    Id at = ids.front();
+    for (size_t i = 1; i < ids.size(); ++i)
+    {
+        const auto g = glueToNext (trial, at);
+        if (g.clip == 0 || g.next != ids[i] || g.needsRender || g.mixed) return 0;
+        at = g.clip;
+    }
+    p = std::move (trial);
+    return at;
+}
+
 Id glueNote (Project& p, Id clip, Id note)
 {
     auto* c = p.clip (clip);

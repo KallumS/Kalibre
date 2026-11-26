@@ -142,3 +142,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0138. Plug-in pictures, and the browser's headings fold](0138-plug-in-pictures-and-folding-headings.md)
 - [0139. Kalibre on Linux](0139-kalibre-on-linux.md)
 - [0140. Take Pictures' crash, and crashes with no report](0140-picture-crash-and-missing-reports.md)
+- [0141. Join, and the arrangement's drags as in Ableton](0141-join-and-the-arrangements-drags.md)

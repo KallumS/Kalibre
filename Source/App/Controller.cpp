@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "Toolbox.h"
 #include "TransientQuestion.h"
 #include "DrumMachine.h"
 #include "NetworkMidi.h"
@@ -1793,6 +1794,95 @@ void Controller::consolidate (const std::set<Id>& chosen)
     selectedClips = { made };
     say ("Consolidated into one clip: a new file, normalised, the clip turned down by "
          + String (-20.0 * std::log10 (peak), 1) + " dB to play as before.", false, true);
+}
+
+void Controller::join (const std::set<Id>& chosen)
+{
+    // Each track's chosen clips, in the arrangement's order.
+    std::map<Id, std::set<Id>> byTrack;
+    StringArray problems;
+    int locked = 0;
+    for (auto cid : chosen)
+    {
+        const Track* owner = nullptr;
+        const auto* cl = project.clip (cid, &owner);
+        if (! cl || ! owner) continue;
+        if (cl->locked || owner->locked) { ++locked; continue; }
+        byTrack[owner->id].insert (cid);
+    }
+    struct Render { Id track; std::set<Id> clips; File out; double peak = 1; Tick from = 0, to = 0; double seconds = 0; std::string name; };
+    std::vector<std::set<Id>> merge;   // MIDI, or one recording's pieces
+    std::vector<Render> renders;       // audio that needs a new file
+    for (auto& [tid, ids] : byTrack)
+    {
+        if (ids.size() < 2) continue;
+        const auto* track = project.track (tid);
+        int midi = 0, audio = 0;
+        Render r;
+        r.track = tid;
+        r.clips = ids;
+        r.from = std::numeric_limits<Tick>::max();
+        for (auto cid : ids)
+        {
+            const auto* cl = project.clip (cid);
+            (cl->isMidi() ? midi : audio)++;
+            if (cl->start < r.from) { r.from = cl->start; r.name = cl->name; }
+            r.to = std::max (r.to, cl->end());
+        }
+        if (midi > 0 && audio > 0) { problems.add ("on " + String (track->name) + ", a MIDI clip and an audio clip can't become one"); continue; }
+        Project trial = project;
+        if (midi > 0 || tools::glueAll (trial, ids) != 0) { merge.push_back (ids); continue; }
+        if (track->frozen) { problems.add (String (track->name) + " is frozen: unfreeze it to join its audio clips"); continue; }
+        if (r.name.empty()) r.name = track->name;
+        r.out = recordingsFolder().getNonexistentChildFile (String (r.name) + " joined", ".wav");
+        String error;
+        if (! engine.renderClips (project, tid, ids, r.from, r.to, projectFolder(), r.out, r.peak, error))
+        {
+            problems.add ("on " + String (track->name) + ", the audio couldn't be written (" + error + ")");
+            continue;
+        }
+        r.seconds = project.tempo.secondsAt (r.to) - project.tempo.secondsAt (r.from);
+        renders.push_back (r);
+    }
+    if (merge.empty() && renders.empty())
+    {
+        say (! problems.isEmpty() ? "Nothing was joined: " + problems.joinIntoString ("; ") + "."
+             : locked > 0 ? String ("Locked clips can't be joined: unlock them first.")
+                          : String ("Choose two or more clips on a track to join them: drag a box over them, or Shift-click each."), true);
+        return;
+    }
+    std::set<Id> made;
+    const double rate = engine.sampleRate();
+    apply ("Join", [&] (Project& p)
+    {
+        for (auto& ids : merge)
+        {
+            const auto* first = p.clip (*ids.begin());
+            const Id id = first && first->isMidi() ? edit::consolidateClips (p, ids) : tools::glueAll (p, ids);
+            if (id != 0) made.insert (id);
+        }
+        for (auto& r : renders)
+        {
+            edit::removeClips (p, r.clips);
+            Clip cl;
+            cl.kind = Clip::Kind::Audio;
+            cl.name = r.name;
+            cl.start = r.from;
+            cl.length = std::max<Tick> (1, r.to - r.from);
+            cl.audio.file = r.out.getFullPathName().toStdString();
+            cl.audio.sourceLength = r.seconds;
+            cl.audio.fileSampleRate = rate;
+            cl.audio.fileChannels = 2;
+            cl.audio.gainDb = 20.0 * std::log10 (r.peak);   // as loud as before
+            made.insert (edit::addClip (p, r.track, cl));
+        }
+    });
+    selectedClips = made;
+    if (! made.empty()) selectedClip = *made.begin();
+    String said = made.size() == 1 ? String ("Joined into one clip") : "Joined into " + String ((int) made.size()) + " clips, one on each track";
+    said << (renders.empty() ? "." : ": the audio as a new file, sounding as before.");
+    if (! problems.isEmpty()) said << " Not joined: " << problems.joinIntoString ("; ") << ".";
+    say (said, ! problems.isEmpty(), true);
 }
 
 void Controller::bounceInPlace (const std::set<Id>& chosen)

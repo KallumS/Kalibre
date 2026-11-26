@@ -99,6 +99,11 @@ Id nextClip (const Project&, Id clip);
 // MIDI clips become one (edit::consolidateClips); two pieces of the same
 // recording that meet are joined back into one. Otherwise nothing changes.
 Glued glueToNext (Project&, Id clip);
+// Join (decision 0141): clips on one track glued into one, each to the next,
+// without a new file. The new clip's id, or 0 when they can't be (a MIDI
+// clip with an audio one, a locked one, another clip between them, audio of
+// different recordings): then `p` is left as it was.
+Id glueAll (Project&, const std::set<Id>& clips);
 // The next note of the same pitch, joined to this one.
 Id glueNote (Project&, Id clip, Id note);
 
