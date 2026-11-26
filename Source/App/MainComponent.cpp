@@ -57,6 +57,12 @@ MainComponent::MainComponent (Controller& ctrl) : c (ctrl), top (ctrl), transpor
         lowerShown = s->getBoolValue ("lowerShown", true);
         browserWidth = s->getIntValue ("browserWidth", defaultBrowserWidth);
         browserShown = s->getBoolValue ("browser", false);
+        {
+            // The Plug-ins tab's headings as they were left, folded or open (0138).
+            const auto shut = s->getValue ("pluginHeadingsShut");
+            browser.setShutHeadings ({ shut.contains ("0"), shut.contains ("1"), shut.contains ("2") });
+            browser.showPictures (s->getBoolValue ("pluginPictures", true));
+        }
         c.zeroCrossings = s->getBoolValue ("zeroCrossings", false);
         c.workClock.setAwayMinutes (s->getIntValue ("awayMinutes", 3));
         c.hiddenInTopBar.addTokens (s->getValue ("hiddenInTopBar"), "|", {});
@@ -101,6 +107,13 @@ MainComponent::~MainComponent()
         s->setValue ("lowerShown", lowerShown);
         s->setValue ("browserWidth", browserWidth);
         s->setValue ("browser", browserShown);
+        {
+            String shut;
+            const auto h = browser.shutHeadings();
+            for (int i = 0; i < 3; ++i) if (h[(size_t) i]) shut << i;
+            s->setValue ("pluginHeadingsShut", shut);
+            s->setValue ("pluginPictures", browser.picturesShown());
+        }
         s->setValue ("zeroCrossings", c.zeroCrossings);
         s->setValue ("awayMinutes", (int) std::lround (c.workClock.awayAfter / 60.0));
         s->setValue ("hiddenInTopBar", c.hiddenInTopBar.joinIntoString ("|"));

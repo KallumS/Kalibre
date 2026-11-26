@@ -15,6 +15,7 @@
 #include "JsfxDevice.h"
 #include "LuaTool/LuaTool.h"
 #include "PluginClip.h"
+#include "PluginPictures.h"
 
 namespace kal
 {
@@ -60,12 +61,42 @@ private:
 };
 
 //==============================================================================
+// The camera button (0138): a picture of the plug-in's window for the browser.
+class CameraButton : public theme::HouseButton
+{
+public:
+    CameraButton() : HouseButton ({}, "Take a picture of the plug-in's window, for the browser: it's shown at its own size for a moment, "
+                                      "and the picture goes under its name in the Plug-ins tab.") {}
+    void paintButton (Graphics& g, bool over, bool down) override
+    {
+        HouseButton::paintButton (g, over, down);
+        // A camera: a body, its top bump and a lens.
+        const auto b = getLocalBounds().toFloat();
+        const float s = jmin (b.getWidth(), b.getHeight()) * 0.56f;
+        const auto body = Rectangle<float> (s, s * 0.68f).withCentre (b.getCentre().translated (0.0f, s * 0.06f));
+        g.setColour (isEnabled() ? theme::ink : theme::edge);
+        Path p;
+        p.addRoundedRectangle (body, s * 0.12f);
+        p.addRectangle (Rectangle<float> (s * 0.34f, s * 0.14f).withCentre ({ body.getCentreX(), body.getY() - s * 0.05f }));
+        g.fillPath (p);
+        g.setColour (theme::control);
+        const float r = s * 0.2f;
+        g.fillEllipse (body.getCentreX() - r, body.getCentreY() - r, r * 2.0f, r * 2.0f);
+        g.setColour (isEnabled() ? theme::ink : theme::edge);
+        g.fillEllipse (body.getCentreX() - r * 0.5f, body.getCentreY() - r * 0.5f, r, r);
+    }
+};
+
+//==============================================================================
 class DevicePanel : public Component, public DragAndDropTarget, private ComponentListener
 {
 public:
     DevicePanel (Controller& ctrl, Id dev, DeviceRack& r) : c (ctrl), id (dev), rack (r)
     {
         for (auto* b : { &power, &bypass, &random, &menu, &ab, &presets, &window, &match }) addAndMakeVisible (b);
+        addChildComponent (camera);
+        camera.setTitle ("Take a Picture");
+        camera.onClick = [this] { rack.photograph (id); };
         ab.onClick = [this]
         {
             if (ModifierKeys::currentModifiers.isPopupMenu()) return;
@@ -150,6 +181,11 @@ public:
         const bool matchShown = match.isVisible();
         match.setVisible (d->role == DeviceRole::AudioFx && d->plugin.identifier != "container");
         if (match.isVisible() != matchShown) resized();
+        // Plug-ins only: Kalibre's own devices aren't in the browser's list (0138).
+        const bool cameraShown = camera.isVisible();
+        camera.setVisible (d->plugin.format != "Kalibre");
+        camera.setEnabled (d->active && c.engine.instance (id) != nullptr);
+        if (camera.isVisible() != cameraShown) resized();
         ab.setButtonText (d->onB ? "Set B" : "Set A");
         ab.setTitle (d->onB ? "Settings B" : "Settings A");
         const bool floating = rack.isFloating (id);
@@ -192,6 +228,7 @@ public:
     {
         int w = theme::px (12) + presets.idealWidth (theme::smallControl) + 3 + ab.idealWidth (theme::smallControl) + 6
               + (match.isVisible() ? match.idealWidth (theme::smallControl) + 3 : 0)
+              + (camera.isVisible() ? theme::px (30) + 3 : 0)
               + theme::px (30) * 3 + 3 * 4 + random.idealWidth (theme::smallControl) + theme::px (26);
         const auto* d = device();
         if (d) w += theme::px (14) + roundToInt (GlyphArrangement::getStringWidth (theme::font (theme::bodyPoints, true), String (d->plugin.name))) + 2;
@@ -343,6 +380,7 @@ public:
         power.setBounds (header.removeFromRight (theme::px (30)));
         header.removeFromRight (3);
         window.setBounds (header.removeFromRight (theme::px (30)));
+        if (camera.isVisible()) { header.removeFromRight (3); camera.setBounds (header.removeFromRight (theme::px (30))); }
         header.removeFromRight (6);
         if (match.isVisible()) { match.setBounds (header.removeFromRight (match.idealWidth (theme::smallControl))); header.removeFromRight (3); }
         ab.setBounds (header.removeFromRight (ab.idealWidth (theme::smallControl)));
@@ -476,6 +514,7 @@ public:
     theme::HouseButton ab { "Set A", "Compare two settings: click to switch between A and B. Copy one to the other in Presets." };
     theme::HouseButton presets { "Presets", "Save the settings as a preset, or load one." };
     theme::HouseButton window { ui::u8 ("\xe2\xa7\x89"), "Move its window out of the rack, into a window of its own.", true };
+    CameraButton camera;
     theme::HouseButton match { "Match", "Match Loudness: keep what comes out as loud as what goes in, by short-term loudness (LUFS-S, K-weighted).", true };
     DeviceRack& rack;
     Component holder;   // the plug-in's window, at (0, 0); before the clip, which shows it
@@ -811,6 +850,35 @@ void DeviceRack::dock (Id device)
     windowFor.erase (device);
     for (auto* p : panels) if (p->id == device) { p->update(); p->repaint(); }
     layoutStrip();
+}
+
+// A picture of a plug-in's window for the browser (0138): shown at its own size in a
+// window of its own for a moment (as the window button does), taken, and put back.
+void DeviceRack::photograph (Id device)
+{
+    auto* inst = c.engine.instance (device);
+    if (! inst || ! c.project.device (device)) return;
+    PluginDescription desc;
+    inst->fillInPluginDescription (desc);
+    const bool wasOut = isFloating (device);
+    if (! wasOut) float_ (device);
+    auto it = windows.find (device);
+    if (it == windows.end()) return;
+    it->second->toFront (false);
+    SafePointer<DeviceRack> safe (this);
+    Timer::callAfterDelay (wasOut ? 300 : pictures::Taker::settleMs, [safe, device, wasOut, desc]
+    {
+        if (! safe) return;
+        auto found = safe->windows.find (device);
+        if (found == safe->windows.end()) return;
+        auto* content = found->second->getContentComponent();
+        const auto img = content != nullptr ? pictures::grab (*content) : Image();
+        const bool ok = img.isValid() && ! pictures::looksBlank (img) && pictures::keep (img, desc);
+        if (! wasOut) safe->dock (device);
+        if (ok) safe->c.say ("Took a picture of " + desc.name + ". It's in the browser's Plug-ins tab, under its name.");
+        else safe->c.say ("Couldn't take a picture of " + desc.name + ": its window showed nothing Kalibre could read.", true);
+        if (safe->onPhotographed) safe->onPhotographed (ok);
+    });
 }
 
 // A window whose plug-in was removed, switched off or replaced closes with it.

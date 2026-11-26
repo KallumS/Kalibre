@@ -22,6 +22,7 @@
 #include "ToolPicker.h"
 #include "Arrange.h"
 #include "ArticulationManagerView.h"
+#include "PluginPictures.h"
 
 using namespace juce;
 using namespace kal;
@@ -122,6 +123,45 @@ int main (int argc, char** argv)
             xml.writeTo (pluginFolder.getChildFile ("Plug-ins.xml"));
         }
         PluginManager plugins (pluginFolder);
+        // Pictures of three of them (0138), made-up windows drawn here: knobs on a panel, keys under an instrument's.
+        pictures::setFolder (pluginFolder.getChildFile ("Plug-in Pictures"));
+        {
+            auto mock = [] (Colour panel, Colour knob, bool keys)
+            {
+                Image img (Image::RGB, 900, 520, true);
+                Graphics g (img);
+                g.setGradientFill (ColourGradient (panel.brighter (0.15f), 0, 0, panel.darker (0.3f), 0, 520, false));
+                g.fillAll();
+                g.setColour (panel.darker (0.5f));
+                g.fillRect (0, 0, 900, 48);
+                for (int i = 0; i < 6; ++i)
+                {
+                    const float cx = 90.0f + (float) i * 144.0f, cy = keys ? 150.0f : 230.0f;
+                    g.setColour (panel.darker (0.6f));
+                    g.fillEllipse (cx - 46, cy - 46, 92, 92);
+                    g.setColour (knob);
+                    g.drawEllipse (cx - 40, cy - 40, 80, 80, 6.0f);
+                    g.drawLine (cx, cy, cx + 30.0f * std::sin ((float) i), cy - 30.0f * std::cos ((float) i), 6.0f);
+                }
+                if (keys)
+                {
+                    g.setColour (Colours::white);
+                    g.fillRect (20, 330, 860, 170);
+                    g.setColour (Colours::black);
+                    for (int k = 0; k < 30; ++k) g.fillRect (20 + k * 29, 330, 1, 170);
+                    for (int k = 0; k < 30; ++k) if (k % 7 != 2 && k % 7 != 6) g.fillRect (20 + k * 29 + 19, 330, 18, 100);
+                }
+                return img;
+            };
+            auto describe = [&] (const String& name)
+            {
+                for (auto& d : plugins.known().getTypes()) if (d.name == name) return d;
+                return PluginDescription();
+            };
+            pictures::keep (mock (Colour (0xff2b3240), Colour (0xffe0a040), true), describe ("Kontakt 8"));
+            pictures::keep (mock (Colour (0xff5a3b2a), Colour (0xfff0d8b0), true), describe ("Pianoteq 9"));
+            pictures::keep (mock (Colour (0xff1f3d4a), Colour (0xff70e0d0), false), describe ("ValhallaFutureVerb"));
+        }
         Engine engine (plugins);
         Controller c (engine);
         c.project = demo::song();
@@ -421,6 +461,12 @@ int main (int argc, char** argv)
         c.viewChanged();
         window.showBrowser (Browser::Tab::Plugins);
         shoot ("31-browser-plugins");
+        // A heading folded away (0138).
+        for (auto* ch : window.getChildren())
+            if (auto* b = dynamic_cast<Browser*> (ch)) b->setShutHeadings ({ false, true, false });
+        shoot ("31-browser-plugins-folded");
+        for (auto* ch : window.getChildren())
+            if (auto* b = dynamic_cast<Browser*> (ch)) b->setShutHeadings ({ false, false, false });
         window.showBrowser (Browser::Tab::Audio);
         shoot ("32-browser-audio");
         shootWindow (window.showKeys(), "33-keys");

@@ -7,13 +7,15 @@
     sort by any column, show only the ones turned off; scan for new ones, scan
     the chosen ones again, turn them off or on, show their files in the Finder.
     Right-click files the chosen ones as MIDI effects, instruments or audio
-    effects (decision 0069).
+    effects (decision 0069). Take Pictures photographs each plug-in's window
+    for the browser (decision 0138).
 */
 
 #pragma once
 
 #include "Controller.h"
 #include "Theme.h"
+#include "PluginPictures.h"
 
 #include <optional>
 
@@ -53,6 +55,13 @@ private:
     theme::HouseButton reveal { ui::words().showInFiles, "Show the chosen plug-in's file." };
     theme::HouseButton report { "Random Settings Report...", "Write every control of every plug-in to a file on your Desktop, each marked as one a plug-in's Random "
                                                              "changes or leaves alone, and why. Each plug-in is opened in a helper, so this takes a few minutes." };
+    // Pictures of the plug-ins' windows, for the browser (0138).
+    theme::HouseButton takePictures { "Take Pictures", "Open each plug-in that has no picture yet in a window of its own, take a picture of it once it has drawn, "
+                                                       "and close it, one after another. The pictures show in the browser under each plug-in's name. "
+                                                       "Right-click chosen plug-ins to take theirs again." };
+    std::unique_ptr<pictures::Taker> taker;
+    juce::String takingNow;   // "3 of 40: Serum" while pictures are taken
+    void startPictures (std::vector<juce::PluginDescription>);
     theme::HouseButton onlyOff { "Only Turned Off", "Show only the plug-ins that are turned off.", true };
     // The list in three parts, or all of it (0131).
     theme::HouseButton allKinds { "All Kinds", "Every plug-in.", true };

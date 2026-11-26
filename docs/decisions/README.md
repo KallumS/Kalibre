@@ -139,3 +139,4 @@ One record per choice that could reasonably have gone the other way. Referred to
 - [0135. The activity log](0135-the-activity-log.md)
 - [0136. Version 1, and a version for every change](0136-version-1.md)
 - [0137. Mac and Windows on one branch](0137-mac-and-windows-on-one-branch.md)
+- [0138. Plug-in pictures, and the browser's headings fold](0138-plug-in-pictures-and-folding-headings.md)

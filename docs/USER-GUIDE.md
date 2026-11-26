@@ -842,6 +842,7 @@ deleted since its scan) is left out, and the message line says so.
 | **Set A / Set B** | Two settings to compare: click to switch. Copy one to the other in Presets. |
 | **Presets** | **Save Preset…**, your saved presets, and **The Plug-in's Own** programs (Kalibre's own: **Factory Presets**, eleven for Kalibre Synth). |
 | **Match** | Match Loudness: keeps what comes out as loud as what goes in (short-term loudness, LUFS-S). The amount is shown beside it. |
+| **📷** (the camera) | A picture of its window for the browser's Plug-ins tab: shown at its own size for a moment, photographed, put back ([Plug-in pictures](#plug-in-pictures)). Plug-ins only, not Kalibre's own devices. |
 | **⧉** | Move its window out of the rack into a window of its own, and back. |
 | **…** | **Move Left**, **Move Right**, **Sidechain From** (another track), **Its Other Outputs as Tracks**, **Automate the Last Touched Control**, **Modulate the Last Touched Control**, **Remove**. |
 
@@ -860,6 +861,8 @@ windows.
 ![A question near the top, under the top bar](guide/question-at-the-top.png)
 
 ![A plug-in shown smaller to fit a short zone](guide/fitted.png)
+
+![A plug-in's buttons: the camera beside the window button](guide/camera-button.png)
 
 ### A plug-in's Random
 
@@ -1338,7 +1341,7 @@ Four tabs, in two rows:
 
 | Tab | What's in it |
 | --- | --- |
-| **Plug-ins** | Every plug-in found, under **MIDI Effects**, **Instruments** and **Audio Effects**. Search; drag one onto a track or into the rack; double-click to add it to the chosen track. Right-click: **Add to a New Track** (one undo step), **Add to the Chosen Track**, **Show in Finder**. **Scan** looks for new ones. |
+| **Plug-ins** | Every plug-in found, under **MIDI Effects**, **Instruments** and **Audio Effects**: click a heading to fold its plug-ins away (▸) and again to open it (▾); Kalibre remembers which are folded. A plug-in with a picture shows it under its name ([below](#plug-in-pictures)); **Pictures** hides them all, names only, and shows them again. Search (what's found always shows, folded or not); drag one onto a track or into the rack; double-click to add it to the chosen track. Right-click: **Add to a New Track** (one undo step), **Add to the Chosen Track**, **Show in Finder**, **Show Picture in Finder**. **Scan** looks for new ones. |
 | **Sounds** | Your samples and MIDI files, to hear and bring into the song ([below](#the-sounds-tab)). |
 | **Audio** | The audio interface, sample rate (as high as the interface goes: 44.1 to 192 kHz) and buffer size, inputs and outputs; **Use Every Core** (on unless you switch it off). |
 | **Presets** | Saved presets for the chosen track's plug-ins: double-click to load one. Right-click: **Load**, **Load on a New Track** (its plug-in on a new track with it loaded, one undo step), **Show in Finder**, **Delete…**. |
@@ -1347,8 +1350,41 @@ The keys and the studio have windows of their own: **Help > Keys…**
 ([Section 20](#20-every-key-command)) and **File > Studio**
 ([Section 18](#18-sync-control-surfaces-and-scripts)).
 
-![The browser's Plug-ins tab](guide/browser-plugins.png)
+![The browser's Plug-ins tab, with pictures](guide/browser-plugins.png)
+![Instruments folded away](guide/browser-plugins-folded.png)
 ![The browser's Audio tab](guide/browser-audio.png)
+
+### Plug-in pictures
+
+Each plug-in can have a picture of its window, shown in the Plug-ins tab
+under its name, so you can see which is which at a glance. Click
+**Pictures** (beside Scan) to hide them all and show names only; click it
+again to bring them back. Kalibre remembers your choice.
+
+Two ways to take them:
+
+- **All at once**: in the Plug-in Manager, click **Take Pictures**. Every
+  plug-in without a picture is opened in turn in a small window of its own,
+  photographed once it has drawn (about a second and a half), and closed,
+  then the next. The message line at the top of the Plug-in Manager counts
+  them off; click **Stop Taking Pictures** to stop. To take some again,
+  choose them in the list, right-click and choose **Take Their Pictures
+  Again**.
+- **One at a time**: click the camera button on a plug-in's panel in the
+  rack. Its window is shown at its own size for a moment, photographed, and
+  put back. Do this after changing how a plug-in looks (a new skin, a bigger
+  size), and the browser shows the new picture at once.
+
+A plug-in's VST3, AU and CLAP share one picture. The pictures are kept in
+Kalibre's library, in **Plug-in Pictures** (Application Support/Kalibre on
+the Mac, AppData\Roaming\Kalibre on Windows, ~/.config/Kalibre on Linux),
+one PNG each, named for the maker and the plug-in. A plug-in without a
+window of its own gets no picture. If a plug-in closes Kalibre while its
+picture is being taken, Take Pictures leaves it out from then on.
+
+On the Mac, the first picture may make macOS ask whether Kalibre may record
+the screen: Kalibre only reads its own windows, and the pictures work for
+most plug-ins either way.
 
 ### The Sounds tab
 
@@ -1471,6 +1507,7 @@ or show it in the Finder.
 | **Turn On** | Back on. One that crashed or hung is scanned again first. |
 | **Show in Finder** | The plug-in's file. |
 | **Only Turned Off** | Just those, each with why: crashed, hung, couldn't open, or turned off by hand. |
+| **Take Pictures** | A picture of every plug-in that has none yet, for the browser: each opened in a window of its own for a moment, photographed and closed ([Plug-in pictures](#plug-in-pictures)). Right-click chosen ones > **Take Their Pictures Again**. |
 | **Random Settings Report…** | Every control of every plug-in, each marked **random** (a plug-in's Random may change it) or **kept**, and why, in a file on your Desktop (Kalibre Random Settings Report.txt). Each plug-in is opened in a helper, so it takes a few minutes; the message line shows how far it's got. |
 | Right-click > **File As** | MIDI Effect, Instrument or Audio Effect, by hand. |
 

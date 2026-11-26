@@ -55,8 +55,19 @@ struct FakeInstance : public AudioPluginInstance
     double getTailLengthSeconds() const override { return 0; }
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return true; }
-    AudioProcessorEditor* createEditor() override { return nullptr; }
-    bool hasEditor() const override { return false; }
+    // "Painter" has a window of its own (its picture is taken, 0138): blue, a light square in it.
+    struct PainterEditor : public AudioProcessorEditor
+    {
+        explicit PainterEditor (AudioProcessor& p) : AudioProcessorEditor (p) { setSize (320, 200); }
+        void paint (Graphics& g) override
+        {
+            g.fillAll (Colour (0xff2a7fd4));
+            g.setColour (Colour (0xfff0e0a0));
+            g.fillRect (getLocalBounds().reduced (100, 60));
+        }
+    };
+    AudioProcessorEditor* createEditor() override { return desc.name == "Painter" ? new PainterEditor (*this) : nullptr; }
+    bool hasEditor() const override { return desc.name == "Painter"; }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram (int) override {}
@@ -99,7 +110,7 @@ struct FakeFormat : public AudioPluginFormat
     {
         if (d.name == "Riffer") { cb (std::make_unique<FakeInstance> (d, 2), {}); return; }
         if (d.name == "Arp") { cb (std::make_unique<FakeInstance> (d, 0), {}); return; }
-        if (d.name == "Knobs") { cb (std::make_unique<FakeInstance> (d, 2), {}); return; }
+        if (d.name == "Knobs" || d.name == "Painter") { cb (std::make_unique<FakeInstance> (d, 2), {}); return; }
         cb (nullptr, "Fake plug-ins don't make sound.");
     }
 };

@@ -11,7 +11,8 @@
     it. A panel is kept while its plug-in stays, so adding another doesn't
     make its window again (some went blank).
 
-    The window button moves a plug-in's window out into a window of its own,
+    The camera button takes a picture of a plug-in's window for the browser
+    (decision 0138). The window button moves a plug-in's window out into a window of its own,
     and back (decision 0056). Match Loudness keeps an effect's output as loud
     as its input (decision 0056).
 
@@ -74,6 +75,9 @@ public:
     void float_ (Id device);
     void dock (Id device);
     void relayout() { layoutStrip(); }
+    // The camera button (0138): a picture of the plug-in's window, for the browser.
+    void photograph (Id device);
+    std::function<void (bool)> onPhotographed;   // tests
 
     // How wide the rack's view is, and the part of it a panel can be seen in
     // (in the panel's own coordinates).
