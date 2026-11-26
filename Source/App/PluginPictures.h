@@ -75,12 +75,17 @@ public:
     using Progress = std::function<void (int done, int total, const juce::String& name)>;
     void start (std::vector<juce::PluginDescription>, Progress, std::function<void (const Summary&)> finished);
     void stop();
-    bool busy() const { return ! queue.empty() || current != nullptr; }
+    bool busy() const { return stage != Stage::Idle; }
 
     // How long a plug-in is given to draw before its picture is taken.
     static inline int settleMs = 1500;
     // The plug-ins that closed Kalibre while being photographed: left out next time.
     static juce::StringArray skipped();
+    // The one being photographed when Kalibre last closed, by name; empty when none.
+    // Read once, as Kalibre starts (the message line says so).
+    static juce::String closedKalibre();
+    // How long a plug-in is kept after its window has closed, before it's let go of.
+    static inline int letGoAfterMs = 2000;
 
 private:
     PluginManager& plugins;
@@ -92,11 +97,19 @@ private:
     std::function<void (const Summary&)> onFinished;
     struct Current;
     std::unique_ptr<Current> current;
-    enum class Stage { Next, Shoot, Close } stage = Stage::Next;
+    // Plug-ins whose window has closed, let go of a while later (0138): on the Mac the
+    // window's last pieces are released after the message that closed it, and a
+    // plug-in deleted with its window crashed Kalibre there.
+    struct Leaving { std::unique_ptr<juce::AudioPluginInstance> instance; juce::uint32 at; };
+    std::vector<Leaving> leaving;
+    void letGo (std::unique_ptr<juce::AudioPluginInstance>);
+    void letGoOfOld (bool all);
+    enum class Stage { Next, Shoot, Close, Idle } stage = Stage::Idle;
 
     void timerCallback() override;
     void next();
     void shoot();
+    void close();
     void finish (bool stopped);
 };
 

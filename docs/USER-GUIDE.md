@@ -2131,6 +2131,12 @@ The piano roll, drums, steps, Euclidean and notation have their own tables in
   click **Scan Again**.
 - **Kalibre crashed.** A crash report is written, naming the plug-in that was
   playing; you're told on the next start. **Help > Show Crash Reports**.
+  Some plug-ins (often copy-protected ones) put their own crash handling in
+  Kalibre's place, so Kalibre can't write its report; then, on the next
+  start, Kalibre brings in the Mac's own report of the crash instead, into
+  the same folder. If Kalibre was taking a plug-in's picture when it
+  happened, the message says which, and **Take Pictures** leaves that one
+  out from then on.
   **File > Open a Backup** or **Open the Last Autosave** brings your work
   back.
 - **Files are missing.** File > **Relink Missing Files…** and choose the

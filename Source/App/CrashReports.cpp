@@ -148,4 +148,91 @@ String summary (const File& report)
     return what;
 }
 
+//==============================================================================
+namespace
+{
+File runningFile (const File& folder) { return folder.getChildFile ("Running.txt"); }
+
+// macOS's names for what went wrong, in Kalibre's words.
+String inWords (const String& signal, const String& type)
+{
+    if (signal == "SIGSEGV" || signal == "SIGBUS" || type == "EXC_BAD_ACCESS") return "a bad memory access";
+    if (signal == "SIGABRT") return "an abort: something found it couldn't go on";
+    if (signal == "SIGILL" || type == "EXC_BAD_INSTRUCTION") return "an illegal instruction";
+    if (signal == "SIGFPE" || type == "EXC_ARITHMETIC") return "a bad arithmetic operation";
+    if (signal == "SIGTRAP" || type == "EXC_BREAKPOINT") return "a trap";
+    if (signal == "SIGKILL") return "being stopped by macOS";
+    return signal.isNotEmpty() ? signal : type.isNotEmpty() ? type : String ("an unknown cause");
+}
+} // namespace
+
+std::optional<Time> markRunning (const File& folder)
+{
+    folder.createDirectory();
+    const auto f = runningFile (folder);
+    std::optional<Time> unexpected;
+    if (f.existsAsFile())
+        unexpected = Time (f.loadFileAsString().trim().getLargeIntValue());
+    f.replaceWithText (String (Time::currentTimeMillis()));
+    return unexpected;
+}
+
+void markQuit (const File& folder) { runningFile (folder).deleteFile(); }
+
+File systemReports()
+{
+   #if JUCE_MAC
+    return File::getSpecialLocation (File::userHomeDirectory).getChildFile ("Library/Logs/DiagnosticReports");
+   #else
+    return {};
+   #endif
+}
+
+File bringInSystemReport (const File& folder, const File& systemFolder, Time since, const String& version)
+{
+    if (systemFolder == File() || ! systemFolder.isDirectory()) return {};
+    // The newest of Kalibre's since then: "Kalibre-2026-11-26-111219.ips".
+    File newest;
+    for (auto& f : systemFolder.findChildFiles (File::findFiles, false, "Kalibre*.ips"))
+        if (f.getLastModificationTime() > since && (newest == File() || f.getLastModificationTime() > newest.getLastModificationTime()))
+            newest = f;
+    if (newest == File()) return {};
+
+    // An .ips is a line of JSON about the report, then the report as JSON.
+    const auto text = newest.loadFileAsString();
+    const auto header = JSON::parse (text.upToFirstOccurrenceOf ("\n", false, false));
+    const auto body = JSON::parse (text.fromFirstOccurrenceOf ("\n", false, false));
+    const auto ran = header.getProperty ("app_version", version).toString();
+    String what = "an unknown cause", where;
+    if (auto* o = body.getDynamicObject())
+    {
+        const auto exception = o->getProperty ("exception");
+        what = inWords (exception.getProperty ("signal", {}).toString(), exception.getProperty ("type", {}).toString());
+        // The crashed thread's first calls, each with the program or plug-in it's in.
+        const auto images = o->getProperty ("usedImages");
+        const int faulting = (int) o->getProperty ("faultingThread");
+        const auto threads = o->getProperty ("threads");
+        if (threads.isArray() && faulting >= 0 && faulting < threads.size())
+        {
+            const auto frames = threads[faulting].getProperty ("frames", {});
+            for (int i = 0; frames.isArray() && i < jmin (12, frames.size()); ++i)
+            {
+                const auto frame = frames[i];
+                const int image = (int) frame.getProperty ("imageIndex", -1);
+                const auto in = images.isArray() && image >= 0 && image < images.size() ? images[image].getProperty ("name", {}).toString() : String();
+                where << "  " << i << "  " << frame.getProperty ("symbol", "?").toString() << (in.isNotEmpty() ? "  (" + in + ")" : String()) << "\n";
+            }
+        }
+    }
+    folder.createDirectory();
+    const auto copy = folder.getChildFile (newest.getFileName());
+    newest.copyFileTo (copy);
+    const auto report = folder.getChildFile ("Kalibre Crash " + String (newest.getLastModificationTime().toMilliseconds() / 1000) + ".txt");
+    report.replaceWithText ("Kalibre " + ran + " quit unexpectedly: " + what + ".\n"
+                            "Kalibre's own report wasn't written (a plug-in may have put its own crash handler in Kalibre's place); "
+                            "this is macOS's, " + newest.getFileName() + ", beside this file.\n\n"
+                            "Where, the newest call first:\n" + where);
+    return report;
+}
+
 } // namespace kal::crash

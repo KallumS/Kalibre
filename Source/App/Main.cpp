@@ -4,6 +4,7 @@
 #include "MainComponent.h"
 #include "MainWindow.h"
 #include "PluginClip.h"
+#include "PluginPictures.h"
 #include "McpServer.h"
 #include <iostream>
 
@@ -27,6 +28,11 @@ public:
     {
         // A crash leaves a report of where (decision 0073); the last start's is told of below.
         const auto reports = crash::folder();
+        // The last run ended without quitting, and wrote no report: a plug-in had put its own
+        // crash handler in Kalibre's place. macOS's report is brought in instead (0140).
+        const auto lastStart = crash::markRunning (reports);
+        if (lastStart && crash::since (reports, *lastStart).isEmpty())
+            crash::bringInSystemReport (reports, crash::systemReports(), *lastStart, getApplicationVersion());
         const auto seenMarker = reports.getChildFile ("Shown.txt");
         const auto unread = crash::since (reports, seenMarker.existsAsFile() ? seenMarker.getLastModificationTime() : Time());
         crash::install (reports, getApplicationVersion());
@@ -61,18 +67,26 @@ public:
                 controller->say ("A plug-in closed Kalibre while it was being scanned. It's turned off now, and scans look at each plug-in "
                                  "in a helper, so a crash can't close Kalibre again. " + String (platform::inSettings ("Plug-in Manager")) + " shows it.");
         }
+        // Taking a plug-in's picture when it happened (0138): that plug-in is left out from now on.
+        const auto photographing = pictures::Taker::closedKalibre();
+        const auto during = photographing.isEmpty() ? String()
+                          : " It was taking the picture of " + photographing + ", which Take Pictures leaves out from now on.";
         if (! unread.isEmpty())
         {
-            controller->say ("Kalibre quit unexpectedly last time (" + crash::summary (unread.getFirst()) + "). Help > Show Crash Reports has the report; "
+            controller->say ("Kalibre quit unexpectedly last time (" + crash::summary (unread.getFirst()) + ")." + during + " Help > Show Crash Reports has the report; "
                              "File > Open a Backup has your song from up to 15 minutes before.", true);
             seenMarker.replaceWithText (unread.getFirst().getFileName());
         }
+        else if (lastStart)
+            controller->say ("Kalibre quit unexpectedly last time, and no report of it was found." + during
+                             + " File > Open a Backup has your song from up to 15 minutes before.", true);
         const auto file = File::getCurrentWorkingDirectory().getChildFile (commandLine.unquoted());
         if (commandLine.isNotEmpty() && file.hasFileExtension ("kalibre")) controller->open (file);
     }
 
     void shutdown() override
     {
+        crash::markQuit (crash::folder());   // quit as asked: not a crash (0140)
         // Leaving can't wait on a plug-in or a driver that won't let go: the
         // project was saved or let go before this, so after five seconds the
         // process ends whatever is still unwinding. A Kalibre still running
